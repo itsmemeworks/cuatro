@@ -22,8 +22,7 @@ export function MarkAllReadButton() {
       type="button"
       onClick={handleClick}
       disabled={pending}
-      className="text-sm font-medium"
-      style={{ color: "var(--c4-accent)", opacity: pending ? 0.6 : 1 }}
+      className="text-cu-secondary font-semibold text-ink-muted underline underline-offset-2 disabled:opacity-50 transition-cu-state"
     >
       Mark all read
     </button>

@@ -4,19 +4,19 @@ import { getCirclesStore, type CircleSummary } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForUser, isFourthCallActive, type SessionSummary } from "@/server/games-service";
 import { getMatchesStore, type PendingConfirmationView } from "@/server/matches-db";
+import { getTabView } from "@/server/tab";
+import { formatMoney } from "@/components/tab/money";
 import { SessionCard, type SessionCardData } from "@/components/games/SessionCard";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
-
-const cardStyle = { background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" } as const;
+import { Card, Avatar, Meta, Fact } from "@/components/ui";
+import { NeedsAnswerCard, type NeedsAnswerSession } from "./needs-answer-card";
 
 function SectionHeader({ title, seeAllHref }: { title: string; seeAllHref?: string }) {
   return (
     <div className="flex items-center justify-between">
-      <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--c4-text-muted)" }}>
-        {title}
-      </h2>
+      <h2 className="text-cu-secondary uppercase tracking-wide text-ink-muted">{title}</h2>
       {seeAllHref && (
-        <Link href={seeAllHref} className="text-sm font-medium" style={{ color: "var(--c4-accent)" }}>
+        <Link href={seeAllHref} className="text-cu-secondary font-bold text-action">
           See all →
         </Link>
       )}
@@ -26,40 +26,101 @@ function SectionHeader({ title, seeAllHref }: { title: string; seeAllHref?: stri
 
 function EmptyCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-2xl p-5 flex flex-col gap-1" style={cardStyle}>
-      <p className="font-medium">{title}</p>
-      <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-        {body}
-      </p>
-    </div>
+    <Card className="flex flex-col gap-1">
+      <p className="text-cu-card-title">{title}</p>
+      <p className="text-cu-body text-ink-muted">{body}</p>
+    </Card>
   );
 }
 
-/** One row in the "needs your attention" feed — same pill treatment for every kind of action item. */
-function ActionItem({
-  href,
-  emoji,
-  title,
-  subtitle,
-}: {
-  href: string;
-  emoji: string;
-  title: string;
-  subtitle: string;
-}) {
+/** A tap-through row for something that needs attention but isn't THE feature card — see the "one coral action per screen" note on the page component below. */
+function AttentionRow({ href, emoji, title, subtitle }: { href: string; emoji: string; title: string; subtitle: string }) {
   return (
-    <Link href={href} className="rounded-2xl p-4 flex items-center gap-3" style={cardStyle}>
-      <span className="text-xl shrink-0" aria-hidden>
-        {emoji}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{title}</p>
-        <p className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
-          {subtitle}
-        </p>
-      </div>
-      <span style={{ color: "var(--c4-text-muted)" }}>›</span>
+    <Link href={href} className="block">
+      <Card className="flex items-center gap-3">
+        <span className="text-xl shrink-0" aria-hidden>
+          {emoji}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-cu-card-title text-[15px] truncate">{title}</p>
+          <Meta as="p">{subtitle}</Meta>
+        </div>
+        <span className="text-ink-muted" aria-hidden>
+          ›
+        </span>
+      </Card>
     </Link>
+  );
+}
+
+function ConfirmedGameRow({ session }: { session: SessionCardData }) {
+  const dayLabel = session.startsAt.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase();
+  const timeLabel = session.startsAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const full = session.confirmed.length >= session.slots;
+  return (
+    <Link href={`/games/${session.sessionId}`} className="block">
+      <Card className="flex items-center gap-3">
+        <div className="w-11 text-center shrink-0">
+          <p className="text-cu-card-title text-[15px] leading-none">{dayLabel}</p>
+          <Fact size="meta" tone="muted" className="mt-1 block">
+            {timeLabel}
+          </Fact>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-cu-card-title text-[13px] truncate">
+            {session.circleName}
+            {session.venueName ? ` · ${session.venueName}` : ""}
+          </p>
+          <p className="text-cu-secondary text-ink-muted mt-0.5">
+            {session.confirmed.length} of {session.slots}
+            {full ? " · full" : ""}
+          </p>
+        </div>
+        {session.viewerStatus === "in" && (
+          <span className="rounded-chip px-2.5 py-1.5 text-[10.5px] font-bold bg-win-tint text-win whitespace-nowrap">You&apos;re in ✓</span>
+        )}
+      </Card>
+    </Link>
+  );
+}
+
+function CircleRow({ circle }: { circle: CircleSummary }) {
+  return (
+    <Link href={`/circles/${circle.id}`} className="block">
+      <Card className="flex items-center gap-3">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0 text-white"
+          style={{ background: circle.colour ?? "var(--color-ink-hairline-3)" }}
+          aria-hidden
+        >
+          {circle.emblem ?? "⭘"}
+        </div>
+        <p className="flex-1 min-w-0 text-cu-card-title text-[14px] truncate">{circle.name}</p>
+        <Meta>
+          {circle.memberCount} member{circle.memberCount === 1 ? "" : "s"}
+        </Meta>
+      </Card>
+    </Link>
+  );
+}
+
+/** One row per circle where the viewer owes money — "the Tab never charges fees, it just keeps score" (design/HANDOFF.md screen 10). Aggregated here (getTabView is per-circle) since Home is the one place that summarises across every Circle the viewer is in. */
+function TabRow({ circleId, circleName, name, amountMinor, currency }: { circleId: string; circleName: string; name: string; amountMinor: number; currency: string }) {
+  return (
+    <Card className="flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-cu-card-title text-[13px] truncate">
+          The Tab · you owe {name} <Fact as="span" size="sm" tone="loss">{formatMoney(amountMinor, currency)}</Fact>
+        </p>
+        <p className="text-cu-secondary text-ink-muted mt-0.5">{circleName}</p>
+      </div>
+      <Link
+        href={`/circles/${circleId}/tab`}
+        className="rounded-chip px-3.5 py-2 text-[11.5px] font-bold bg-strong-bg text-strong-fg whitespace-nowrap"
+      >
+        Settle
+      </Link>
+    </Card>
   );
 }
 
@@ -79,22 +140,8 @@ function toSessionCardData(s: SessionSummary): SessionCardData {
   };
 }
 
-function CircleRow({ circle }: { circle: CircleSummary }) {
-  return (
-    <Link href={`/circles/${circle.id}`} className="rounded-xl p-3 flex items-center gap-3" style={cardStyle}>
-      <div
-        className="w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0"
-        style={{ background: circle.colour ?? "var(--c4-bg-elevated-2)" }}
-        aria-hidden
-      >
-        {circle.emblem ?? "⭘"}
-      </div>
-      <p className="flex-1 min-w-0 font-medium truncate text-sm">{circle.name}</p>
-      <span className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
-        {circle.memberCount} member{circle.memberCount === 1 ? "" : "s"}
-      </span>
-    </Link>
-  );
+function needsRsvp(s: SessionSummary, now: number): boolean {
+  return s.viewerStatus === null && now >= s.rsvpWindowOpensAt.getTime() && now < s.session.startsAt.getTime();
 }
 
 export default async function HomePage() {
@@ -102,6 +149,7 @@ export default async function HomePage() {
   if (!user) return null; // the (app) layout already redirects unauthenticated users to /login
 
   const name = user.displayName || user.email.split("@")[0] || "there";
+  const now = Date.now();
 
   const [circlesStore, gamesClient, matchesStore] = await Promise.all([
     getCirclesStore(),
@@ -116,65 +164,120 @@ export default async function HomePage() {
   ]);
 
   const sessionSummaries = listUpcomingSessionsForUser(gamesClient.db, user.id);
-  const sessionCards = sessionSummaries.map(toSessionCardData);
   const activeFourthCalls = sessionSummaries.filter((s) => isFourthCallActive(s));
+
+  // THE ONE coral action on this screen (components/ui/button.tsx's rule)
+  // goes to the most pressing "answer this" moment: an open RSVP nobody's
+  // responded to yet. Everything else below — pending result confirmations,
+  // an incoming Fourth Call, the placement nudge — is a tap-through row with
+  // no filled coral button of its own, same as the pre-redesign page.
+  const featured = sessionSummaries.find((s) => needsRsvp(s, now)) ?? null;
+  const restSessionCards = sessionSummaries.filter((s) => s.session.id !== featured?.session.id).map(toSessionCardData);
+
+  const featuredCard: NeedsAnswerSession | null = featured
+    ? {
+        sessionId: featured.session.id,
+        circleName: featured.circleName,
+        venueName: featured.venue?.name ?? null,
+        startsAt: featured.session.startsAt,
+        confirmed: featured.confirmed,
+      }
+    : null;
 
   const hasNoCircles = circles.length === 0;
   const showPlacementNudge = glass !== null && glass.status === "unrated";
 
-  const hasActionItems = pendingConfirmations.length > 0 || activeFourthCalls.length > 0 || showPlacementNudge;
+  const attentionItems: { key: string; href: string; emoji: string; title: string; subtitle: string }[] = [
+    ...pendingConfirmations.map((m: PendingConfirmationView) => ({
+      key: `confirm-${m.matchId}`,
+      href: `/matches/${m.matchId}`,
+      emoji: "✅",
+      title: `Confirm your result vs ${m.opponentNames}`,
+      subtitle: "Both teams need to confirm before Glass moves.",
+    })),
+    ...activeFourthCalls
+      .filter((s) => s.session.id !== featured?.session.id)
+      .map((s) => ({
+        key: `fc-${s.session.id}`,
+        href: `/games/${s.session.id}`,
+        emoji: "🔔",
+        title: `${s.circleName} needs a fourth`,
+        subtitle: `${s.confirmed.length}/${s.slots} confirmed — kicks off soon.`,
+      })),
+    ...(showPlacementNudge
+      ? [
+          {
+            key: "placement",
+            href: "/profile",
+            emoji: "🧊",
+            title: "Your Glass number is still hidden",
+            subtitle:
+              glass!.matchesUntilPlacement === 0
+                ? "Placement Trio complete — your number appears once your latest match verifies."
+                : `${glass!.matchesUntilPlacement} of 3 placement matches to go — log a result to keep going.`,
+          },
+        ]
+      : []),
+  ];
+
+  // Tab settle preview: aggregated across every Circle the viewer is in
+  // (getTabView is scoped per-circle — see server/tab.ts) since Home is the
+  // one surface summarising the whole week, not just one Circle's Tab.
+  const owedRows: { circleId: string; circleName: string; name: string; amountMinor: number; currency: string }[] = [];
+  for (const circle of circles) {
+    const view = getTabView(gamesClient.db, circle.id, user.id);
+    if (!view) continue;
+    for (const balance of view.balances) {
+      if (balance.netMinor >= 0) continue; // only "you owe" rows get a Settle prompt on Home
+      const counterparty = view.members.find((m) => m.userId === balance.counterpartyUserId);
+      owedRows.push({
+        circleId: circle.id,
+        circleName: circle.name,
+        name: counterparty?.displayName ?? "someone",
+        amountMinor: -balance.netMinor,
+        currency: balance.currency,
+      });
+    }
+  }
+  owedRows.sort((a, b) => b.amountMinor - a.amountMinor);
+
+  const gamesThisWeek = sessionSummaries.length;
+  const needAnswerCount = sessionSummaries.filter((s) => needsRsvp(s, now)).length;
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
       <LiveRefresh userId={user.id} />
-      <div>
-        <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-          Welcome back
-        </p>
-        <h1 className="text-2xl font-semibold">{name}</h1>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-cu-title">Your week</h1>
+          <Meta as="p" className="mt-1">
+            {gamesThisWeek} game{gamesThisWeek === 1 ? "" : "s"}
+            {needAnswerCount > 0 ? ` · ${needAnswerCount} need${needAnswerCount === 1 ? "s" : ""} an answer` : ""}
+          </Meta>
+        </div>
+        <Link href="/profile">
+          {/* SessionUser has no avatarUrl field yet — falls back to Avatar's initials treatment. */}
+          <Avatar src={null} name={name} size="md" ring="ground" />
+        </Link>
       </div>
 
-      {hasActionItems && (
+      {featuredCard && <NeedsAnswerCard session={featuredCard} />}
+
+      {attentionItems.length > 0 && (
         <section className="flex flex-col gap-3">
           <SectionHeader title="Needs your attention" />
           <div className="flex flex-col gap-2">
-            {pendingConfirmations.map((m: PendingConfirmationView) => (
-              <ActionItem
-                key={m.matchId}
-                href={`/matches/${m.matchId}`}
-                emoji="✅"
-                title={`Confirm your result vs ${m.opponentNames}`}
-                subtitle="Both teams need to confirm before Glass moves."
-              />
+            {attentionItems.map((item) => (
+              <AttentionRow key={item.key} href={item.href} emoji={item.emoji} title={item.title} subtitle={item.subtitle} />
             ))}
-            {activeFourthCalls.map((s) => (
-              <ActionItem
-                key={s.session.id}
-                href={`/games/${s.session.id}`}
-                emoji="🔔"
-                title={`${s.circleName} needs a fourth`}
-                subtitle={`${s.confirmed.length}/${s.slots} confirmed — kicks off soon.`}
-              />
-            ))}
-            {showPlacementNudge && (
-              <ActionItem
-                href="/profile"
-                emoji="🧊"
-                title="Your Glass number is still hidden"
-                subtitle={
-                  glass!.matchesUntilPlacement === 0
-                    ? "Placement Trio complete — your number appears once your latest match verifies."
-                    : `${glass!.matchesUntilPlacement} of 3 placement matches to go — log a result to keep going.`
-                }
-              />
-            )}
           </div>
         </section>
       )}
 
       <section className="flex flex-col gap-3">
-        <SectionHeader title="Your games this week" seeAllHref={sessionCards.length > 0 ? "/games" : undefined} />
-        {sessionCards.length === 0 ? (
+        <SectionHeader title="Your games this week" seeAllHref={sessionSummaries.length > 0 ? "/games" : undefined} />
+        {restSessionCards.length === 0 && !featuredCard ? (
           <EmptyCard
             title="No games yet"
             body={
@@ -184,37 +287,47 @@ export default async function HomePage() {
             }
           />
         ) : (
-          <div className="flex flex-col gap-4">
-            {sessionCards.slice(0, 3).map((c) => (
-              <SessionCard key={c.sessionId} data={c} viewerUserId={user.id} />
-            ))}
+          <div className="flex flex-col gap-3">
+            {restSessionCards.slice(0, 3).map((c) =>
+              c.viewerStatus === "in" ? (
+                <ConfirmedGameRow key={c.sessionId} session={c} />
+              ) : (
+                <SessionCard key={c.sessionId} data={c} viewerUserId={user.id} />
+              ),
+            )}
           </div>
         )}
       </section>
 
+      {owedRows.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <SectionHeader title="The Tab" />
+          <div className="flex flex-col gap-2">
+            {owedRows.slice(0, 2).map((row) => (
+              <TabRow key={`${row.circleId}-${row.name}-${row.currency}`} {...row} />
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="flex flex-col gap-3">
         <SectionHeader title="Your Circles" seeAllHref={circles.length > 3 ? "/circles" : undefined} />
         {hasNoCircles ? (
-          <div className="rounded-2xl p-5 flex flex-col gap-3" style={cardStyle}>
+          <Card className="flex flex-col gap-3">
             <div>
-              <p className="font-medium">You&apos;re not in a Circle yet</p>
-              <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-                Join one with a link or QR code from a friend, or create your own to bring your padel group over
-                from WhatsApp.
+              <p className="text-cu-card-title">You&apos;re not in a Circle yet</p>
+              <p className="text-cu-body text-ink-muted mt-1">
+                Join one with a link or QR code from a friend, or create your own to bring your padel group over from
+                WhatsApp.
               </p>
             </div>
             <Link
               href="/circles/new"
-              className="rounded-xl py-3 text-center text-sm font-semibold"
-              style={{
-                minHeight: "var(--c4-touch-target)",
-                background: "var(--c4-accent)",
-                color: "var(--c4-accent-contrast)",
-              }}
+              className="rounded-button min-h-11 flex items-center justify-center text-[14px] font-extrabold bg-action text-action-contrast"
             >
               + Create a Circle
             </Link>
-          </div>
+          </Card>
         ) : (
           <div className="flex flex-col gap-2">
             {circles.slice(0, 3).map((c) => (

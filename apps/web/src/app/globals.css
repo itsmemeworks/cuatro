@@ -403,6 +403,61 @@ input {
   animation: cu-toast-in var(--motion-toast-transition-duration) ease both;
 }
 
+/* ============ ambient court loop (onboarding/home hero) ============ */
+/* CSS stand-in for real muted 9:16 court footage (design/HANDOFF.md's
+   "Assets" section) — a perspective court plane with a floodlight flicker
+   and a slow light sweep. See components/entry/ambient-court-loop.tsx,
+   which also pauses these via IntersectionObserver/visibilitychange on top
+   of the reduced-motion handling below. */
+@keyframes cu-court-kb {
+  0% {
+    transform: perspective(420px) rotateX(56deg) scale(1);
+  }
+  100% {
+    transform: perspective(420px) rotateX(56deg) scale(1.07);
+  }
+}
+
+.animate-cu-court-kb {
+  animation: cu-court-kb 9s ease-in-out infinite alternate;
+}
+
+@keyframes cu-court-sweep {
+  0% {
+    transform: translateX(-130%) rotate(18deg);
+  }
+  100% {
+    transform: translateX(430%) rotate(18deg);
+  }
+}
+
+.animate-cu-court-sweep {
+  animation: cu-court-sweep 7s ease-in-out infinite;
+}
+
+@keyframes cu-court-flick {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  42% {
+    opacity: 1;
+  }
+  44% {
+    opacity: 0.7;
+  }
+  46% {
+    opacity: 0.95;
+  }
+  80% {
+    opacity: 0.9;
+  }
+}
+
+.animate-cu-court-flick {
+  animation: cu-court-flick 6s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-cu-arrive,
   .animate-cu-seal,
@@ -412,6 +467,11 @@ input {
     transform: none !important;
   }
   .animate-cu-pulse {
+    animation: none !important;
+  }
+  .animate-cu-court-kb,
+  .animate-cu-court-sweep,
+  .animate-cu-court-flick {
     animation: none !important;
   }
   .transition-cu-state {
