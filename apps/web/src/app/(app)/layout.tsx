@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initialUnreadCount = getUnreadCount(db, user.id);
 
   return (
-    <div className="min-h-dvh flex flex-col">
+    <div className="min-h-dvh flex flex-col bg-ground text-ink pt-safe">
       <div className="flex-1" style={{ paddingBottom: "var(--c4-nav-height)" }}>
         {children}
       </div>

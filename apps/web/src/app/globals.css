@@ -1,53 +1,255 @@
 @import "tailwindcss";
 
 /*
- * Provisional design tokens — a placeholder skin, not the brand system.
- * The real visual identity (from DESIGN-BRIEF.md) lands as a design-agent
- * pass later; swap the values below and everything downstream follows.
- * Dark-first: evening indoor padel is the peak use context (see DESIGN.md §6).
+ * CUATRO design tokens — the brand system, in force. Values are taken
+ * verbatim from design/HANDOFF.md and design/CUATRO-Directions.dc.html
+ * (turn 9: identity + tokens). Dark is the primary/default theme (evening
+ * indoor padel is the peak use context); it lives in :root. Light values
+ * live in a `prefers-color-scheme: light` block so the OS choice is
+ * respected automatically. `[data-theme]` on the root element is an escape
+ * hatch for an in-app theme toggle (not built yet) — set it via JS and it
+ * wins over the media query because of matching selector specificity plus
+ * source order.
+ *
+ * `--c4-*` variables below this are a compatibility alias layer: existing
+ * screens (home/circles/games/matches/profile/tab/notifications) already
+ * read `var(--c4-accent)` etc. throughout. Pointing those names at the new
+ * semantic tokens reskins the whole app without editing a single feature
+ * page. New work should use the semantic names directly.
  */
+
 :root {
   color-scheme: dark;
 
-  --c4-bg: #0b0e14;
-  --c4-bg-elevated: #11151d;
-  --c4-bg-elevated-2: #171c26;
-  --c4-border: #232a36;
-  --c4-text: #eef1f5;
-  --c4-text-muted: #8c95a3;
-  --c4-accent: #7de0c8;
-  --c4-accent-strong: #4fcaa8;
-  --c4-accent-contrast: #06120f;
-  --c4-danger: #f2755c;
-  --c4-warning: #e8b954;
+  /* ---- semantic colour — dark (default) ---- */
+  --color-ground: #131210;
+  --color-surface: #1e1c19;
+  --color-surface-feature: #221f1a;
 
+  --color-ink: #f5f2ec;
+  --color-ink-muted: rgba(245, 242, 236, 0.55);
+  --color-ink-hairline-1: rgba(245, 242, 236, 0.09);
+  --color-ink-hairline-2: rgba(245, 242, 236, 0.12);
+  --color-ink-hairline-3: rgba(245, 242, 236, 0.18);
+  --color-ink-hairline-4: rgba(245, 242, 236, 0.25);
+
+  --color-action: #ff5c3d;
+  --color-action-strong: #ff7a5c;
+  --color-action-contrast: #ffffff;
+
+  --color-win: #4bc98b;
+  --color-win-tint: rgba(75, 201, 139, 0.13);
+  --color-loss: #e56b4f;
+  --color-loss-tint: rgba(229, 107, 79, 0.13);
+  --color-streak: #f2b33d;
+  --color-streak-tint: rgba(242, 179, 61, 0.13);
+
+  /* "Strong" buttons + toasts invert ink/ground — same rule both themes. */
+  --color-strong-bg: var(--color-ink);
+  --color-strong-fg: var(--color-ground);
+
+  /* ---- theme-independent ---- */
+  --color-court: rgba(120, 170, 255, 0.5);
+  /* Text-on-dark tints, fixed regardless of theme — surface-feature is a
+     dark card in both light and dark mode, so its coral text needs its own
+     constants rather than following the theme's `action` colour. */
+  --color-action-on-feature-label: #ff8a73;
+  --color-action-on-feature-link: #ff7a5c;
+
+  --color-circle-1: #3e7bfa;
+  --color-circle-2: #2fa05a;
+  --color-circle-3: #e8a33d;
+  --color-circle-4: #c4562c;
+  --color-circle-5: #8c6bf0;
+  --color-circle-6: #3bb8ce;
+  --color-circle-7: #d65a9e;
+  --color-circle-8: #8a8578;
+
+  /* ---- shape ---- */
+  --radius-chip: 999px;
+  --radius-button: 14px;
+  --radius-card: 20px;
+  --radius-sheet: 36px;
+
+  /* ---- space (4pt grid) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --touch-target: 44px;
+  --touch-target-lg: 48px;
+
+  /* ---- motion ---- */
+  --motion-state-change-duration: 250ms;
+  --motion-state-change-easing: ease;
+  --motion-arrive-duration: 380ms;
+  --motion-arrive-easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --motion-seal-duration: 450ms;
+  --motion-seal-delay: 120ms;
+  --motion-seal-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-reveal-duration: 1500ms;
+  --motion-reveal-easing: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --motion-toast-transition-duration: 300ms;
+
+  /* ---- safe area ---- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* ---- legacy alias layer (feature pages read these — do not remove) ---- */
+  --c4-bg: var(--color-ground);
+  --c4-bg-elevated: var(--color-surface);
+  --c4-bg-elevated-2: var(--color-surface-feature);
+  --c4-border: var(--color-ink-hairline-3);
+  --c4-text: var(--color-ink);
+  --c4-text-muted: var(--color-ink-muted);
+  --c4-accent: var(--color-action);
+  --c4-accent-strong: var(--color-action-strong);
+  --c4-accent-contrast: var(--color-action-contrast);
+  --c4-danger: var(--color-loss);
+  --c4-warning: var(--color-streak);
   --c4-radius-sm: 10px;
-  --c4-radius-md: 16px;
-  --c4-radius-lg: 24px;
-
-  --c4-space-1: 4px;
-  --c4-space-2: 8px;
-  --c4-space-3: 12px;
-  --c4-space-4: 16px;
-  --c4-space-5: 24px;
-  --c4-space-6: 32px;
-
-  --c4-nav-height: 64px;
-  --c4-touch-target: 44px;
-
-  --c4-font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --c4-radius-md: var(--radius-button);
+  --c4-radius-lg: var(--radius-card);
+  --c4-space-1: var(--space-1);
+  --c4-space-2: var(--space-2);
+  --c4-space-3: var(--space-3);
+  --c4-space-4: var(--space-4);
+  --c4-space-5: var(--space-6);
+  --c4-space-6: var(--space-8);
+  --c4-nav-height: 78px;
+  --c4-touch-target: var(--touch-target);
+  --c4-font-sans: var(--font-archivo), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --c4-font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --color-ground: #faf8f4;
+    --color-surface: #ffffff;
+    --color-surface-feature: #191713;
+
+    --color-ink: #191713;
+    --color-ink-muted: rgba(25, 23, 19, 0.55);
+    --color-ink-hairline-1: rgba(25, 23, 19, 0.09);
+    --color-ink-hairline-2: rgba(25, 23, 19, 0.12);
+    --color-ink-hairline-3: rgba(25, 23, 19, 0.18);
+    --color-ink-hairline-4: rgba(25, 23, 19, 0.25);
+
+    --color-action: #ff4d2e;
+    --color-action-strong: #d93d20;
+    --color-action-contrast: #ffffff;
+
+    --color-win: #1f8a5b;
+    --color-win-tint: rgba(31, 138, 91, 0.13);
+    --color-loss: #c23b22;
+    --color-loss-tint: rgba(194, 59, 34, 0.13);
+    --color-streak: #b4530a;
+    --color-streak-tint: #fff1d6;
+  }
+}
+
+/* Explicit override hook — higher specificity than the media query above,
+   so a future theme toggle (`document.documentElement.dataset.theme = …`)
+   always wins regardless of OS preference. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ground: #131210;
+  --color-surface: #1e1c19;
+  --color-surface-feature: #221f1a;
+  --color-ink: #f5f2ec;
+  --color-ink-muted: rgba(245, 242, 236, 0.55);
+  --color-ink-hairline-1: rgba(245, 242, 236, 0.09);
+  --color-ink-hairline-2: rgba(245, 242, 236, 0.12);
+  --color-ink-hairline-3: rgba(245, 242, 236, 0.18);
+  --color-ink-hairline-4: rgba(245, 242, 236, 0.25);
+  --color-action: #ff5c3d;
+  --color-action-strong: #ff7a5c;
+  --color-win: #4bc98b;
+  --color-win-tint: rgba(75, 201, 139, 0.13);
+  --color-loss: #e56b4f;
+  --color-loss-tint: rgba(229, 107, 79, 0.13);
+  --color-streak: #f2b33d;
+  --color-streak-tint: rgba(242, 179, 61, 0.13);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-ground: #faf8f4;
+  --color-surface: #ffffff;
+  --color-surface-feature: #191713;
+  --color-ink: #191713;
+  --color-ink-muted: rgba(25, 23, 19, 0.55);
+  --color-ink-hairline-1: rgba(25, 23, 19, 0.09);
+  --color-ink-hairline-2: rgba(25, 23, 19, 0.12);
+  --color-ink-hairline-3: rgba(25, 23, 19, 0.18);
+  --color-ink-hairline-4: rgba(25, 23, 19, 0.25);
+  --color-action: #ff4d2e;
+  --color-action-strong: #d93d20;
+  --color-win: #1f8a5b;
+  --color-win-tint: rgba(31, 138, 91, 0.13);
+  --color-loss: #c23b22;
+  --color-loss-tint: rgba(194, 59, 34, 0.13);
+  --color-streak: #b4530a;
+  --color-streak-tint: #fff1d6;
+}
+
+/* Map semantic tokens into Tailwind's theme so utilities like `bg-ground`,
+   `text-ink`, `bg-action`, `rounded-card` etc. are generated. Referencing
+   the CSS custom property (not a literal) keeps light/dark/legacy-alias
+   resolution working through the utility classes too. */
 @theme inline {
-  --color-bg: var(--c4-bg);
-  --color-bg-elevated: var(--c4-bg-elevated);
-  --color-border: var(--c4-border);
-  --color-text: var(--c4-text);
-  --color-text-muted: var(--c4-text-muted);
-  --color-accent: var(--c4-accent);
-  --color-accent-strong: var(--c4-accent-strong);
-  --color-danger: var(--c4-danger);
-  --font-sans: var(--c4-font-sans);
+  --color-ground: var(--color-ground);
+  --color-surface: var(--color-surface);
+  --color-surface-feature: var(--color-surface-feature);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-hairline-1: var(--color-ink-hairline-1);
+  --color-ink-hairline-2: var(--color-ink-hairline-2);
+  --color-ink-hairline-3: var(--color-ink-hairline-3);
+  --color-ink-hairline-4: var(--color-ink-hairline-4);
+  --color-action: var(--color-action);
+  --color-action-strong: var(--color-action-strong);
+  --color-action-contrast: var(--color-action-contrast);
+  --color-win: var(--color-win);
+  --color-win-tint: var(--color-win-tint);
+  --color-loss: var(--color-loss);
+  --color-loss-tint: var(--color-loss-tint);
+  --color-streak: var(--color-streak);
+  --color-streak-tint: var(--color-streak-tint);
+  --color-strong-bg: var(--color-strong-bg);
+  --color-strong-fg: var(--color-strong-fg);
+  --color-court: var(--color-court);
+  --color-circle-1: var(--color-circle-1);
+  --color-circle-2: var(--color-circle-2);
+  --color-circle-3: var(--color-circle-3);
+  --color-circle-4: var(--color-circle-4);
+  --color-circle-5: var(--color-circle-5);
+  --color-circle-6: var(--color-circle-6);
+  --color-circle-7: var(--color-circle-7);
+  --color-circle-8: var(--color-circle-8);
+
+  --font-sans: var(--font-archivo), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-chip: var(--radius-chip);
+  --radius-button: var(--radius-button);
+  --radius-card: var(--radius-card);
+  --radius-sheet: var(--radius-sheet);
+
+  /* legacy alias, kept so any existing `--color-bg` / `--color-text` Tailwind usage still resolves */
+  --color-bg: var(--color-ground);
+  --color-bg-elevated: var(--color-surface);
+  --color-border: var(--color-ink-hairline-3);
+  --color-text: var(--color-ink);
+  --color-text-muted: var(--color-ink-muted);
+  --color-accent: var(--color-action);
+  --color-accent-strong: var(--color-action-strong);
+  --color-danger: var(--color-loss);
 }
 
 * {
@@ -60,8 +262,8 @@ body {
 }
 
 body {
-  background: var(--c4-bg);
-  color: var(--c4-text);
+  background: var(--color-ground);
+  color: var(--color-ink);
   font-family: var(--c4-font-sans);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
@@ -77,4 +279,152 @@ button {
 
 input {
   font-family: inherit;
+}
+
+/* ============ type scale (design/HANDOFF.md: 56/24/19/13/11.5/10) ============ */
+
+.text-cu-hero {
+  font-family: var(--font-archivo);
+  font-weight: 800;
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.text-cu-title {
+  font-family: var(--font-archivo);
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.text-cu-card-title {
+  font-family: var(--font-archivo);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.text-cu-body {
+  font-family: var(--font-archivo);
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.text-cu-secondary {
+  font-family: var(--font-archivo);
+  font-weight: 500;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.text-cu-meta {
+  font-family: var(--font-plex-mono);
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* the wordmark: Archivo Black, tracking -2%, always set, never drawn */
+.text-cu-wordmark {
+  font-family: var(--font-archivo);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+/* ============ motion utilities ============ */
+
+.transition-cu-state {
+  transition-property: background-color, color, border-color, opacity;
+  transition-duration: var(--motion-state-change-duration);
+  transition-timing-function: var(--motion-state-change-easing);
+}
+
+@keyframes cu-arrive {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-cu-arrive {
+  animation: cu-arrive var(--motion-arrive-duration) var(--motion-arrive-easing) both;
+}
+
+@keyframes cu-seal {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-cu-seal {
+  animation: cu-seal var(--motion-seal-duration) var(--motion-seal-easing) var(--motion-seal-delay) both;
+}
+
+@keyframes cu-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 92, 61, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 24px rgba(255, 92, 61, 0);
+  }
+}
+
+.animate-cu-pulse {
+  animation: cu-pulse-ring 2.2s ease-out infinite;
+}
+
+@keyframes cu-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-cu-toast {
+  animation: cu-toast-in var(--motion-toast-transition-duration) ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cu-arrive,
+  .animate-cu-seal,
+  .animate-cu-toast {
+    animation-duration: 200ms !important;
+    animation-timing-function: ease !important;
+    transform: none !important;
+  }
+  .animate-cu-pulse {
+    animation: none !important;
+  }
+  .transition-cu-state {
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ============ safe-area utilities ============ */
+
+.pt-safe {
+  padding-top: var(--safe-top);
+}
+
+.pb-safe {
+  padding-bottom: var(--safe-bottom);
 }

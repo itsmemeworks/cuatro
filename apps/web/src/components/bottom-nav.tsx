@@ -17,13 +17,7 @@ export function BottomNav({ userId, initialUnreadCount = 0 }: { userId: string; 
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 flex justify-around"
-      style={{
-        background: "var(--c4-bg-elevated)",
-        borderTop: "1px solid var(--c4-border)",
-        height: "var(--c4-nav-height)",
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
+      className="fixed bottom-0 left-0 right-0 flex justify-around bg-surface border-t border-ink-hairline-2 pb-safe h-[var(--c4-nav-height)]"
     >
       {TABS.map((tab) => {
         const active = pathname?.startsWith(tab.href);
@@ -31,25 +25,24 @@ export function BottomNav({ userId, initialUnreadCount = 0 }: { userId: string; 
           <Link
             key={tab.href}
             href={tab.href}
-            className="flex flex-1 flex-col items-center justify-center gap-0.5"
-            style={{
-              minHeight: "var(--c4-touch-target)",
-              color: active ? "var(--c4-accent)" : "var(--c4-text-muted)",
-            }}
+            className={`flex flex-1 flex-col items-center justify-center gap-0.5 min-h-11 transition-cu-state ${
+              active ? "text-ink font-extrabold" : "text-ink-muted font-semibold"
+            }`}
           >
             <span className="text-lg leading-none" aria-hidden>
               {tab.icon}
             </span>
-            <span className="text-[11px] font-medium">{tab.label}</span>
+            <span className="text-[11px]">{tab.label}</span>
           </Link>
         );
       })}
       <div
-        className="flex flex-1 flex-col items-center justify-center gap-0.5"
-        style={{ color: notificationsActive ? "var(--c4-accent)" : "var(--c4-text-muted)" }}
+        className={`flex flex-1 flex-col items-center justify-center gap-0.5 transition-cu-state ${
+          notificationsActive ? "text-ink font-extrabold" : "text-ink-muted font-semibold"
+        }`}
       >
         <NotificationBell userId={userId} initialUnreadCount={initialUnreadCount} />
-        <span className="text-[11px] font-medium">Alerts</span>
+        <span className="text-[11px]">Alerts</span>
       </div>
     </nav>
   );
