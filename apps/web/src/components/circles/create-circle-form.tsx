@@ -2,15 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { COLOUR_PRESETS, EMBLEM_PRESETS, TIMEZONE_PRESETS } from "./presets";
+import { Button, Card, Meta } from "@/components/ui";
+import { EMBLEM_PRESETS, COLOUR_PRESETS, TIMEZONE_PRESETS } from "./presets";
 
-const inputStyle = {
-  background: "var(--c4-bg-elevated)",
-  border: "1px solid var(--c4-border)",
-  color: "var(--c4-text)",
-  minHeight: "var(--c4-touch-target)",
-};
+const fieldClass =
+  "w-full rounded-button px-4 py-3 text-[14px] outline-none bg-surface border border-ink-hairline-3 text-ink placeholder:text-ink-muted";
 
+/**
+ * "Make it yours" (Directions turn 10a) — name, then the colour + mark
+ * picker with a live preview, exactly like the Circle-settings version of
+ * this screen. One difference from the prototype: this is the *creation*
+ * flow, so the venue-less preview badge stands in for the "Tue 8pm · 3 of 4
+ * in" pinned chip the prototype shows for an existing Circle.
+ */
 export function CreateCircleForm() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -40,10 +44,12 @@ export function CreateCircleForm() {
     }
   }
 
+  const initials = name.trim().slice(0, 2).toUpperCase() || "TN";
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <label htmlFor="name" className="text-sm font-medium">
+        <label htmlFor="name" className="text-cu-body font-semibold text-ink">
           Circle name
         </label>
         <input
@@ -51,36 +57,31 @@ export function CreateCircleForm() {
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Tuesday Shoreditch Crew"
-          className="w-full rounded-xl px-4 py-3 text-base outline-none"
-          style={inputStyle}
+          placeholder="Tuesday Night Lot"
+          className={fieldClass}
         />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Emblem</span>
-        <div className="flex flex-wrap gap-2">
-          {EMBLEM_PRESETS.map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => setEmblem(e)}
-              aria-pressed={emblem === e}
-              className="w-11 h-11 rounded-xl text-xl flex items-center justify-center"
-              style={{
-                background: emblem === e ? "var(--c4-accent)" : "var(--c4-bg-elevated)",
-                border: "1px solid var(--c4-border)",
-              }}
-            >
-              {e}
-            </button>
-          ))}
+      {/* Live preview — turn 10a's badge, repainting as colour/mark change. */}
+      <Card className="flex items-center gap-4">
+        <div
+          className="w-[60px] h-[60px] rounded-card flex items-center justify-center shrink-0 transition-cu-state"
+          style={{ background: colour }}
+          aria-hidden
+        >
+          <span className="font-extrabold text-2xl text-white">{emblem || initials}</span>
         </div>
-      </div>
+        <div className="min-w-0">
+          <p className="text-cu-card-title text-ink truncate">{name.trim() || "Your Circle"}</p>
+          <Meta as="p" className="mt-1">
+            1 member · just created
+          </Meta>
+        </div>
+      </Card>
 
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Colour</span>
-        <div className="flex flex-wrap gap-2">
+        <span className="text-cu-meta uppercase tracking-[0.14em] text-ink-muted">Colour</span>
+        <div className="flex flex-wrap gap-2.5">
           {COLOUR_PRESETS.map((c) => (
             <button
               key={c}
@@ -88,10 +89,11 @@ export function CreateCircleForm() {
               onClick={() => setColour(c)}
               aria-pressed={colour === c}
               aria-label={c}
-              className="w-9 h-9 rounded-full"
+              className="w-9 h-9 rounded-full transition-cu-state"
               style={{
                 background: c,
-                border: colour === c ? "3px solid var(--c4-text)" : "1px solid var(--c4-border)",
+                boxShadow: colour === c ? "0 0 0 3px var(--color-surface), 0 0 0 5px currentColor" : "none",
+                color: c,
               }}
             />
           ))}
@@ -99,16 +101,32 @@ export function CreateCircleForm() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="timezone" className="text-sm font-medium">
+        <span className="text-cu-meta uppercase tracking-[0.14em] text-ink-muted">Mark</span>
+        <div className="flex flex-wrap gap-2">
+          {EMBLEM_PRESETS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => setEmblem(e)}
+              aria-pressed={emblem === e}
+              className={`w-11 h-11 rounded-button text-xl flex items-center justify-center transition-cu-state ${
+                emblem === e ? "border-2 border-ink" : "border border-ink-hairline-3"
+              } bg-surface`}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+        <Meta as="p" className="mt-1">
+          marks stay geometric — this is a flag, not a mascot
+        </Meta>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="timezone" className="text-cu-body font-semibold text-ink">
           Timezone
         </label>
-        <select
-          id="timezone"
-          value={timezone}
-          onChange={(e) => setTimezone(e.target.value)}
-          className="w-full rounded-xl px-4 py-3 text-base outline-none"
-          style={inputStyle}
-        >
+        <select id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} className={fieldClass}>
           {TIMEZONE_PRESETS.map((tz) => (
             <option key={tz.value} value={tz.value}>
               {tz.label}
@@ -117,23 +135,13 @@ export function CreateCircleForm() {
         </select>
       </div>
 
-      <button
-        type="submit"
-        disabled={status === "saving" || !name.trim()}
-        className="w-full rounded-xl font-semibold py-3.5 disabled:opacity-60"
-        style={{
-          background: "var(--c4-accent)",
-          color: "var(--c4-accent-contrast)",
-          minHeight: "var(--c4-touch-target)",
-        }}
-      >
+      <Button type="submit" size="lg" fullWidth disabled={status === "saving" || !name.trim()}>
         {status === "saving" ? "Creating…" : "Create Circle"}
-      </button>
-      {status === "error" && (
-        <p className="text-sm" style={{ color: "var(--c4-danger)" }}>
-          Something went wrong — try again.
-        </p>
-      )}
+      </Button>
+      {status === "error" && <Meta tone="action">Something went wrong — try again.</Meta>}
+      <Meta as="p" className="text-center">
+        coral stays the app&apos;s action colour — your colour identifies, it never asks
+      </Meta>
     </form>
   );
 }

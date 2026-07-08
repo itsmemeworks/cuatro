@@ -1,0 +1,118 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/session";
+import { getGamesClient } from "@/server/games-db";
+import { getSessionSummary, checkFourthCallLevel1 } from "@/server/games-service";
+import { checkFourthCallLevel2, hasFourthCallInvite } from "@/server/fourth-call";
+import { isOrganiser } from "@/server/standing-games-service";
+import { getMatchesStore } from "@/server/matches-db";
+import { FourthCallSend, type RingState } from "@/components/circle-screens/fourth-call-send";
+import { Avatar, Meta } from "@/components/ui";
+import { formatGlass } from "@/lib/design";
+
+export default async function FourthCallSendPage({ params }: { params: Promise<{ sessionId: string }> }) {
+  const user = await getSessionUser();
+  if (!user) return null;
+
+  const { sessionId } = await params;
+  const { db } = await getGamesClient();
+  const summary = getSessionSummary(db, sessionId, user.id);
+  if (!summary) notFound();
+
+  if (!isOrganiser(db, summary.circleId, user.id)) redirect(`/games/${sessionId}`);
+
+  const result1 = checkFourthCallLevel1(db, sessionId);
+  const result2 = checkFourthCallLevel2(db, sessionId);
+
+  const gameFull = summary.confirmed.length >= summary.slots;
+  const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt.getTime();
+
+  const ring1Label = gameFull
+    ? "not needed — the four's full"
+    : !upcoming
+      ? "this game has already started or been played"
+      : result1.fired || result1.reason === "already_notified"
+        ? "sent ✓ — 20 min first-refusal window"
+        : "opens automatically within 48h of kickoff";
+
+  let ring2State: RingState = "pending";
+  let ring2Label = "starts automatically 20 min after the Circle's first refusal";
+  if (result2.fired) {
+    ring2State = "sent";
+    ring2Label = `sent to ${result2.notifiedUserIds.length} nearby player${result2.notifiedUserIds.length === 1 ? "" : "s"}`;
+  } else if (result2.reason === "already_notified") {
+    ring2State = "sent";
+    ring2Label = "sent — waiting to hear back";
+  } else if (result2.reason === "already_full") {
+    ring2State = "done";
+    ring2Label = "not needed — the four's full";
+  } else if (result2.reason === "no_candidates") {
+    ring2State = "done";
+    ring2Label = "no nearby players matched this time";
+  } else if (result2.reason === "session_not_upcoming") {
+    ring2State = "done";
+    ring2Label = "this game has already started or been played";
+  }
+
+  const canEscalate = upcoming && !gameFull && ring2State === "pending";
+
+  // "Claimed" — a confirmed player who holds a fourth_call invite for this
+  // session almost certainly filled the open slot through this flow rather
+  // than being an original Standing Game regular (see FourthCallReceive's
+  // doc comment for why this is the honest signal available without new
+  // server code: there's no "claimed via fourth call" flag on rsvps).
+  let claimant: { displayName: string; avatarUrl: string | null; rating: number | null } | null = null;
+  for (const p of summary.confirmed) {
+    if (hasFourthCallInvite(db, sessionId, p.userId)) {
+      const glass = await (await getMatchesStore()).getProfileGlassView(p.userId);
+      claimant = { displayName: p.displayName, avatarUrl: p.avatarUrl, rating: glass?.rating ?? null };
+      break;
+    }
+  }
+
+  const whenLabel = summary.session.startsAt.toLocaleString("en-GB", {
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <main className="px-5 pt-8 pb-6 flex flex-col gap-4">
+      <Link href={`/games/${sessionId}`} className="text-cu-body font-bold text-action-strong">
+        ‹ Game
+      </Link>
+
+      <div>
+        <Meta className="uppercase tracking-[0.12em] text-action-strong font-extrabold">Fourth Call · Organiser</Meta>
+        <h1 className="text-cu-title text-ink mt-1">
+          Find a fourth
+          <br />
+          for {whenLabel}
+        </h1>
+        <Meta as="p" className="mt-1.5">
+          widening rings — closest people first, strangers never
+        </Meta>
+      </div>
+
+      <FourthCallSend
+        sessionId={sessionId}
+        ring1Label={ring1Label}
+        ring2State={ring2State}
+        ring2Label={ring2Label}
+        canEscalate={canEscalate}
+      />
+
+      {claimant && (
+        <div className="rounded-card bg-win-tint border border-win px-4 py-3.5 flex items-center gap-3">
+          <Avatar src={claimant.avatarUrl} name={claimant.displayName} size="md" />
+          <div className="min-w-0">
+            <p className="text-cu-body font-extrabold text-win">{claimant.displayName} claimed it — game on</p>
+            <Meta as="p" className="mt-0.5">
+              Glass {formatGlass(claimant.rating)} · the Circle&apos;s been told
+            </Meta>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

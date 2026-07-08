@@ -1,13 +1,14 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { NotMemberError, getCirclesStore, type CircleMessageView } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForCircle, isFourthCallActive } from "@/server/games-service";
+import { CircleTabs } from "@/components/circle-screens/circle-tabs";
+import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
 import { InviteShareButton } from "@/components/circles/invite-share-button";
-import { MemberList } from "@/components/circles/member-list";
-import { CircleChat, type ChatMessage } from "@/components/circles/circle-chat";
-import { SessionCard, type SessionCardData } from "@/components/games/SessionCard";
+import type { ChatMessage } from "@/components/circles/circle-chat";
+import type { SessionCardData } from "@/components/games/SessionCard";
+import { circleColorFor } from "@/lib/design";
 
 function serializeMessages(messages: CircleMessageView[]): ChatMessage[] {
   return messages.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }));
@@ -49,69 +50,42 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
     fourthCallActive: isFourthCallActive(s),
   }));
 
+  const colour = detail.colour ?? circleColorFor(detail.id);
+
   return (
-    <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
+    <main className="px-5 pt-8 pb-6 flex flex-col gap-5">
       <header className="flex items-center gap-3">
         <div
-          className="w-12 h-12 rounded-full flex items-center justify-center text-2xl shrink-0"
-          style={{ background: detail.colour ?? "var(--c4-bg-elevated-2)" }}
+          className="w-12 h-12 rounded-card flex items-center justify-center text-2xl shrink-0"
+          style={{ background: colour }}
           aria-hidden
         >
-          {detail.emblem ?? "⭘"}
+          <span className="text-white font-extrabold text-base">{detail.emblem ?? detail.name.slice(0, 2).toUpperCase()}</span>
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-semibold truncate">{detail.name}</h1>
-          <p className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
+          <h1 className="text-cu-card-title text-ink truncate" style={{ fontSize: 19 }}>
+            {detail.name}
+          </h1>
+          <p className="text-cu-meta text-ink-muted mt-0.5">
             {detail.members.length} member{detail.members.length === 1 ? "" : "s"}
           </p>
         </div>
         <InviteShareButton inviteCode={detail.inviteCode} circleName={detail.name} />
       </header>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--c4-text-muted)" }}>
-            Upcoming sessions
-          </h2>
-          {detail.myRole === "organiser" && (
-            <Link href={`/games/standing/new?circleId=${id}`} className="text-sm font-medium" style={{ color: "var(--c4-accent)" }}>
-              + Standing Game
-            </Link>
-          )}
-        </div>
-        {sessionCards.length === 0 ? (
-          <div
-            className="rounded-2xl p-4"
-            style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
-          >
-            <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-              No Standing Game yet — set one up so this Circle&apos;s weekly game runs itself.
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {sessionCards.map((c) => (
-              <Link key={c.sessionId} href={`/games/${c.sessionId}`} className="block">
-                <SessionCard data={c} viewerUserId={user.id} />
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--c4-text-muted)" }}>
-          Members
-        </h2>
-        <MemberList members={detail.members} />
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--c4-text-muted)" }}>
-          Chat
-        </h2>
-        <CircleChat circleId={detail.id} currentUserId={user.id} initialMessages={serializeMessages(messages)} />
-      </section>
+      <ToastBoundary>
+        <CircleTabs
+          circleId={detail.id}
+          circleColour={colour}
+          sessionCards={sessionCards}
+          messages={serializeMessages(messages)}
+          members={detail.members}
+          currentUserId={user.id}
+          inviteCode={detail.inviteCode}
+          circleName={detail.name}
+          isOrganiser={detail.myRole === "organiser"}
+        />
+      </ToastBoundary>
     </main>
   );
 }

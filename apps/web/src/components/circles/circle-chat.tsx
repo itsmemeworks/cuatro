@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useCircleLive } from "@/lib/realtime/hooks";
+import { Meta } from "@/components/ui";
 
 export interface ChatMessage {
   id: string;
@@ -11,6 +12,10 @@ export interface ChatMessage {
   displayName: string;
   body: string;
   createdAt: string; // ISO — serialized at the server-component boundary
+}
+
+function timeLabel(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 // Delivery: the circle's realtime broadcast channel carries only
@@ -102,56 +107,46 @@ export function CircleChat({
 
   return (
     <div className="flex flex-col gap-3">
-      <div ref={listRef} className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "50vh" }}>
-        {messages.length === 0 && (
-          <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-            No messages yet — say hi to the Circle.
-          </p>
-        )}
+      <div ref={listRef} className="flex flex-col gap-2.5 overflow-y-auto px-1" style={{ maxHeight: "55vh" }}>
+        {messages.length === 0 && <p className="text-cu-body text-ink-muted">No messages yet — say hi to the Circle.</p>}
         {messages.map((m) => {
           const mine = m.userId === currentUserId;
           return (
-            <div
-              key={m.id}
-              className="rounded-xl px-3 py-2"
-              style={{
-                background: mine ? "var(--c4-accent)" : "var(--c4-bg-elevated-2)",
-                color: mine ? "var(--c4-accent-contrast)" : "var(--c4-text)",
-                alignSelf: mine ? "flex-end" : "flex-start",
-                maxWidth: "80%",
-              }}
-            >
-              {!mine && <p className="text-xs font-semibold opacity-70">{m.displayName}</p>}
-              <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
+            <div key={m.id} className={`flex flex-col gap-1 ${mine ? "items-end" : "items-start"}`}>
+              {!mine && (
+                <span className="text-cu-meta text-ink-muted px-1">{m.displayName}</span>
+              )}
+              <div
+                className={`max-w-[80%] rounded-card px-3.5 py-2.5 text-cu-body ${
+                  mine
+                    ? "bg-action text-action-contrast rounded-br-md"
+                    : "bg-surface border border-ink-hairline-2 text-ink rounded-bl-md"
+                }`}
+              >
+                <p className="whitespace-pre-wrap break-words">{m.body}</p>
+              </div>
+              <Meta as="span" className="px-1">
+                {timeLabel(m.createdAt)}
+              </Meta>
             </div>
           );
         })}
       </div>
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <form onSubmit={handleSubmit} className="flex gap-2 items-center">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           maxLength={2000}
-          placeholder="Message the Circle"
-          className="flex-1 rounded-xl px-4 py-3 text-base outline-none"
-          style={{
-            background: "var(--c4-bg-elevated)",
-            border: "1px solid var(--c4-border)",
-            color: "var(--c4-text)",
-            minHeight: "var(--c4-touch-target)",
-          }}
+          placeholder="Message the Circle…"
+          className="flex-1 min-h-11 rounded-chip px-4 py-3 text-[13px] outline-none bg-surface border border-ink-hairline-3 text-ink placeholder:text-ink-muted"
         />
         <button
           type="submit"
           disabled={sending || !draft.trim()}
-          className="rounded-xl font-semibold px-4 disabled:opacity-60"
-          style={{
-            background: "var(--c4-accent)",
-            color: "var(--c4-accent-contrast)",
-            minHeight: "var(--c4-touch-target)",
-          }}
+          aria-label="Send"
+          className="w-11 h-11 rounded-full bg-action text-action-contrast font-extrabold text-lg shrink-0 flex items-center justify-center transition-cu-state active:opacity-80 disabled:opacity-40"
         >
-          Send
+          ↑
         </button>
       </form>
     </div>

@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { getStandingGame, isOrganiser } from "@/server/standing-games-service";
 import { toggleStandingGameActiveAction, updateStandingGameAction } from "@/server/games-actions";
+import { Button, Meta } from "@/components/ui";
 
 const WEEKDAYS = [
   { value: 0, label: "Sunday" },
@@ -14,7 +15,8 @@ const WEEKDAYS = [
   { value: 6, label: "Saturday" },
 ];
 
-const fieldStyle = { background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" };
+const fieldClass =
+  "rounded-button p-3 text-[14px] bg-surface border border-ink-hairline-3 text-ink outline-none";
 
 export default async function EditStandingGamePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
@@ -31,32 +33,22 @@ export default async function EditStandingGamePage({ params }: { params: Promise
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Standing Game</h1>
+      <h1 className="text-cu-title text-ink">Standing Game</h1>
 
       {!canManage ? (
-        <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-          Only Circle organisers can edit this Standing Game.
-        </p>
+        <Meta as="p">Only Circle organisers can edit this Standing Game.</Meta>
       ) : (
         <>
           <form action={boundToggle}>
-            <button
-              type="submit"
-              className="rounded-xl py-3 px-4 text-sm font-semibold"
-              style={{
-                background: standingGame.active ? "transparent" : "var(--c4-accent)",
-                color: standingGame.active ? "var(--c4-danger)" : "var(--c4-accent-contrast)",
-                border: standingGame.active ? "1px solid var(--c4-danger)" : "none",
-              }}
-            >
+            <Button type="submit" variant={standingGame.active ? "destructiveQuiet" : "primary"} fullWidth>
               {standingGame.active ? "Pause Standing Game" : "Reactivate Standing Game"}
-            </button>
+            </Button>
           </form>
 
           <form action={boundUpdate} className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
               Day
-              <select name="weekday" defaultValue={standingGame.weekday} className="rounded-lg p-3" style={fieldStyle}>
+              <select name="weekday" defaultValue={standingGame.weekday} className={fieldClass}>
                 {WEEKDAYS.map((w) => (
                   <option key={w.value} value={w.value}>
                     {w.label}
@@ -65,12 +57,12 @@ export default async function EditStandingGamePage({ params }: { params: Promise
               </select>
             </label>
 
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
               Start time
-              <input type="time" name="startTime" defaultValue={standingGame.startTime} className="rounded-lg p-3" style={fieldStyle} />
+              <input type="time" name="startTime" defaultValue={standingGame.startTime} className={fieldClass} />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
               Duration (minutes)
               <input
                 type="number"
@@ -78,17 +70,16 @@ export default async function EditStandingGamePage({ params }: { params: Promise
                 defaultValue={standingGame.durationMinutes}
                 min={30}
                 step={15}
-                className="rounded-lg p-3"
-                style={fieldStyle}
+                className={fieldClass}
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
               Slots
-              <input type="number" name="slots" defaultValue={standingGame.slots} min={2} max={8} className="rounded-lg p-3" style={fieldStyle} />
+              <input type="number" name="slots" defaultValue={standingGame.slots} min={2} max={8} className={fieldClass} />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
               RSVP window (days out)
               <input
                 type="number"
@@ -96,23 +87,18 @@ export default async function EditStandingGamePage({ params }: { params: Promise
                 defaultValue={standingGame.rsvpWindowDays}
                 min={1}
                 max={21}
-                className="rounded-lg p-3"
-                style={fieldStyle}
+                className={fieldClass}
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
               Venue
-              <input type="text" name="venueName" placeholder="Leave blank to keep current venue" className="rounded-lg p-3" style={fieldStyle} />
+              <input type="text" name="venueName" placeholder="Leave blank to keep current venue" className={fieldClass} />
             </label>
 
-            <button
-              type="submit"
-              className="rounded-xl py-3 text-sm font-semibold"
-              style={{ minHeight: "var(--c4-touch-target)", background: "var(--c4-accent)", color: "var(--c4-accent-contrast)" }}
-            >
+            <Button type="submit" size="lg" fullWidth>
               Save changes
-            </button>
+            </Button>
           </form>
         </>
       )}

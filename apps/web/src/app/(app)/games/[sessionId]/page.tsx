@@ -1,12 +1,54 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { checkFourthCallLevel1, getSessionSummary, isFourthCallActive } from "@/server/games-service";
 import { hasFourthCallInvite } from "@/server/fourth-call";
+import { isOrganiser } from "@/server/standing-games-service";
 import { getMatchesStore } from "@/server/matches-db";
+import { listNotificationsForUser } from "@/server/notifications";
 import { SessionCard, type SessionCardData } from "@/components/games/SessionCard";
-import { ClaimFourthCallButton } from "@/components/games/ClaimFourthCallButton";
+import { FourthCallReceive } from "@/components/circle-screens/fourth-call-receive";
+import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
+import { Meta } from "@/components/ui";
+import { sessionOgImageUrl } from "@/lib/og";
+
+// getSessionSummary has no membership gate on reads (only the RSVP mutations
+// do — see server/games-service.ts), so this is safe to build without a
+// signed-in viewer: a share-card crawler hits this route with no session
+// cookie, same trust model as join/[code]'s generateMetadata.
+export async function generateMetadata({ params }: { params: Promise<{ sessionId: string }> }): Promise<Metadata> {
+  const { sessionId } = await params;
+  const { db } = await getGamesClient();
+  const summary = getSessionSummary(db, sessionId, "");
+
+  if (!summary) {
+    return { title: "CUATRO game" };
+  }
+
+  const when = summary.session.startsAt.toLocaleString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const title = `${summary.circleName} · ${when}`;
+  const openSlots = summary.slots - summary.confirmed.length;
+  const description =
+    openSlots > 0
+      ? `${summary.confirmed.length} of ${summary.slots} in — one spot left. Tap to join.`
+      : `${summary.circleName}'s four is set for ${when}.`;
+  const image = sessionOgImageUrl(sessionId);
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, images: [{ url: image, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
+  };
+}
 
 export default async function SessionDetailPage({
   params,
@@ -32,12 +74,13 @@ export default async function SessionDetailPage({
   // startsAt-vs-now comparison, which could gate "Record result" open
   // before a match had actually finished.
   const isPast = summary.session.status === "played";
-  const existingMatch = isPast ? await (await getMatchesStore()).getMatchForSession(sessionId) : null;
+  const matchesStore = await getMatchesStore();
+  const existingMatch = isPast ? await matchesStore.getMatchForSession(sessionId) : null;
 
   // One-tap claim: a Fourth Call invitee (level 1 or 2) who hasn't already
-  // taken the slot can tap straight in from here — this is where their
-  // notification's deep link lands (see server/notify.ts's deepLinkFor).
-  const showClaimButton =
+  // taken the slot lands on a full-screen invite (prototype screen 6,
+  // receive) instead of the normal session view.
+  const showReceiveScreen =
     !isPast && summary.viewerStatus !== "in" && hasFourthCallInvite(db, sessionId, user.id);
 
   const card: SessionCardData = {
@@ -54,27 +97,89 @@ export default async function SessionDetailPage({
     fourthCallActive: isFourthCallActive(summary),
   };
 
+  if (showReceiveScreen) {
+    const ratings = (
+      await Promise.all(
+        summary.confirmed.map(async (p) => (await matchesStore.getProfileGlassView(p.userId))?.rating ?? null),
+      )
+    ).filter((r): r is number => r != null);
+    const viewerGlass = await matchesStore.getProfileGlassView(user.id);
+
+    let levelMatchLabel: string | null = null;
+    if (ratings.length > 0) {
+      const min = Math.min(...ratings).toFixed(2);
+      const max = Math.max(...ratings).toFixed(2);
+      const theirs = min === max ? min : `${min}–${max}`;
+      levelMatchLabel = `their level ${theirs} · yours ${viewerGlass?.rating != null ? viewerGlass.rating.toFixed(2) : "?.??"}`;
+    }
+
+    const notifGroups = listNotificationsForUser(db, user.id);
+    const passNotificationId =
+      notifGroups
+        .flatMap((g) => g.notifications)
+        .find((n) => n.type === "fourth_call" && n.href === `/games/${sessionId}`)?.id ?? null;
+
+    return (
+      <main className="px-5 pt-8 pb-6">
+        <ToastBoundary>
+          <FourthCallReceive
+            sessionId={sessionId}
+            circleName={summary.circleName}
+            whenLabel={summary.session.startsAt.toLocaleString("en-GB", {
+              weekday: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            venueLabel={summary.venue?.name ?? null}
+            confirmed={summary.confirmed}
+            levelMatchLabel={levelMatchLabel}
+            expiresAt={summary.session.startsAt}
+            passNotificationId={passNotificationId}
+          />
+        </ToastBoundary>
+      </main>
+    );
+  }
+
+  const gameFull = summary.confirmed.length >= summary.slots;
+  const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt.getTime();
+  const viewerIsOrganiser = isOrganiser(db, summary.circleId, user.id);
+
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-4">
-      <Link href="/games" className="text-sm font-medium" style={{ color: "var(--c4-accent)" }}>
-        ← Games
+      <Link href="/games" className="text-cu-body font-bold text-action-strong">
+        ‹ Games
       </Link>
-      <SessionCard data={card} viewerUserId={user.id} />
 
-      {showClaimButton && <ClaimFourthCallButton sessionId={sessionId} />}
+      <ToastBoundary>
+        <SessionCard data={card} viewerUserId={user.id} />
+      </ToastBoundary>
+
+      {upcoming && !gameFull && viewerIsOrganiser && (
+        <Link
+          href={`/games/${sessionId}/fourth-call`}
+          className="rounded-button border border-ink-hairline-3 text-ink font-bold text-[13px] py-3.5 text-center transition-cu-state active:opacity-80"
+        >
+          Find a 4th →
+        </Link>
+      )}
+
+      <Link
+        href={`/circles/${summary.circleId}/tab`}
+        className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3"
+      >
+        <span className="text-cu-body text-ink flex-1">Court split goes on the Tab</span>
+        <Meta tone="action">The Tab →</Meta>
+      </Link>
 
       {isPast && (
         <Link
           href={existingMatch ? `/matches/${existingMatch.id}` : `/matches/new?session=${sessionId}`}
-          className="rounded-xl py-3.5 text-center text-sm font-semibold"
-          style={{
-            minHeight: "var(--c4-touch-target)",
-            background: existingMatch ? "transparent" : "var(--c4-accent)",
-            color: existingMatch ? "var(--c4-accent)" : "var(--c4-accent-contrast)",
-            border: existingMatch ? "1px solid var(--c4-accent)" : "none",
-          }}
+          className={`rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold transition-cu-state active:opacity-80 ${
+            existingMatch ? "bg-transparent text-ink border border-ink-hairline-4" : "bg-strong-bg text-strong-fg"
+          }`}
         >
-          {existingMatch ? "View result" : "Record result"}
+          {existingMatch ? "View result" : "Log last night's result"}
         </Link>
       )}
     </main>

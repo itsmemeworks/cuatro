@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { listCirclesForUser, listStandingGamesForCircle } from "@/server/standing-games-service";
+import { Card, Chip, Meta } from "@/components/ui";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -19,52 +20,35 @@ export default async function StandingGamesPage() {
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Standing Games</h1>
-        <Link href="/games/standing/new" className="text-sm font-medium" style={{ color: "var(--c4-accent)" }}>
+        <h1 className="text-cu-title text-ink">Standing Games</h1>
+        <Link href="/games/standing/new" className="text-cu-body font-bold text-action">
           + New
         </Link>
       </div>
 
-      {groups.length === 0 && (
-        <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-          Join a Circle to see its Standing Games here.
-        </p>
-      )}
+      {groups.length === 0 && <Meta as="p">Join a Circle to see its Standing Games here.</Meta>}
 
       {groups.map((group) => (
         <section key={group.circleId} className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--c4-text-muted)" }}>
+          <Meta as="h2" className="uppercase tracking-[0.12em]">
             {group.circleName}
-          </h2>
+          </Meta>
           {group.standingGames.length === 0 ? (
-            <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-              No Standing Game yet.
-            </p>
+            <Meta as="p">No Standing Game yet.</Meta>
           ) : (
             group.standingGames.map((sg) => (
-              <Link
-                key={sg.id}
-                href={`/games/standing/${sg.id}`}
-                className="rounded-2xl p-4 flex items-center justify-between gap-3"
-                style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
-              >
-                <div>
-                  <p className="font-medium">
-                    {WEEKDAY_LABELS[sg.weekday]} {sg.startTime}
-                  </p>
-                  <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-                    {sg.slots} slots · RSVP opens {sg.rsvpWindowDays}d out
-                  </p>
-                </div>
-                <span
-                  className="text-xs font-semibold rounded-full px-2 py-1"
-                  style={{
-                    background: sg.active ? "var(--c4-accent)" : "var(--c4-bg-elevated-2)",
-                    color: sg.active ? "var(--c4-accent-contrast)" : "var(--c4-text-muted)",
-                  }}
-                >
-                  {sg.active ? "Active" : "Paused"}
-                </span>
+              <Link key={sg.id} href={`/games/standing/${sg.id}`} className="block">
+                <Card className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-cu-card-title text-ink" style={{ fontSize: 15 }}>
+                      {WEEKDAY_LABELS[sg.weekday]} {sg.startTime}
+                    </p>
+                    <Meta as="p" className="mt-1">
+                      {sg.slots} slots · RSVP opens {sg.rsvpWindowDays}d out
+                    </Meta>
+                  </div>
+                  <Chip tone={sg.active ? "positive" : "neutral"}>{sg.active ? "Active" : "Paused"}</Chip>
+                </Card>
               </Link>
             ))
           )}

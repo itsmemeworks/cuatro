@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 
-export function InviteShareButton({ inviteCode, circleName }: { inviteCode: string; circleName: string }) {
+export function InviteShareButton({
+  inviteCode,
+  circleName,
+  className = "",
+}: {
+  inviteCode: string;
+  circleName: string;
+  className?: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function handleClick() {
@@ -27,10 +35,9 @@ export function InviteShareButton({ inviteCode, circleName }: { inviteCode: stri
     <button
       type="button"
       onClick={handleClick}
-      className="rounded-full px-3 py-2 text-xs font-medium shrink-0"
-      style={{ background: "var(--c4-bg-elevated-2)", border: "1px solid var(--c4-border)", color: "var(--c4-text)" }}
+      className={`rounded-chip border border-ink-hairline-3 text-ink font-bold text-[11px] px-3 py-2 shrink-0 transition-cu-state active:opacity-80 ${className}`}
     >
-      {copied ? "Copied!" : "Invite"}
+      {copied ? "Copied ✓" : "Copy ↗"}
     </button>
   );
 }

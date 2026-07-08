@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSessionLive } from "@/lib/realtime/hooks";
+import { Avatar, Button, Card, Chip, DashedSlot, Fact, Meta } from "@/components/ui";
 
 export type SessionCardPlayer = {
   userId: string;
@@ -26,10 +27,6 @@ export type SessionCardData = {
   fourthCallActive: boolean;
 };
 
-function initials(name: string): string {
-  return name.trim().slice(0, 2).toUpperCase();
-}
-
 function formatCountdown(msRemaining: number): string {
   if (msRemaining <= 0) return "now";
   const totalMinutes = Math.floor(msRemaining / 60_000);
@@ -41,23 +38,77 @@ function formatCountdown(msRemaining: number): string {
   return `${minutes}m`;
 }
 
-function Avatar({ player, muted }: { player: SessionCardPlayer | null; muted?: boolean }) {
+/**
+ * The signature RSVP moment (Directions turn 8a): the tapped slot's avatar
+ * springs in (`animate-cu-arrive`, 380ms overshoot) with one pulse ring,
+ * then settles — no continuous pulse once it has landed. Fires for the
+ * viewer's own tap *and* for anyone else's slot filling via realtime (the
+ * brief calls this out explicitly), by diffing `confirmed` against the
+ * previous render rather than only reacting to the local button press.
+ */
+function useArrivals(confirmed: SessionCardPlayer[]) {
+  const [arriving, setArriving] = useState<Set<string>>(new Set());
+  const prevIds = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    const currentIds = new Set(confirmed.map((p) => p.userId));
+    if (prevIds.current) {
+      const fresh = [...currentIds].filter((id) => !prevIds.current!.has(id));
+      if (fresh.length > 0) {
+        setArriving(new Set(fresh));
+        const timer = setTimeout(() => setArriving(new Set()), 700);
+        prevIds.current = currentIds;
+        return () => clearTimeout(timer);
+      }
+    }
+    prevIds.current = currentIds;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmed.map((p) => p.userId).join(",")]);
+
+  return arriving;
+}
+
+function SlotTile({
+  player,
+  fourthCallOpen,
+  arriving,
+}: {
+  player: SessionCardPlayer | null;
+  fourthCallOpen: boolean;
+  arriving: boolean;
+}) {
   return (
     <div
-      className="flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold shrink-0"
-      style={{
-        background: player ? "var(--c4-bg-elevated-2)" : "transparent",
-        border: `1px dashed ${muted ? "var(--c4-border)" : "var(--c4-accent)"}`,
-        color: player ? "var(--c4-text)" : "var(--c4-text-muted)",
-      }}
-      title={player?.displayName}
+      className="flex-1 min-w-0 rounded-button border border-ink-hairline-2 bg-surface px-1 py-2.5 flex flex-col items-center gap-1.5 transition-cu-state"
+      style={arriving ? { animation: "cu-pulse-ring 700ms ease-out 1" } : undefined}
     >
-      {player ? initials(player.displayName) : "+"}
+      {player ? (
+        <Avatar
+          src={player.avatarUrl}
+          name={player.displayName}
+          size="md"
+          className={arriving ? "animate-cu-arrive" : ""}
+        />
+      ) : (
+        <DashedSlot pulse={fourthCallOpen} />
+      )}
+      <span className="text-[10px] font-semibold text-ink truncate max-w-full">
+        {player ? player.displayName.split(" ")[0] : "open"}
+      </span>
     </div>
   );
 }
 
-export function SessionCard({ data, viewerUserId }: { data: SessionCardData; viewerUserId: string }) {
+export function SessionCard({
+  data,
+  viewerUserId,
+  onPromoted,
+}: {
+  data: SessionCardData;
+  viewerUserId: string;
+  /** Called when this RSVP action auto-promoted a reserve — a toast is the caller's business, not this component's (SessionCard also renders on pages with no `<ToastProvider>` ancestor, e.g. Home). */
+  onPromoted?: () => void;
+}) {
   const router = useRouter();
   const [now, setNow] = useState<number>(() => Date.now());
   const [pending, setPending] = useState(false);
@@ -73,6 +124,8 @@ export function SessionCard({ data, viewerUserId }: { data: SessionCardData; vie
     const interval = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(interval);
   }, []);
+
+  const arriving = useArrivals(data.confirmed);
 
   const startsAtMs = data.startsAt.getTime();
   const windowOpensMs = data.rsvpWindowOpensAt.getTime();
@@ -108,6 +161,7 @@ export function SessionCard({ data, viewerUserId }: { data: SessionCardData; vie
         setError(body.error ?? "something_went_wrong");
         return;
       }
+      if (body.promotedUserId) onPromoted?.();
       router.refresh();
     } catch {
       setError("network_error");
@@ -117,25 +171,17 @@ export function SessionCard({ data, viewerUserId }: { data: SessionCardData; vie
   }
 
   return (
-    <div
-      className="rounded-2xl p-5 flex flex-col gap-4"
-      style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
-    >
+    <Card className="flex flex-col gap-4">
       {data.fourthCallActive && (
-        <div
-          className="rounded-lg px-3 py-1.5 text-xs font-semibold self-start"
-          style={{ background: "var(--c4-warning)", color: "var(--c4-accent-contrast)" }}
-        >
+        <Chip tone="streak" className="self-start">
           🔔 Fourth Call — slots still open
-        </div>
+        </Chip>
       )}
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium" style={{ color: "var(--c4-text-muted)" }}>
-            {data.circleName}
-          </p>
-          <p className="font-semibold">
+          <Meta as="p">{data.circleName}</Meta>
+          <p className="text-cu-card-title text-ink mt-0.5">
             {data.startsAt.toLocaleString("en-GB", {
               weekday: "short",
               day: "numeric",
@@ -144,70 +190,79 @@ export function SessionCard({ data, viewerUserId }: { data: SessionCardData; vie
               minute: "2-digit",
             })}
           </p>
-          {data.venueName && (
-            <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-              {data.venueName}
-            </p>
-          )}
+          {data.venueName && <Meta as="p">{data.venueName}</Meta>}
         </div>
         {countdownLabel && (
-          <p className="text-xs text-right whitespace-nowrap" style={{ color: "var(--c4-text-muted)" }}>
+          <Meta as="p" className="text-right whitespace-nowrap">
             {countdownLabel}
-          </p>
+          </Meta>
         )}
       </div>
 
       <div className="flex gap-2">
         {slots.map((player, i) => (
-          <Avatar key={player?.userId ?? `empty-${i}`} player={player} />
+          <SlotTile
+            key={player?.userId ?? `empty-${i}`}
+            player={player}
+            fourthCallOpen={data.fourthCallActive}
+            arriving={!!player && arriving.has(player.userId)}
+          />
         ))}
       </div>
 
       {data.reserves.length > 0 && (
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--c4-text-muted)" }}>
-            Reserves
-          </p>
+        <div className="flex flex-col gap-1.5">
+          <Meta as="p" className="uppercase tracking-[0.12em]">
+            Reserve queue
+          </Meta>
           <div className="flex flex-col gap-1">
             {data.reserves.map((r, i) => (
-              <p key={r.userId} className="text-sm">
-                <span style={{ color: "var(--c4-text-muted)" }}>#{i + 1}</span> {r.displayName}
-                {r.userId === viewerUserId && <span style={{ color: "var(--c4-accent)" }}> (you)</span>}
+              <p key={r.userId} className="text-cu-body text-ink">
+                <Fact as="span" size="sm" tone="muted">
+                  #{i + 1}
+                </Fact>{" "}
+                {r.displayName}
+                {r.userId === viewerUserId && <Fact as="span" size="sm" tone="action"> (you)</Fact>}
               </p>
             ))}
           </div>
+          <Meta as="p">if anyone drops, they&apos;re in automatically — everyone gets told</Meta>
         </div>
       )}
 
-      {error && (
-        <p className="text-xs" style={{ color: "var(--c4-danger)" }}>
-          Couldn&apos;t update your RSVP ({error}). Try again.
-        </p>
-      )}
+      {error && <Meta tone="action">Couldn&apos;t update your RSVP ({error}). Try again.</Meta>}
 
       {!sessionStarted && windowOpen && (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={(event) => sendRsvp(event, viewerHoldsSlot || viewerReserved ? "out" : "in")}
-          className="rounded-xl py-3 text-sm font-semibold"
-          style={{
-            minHeight: "var(--c4-touch-target)",
-            background: viewerHoldsSlot || viewerReserved ? "transparent" : "var(--c4-accent)",
-            color: viewerHoldsSlot || viewerReserved ? "var(--c4-danger)" : "var(--c4-accent-contrast)",
-            border: viewerHoldsSlot || viewerReserved ? "1px solid var(--c4-danger)" : "none",
-            opacity: pending ? 0.6 : 1,
-          }}
-        >
-          {viewerHoldsSlot ? "I'm out" : viewerReserved ? "Leave reserve queue" : "I'm in"}
-        </button>
+        <div className="flex gap-2">
+          <Button
+            size="lg"
+            className="flex-[2]"
+            variant={viewerHoldsSlot || viewerReserved ? "strong" : "primary"}
+            style={viewerHoldsSlot ? { background: "var(--color-win)", color: "var(--color-action-contrast)" } : undefined}
+            disabled={pending}
+            onClick={(event) => sendRsvp(event, viewerHoldsSlot || viewerReserved ? "out" : "in")}
+          >
+            {viewerHoldsSlot ? "You're in ✓" : viewerReserved ? "Reserved ✓" : "I'm in"}
+          </Button>
+          {(viewerHoldsSlot || viewerReserved) && (
+            <Button
+              size="lg"
+              variant="destructiveQuiet"
+              className="flex-1"
+              disabled={pending}
+              onClick={(event) => sendRsvp(event, "out")}
+            >
+              Can&apos;t
+            </Button>
+          )}
+        </div>
       )}
 
       {!sessionStarted && !windowOpen && (
-        <p className="text-xs text-center" style={{ color: "var(--c4-text-muted)" }}>
+        <Meta as="p" className="text-center">
           RSVPs open {formatCountdown(windowOpensMs - now)} from now
-        </p>
+        </Meta>
       )}
-    </div>
+    </Card>
   );
 }
