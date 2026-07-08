@@ -3,14 +3,19 @@ import { eq } from "drizzle-orm";
 import { rsvps, sessions, users } from "@cuatro/db";
 import { seedCircle, type Fixture } from "./support/games-fixtures";
 import {
+  DEFAULT_SESSION_DURATION_MINUTES,
   DEFAULT_SESSION_SLOTS,
   checkFourthCallLevel1,
   createOneOffSession,
+  ensureSessionPlayedTransition,
   ensureUpcomingSessionForStandingGame,
   ensureUpcomingSessionsForCircle,
+  getSessionSummary,
   rsvpIn,
   rsvpOut,
 } from "@/server/games-service";
+import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
+import { circleChannel, sessionChannel } from "@/lib/realtime/channels";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -18,6 +23,7 @@ let fixture: Fixture | undefined;
 afterEach(() => {
   fixture?.close();
   fixture = undefined;
+  __setRealtimeSenderForTests(null);
 });
 
 describe("ensureUpcomingSessionForStandingGame", () => {
@@ -427,5 +433,147 @@ describe("Fourth Call level 1", () => {
 describe("slotsForSession default", () => {
   it("defaults to 4 for a one-off session with no standing game", () => {
     expect(DEFAULT_SESSION_SLOTS).toBe(4);
+  });
+});
+
+describe("realtime — rsvp and fourth_call events", () => {
+  function capture() {
+    const calls: { topic: string; type: string; fields: Record<string, unknown> }[] = [];
+    __setRealtimeSenderForTests(async (topic, type, fields) => {
+      calls.push({ topic, type, fields });
+    });
+    return calls;
+  }
+
+  it("rsvpIn broadcasts 'rsvp' to both the session and circle channels, after the write", () => {
+    fixture = seedCircle({ memberCount: 2, standingGame: { weekday: 2, startTime: "20:00" } });
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    const calls = capture();
+
+    const outcome = rsvpIn(fixture.db, session.id, fixture.organiserId, now);
+    expect(outcome.ok).toBe(true);
+
+    const rsvpCalls = calls.filter((c) => c.type === "rsvp");
+    expect(rsvpCalls).toHaveLength(2);
+    expect(rsvpCalls.map((c) => c.topic).sort()).toEqual(
+      [sessionChannel(session.id), circleChannel(fixture.circleId)].sort(),
+    );
+  });
+
+  it("does not broadcast when rsvpIn is rejected (no state change)", () => {
+    fixture = seedCircle({ memberCount: 2, standingGame: { weekday: 2, startTime: "20:00" } });
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    const calls = capture();
+
+    const outcome = rsvpIn(fixture.db, session.id, "not-a-member", now);
+    expect(outcome.ok).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rsvpOut broadcasts 'rsvp' to both channels on a confirmed dropout/promotion", () => {
+    fixture = seedCircle({ memberCount: 2, standingGame: { weekday: 2, startTime: "20:00", slots: 1 } });
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, now);
+    rsvpIn(fixture.db, session.id, fixture.memberIds[0], now); // reserve
+    const calls = capture();
+
+    const outcome = rsvpOut(fixture.db, session.id, fixture.organiserId, now);
+    expect(outcome).toEqual({ ok: true, status: "out", promotedUserId: fixture.memberIds[0] });
+
+    const rsvpCalls = calls.filter((c) => c.type === "rsvp");
+    expect(rsvpCalls).toHaveLength(2);
+    expect(rsvpCalls.map((c) => c.topic).sort()).toEqual(
+      [sessionChannel(session.id), circleChannel(fixture.circleId)].sort(),
+    );
+  });
+
+  it("checkFourthCallLevel1 broadcasts 'fourth_call' to both channels only when it actually fires", () => {
+    fixture = seedCircle({
+      memberCount: 3,
+      standingGame: { weekday: 2, startTime: "20:00", slots: 4, rsvpWindowDays: 6 },
+    });
+    const now = new Date("2026-01-04T00:00:00.000Z"); // well over 48h before Tuesday 20:00
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, now);
+
+    const tooEarly = capture();
+    checkFourthCallLevel1(fixture.db, session.id, now);
+    expect(tooEarly.filter((c) => c.type === "fourth_call")).toHaveLength(0);
+
+    const atWindow = capture();
+    const checkTime = new Date(session.startsAt.getTime() - 47 * 60 * 60 * 1000);
+    const result = checkFourthCallLevel1(fixture.db, session.id, checkTime);
+    expect(result.fired).toBe(true);
+
+    const fourthCallCalls = atWindow.filter((c) => c.type === "fourth_call");
+    expect(fourthCallCalls).toHaveLength(2);
+    expect(fourthCallCalls.map((c) => c.topic).sort()).toEqual(
+      [sessionChannel(session.id), circleChannel(fixture.circleId)].sort(),
+    );
+    expect(fourthCallCalls.every((c) => c.fields.level === 1)).toBe(true);
+  });
+});
+
+describe("ensureSessionPlayedTransition — lazy played sweep", () => {
+  it("leaves an upcoming session alone before startsAt + duration", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00", slots: 4 } });
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, new Date("2026-01-04T00:00:00.000Z"));
+
+    const stillMidGame = new Date(session.startsAt.getTime() + 30 * 60 * 1000); // 30 of 90 minutes in
+    const result = ensureSessionPlayedTransition(fixture.db, session.id, stillMidGame);
+
+    expect(result?.status).toBe("upcoming");
+    const row = fixture.db.select().from(sessions).where(eq(sessions.id, session.id)).get();
+    expect(row?.status).toBe("upcoming");
+  });
+
+  it("flips to 'played' once startsAt + duration has passed", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00", slots: 4 } });
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, new Date("2026-01-04T00:00:00.000Z"));
+
+    const afterFullTime = new Date(session.startsAt.getTime() + 90 * 60 * 1000 + 1000); // standing game default duration is 90 min
+    const result = ensureSessionPlayedTransition(fixture.db, session.id, afterFullTime);
+
+    expect(result?.status).toBe("played");
+    const row = fixture.db.select().from(sessions).where(eq(sessions.id, session.id)).get();
+    expect(row?.status).toBe("played");
+  });
+
+  it("is idempotent — a second sweep on an already-played session is a no-op", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00", slots: 4 } });
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, new Date("2026-01-04T00:00:00.000Z"));
+    const afterFullTime = new Date(session.startsAt.getTime() + 91 * 60 * 1000);
+
+    ensureSessionPlayedTransition(fixture.db, session.id, afterFullTime);
+    const second = ensureSessionPlayedTransition(fixture.db, session.id, afterFullTime);
+    expect(second?.status).toBe("played");
+  });
+
+  it("uses the product default duration (90 min) for a one-off session with no standing game", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const created = createOneOffSession(fixture.db, fixture.organiserId, {
+      circleId: fixture.circleId,
+      startsAt: new Date("2026-02-01T18:00:00.000Z"),
+    });
+    if (!created.ok) throw new Error("unreachable");
+
+    expect(DEFAULT_SESSION_DURATION_MINUTES).toBe(90);
+    const justBefore = new Date(created.value.startsAt.getTime() + DEFAULT_SESSION_DURATION_MINUTES * 60_000 - 1000);
+    expect(ensureSessionPlayedTransition(fixture.db, created.value.id, justBefore)?.status).toBe("upcoming");
+
+    const justAfter = new Date(created.value.startsAt.getTime() + DEFAULT_SESSION_DURATION_MINUTES * 60_000 + 1000);
+    expect(ensureSessionPlayedTransition(fixture.db, created.value.id, justAfter)?.status).toBe("played");
+  });
+
+  it("getSessionSummary sweeps the played transition itself, so callers see it without a separate call", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00", slots: 4 } });
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, new Date("2026-01-04T00:00:00.000Z"));
+    const afterFullTime = new Date(session.startsAt.getTime() + 91 * 60 * 1000);
+
+    const summary = getSessionSummary(fixture.db, session.id, fixture.organiserId, afterFullTime);
+    expect(summary?.session.status).toBe("played");
   });
 });

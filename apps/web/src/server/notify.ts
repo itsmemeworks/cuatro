@@ -12,6 +12,11 @@
  *    write should happen.)
  *  - best-effort web push delivery via ../lib/push, deferred until after the
  *    caller's transaction has committed.
+ *  - a realtime broadcast to the recipient's `cuatro:user:{userId}` channel
+ *    (see ../lib/realtime), which is what drives the notification bell's
+ *    live unread count — every notification type funnels through here, so
+ *    this one hook covers all of them (fourth call, Glass moved, placement
+ *    complete, tab nudge, ...) without each caller needing its own emit.
  *
  * insertNotification() is a synchronous drop-in for the old
  * `tx.insert(notifications).values({...}).run()` call sites: same DB
@@ -26,11 +31,13 @@
  * in theory fire for a write that got rolled back; every call site writes
  * its notification as the last statement in its transaction, so in
  * practice that window doesn't occur. Documented limitation, not solved
- * generically.
+ * generically. The realtime broadcast piggybacks on the same setImmediate
+ * for the same "after commit" reason.
  */
 import { eq } from "drizzle-orm";
 import { notifications, sessions, circles, users, type CuatroDb, type Notification } from "@cuatro/db";
 import { sendPushToUser } from "@/lib/push";
+import { emitUserEvent } from "@/lib/realtime/broadcast";
 
 export type NotificationInput =
   | { type: "game_filled"; payload: { sessionId: string } }
@@ -198,6 +205,12 @@ function schedulePush(userId: string, copy: NotificationCopy, url: string): void
   });
 }
 
+function scheduleRealtimeBroadcast(userId: string, notificationId: string, type: NotificationType): void {
+  setImmediate(() => {
+    emitUserEvent(userId, "notification", { notificationId, notificationType: type });
+  });
+}
+
 /**
  * Drop-in for `tx.insert(notifications).values({...}).run()`. Same insert,
  * plus centralised copy + a best-effort push (see file header for why push
@@ -208,5 +221,6 @@ export function insertNotification(tx: CuatroDb, input: InsertNotificationInput)
   const row = tx.insert(notifications).values({ userId, type: rest.type, payload: rest.payload }).returning().get();
   const copy = renderNotificationCopy(tx, rest);
   schedulePush(userId, copy, deepLinkFor(rest));
+  scheduleRealtimeBroadcast(userId, row.id, rest.type);
   return row;
 }

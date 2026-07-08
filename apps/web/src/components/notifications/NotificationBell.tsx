@@ -1,40 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-
-const POLL_INTERVAL_MS = 60_000;
+import { useUserLive } from "@/lib/realtime/hooks";
 
 /**
- * Bell icon + unread badge, polling /api/notifications/unread-count. Not
- * wired into the bottom nav yet — that's a separate pass (see this file's
- * task scope: "nav wiring happens later, don't touch nav") — exported
- * standalone so dropping it into the nav later is a straight import.
+ * Bell icon + unread badge, wired into the bottom nav (see bottom-nav.tsx).
+ * Unread count is refetched — never trusted from the broadcast payload
+ * itself, which per lib/realtime/channels.ts's design carries only
+ * {type, id fields, ts} — every time this user's `cuatro:user:{id}` channel
+ * fires (a new notification, a fourth call, Glass moving, ...). This
+ * replaced a 60s poll: the count now updates the moment a notification is
+ * written, not up to a minute later.
  */
-export function NotificationBell({ initialUnreadCount = 0 }: { initialUnreadCount?: number }) {
+export function NotificationBell({ userId, initialUnreadCount = 0 }: { userId: string; initialUnreadCount?: number }) {
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+  const cancelledRef = useRef(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications/unread-count");
+      if (!res.ok) return;
+      const body = await res.json();
+      if (!cancelledRef.current && typeof body.unreadCount === "number") setUnreadCount(body.unreadCount);
+    } catch {
+      // Silent — the badge just keeps its last known count until the next live event.
+    }
+  }, []);
+
+  useUserLive(userId, () => {
+    refresh();
+  });
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function poll() {
-      try {
-        const res = await fetch("/api/notifications/unread-count");
-        if (!res.ok) return;
-        const body = await res.json();
-        if (!cancelled && typeof body.unreadCount === "number") setUnreadCount(body.unreadCount);
-      } catch {
-        // Silent — the badge just keeps its last known count until the next tick.
-      }
-    }
-
-    poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    cancelledRef.current = false;
+    refresh(); // catch up on mount, covering the gap between server render and the socket subscribing
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      cancelledRef.current = true;
     };
-  }, []);
+  }, [refresh]);
 
   return (
     <Link

@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/session";
 import { getMatchesStore, computeWinner } from "@/server/matches-db";
 import { confirmMatchAction, disputeMatchAction } from "@/server/matches-actions";
 import { ScoreTable, MatchStatusBadge } from "@/components/matches/score-table";
+import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 
 export default async function MatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
@@ -34,6 +35,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
+      <LiveRefresh sessionId={match.sessionId} />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Match result</h1>
         <MatchStatusBadge status={match.status} outcome={match.outcome} />

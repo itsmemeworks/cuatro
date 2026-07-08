@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createClient, notifications, users, circles, sessions, type CuatroClient, type CuatroDb } from "@cuatro/db";
 import { deepLinkFor, insertNotification, renderNotificationCopy, type NotificationInput } from "@/server/notify";
+import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
+import { userChannel } from "@/lib/realtime/channels";
 
 let client: CuatroClient;
 let db: CuatroDb;
@@ -13,6 +15,7 @@ beforeEach(() => {
 
 afterEach(() => {
   client.close();
+  __setRealtimeSenderForTests(null);
 });
 
 function seedUser(email = "a@example.com", displayName = "Alex") {
@@ -124,5 +127,39 @@ describe("insertNotification", () => {
     // The push send is deferred via setImmediate — flush the macrotask queue
     // so a rejected, uncaught promise inside it would have already surfaced.
     await new Promise((resolve) => setImmediate(resolve));
+  });
+
+  it("broadcasts a 'notification' event on the recipient's user channel — the single hook every notification type funnels through", async () => {
+    const user = seedUser();
+    const calls: { topic: string; type: string; fields: Record<string, unknown> }[] = [];
+    __setRealtimeSenderForTests(async (topic, type, fields) => {
+      calls.push({ topic, type, fields });
+    });
+
+    const row = insertNotification(db, { userId: user.id, type: "game_filled", payload: { sessionId: "s1" } });
+    // Deferred via setImmediate, same "after commit" timing as the push send.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({
+      topic: userChannel(user.id),
+      type: "notification",
+      fields: { userId: user.id, notificationId: row.id, notificationType: "game_filled" },
+    });
+  });
+
+  it("broadcasts for every notification type, not just a subset", async () => {
+    const user = seedUser();
+    const calls: { type: string }[] = [];
+    __setRealtimeSenderForTests(async (_topic, type) => {
+      calls.push({ type });
+    });
+
+    for (const input of SAMPLE_INPUTS) {
+      insertNotification(db, { userId: user.id, ...input });
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(calls.filter((c) => c.type === "notification")).toHaveLength(SAMPLE_INPUTS.length);
   });
 });

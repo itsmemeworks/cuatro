@@ -31,6 +31,7 @@ import {
 } from "@cuatro/db";
 import { slotsForSession } from "./games-service";
 import { insertNotification } from "./notify";
+import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 
 export const FOURTH_CALL_LEVEL2_DELAY_MS = 20 * 60 * 1000;
 const FOURTH_CALL_LEVEL2_RATING_BAND = 0.5;
@@ -163,11 +164,14 @@ export function checkFourthCallLevel2(
   now: Date = new Date(),
   options: FourthCallLevel2Options = {},
 ): FourthCallLevel2Result {
-  return db.transaction((tx) => {
+  let circleId: string | undefined;
+
+  const result = db.transaction((tx): FourthCallLevel2Result => {
     const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
     if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
       return { fired: false, reason: "session_not_upcoming" };
     }
+    circleId = session.circleId;
 
     const standingGame = session.standingGameId
       ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
@@ -270,11 +274,33 @@ export function checkFourthCallLevel2(
 
     return { fired: true, notifiedUserIds: chosen.map((c) => c.id) };
   });
+
+  if (result.fired && circleId) {
+    emitSessionEvent(sessionId, "fourth_call", { circleId, level: 2 });
+    emitCircleEvent(circleId, "fourth_call", { sessionId, level: 2 });
+  }
+  return result;
 }
 
 export type ClaimOutcome =
   | { ok: true; status: "in"; alreadyIn: boolean }
   | { ok: false; error: "no_fourth_call_invite" | "session_not_found" | "session_started" | "already_full" };
+
+/** Does `userId` hold ANY fourth_call invite (level 1 or 2) for this session? Shared by claimFourthCallSlot's gate and the /games/[sessionId] page's "I can play" button visibility. */
+export function hasFourthCallInvite(db: CuatroDb, sessionId: string, userId: string): boolean {
+  const invited = db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, "fourth_call"),
+        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+      ),
+    )
+    .get();
+  return !!invited;
+}
 
 /**
  * The non-member path onto an open slot: a Fourth Call invitee (typically a
@@ -285,22 +311,14 @@ export type ClaimOutcome =
  * the circle, it only creates a session participant.
  */
 export function claimFourthCallSlot(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): ClaimOutcome {
-  return db.transaction((tx) => {
-    const invited = tx
-      .select({ id: notifications.id })
-      .from(notifications)
-      .where(
-        and(
-          eq(notifications.userId, userId),
-          eq(notifications.type, "fourth_call"),
-          sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
-        ),
-      )
-      .get();
-    if (!invited) return { ok: false, error: "no_fourth_call_invite" };
+  let circleId: string | undefined;
+
+  const outcome = db.transaction((tx): ClaimOutcome => {
+    if (!hasFourthCallInvite(tx, sessionId, userId)) return { ok: false, error: "no_fourth_call_invite" };
 
     const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
     if (!session) return { ok: false, error: "session_not_found" };
+    circleId = session.circleId;
     if (session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
       return { ok: false, error: "session_started" };
     }
@@ -337,4 +355,12 @@ export function claimFourthCallSlot(db: CuatroDb, sessionId: string, userId: str
 
     return { ok: true, status: "in", alreadyIn: false };
   });
+
+  if (outcome.ok && !outcome.alreadyIn && circleId) {
+    emitSessionEvent(sessionId, "fourth_call", { circleId, claimed: true });
+    emitCircleEvent(circleId, "fourth_call", { sessionId, claimed: true });
+    emitSessionEvent(sessionId, "rsvp", { circleId });
+    emitCircleEvent(circleId, "rsvp", { sessionId });
+  }
+  return outcome;
 }

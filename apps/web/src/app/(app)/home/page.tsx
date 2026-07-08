@@ -5,6 +5,7 @@ import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForUser, isFourthCallActive, type SessionSummary } from "@/server/games-service";
 import { getMatchesStore, type PendingConfirmationView } from "@/server/matches-db";
 import { SessionCard, type SessionCardData } from "@/components/games/SessionCard";
+import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 
 const cardStyle = { background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" } as const;
 
@@ -125,6 +126,7 @@ export default async function HomePage() {
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
+      <LiveRefresh userId={user.id} />
       <div>
         <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
           Welcome back

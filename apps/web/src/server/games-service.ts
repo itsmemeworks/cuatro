@@ -35,6 +35,7 @@ import {
 import { computeNextOccurrence } from "./tz";
 import { resolveVenue, isOrganiser } from "./standing-games-service";
 import { insertNotification } from "./notify";
+import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -49,6 +50,11 @@ export const DEFAULT_SESSION_SLOTS = 4;
 // fall back to the product default (6 days) rather than being configurable.
 export const DEFAULT_RSVP_WINDOW_DAYS = 6;
 
+// Same story again for the played-transition sweep below: standing_games has
+// durationMinutes (default 90), a one-off session has no column to hold its
+// own, so it uses this product default — matching standingGames' own default.
+export const DEFAULT_SESSION_DURATION_MINUTES = 90;
+
 export const FOURTH_CALL_WINDOW_MS = 48 * 60 * 60 * 1000;
 const LATE_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -58,6 +64,10 @@ export function slotsForSession(standingGame: StandingGame | null): number {
 
 function rsvpWindowDaysFor(standingGame: StandingGame | null): number {
   return standingGame?.rsvpWindowDays ?? DEFAULT_RSVP_WINDOW_DAYS;
+}
+
+function durationMinutesFor(standingGame: StandingGame | null): number {
+  return standingGame?.durationMinutes ?? DEFAULT_SESSION_DURATION_MINUTES;
 }
 
 function effectiveTimezone(venue: Venue | null, circle: { timezone: string }): string {
@@ -210,10 +220,17 @@ function countConfirmed(tx: CuatroDb, sessionId: string): number {
  * once the session has started).
  */
 export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): RsvpOutcome {
-  return db.transaction((tx) => {
+  // Captured inside the transaction below so the realtime emit after it
+  // (see this function's end) can fire outside the transaction — never
+  // from inside `db.transaction(...)`, per lib/realtime/broadcast.ts's
+  // contract — while still knowing which circle to notify.
+  let circleId: string | undefined;
+
+  const outcome = db.transaction((tx): RsvpOutcome => {
     const ctx = loadSessionContext(tx, sessionId);
     if (!ctx) return { ok: false, error: "session_not_found" };
     const { session, standingGame } = ctx;
+    circleId = session.circleId;
 
     if (!isCircleMember(tx, session.circleId, userId)) return { ok: false, error: "not_a_circle_member" };
     if (now.getTime() >= session.startsAt.getTime()) return { ok: false, error: "session_started" };
@@ -278,6 +295,12 @@ export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Dat
 
     return { ok: true, status: newStatus };
   });
+
+  if (outcome.ok && circleId) {
+    emitSessionEvent(sessionId, "rsvp", { circleId });
+    emitCircleEvent(circleId, "rsvp", { sessionId });
+  }
+  return outcome;
 }
 
 /**
@@ -290,10 +313,13 @@ export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Dat
  * a dropout notice to the circle's organisers so they know a slot is open).
  */
 export function rsvpOut(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): RsvpOutcome {
-  return db.transaction((tx) => {
+  let circleId: string | undefined;
+
+  const outcome = db.transaction((tx): RsvpOutcome => {
     const ctx = loadSessionContext(tx, sessionId);
     if (!ctx) return { ok: false, error: "session_not_found" };
     const { session } = ctx;
+    circleId = session.circleId;
 
     if (!isCircleMember(tx, session.circleId, userId)) return { ok: false, error: "not_a_circle_member" };
     if (now.getTime() >= session.startsAt.getTime()) return { ok: false, error: "session_started" };
@@ -355,6 +381,12 @@ export function rsvpOut(db: CuatroDb, sessionId: string, userId: string, now: Da
     }
     return { ok: true, status: "out" };
   });
+
+  if (outcome.ok && circleId) {
+    emitSessionEvent(sessionId, "rsvp", { circleId });
+    emitCircleEvent(circleId, "rsvp", { sessionId });
+  }
+  return outcome;
 }
 
 /** Shifts every reserve position greater than `vacatedPosition` down by one, closing the gap. */
@@ -385,9 +417,12 @@ export function checkFourthCallLevel1(
   sessionId: string,
   now: Date = new Date(),
 ): FourthCallCheckResult {
-  return db.transaction((tx) => {
+  let circleId: string | undefined;
+
+  const result = db.transaction((tx): FourthCallCheckResult => {
     const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
     if (!session || session.status !== "upcoming") return { fired: false, reason: "session_not_upcoming" };
+    circleId = session.circleId;
 
     const msToStart = session.startsAt.getTime() - now.getTime();
     if (msToStart < 0) return { fired: false, reason: "session_not_upcoming" };
@@ -433,6 +468,40 @@ export function checkFourthCallLevel1(
 
     return { fired: true, notifiedUserIds: targets };
   });
+
+  if (result.fired && circleId) {
+    emitSessionEvent(sessionId, "fourth_call", { circleId, level: 1 });
+    emitCircleEvent(circleId, "fourth_call", { sessionId, level: 1 });
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Played transition — lazy, same "no cron in v0" pattern as Fourth Call
+// ---------------------------------------------------------------------------
+
+/**
+ * Lazily flips a session from "upcoming" to "played" once its scheduled end
+ * (startsAt + duration) has passed. No cron in v0 (see this file's header),
+ * so this runs wherever a session is loaded for view — getSessionSummary
+ * below calls it first, which covers the session detail page, the games
+ * list, the home page, and the circle page in one place. Idempotent: a
+ * session that isn't "upcoming" (already "played", or "cancelled") is
+ * returned untouched.
+ */
+export function ensureSessionPlayedTransition(db: CuatroDb, sessionId: string, now: Date = new Date()): Session | null {
+  return db.transaction((tx) => {
+    const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    if (!session || session.status !== "upcoming") return session ?? null;
+
+    const standingGame = session.standingGameId
+      ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+      : null;
+    const endsAt = session.startsAt.getTime() + durationMinutesFor(standingGame) * 60_000;
+    if (now.getTime() < endsAt) return session;
+
+    return tx.update(sessions).set({ status: "played" }).where(eq(sessions.id, sessionId)).returning().get();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -454,8 +523,13 @@ export type SessionSummary = {
   rsvpWindowOpensAt: Date;
 };
 
-export function getSessionSummary(db: CuatroDb, sessionId: string, viewerUserId: string): SessionSummary | null {
-  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+export function getSessionSummary(
+  db: CuatroDb,
+  sessionId: string,
+  viewerUserId: string,
+  now: Date = new Date(),
+): SessionSummary | null {
+  const session = ensureSessionPlayedTransition(db, sessionId, now);
   if (!session) return null;
 
   const standingGame = session.standingGameId
@@ -566,7 +640,7 @@ function listUpcomingSessionsForCircles(
     .all();
 
   const summaries = upcoming
-    .map((s) => getSessionSummary(db, s.id, viewerUserId))
+    .map((s) => getSessionSummary(db, s.id, viewerUserId, now))
     .filter((s): s is SessionSummary => s !== null);
 
   for (const summary of summaries) {

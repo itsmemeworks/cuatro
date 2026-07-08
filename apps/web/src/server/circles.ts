@@ -13,20 +13,22 @@
  * constructor would leave test fixtures invisible to the store under test.
  * `getCirclesStore()` is still the process-wide singleton the app uses.
  *
- * Chat delivery: an in-process EventEmitter-style listener map broadcasts
- * new messages to open SSE connections (see
- * app/api/circles/[id]/messages/stream/route.ts). This only works because
- * the app runs as a single Fly machine (fly.toml: no multi-machine http
- * service config) — a second instance would miss messages published on the
- * other one. If/when this app scales beyond one machine, replace the
- * in-memory map with a real pub/sub (e.g. a SQLite `notify` polling loop or
- * Redis) without changing the `postMessage`/`subscribeToCircleMessages`
- * call sites.
+ * Chat delivery: postMessage() broadcasts a minimal-signal realtime event
+ * (see ../lib/realtime) on the circle's `cuatro:circle:{id}` channel after
+ * the write commits — never the message body itself. Clients subscribed via
+ * useCircleLive backfill through GET .../messages?after= (see
+ * app/api/circles/[id]/messages/route.ts) to get the actual content. This
+ * replaced an in-process listener map feeding an SSE stream, which only
+ * worked because the app ran as a single Fly machine — the realtime bus
+ * removes that assumption, since Supabase Realtime (not this process) fans
+ * the broadcast out to every connected client regardless of which app
+ * instance handled the write.
  */
 import { randomInt } from "node:crypto";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { createClient, circleMembers, circleMessages, circles, users } from "@cuatro/db";
 import type { CuatroDb, Circle } from "@cuatro/db";
+import { emitCircleEvent } from "@/lib/realtime/broadcast";
 
 const MAX_INVITE_CODE_ATTEMPTS = 8;
 const MAX_MESSAGE_LENGTH = 2000;
@@ -190,34 +192,6 @@ function toCircleSummary(circle: Circle, memberCount: number, myRole: "organiser
     createdAt: circle.createdAt,
     memberCount,
     myRole,
-  };
-}
-
-// circleId -> listeners. Process-global (not per-store-instance) so every
-// postMessage() call reaches every open SSE connection in this process,
-// regardless of which CirclesStore instance handled the write.
-const messageListeners = new Map<string, Set<(message: CircleMessageView) => void>>();
-
-function publishMessage(message: CircleMessageView): void {
-  const listeners = messageListeners.get(message.circleId);
-  if (!listeners) return;
-  for (const listener of listeners) listener(message);
-}
-
-/** Subscribe to new messages in a Circle; returns an unsubscribe function. */
-export function subscribeToCircleMessages(
-  circleId: string,
-  listener: (message: CircleMessageView) => void,
-): () => void {
-  let listeners = messageListeners.get(circleId);
-  if (!listeners) {
-    listeners = new Set();
-    messageListeners.set(circleId, listeners);
-  }
-  listeners.add(listener);
-  return () => {
-    listeners!.delete(listener);
-    if (listeners!.size === 0) messageListeners.delete(circleId);
   };
 }
 
@@ -397,7 +371,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         body: row.body,
         createdAt: row.createdAt,
       };
-      publishMessage(message);
+      emitCircleEvent(circleId, "message", { messageId: message.id });
       return message;
     },
 

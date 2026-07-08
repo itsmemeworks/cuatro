@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSessionLive } from "@/lib/realtime/hooks";
 
 export type SessionCardPlayer = {
   userId: string;
@@ -61,6 +62,12 @@ export function SessionCard({ data, viewerUserId }: { data: SessionCardData; vie
   const [now, setNow] = useState<number>(() => Date.now());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // No handler — the default is router.refresh(), which re-renders this
+  // card (and everything else on the page) with fresh RSVP/fourth-call
+  // data whenever this session changes, wherever this card is mounted
+  // (home, /games, a circle's feed, the session detail page).
+  useSessionLive(data.sessionId);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 30_000);

@@ -48,6 +48,7 @@ import {
 } from "@cuatro/glass";
 import { getDb } from "./db";
 import { insertNotification } from "./notify";
+import { emitCircleEvent, emitSessionEvent, emitUserEvent } from "@/lib/realtime/broadcast";
 
 export type Team = "A" | "B";
 
@@ -145,6 +146,23 @@ function opponentIdsOf(match: Match, userId: string): [string, string] {
 
 function fourPlayerIds(match: Match): [string, string, string, string] {
   return [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id];
+}
+
+/**
+ * Broadcasts a "match" event to the session, its circle, and all four
+ * players — called AFTER the write transaction that produced `status` has
+ * committed (see recordMatch/confirmMatch/disputeMatch below), never from
+ * inside it. `circleId` isn't on `matches` (only `sessionId` is), so this
+ * does one extra lookup; matches-db.ts already accepts an async top-level
+ * query here (see recordMatch's own pre-transaction session fetch).
+ */
+async function emitMatchEvent(db: CuatroDb, match: Match, status: string): Promise<void> {
+  const [session] = await db.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, match.sessionId));
+  emitSessionEvent(match.sessionId, "match", { matchId: match.id, status });
+  if (session) emitCircleEvent(session.circleId, "match", { matchId: match.id, sessionId: match.sessionId, status });
+  for (const uid of fourPlayerIds(match)) {
+    emitUserEvent(uid, "match", { matchId: match.id, sessionId: match.sessionId, status });
+  }
 }
 
 /**
@@ -429,7 +447,8 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       const [session] = await db.select().from(sessions).where(eq(sessions.id, input.sessionId));
       if (!session) throw new Error(`No such session "${input.sessionId}"`);
 
-      return db.transaction((tx) => {
+      let createdMatch: Match | undefined;
+      const result = db.transaction((tx) => {
         const created = tx
           .insert(matches)
           .values({
@@ -445,6 +464,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
           })
           .returning()
           .get();
+        createdMatch = created;
 
         const reporterTeam = teamOf(created, input.reporterId)!;
         tx.insert(matchConfirmations)
@@ -462,10 +482,14 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
         return { matchId: created.id };
       });
+
+      if (createdMatch) await emitMatchEvent(db, createdMatch, "recorded");
+      return result;
     },
 
     async confirmMatch(matchId, userId) {
-      return db.transaction((tx): ConfirmOutcome => {
+      let touchedMatch: Match | undefined;
+      const outcome = db.transaction((tx): ConfirmOutcome => {
         const match = tx.select().from(matches).where(eq(matches.id, matchId)).get();
         if (!match) throw new Error(`No such match "${matchId}"`);
 
@@ -490,16 +514,25 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         const confirmations = tx.select().from(matchConfirmations).where(eq(matchConfirmations.matchId, matchId)).all();
         const teamsConfirmed = new Set(confirmations.map((c) => c.team));
         if (teamsConfirmed.size < 2) {
+          touchedMatch = match;
           return { status: "pending_confirmation", alreadyFinal: false };
         }
 
         const ledgerEvents = applyGlassAndPersist(tx, match);
+        touchedMatch = match;
         return { status: "verified", alreadyFinal: false, ledgerEvents };
       });
+
+      // Only broadcast on an actual state change — a no-op confirm on an
+      // already-final match (see the idempotency branch above) leaves
+      // touchedMatch unset and nothing for clients to refetch.
+      if (touchedMatch) await emitMatchEvent(db, touchedMatch, outcome.status);
+      return outcome;
     },
 
     async disputeMatch(matchId, userId) {
-      return db.transaction((tx): ConfirmOutcome => {
+      let touchedMatch: Match | undefined;
+      const outcome = db.transaction((tx): ConfirmOutcome => {
         const match = tx.select().from(matches).where(eq(matches.id, matchId)).get();
         if (!match) throw new Error(`No such match "${matchId}"`);
 
@@ -513,6 +546,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         }
 
         tx.update(matches).set({ status: "disputed" }).where(eq(matches.id, matchId)).run();
+        touchedMatch = match;
 
         for (const id of fourPlayerIds(match)) {
           insertNotification(tx, { userId: id, type: "result_disputed", payload: { matchId } });
@@ -520,6 +554,9 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
         return { status: "disputed", alreadyFinal: true };
       });
+
+      if (touchedMatch) await emitMatchEvent(db, touchedMatch, outcome.status);
+      return outcome;
     },
 
     async getMatchDetail(matchId, viewerId) {

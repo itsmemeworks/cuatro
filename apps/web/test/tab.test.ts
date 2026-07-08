@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { notifications } from "@cuatro/db";
 import { seedCircle, type Fixture } from "./support/games-fixtures";
 import {
   addSplitEntry,
@@ -12,11 +14,14 @@ import {
   proposeOrConfirmSettle,
   type TabEntryLike,
 } from "@/server/tab";
+import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
+import { circleChannel, userChannel } from "@/lib/realtime/channels";
 
 let fixture: Fixture | undefined;
 afterEach(() => {
   fixture?.close();
   fixture = undefined;
+  __setRealtimeSenderForTests(null);
 });
 
 describe("computeEqualSplit — penny-remainder rule", () => {
@@ -378,5 +383,127 @@ describe("ensureTabForCircle / getTabView", () => {
     expect(after.balances).toEqual([]);
     expect(after.activity).toHaveLength(1);
     expect(after.activity[0]!.status).toBe("settled");
+  });
+});
+
+describe("nudgeEntry — routed through server/notify.ts's typed tab_nudge", () => {
+  it("writes a tab_nudge notification carrying circleId (not a bare raw insert missing it)", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const [debtor] = fixture.memberIds;
+    const created = addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [debtor],
+      totalAmountMinor: 1000,
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const entryId = created.entries[0]!.id;
+
+    nudgeEntry(fixture.db, entryId, fixture.organiserId);
+
+    const [notif] = fixture.db.select().from(notifications).where(eq(notifications.type, "tab_nudge")).all();
+    expect(notif.userId).toBe(debtor);
+    expect(notif.payload).toMatchObject({
+      circleId: fixture.circleId,
+      tabEntryId: entryId,
+      amountMinor: 500, // £10.00 split across payer + 1 debtor = 500p each
+      currency: "GBP",
+    });
+  });
+});
+
+describe("realtime — tab events", () => {
+  function capture() {
+    const calls: { topic: string; type: string; fields: Record<string, unknown> }[] = [];
+    __setRealtimeSenderForTests(async (topic, type, fields) => {
+      calls.push({ topic, type, fields });
+    });
+    return calls;
+  }
+
+  it("addSplitEntry broadcasts 'tab' to the circle and each debtor", () => {
+    fixture = seedCircle({ memberCount: 2 });
+    const [d1, d2] = fixture.memberIds;
+    const calls = capture();
+
+    const result = addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [d1, d2],
+      totalAmountMinor: 1000,
+    });
+    if (!result.ok) throw new Error("unreachable");
+
+    const tabCalls = calls.filter((c) => c.type === "tab");
+    // One circle-channel broadcast + one user-channel broadcast per debtor.
+    expect(tabCalls.filter((c) => c.topic === circleChannel(fixture!.circleId))).toHaveLength(2);
+    expect(tabCalls.map((c) => c.topic).sort()).toEqual(
+      [circleChannel(fixture.circleId), circleChannel(fixture.circleId), userChannel(d1), userChannel(d2)].sort(),
+    );
+  });
+
+  it("nudgeEntry broadcasts 'tab' to the circle and the debtor", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const [debtor] = fixture.memberIds;
+    const created = addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [debtor],
+      totalAmountMinor: 1000,
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const entryId = created.entries[0]!.id;
+
+    const calls = capture();
+    const outcome = nudgeEntry(fixture.db, entryId, fixture.organiserId);
+    expect(outcome).toEqual({ ok: true, status: "nudged" });
+
+    const tabCalls = calls.filter((c) => c.type === "tab");
+    expect(tabCalls.map((c) => c.topic).sort()).toEqual([circleChannel(fixture.circleId), userChannel(debtor)].sort());
+  });
+
+  it("does not broadcast when nudgeEntry is rejected (already nudged)", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const [debtor] = fixture.memberIds;
+    const created = addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [debtor],
+      totalAmountMinor: 1000,
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const entryId = created.entries[0]!.id;
+    nudgeEntry(fixture.db, entryId, fixture.organiserId);
+
+    const calls = capture();
+    const outcome = nudgeEntry(fixture.db, entryId, fixture.organiserId);
+    expect(outcome).toEqual({ ok: false, error: "already_nudged" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("proposeOrConfirmSettle broadcasts 'tab' only on the finalising call, not the proposing one", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const [debtor] = fixture.memberIds;
+    const created = addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [debtor],
+      totalAmountMinor: 1000,
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const entryId = created.entries[0]!.id;
+
+    const proposeCalls = capture();
+    proposeOrConfirmSettle(fixture.db, entryId, debtor);
+    expect(proposeCalls.filter((c) => c.type === "tab")).toHaveLength(0);
+
+    const confirmCalls = capture();
+    const outcome = proposeOrConfirmSettle(fixture.db, entryId, fixture.organiserId);
+    expect(outcome).toMatchObject({ ok: true, status: "settled", alreadyFinal: false });
+
+    const tabCalls = confirmCalls.filter((c) => c.type === "tab");
+    expect(tabCalls.map((c) => c.topic).sort()).toEqual(
+      [circleChannel(fixture.circleId), userChannel(debtor), userChannel(fixture.organiserId)].sort(),
+    );
   });
 });

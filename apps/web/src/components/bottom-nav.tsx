@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const TABS = [
   { href: "/home", label: "Home", icon: "🏠" },
@@ -10,8 +11,9 @@ const TABS = [
   { href: "/profile", label: "Profile", icon: "●" },
 ] as const;
 
-export function BottomNav() {
+export function BottomNav({ userId, initialUnreadCount = 0 }: { userId: string; initialUnreadCount?: number }) {
   const pathname = usePathname();
+  const notificationsActive = pathname?.startsWith("/notifications");
 
   return (
     <nav
@@ -42,6 +44,13 @@ export function BottomNav() {
           </Link>
         );
       })}
+      <div
+        className="flex flex-1 flex-col items-center justify-center gap-0.5"
+        style={{ color: notificationsActive ? "var(--c4-accent)" : "var(--c4-text-muted)" }}
+      >
+        <NotificationBell userId={userId} initialUnreadCount={initialUnreadCount} />
+        <span className="text-[11px] font-medium">Alerts</span>
+      </div>
     </nav>
   );
 }

@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { checkFourthCallLevel1, getSessionSummary, isFourthCallActive } from "@/server/games-service";
+import { hasFourthCallInvite } from "@/server/fourth-call";
 import { getMatchesStore } from "@/server/matches-db";
 import { SessionCard, type SessionCardData } from "@/components/games/SessionCard";
+import { ClaimFourthCallButton } from "@/components/games/ClaimFourthCallButton";
 
 export default async function SessionDetailPage({
   params,
@@ -23,13 +25,20 @@ export default async function SessionDetailPage({
   // Fourth Call level-1 check runs on (see games-service.ts — no cron in v0).
   checkFourthCallLevel1(db, sessionId);
 
-  // Cross-link to result entry: v0 has no cron to flip a session's status
-  // to "played" (see games-service.ts's session-instantiation comments), so
-  // "has this game already happened?" is judged the same way the rest of
-  // the app judges it — by kickoff time, not the (mostly unused) status
-  // column.
-  const isPast = summary.session.startsAt.getTime() < Date.now();
+  // "Has this game already happened?" is judged by the session's own
+  // status column, which getSessionSummary (via
+  // ensureSessionPlayedTransition) just lazily flipped upcoming -> played
+  // if startsAt + duration has passed — replaces the old raw
+  // startsAt-vs-now comparison, which could gate "Record result" open
+  // before a match had actually finished.
+  const isPast = summary.session.status === "played";
   const existingMatch = isPast ? await (await getMatchesStore()).getMatchForSession(sessionId) : null;
+
+  // One-tap claim: a Fourth Call invitee (level 1 or 2) who hasn't already
+  // taken the slot can tap straight in from here — this is where their
+  // notification's deep link lands (see server/notify.ts's deepLinkFor).
+  const showClaimButton =
+    !isPast && summary.viewerStatus !== "in" && hasFourthCallInvite(db, sessionId, user.id);
 
   const card: SessionCardData = {
     sessionId: summary.session.id,
@@ -51,6 +60,8 @@ export default async function SessionDetailPage({
         ← Games
       </Link>
       <SessionCard data={card} viewerUserId={user.id} />
+
+      {showClaimButton && <ClaimFourthCallButton sessionId={sessionId} />}
 
       {isPast && (
         <Link

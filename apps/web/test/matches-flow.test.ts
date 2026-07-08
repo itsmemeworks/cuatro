@@ -13,6 +13,8 @@ import {
   PLACEMENT_TRIO_SIZE,
 } from "@cuatro/glass";
 import { createMatchesStore, type MatchesStore } from "@/server/matches-db";
+import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
+import { circleChannel, sessionChannel, userChannel } from "@/lib/realtime/channels";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -394,5 +396,117 @@ describe("result entry + Glass verification flow", () => {
     // Now verified — no longer a pending action for either team.
     expect(await store.getPendingConfirmationsForUser(c.id)).toEqual([]);
     expect(await store.getPendingConfirmationsForUser(d.id)).toEqual([]);
+  });
+});
+
+describe("realtime — match events", () => {
+  let store: MatchesStore;
+  let db: CuatroDb;
+
+  beforeEach(() => {
+    store = createMatchesStore(":memory:");
+    db = store.db;
+  });
+
+  afterEach(() => {
+    store.close();
+    __setRealtimeSenderForTests(null);
+  });
+
+  function capture() {
+    const calls: { topic: string; type: string; fields: Record<string, unknown> }[] = [];
+    __setRealtimeSenderForTests(async (topic, type, fields) => {
+      calls.push({ topic, type, fields });
+    });
+    return calls;
+  }
+
+  function insertCircleAndSessionWithId(startsAt: Date, createdBy: { id: string }) {
+    const circle = db
+      .insert(circles)
+      .values({ name: "Test Circle", inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy: createdBy.id })
+      .returning()
+      .get();
+    const session = db.insert(sessions).values({ circleId: circle.id, startsAt, status: "played" }).returning().get();
+    return { circleId: circle.id, sessionId: session.id };
+  }
+
+  it("recordMatch broadcasts 'match' (recorded) to the session, its circle, and all four players", async () => {
+    const a = insertUser(db, "ra@example.com", "RA");
+    const b = insertUser(db, "rb@example.com", "RB");
+    const c = insertUser(db, "rc@example.com", "RC");
+    const d = insertUser(db, "rd@example.com", "RD");
+    const { circleId, sessionId } = insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
+
+    const calls = capture();
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: a.id,
+      teamA: [a.id, b.id],
+      teamB: [c.id, d.id],
+      sets: [{ a: 6, b: 2 }],
+    });
+
+    const matchCalls = calls.filter((call) => call.type === "match");
+    expect(matchCalls.every((call) => call.fields.matchId === matchId && call.fields.status === "recorded")).toBe(true);
+    const topics = matchCalls.map((call) => call.topic).sort();
+    expect(topics).toEqual(
+      [sessionChannel(sessionId), circleChannel(circleId), userChannel(a.id), userChannel(b.id), userChannel(c.id), userChannel(d.id)].sort(),
+    );
+  });
+
+  it("confirmMatch broadcasts 'match' with the resulting status, only on an actual state change", async () => {
+    const a = insertUser(db, "ca@example.com", "CA");
+    const b = insertUser(db, "cb@example.com", "CB");
+    const c = insertUser(db, "cc@example.com", "CC");
+    const d = insertUser(db, "cd@example.com", "CD");
+    const { sessionId } = insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: a.id,
+      teamA: [a.id, b.id],
+      teamB: [c.id, d.id],
+      sets: [{ a: 6, b: 2 }],
+    });
+
+    // The reporter's own teammate re-confirming (team A already auto-confirmed
+    // at record time) stays pending_confirmation — only one team has confirmed.
+    const firstCalls = capture();
+    await store.confirmMatch(matchId, b.id);
+    expect(firstCalls.filter((call) => call.type === "match" && call.fields.status === "pending_confirmation")).not.toHaveLength(0);
+
+    // Second confirm (the other player on that same team, still same team) finalises it.
+    const secondCalls = capture();
+    const outcome = await store.confirmMatch(matchId, d.id);
+    expect(outcome.status).toBe("verified");
+    expect(secondCalls.filter((call) => call.type === "match" && call.fields.status === "verified")).not.toHaveLength(0);
+
+    // A third, now-redundant confirm from an already-confirmed team is a no-op — nothing to broadcast.
+    const thirdCalls = capture();
+    await store.confirmMatch(matchId, c.id);
+    expect(thirdCalls).toHaveLength(0);
+  });
+
+  it("disputeMatch broadcasts 'match' (disputed) once, not on a repeat dispute call", async () => {
+    const a = insertUser(db, "da@example.com", "DA");
+    const b = insertUser(db, "db@example.com", "DB");
+    const c = insertUser(db, "dc@example.com", "DC");
+    const d = insertUser(db, "dd@example.com", "DD");
+    const { sessionId } = insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: a.id,
+      teamA: [a.id, b.id],
+      teamB: [c.id, d.id],
+      sets: [{ a: 6, b: 2 }],
+    });
+
+    const calls = capture();
+    await store.disputeMatch(matchId, c.id);
+    expect(calls.filter((call) => call.type === "match" && call.fields.status === "disputed")).not.toHaveLength(0);
+
+    const repeatCalls = capture();
+    await store.disputeMatch(matchId, c.id);
+    expect(repeatCalls).toHaveLength(0);
   });
 });

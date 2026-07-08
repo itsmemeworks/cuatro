@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useCircleLive } from "@/lib/realtime/hooks";
 
 export interface ChatMessage {
   id: string;
@@ -11,9 +13,15 @@ export interface ChatMessage {
   createdAt: string; // ISO — serialized at the server-component boundary
 }
 
-// Delivery: SSE (see /api/circles/[id]/messages/stream), with the standard
-// EventSource auto-reconnect as the only "fallback" — see that route's
-// header comment for why a real multi-instance pub/sub isn't needed yet.
+// Delivery: the circle's realtime broadcast channel carries only
+// {type: "message", messageId, ts} — never the body — so a "message" event
+// (or a synthesized "reconnect", see lib/realtime/hooks.ts) triggers a
+// backfill fetch through GET .../messages?after=<last-known-timestamp>,
+// which doubles as both "append the new message" and "catch up on anything
+// missed while offline". Any other event type on this channel (rsvp, match,
+// tab — the same circle page also shows sessions/tab summaries) falls
+// through to a plain router.refresh() so the rest of the page stays live
+// too, without a second subscription to the same topic.
 export function CircleChat({
   circleId,
   currentUserId,
@@ -23,22 +31,46 @@ export function CircleChat({
   currentUserId: string;
   initialMessages: ChatMessage[];
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const seenIds = useRef(new Set(initialMessages.map((m) => m.id)));
+  const lastSeenAtRef = useRef(
+    initialMessages.reduce((max, m) => Math.max(max, new Date(m.createdAt).getTime()), 0),
+  );
 
-  useEffect(() => {
-    const source = new EventSource(`/api/circles/${circleId}/messages/stream`);
-    source.addEventListener("message", (event) => {
-      const message = JSON.parse((event as MessageEvent<string>).data) as ChatMessage;
-      if (seenIds.current.has(message.id)) return;
-      seenIds.current.add(message.id);
-      setMessages((prev) => [...prev, message]);
-    });
-    return () => source.close();
+  const backfill = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/circles/${circleId}/messages?after=${lastSeenAtRef.current}`);
+      if (!res.ok) return;
+      const body = (await res.json()) as { ok: boolean; messages?: ChatMessage[] };
+      if (!body.ok || !body.messages?.length) return;
+      const fresh = body.messages.filter((m) => !seenIds.current.has(m.id));
+      if (fresh.length === 0) return;
+      for (const m of fresh) {
+        seenIds.current.add(m.id);
+        lastSeenAtRef.current = Math.max(lastSeenAtRef.current, new Date(m.createdAt).getTime());
+      }
+      setMessages((prev) => [...prev, ...fresh]);
+    } catch {
+      // Best-effort — the next live event (or a manual refresh) will retry.
+    }
   }, [circleId]);
+
+  useCircleLive(circleId, (event) => {
+    if (event.type === "message" || event.type === "reconnect") backfill();
+    else router.refresh();
+  });
+
+  // Mount-time catch-up: a message posted between the server render and the
+  // socket subscribing above would otherwise sit unseen until the next
+  // broadcast.
+  useEffect(() => {
+    backfill();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });

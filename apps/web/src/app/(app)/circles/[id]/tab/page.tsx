@@ -6,6 +6,7 @@ import { getTabView } from "@/server/tab";
 import { formatMoney } from "@/components/tab/money";
 import { AddEntryForm } from "@/components/tab/add-entry-form";
 import { TabEntryRow } from "@/components/tab/tab-entry-row";
+import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 
 export default async function TabPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: circleId } = await params;
@@ -26,6 +27,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
+      <LiveRefresh circleId={circleId} />
       <Link href={`/circles/${circleId}`} className="text-sm font-medium" style={{ color: "var(--c4-accent)" }}>
         ← Circle
       </Link>

@@ -9,6 +9,8 @@ import {
   NotOrganiserError,
   type CirclesStore,
 } from "@/server/circles";
+import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
+import { circleChannel } from "@/lib/realtime/channels";
 
 describe("circles store (@cuatro/db)", () => {
   let client: CuatroClient;
@@ -37,6 +39,7 @@ describe("circles store (@cuatro/db)", () => {
 
   afterEach(() => {
     client.close();
+    __setRealtimeSenderForTests(null);
   });
 
   it("creates a circle with the creator as organiser and a well-formed invite code", async () => {
@@ -181,5 +184,21 @@ describe("circles store (@cuatro/db)", () => {
 
     const messages = await store.listMessages(circle.id, organiser.id, { after: first.createdAt });
     expect(messages.map((m) => m.id)).toEqual([second.id]);
+  });
+
+  it("postMessage broadcasts a minimal 'message' event on the circle's realtime channel — never the body", async () => {
+    const circle = await store.createCircle({ name: "Chat Circle", creatorUserId: organiser.id });
+    const calls: { topic: string; type: string; fields: Record<string, unknown> }[] = [];
+    __setRealtimeSenderForTests(async (topic, type, fields) => {
+      calls.push({ topic, type, fields });
+    });
+
+    const message = await store.postMessage({ circleId: circle.id, userId: organiser.id, body: "secret plans" });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.topic).toBe(circleChannel(circle.id));
+    expect(calls[0]!.type).toBe("message");
+    expect(calls[0]!.fields).toEqual({ circleId: circle.id, messageId: message.id });
+    expect(JSON.stringify(calls[0]!.fields)).not.toContain("secret plans");
   });
 });

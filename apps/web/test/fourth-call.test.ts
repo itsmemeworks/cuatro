@@ -15,7 +15,15 @@ import {
   type CuatroDb,
   type RatingEventFactors,
 } from "@cuatro/db";
-import { checkFourthCallLevel2, claimFourthCallSlot, FOURTH_CALL_LEVEL2_CAP, FOURTH_CALL_LEVEL2_DELAY_MS } from "@/server/fourth-call";
+import {
+  checkFourthCallLevel2,
+  claimFourthCallSlot,
+  hasFourthCallInvite,
+  FOURTH_CALL_LEVEL2_CAP,
+  FOURTH_CALL_LEVEL2_DELAY_MS,
+} from "@/server/fourth-call";
+import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
+import { circleChannel, sessionChannel } from "@/lib/realtime/channels";
 
 let client: CuatroClient;
 let db: CuatroDb;
@@ -29,6 +37,7 @@ beforeEach(() => {
 
 afterEach(() => {
   client.close();
+  __setRealtimeSenderForTests(null);
 });
 
 function seedUser(opts: { rating?: number | null; countryCode?: string } = {}) {
@@ -360,5 +369,118 @@ describe("claimFourthCallSlot", () => {
 
     const filledNotifs = db.select().from(notifications).where(eq(notifications.type, "game_filled")).all();
     expect(filledNotifs.map((n) => n.userId).sort()).toEqual([p1.id, invitee.id].sort());
+  });
+});
+
+describe("hasFourthCallInvite", () => {
+  it("is true once a fourth_call notification (any level) exists for that user/session", () => {
+    const organiser = seedUser();
+    const circleA = seedCircle(organiser.id);
+    const session = seedSession(circleA.id, { slots: 4 });
+    const invitee = seedUser();
+
+    expect(hasFourthCallInvite(db, session.id, invitee.id)).toBe(false);
+    seedFourthCallNotification(invitee.id, session.id, 2);
+    expect(hasFourthCallInvite(db, session.id, invitee.id)).toBe(true);
+  });
+
+  it("is scoped per session — an invite for a different session doesn't count", () => {
+    const organiser = seedUser();
+    const circleA = seedCircle(organiser.id);
+    const sessionA = seedSession(circleA.id, { slots: 4 });
+    const sessionB = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-09-01T18:00:00.000Z") });
+    const invitee = seedUser();
+    seedFourthCallNotification(invitee.id, sessionA.id, 1);
+
+    expect(hasFourthCallInvite(db, sessionB.id, invitee.id)).toBe(false);
+  });
+});
+
+describe("realtime — fourth_call and rsvp events", () => {
+  function capture() {
+    const calls: { topic: string; type: string; fields: Record<string, unknown> }[] = [];
+    __setRealtimeSenderForTests(async (topic, type, fields) => {
+      calls.push({ topic, type, fields });
+    });
+    return calls;
+  }
+
+  it("checkFourthCallLevel2 broadcasts 'fourth_call' (level 2) to session and circle only when it fires", () => {
+    const organiser = seedUser();
+    const circleA = seedCircle(organiser.id);
+    const p1 = seedUser({ rating: 4 });
+    addMember(circleA.id, p1.id);
+    const session = seedSession(circleA.id, { slots: 4 });
+    rsvpConfirmed(session.id, p1.id);
+
+    const circleB = seedCircle(organiser.id);
+    addMember(circleB.id, p1.id);
+    const candidate = seedUser({ rating: 4.1 });
+    addMember(circleB.id, candidate.id);
+
+    const calls = capture();
+    const result = checkFourthCallLevel2(db, session.id, new Date("2026-08-04T18:00:00.000Z"), { forceEscalate: true });
+    expect(result.fired).toBe(true);
+
+    const fourthCallCalls = calls.filter((c) => c.type === "fourth_call");
+    expect(fourthCallCalls).toHaveLength(2);
+    expect(fourthCallCalls.map((c) => c.topic).sort()).toEqual(
+      [sessionChannel(session.id), circleChannel(circleA.id)].sort(),
+    );
+    expect(fourthCallCalls.every((c) => c.fields.level === 2)).toBe(true);
+  });
+
+  it("does not broadcast when checkFourthCallLevel2 declines to fire", () => {
+    const organiser = seedUser();
+    const circleA = seedCircle(organiser.id);
+    const p1 = seedUser();
+    const p2 = seedUser();
+    addMember(circleA.id, p1.id);
+    addMember(circleA.id, p2.id);
+    const session = seedSession(circleA.id, { slots: 2 });
+    rsvpConfirmed(session.id, p1.id);
+    rsvpConfirmed(session.id, p2.id);
+
+    const calls = capture();
+    const result = checkFourthCallLevel2(db, session.id, new Date(), { forceEscalate: true });
+    expect(result).toEqual({ fired: false, reason: "already_full" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("claimFourthCallSlot broadcasts 'fourth_call' (claimed) and 'rsvp' to session and circle", () => {
+    const organiser = seedUser();
+    const circleA = seedCircle(organiser.id);
+    const p1 = seedUser();
+    addMember(circleA.id, p1.id);
+    const session = seedSession(circleA.id, { slots: 4 });
+    rsvpConfirmed(session.id, p1.id);
+    const invitee = seedUser();
+    seedFourthCallNotification(invitee.id, session.id, 2);
+
+    const calls = capture();
+    const outcome = claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    expect(outcome).toEqual({ ok: true, status: "in", alreadyIn: false });
+
+    const claimedCalls = calls.filter((c) => c.type === "fourth_call" && c.fields.claimed === true);
+    const rsvpCalls = calls.filter((c) => c.type === "rsvp");
+    expect(claimedCalls).toHaveLength(2);
+    expect(rsvpCalls).toHaveLength(2);
+    expect(claimedCalls.map((c) => c.topic).sort()).toEqual(
+      [sessionChannel(session.id), circleChannel(circleA.id)].sort(),
+    );
+  });
+
+  it("a second (already-in) claim does not re-broadcast", () => {
+    const organiser = seedUser();
+    const circleA = seedCircle(organiser.id);
+    const session = seedSession(circleA.id, { slots: 4 });
+    const invitee = seedUser();
+    seedFourthCallNotification(invitee.id, session.id, 2);
+    claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+
+    const calls = capture();
+    const second = claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    expect(second).toEqual({ ok: true, status: "in", alreadyIn: true });
+    expect(calls).toHaveLength(0);
   });
 });
