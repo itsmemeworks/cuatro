@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm'
-import { circleMembers, circles } from './circles.js'
+import { circleMembers, circleMessages, circles } from './circles.js'
 import { matchConfirmations, matches } from './matches.js'
 import { notifications } from './notifications.js'
 import { ratingEvents } from './rating-events.js'
@@ -23,6 +23,7 @@ export const circlesRelations = relations(circles, ({ one, many }) => ({
     references: [users.id],
   }),
   members: many(circleMembers),
+  messages: many(circleMessages),
   standingGames: many(standingGames),
   sessions: many(sessions),
   tab: one(tabs, {
@@ -38,6 +39,17 @@ export const circleMembersRelations = relations(circleMembers, ({ one }) => ({
   }),
   user: one(users, {
     fields: [circleMembers.userId],
+    references: [users.id],
+  }),
+}))
+
+export const circleMessagesRelations = relations(circleMessages, ({ one }) => ({
+  circle: one(circles, {
+    fields: [circleMessages.circleId],
+    references: [circles.id],
+  }),
+  user: one(users, {
+    fields: [circleMessages.userId],
     references: [users.id],
   }),
 }))

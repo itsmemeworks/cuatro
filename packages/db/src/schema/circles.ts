@@ -44,7 +44,34 @@ export const circleMembers = sqliteTable(
   }),
 )
 
+// A Circle's chat. Flat and text-only at v0 (no replies/reactions/threads —
+// see DESIGN.md's Build plan M1); ordering ties on `created_at` (ms
+// resolution) are broken by SQLite's implicit rowid, which is always
+// strictly increasing in insertion order for a rowid table like this one.
+export const circleMessages = sqliteTable(
+  'circle_messages',
+  {
+    id: idColumn(),
+    circleId: text('circle_id')
+      .notNull()
+      .references(() => circles.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    body: text('body').notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (table) => ({
+    circleIdCreatedAtIdx: index('circle_messages_circle_id_created_at_idx').on(
+      table.circleId,
+      table.createdAt,
+    ),
+  }),
+)
+
 export type Circle = typeof circles.$inferSelect
 export type NewCircle = typeof circles.$inferInsert
 export type CircleMember = typeof circleMembers.$inferSelect
 export type NewCircleMember = typeof circleMembers.$inferInsert
+export type CircleMessage = typeof circleMessages.$inferSelect
+export type NewCircleMessage = typeof circleMessages.$inferInsert

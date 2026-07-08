@@ -1,10 +1,27 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 
 type Status = "idle" | "sending" | "sent" | "error";
 
 export default function LoginPage() {
+  // useSearchParams() requires a Suspense boundary during static
+  // generation — this wrapper is the only reason LoginPage itself isn't
+  // the default export.
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
+  const searchParams = useSearchParams();
+  // Preserved end-to-end through the magic-link flow (see
+  // /api/auth/request and /api/auth/verify) so joining a Circle survives a
+  // sign-in detour, e.g. /login?next=/join/ABC123.
+  const next = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
 
@@ -15,7 +32,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, next }),
       });
       setStatus(res.ok ? "sent" : "error");
     } catch {

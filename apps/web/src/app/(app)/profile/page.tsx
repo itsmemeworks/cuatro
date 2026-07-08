@@ -1,8 +1,19 @@
+import Link from "next/link";
 import { getSessionUser } from "@/lib/session";
 import { updateDisplayNameAction } from "@/lib/actions";
+import { getMatchesStore } from "@/server/matches-db";
+import { GlassHero } from "@/components/glass/glass-hero";
+import { ReliabilityBadge } from "@/components/glass/reliability-badge";
 
 export default async function ProfilePage() {
   const user = await getSessionUser();
+  if (!user) return null;
+
+  const store = await getMatchesStore();
+  const [glass, history] = await Promise.all([
+    store.getProfileGlassView(user.id),
+    store.getMatchHistorySummary(user.id),
+  ]);
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
@@ -46,29 +57,46 @@ export default async function ProfilePage() {
         </p>
       </section>
 
+      {glass && <GlassHero glass={glass} />}
+
       <section
-        className="rounded-2xl p-5 flex flex-col gap-2"
+        className="rounded-2xl p-5 flex flex-col gap-3"
         style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
       >
-        <div className="flex items-center gap-3">
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-semibold uppercase tracking-wide"
-            style={{ background: "var(--c4-bg-elevated-2)", border: "1px dashed var(--c4-border)", color: "var(--c4-text-muted)" }}
-          >
-            —.——
-          </div>
-          <div>
-            <p className="font-medium">Glass: Unrated</p>
-            <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
-              Play your Placement Trio — your first 3 verified matches — and your
-              Glass rating appears.
-            </p>
-          </div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--c4-text-muted)" }}>
+            Reliability
+          </h2>
+          {glass && <ReliabilityBadge pct={glass.reliabilityPct} lateCancelCount={glass.lateCancelCount} />}
         </div>
-        <p className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
-          No questionnaire. No guessing. Your number only shows once real matches
-          have earned it.
-        </p>
+      </section>
+
+      <section
+        className="rounded-2xl p-5 flex flex-col gap-3"
+        style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--c4-text-muted)" }}>
+            Match history
+          </h2>
+          <Link href="/profile/ledger" className="text-sm font-medium" style={{ color: "var(--c4-accent)" }}>
+            View Ledger →
+          </Link>
+        </div>
+        <div className="flex gap-4 text-sm">
+          <p>
+            <span className="font-semibold">{history.played}</span>{" "}
+            <span style={{ color: "var(--c4-text-muted)" }}>played</span>
+          </p>
+          <p>
+            <span className="font-semibold">{history.wins}</span>{" "}
+            <span style={{ color: "var(--c4-text-muted)" }}>won</span>
+          </p>
+          <p>
+            <span className="font-semibold">{history.losses}</span>{" "}
+            <span style={{ color: "var(--c4-text-muted)" }}>lost</span>
+          </p>
+        </div>
       </section>
 
       <form action="/api/auth/logout" method="POST">

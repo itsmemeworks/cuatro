@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthStore } from "@/lib/auth-store";
 import { getMailer } from "@/lib/mailer";
+import { isSafeRelativePath } from "@/lib/safe-redirect";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: NextRequest) {
   let email: unknown;
+  let next: unknown;
   try {
     const body = await request.json();
     email = body?.email;
+    next = body?.next;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
@@ -22,7 +25,14 @@ export async function POST(request: NextRequest) {
   const token = await store.createMagicLinkToken(user.id, user.email);
 
   const origin = request.nextUrl.origin;
-  const verifyUrl = `${origin}/api/auth/verify?token=${token}`;
+  let verifyUrl = `${origin}/api/auth/verify?token=${token}`;
+  // `next` (e.g. "/join/ABC123") carries the post-verify destination through
+  // the magic-link email — only ever a validated same-origin relative path,
+  // never trusted as-is. Silently dropped rather than erroring the whole
+  // request when it fails validation.
+  if (isSafeRelativePath(next)) {
+    verifyUrl += `&next=${encodeURIComponent(next)}`;
+  }
 
   const mailer = getMailer();
   await mailer.sendMagicLink(user.email, verifyUrl);
