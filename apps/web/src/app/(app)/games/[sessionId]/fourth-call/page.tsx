@@ -27,13 +27,15 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
   const gameFull = summary.confirmed.length >= summary.slots;
   const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt.getTime();
 
+  const ring1Sent = result1.fired || result1.reason === "already_notified";
   const ring1Label = gameFull
     ? "not needed — the four's full"
     : !upcoming
       ? "this game has already started or been played"
-      : result1.fired || result1.reason === "already_notified"
+      : ring1Sent
         ? "sent ✓ — 20 min first-refusal window"
         : "opens automatically within 48h of kickoff";
+  const ring1State: RingState = gameFull || !upcoming || ring1Sent ? "sent" : "pending";
 
   let ring2State: RingState = "pending";
   let ring2Label = "starts automatically 20 min after the Circle's first refusal";
@@ -97,6 +99,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
 
       <FourthCallSend
         sessionId={sessionId}
+        ring1State={ring1State}
         ring1Label={ring1Label}
         ring2State={ring2State}
         ring2Label={ring2Label}

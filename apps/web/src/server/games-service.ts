@@ -547,6 +547,7 @@ export function getSessionSummary(
     .select({
       status: rsvps.status,
       position: rsvps.position,
+      respondedAt: rsvps.respondedAt,
       userId: users.id,
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
@@ -556,7 +557,14 @@ export function getSessionSummary(
     .where(eq(rsvps.sessionId, sessionId))
     .all();
 
-  const confirmed = rows.filter((r) => r.status === "in").map(toPlayerRef);
+  // Confirmed slots fill (and must keep displaying) in RSVP order — see
+  // design/HANDOFF.md's "slots fill in order" — but rsvpIn() never assigns
+  // an "in" row a `position` (only the reserve queue tracks one), so this
+  // must sort by `respondedAt` rather than rely on the row's DB order.
+  const confirmed = rows
+    .filter((r) => r.status === "in")
+    .sort((a, b) => (a.respondedAt?.getTime() ?? 0) - (b.respondedAt?.getTime() ?? 0))
+    .map(toPlayerRef);
   const reserves = rows
     .filter((r) => r.status === "reserve")
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))

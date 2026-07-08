@@ -1,12 +1,17 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
+import { isSafeRelativePath } from "@/lib/safe-redirect";
 import { getGamesClient } from "@/server/games-db";
 import { getUnreadCount } from "@/server/notifications";
 import { BottomNav } from "@/components/bottom-nav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!user) {
+    const path = (await headers()).get("x-pathname");
+    redirect(isSafeRelativePath(path) ? `/login?next=${encodeURIComponent(path)}` : "/login");
+  }
 
   const { db } = await getGamesClient();
   const initialUnreadCount = getUnreadCount(db, user.id);

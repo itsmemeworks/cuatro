@@ -266,33 +266,44 @@
   --color-danger: var(--color-loss);
 }
 
-* {
-  box-sizing: border-box;
-}
+/* Plain-element resets, in Tailwind's `base` layer on purpose: anything
+   outside a `@layer` block here would be "unlayered" CSS, which — per the
+   cascade-layers spec — always beats every Tailwind utility class
+   regardless of selector specificity. Without this, the bare `a { color:
+   inherit }` below silently wins over every `text-*` color utility applied
+   to a Link/anchor site-wide (found via a fully invisible "Log last
+   night's result" CTA: its `text-strong-fg` was being overridden back to
+   the ambient inherited colour, which happened to equal its own
+   `bg-strong-bg` background). */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-html,
-body {
-  height: 100%;
-}
+  html,
+  body {
+    height: 100%;
+  }
 
-body {
-  background: var(--color-ground);
-  color: var(--color-ink);
-  font-family: var(--c4-font-sans);
-  -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
-}
+  body {
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--c4-font-sans);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
 
-a {
-  color: inherit;
-}
+  a {
+    color: inherit;
+  }
 
-button {
-  font-family: inherit;
-}
+  button {
+    font-family: inherit;
+  }
 
-input {
-  font-family: inherit;
+  input {
+    font-family: inherit;
+  }
 }
 
 /* ============ type scale (design/HANDOFF.md: 56/24/19/13/11.5/10) ============ */

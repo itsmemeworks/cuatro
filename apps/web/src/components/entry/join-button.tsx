@@ -10,6 +10,15 @@ import { useState } from "react";
  * arrival animation shown the instant the tap registers, since a real
  * `redirect()` inside a server action navigates away before any response
  * could be read back on the client to gate the animation on success.
+ *
+ * Deliberately `aria-disabled` + `pointer-events-none`, never the real
+ * `disabled` attribute: setting `disabled` from this same onClick handler
+ * raced the browser's native form submission triggered by that click (a
+ * `<button disabled>` cannot submit its form), so the button could flip
+ * itself off before the submission it just triggered actually went out —
+ * the tap would show "Joining…" forever with no request ever sent. The
+ * button still reads as visually/semantically disabled; it just can't
+ * cancel its own click.
  */
 export function JoinButton({ label }: { label: string }) {
   const [joining, setJoining] = useState(false);
@@ -19,8 +28,8 @@ export function JoinButton({ label }: { label: string }) {
       <button
         type="submit"
         onClick={() => setJoining(true)}
-        disabled={joining}
-        className="rounded-button inline-flex items-center justify-center w-full min-h-12 px-5 text-[15px] font-extrabold bg-action text-action-contrast transition-cu-state active:opacity-80 disabled:opacity-70"
+        aria-disabled={joining}
+        className="rounded-button inline-flex items-center justify-center w-full min-h-12 px-5 text-[15px] font-extrabold bg-action text-action-contrast transition-cu-state active:opacity-80 aria-disabled:opacity-70 aria-disabled:pointer-events-none"
       >
         {joining ? "Joining…" : label}
       </button>

@@ -17,6 +17,7 @@ export type RingState = "pending" | "sent" | "done";
  */
 export function FourthCallSend({
   sessionId,
+  ring1State,
   ring1Label,
   ring2State,
   ring2Label,
@@ -24,6 +25,7 @@ export function FourthCallSend({
   ring3Available,
 }: {
   sessionId: string;
+  ring1State: RingState;
   ring1Label: string;
   ring2State: RingState;
   ring2Label: string;
@@ -84,8 +86,12 @@ export function FourthCallSend({
   return (
     <div className="rounded-card bg-surface border border-ink-hairline-1 px-4 divide-y divide-ink-hairline-1">
       <div className="flex items-center gap-3 py-3.5">
-        <span className="w-6 h-6 rounded-full bg-win flex items-center justify-center text-action-contrast font-bold text-[11px] shrink-0">
-          ✓
+        <span
+          className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${
+            ring1State === "pending" ? "border border-ink-hairline-4 text-ink-muted" : "bg-win text-action-contrast"
+          }`}
+        >
+          {ring1State === "pending" ? "1" : "✓"}
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-cu-body font-bold text-ink">The Circle first</p>

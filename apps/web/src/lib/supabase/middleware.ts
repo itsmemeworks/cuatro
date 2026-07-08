@@ -15,6 +15,10 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSupabaseSession(request: NextRequest): Promise<NextResponse> {
+  // Forwarded so a Server Component that needs to redirect unauthenticated
+  // visitors (see (app)/layout.tsx) can rebuild `?next=<path>` without a
+  // request object of its own — layouts don't receive one directly.
+  request.headers.set("x-pathname", request.nextUrl.pathname + request.nextUrl.search);
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
