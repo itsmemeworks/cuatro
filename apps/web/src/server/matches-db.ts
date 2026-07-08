@@ -23,7 +23,6 @@ import {
   createClient,
   matchConfirmations,
   matches,
-  notifications,
   ratingEvents,
   rsvps,
   sessions,
@@ -48,6 +47,7 @@ import {
   type PlayerState,
 } from "@cuatro/glass";
 import { getDb } from "./db";
+import { insertNotification } from "./notify";
 
 export type Team = "A" | "B";
 
@@ -344,17 +344,12 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
       .where(eq(users.id, id))
       .run();
 
-    tx.insert(notifications)
-      .values(
-        wasUnrated && nowRated
-          ? { userId: id, type: "placement_complete", payload: { matchId: match.id, rating: updated.rating } }
-          : {
-              userId: id,
-              type: "result_verified",
-              payload: { matchId: match.id, delta: ev.delta, explanation },
-            },
-      )
-      .run();
+    insertNotification(
+      tx,
+      wasUnrated && nowRated
+        ? { userId: id, type: "placement_complete", payload: { matchId: match.id, rating: updated.rating } }
+        : { userId: id, type: "result_verified", payload: { matchId: match.id, delta: ev.delta, explanation } },
+    );
   }
 
   tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id)).run();
@@ -458,9 +453,11 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
         const otherTeamIds = reporterTeam === "A" ? input.teamB : input.teamA;
         for (const id of otherTeamIds) {
-          tx.insert(notifications)
-            .values({ userId: id, type: "confirm_result", payload: { matchId: created.id, sessionId: input.sessionId } })
-            .run();
+          insertNotification(tx, {
+            userId: id,
+            type: "confirm_result",
+            payload: { matchId: created.id, sessionId: input.sessionId },
+          });
         }
 
         return { matchId: created.id };
@@ -518,9 +515,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         tx.update(matches).set({ status: "disputed" }).where(eq(matches.id, matchId)).run();
 
         for (const id of fourPlayerIds(match)) {
-          tx.insert(notifications)
-            .values({ userId: id, type: "result_disputed", payload: { matchId } })
-            .run();
+          insertNotification(tx, { userId: id, type: "result_disputed", payload: { matchId } });
         }
 
         return { status: "disputed", alreadyFinal: true };

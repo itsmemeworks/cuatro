@@ -34,6 +34,7 @@ import {
 } from "@cuatro/db";
 import { computeNextOccurrence } from "./tz";
 import { resolveVenue, isOrganiser } from "./standing-games-service";
+import { insertNotification } from "./notify";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -270,7 +271,7 @@ export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Dat
           .all()
           .map((r) => r.userId);
         for (const uid of confirmedIds) {
-          tx.insert(notifications).values({ userId: uid, type: "game_filled", payload: { sessionId } }).run();
+          insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
         }
       }
     }
@@ -343,16 +344,14 @@ export function rsvpOut(db: CuatroDb, sessionId: string, userId: string, now: Da
         .where(eq(users.id, nextReserve.userId))
         .run();
       closeReserveGap(tx, sessionId, nextReserve.position ?? 0);
-      tx.insert(notifications)
-        .values({ userId: nextReserve.userId, type: "slot_promoted", payload: { sessionId } })
-        .run();
+      insertNotification(tx, { userId: nextReserve.userId, type: "slot_promoted", payload: { sessionId } });
       return { ok: true, status: "out", promotedUserId: nextReserve.userId };
     }
 
     // No reserve to promote — the slot goes empty. Let the organiser(s) know
     // (this is the signal that a Fourth Call may be needed before T-48h).
     for (const organiserId of circleOrganiserIds(tx, session.circleId)) {
-      tx.insert(notifications).values({ userId: organiserId, type: "dropout", payload: { sessionId, userId } }).run();
+      insertNotification(tx, { userId: organiserId, type: "dropout", payload: { sessionId, userId } });
     }
     return { ok: true, status: "out" };
   });
@@ -429,7 +428,7 @@ export function checkFourthCallLevel1(
     const targets = members.map((m) => m.userId).filter((id) => !responded.has(id));
 
     for (const userId of targets) {
-      tx.insert(notifications).values({ userId, type: "fourth_call", payload: { sessionId, level: 1 } }).run();
+      insertNotification(tx, { userId, type: "fourth_call", payload: { sessionId, level: 1 } });
     }
 
     return { fired: true, notifiedUserIds: targets };
