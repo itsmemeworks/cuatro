@@ -1,0 +1,8 @@
+node_modules
+.next
+dev.db
+dev.db-*
+*.log
+.env
+.env.local
+test

@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/*
+ * Provisional design tokens — a placeholder skin, not the brand system.
+ * The real visual identity (from DESIGN-BRIEF.md) lands as a design-agent
+ * pass later; swap the values below and everything downstream follows.
+ * Dark-first: evening indoor padel is the peak use context (see DESIGN.md §6).
+ */
+:root {
+  color-scheme: dark;
+
+  --c4-bg: #0b0e14;
+  --c4-bg-elevated: #11151d;
+  --c4-bg-elevated-2: #171c26;
+  --c4-border: #232a36;
+  --c4-text: #eef1f5;
+  --c4-text-muted: #8c95a3;
+  --c4-accent: #7de0c8;
+  --c4-accent-strong: #4fcaa8;
+  --c4-accent-contrast: #06120f;
+  --c4-danger: #f2755c;
+  --c4-warning: #e8b954;
+
+  --c4-radius-sm: 10px;
+  --c4-radius-md: 16px;
+  --c4-radius-lg: 24px;
+
+  --c4-space-1: 4px;
+  --c4-space-2: 8px;
+  --c4-space-3: 12px;
+  --c4-space-4: 16px;
+  --c4-space-5: 24px;
+  --c4-space-6: 32px;
+
+  --c4-nav-height: 64px;
+  --c4-touch-target: 44px;
+
+  --c4-font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@theme inline {
+  --color-bg: var(--c4-bg);
+  --color-bg-elevated: var(--c4-bg-elevated);
+  --color-border: var(--c4-border);
+  --color-text: var(--c4-text);
+  --color-text-muted: var(--c4-text-muted);
+  --color-accent: var(--c4-accent);
+  --color-accent-strong: var(--c4-accent-strong);
+  --color-danger: var(--c4-danger);
+  --font-sans: var(--c4-font-sans);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--c4-bg);
+  color: var(--c4-text);
+  font-family: var(--c4-font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+input {
+  font-family: inherit;
+}
