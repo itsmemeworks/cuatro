@@ -1,5 +1,6 @@
 import { Avatar, Card, Chip, Fact, Meta } from "@/components/ui";
 import { formatGlass } from "@/lib/design";
+import { PLACEMENT_TRIO_SIZE } from "@cuatro/glass";
 
 export interface MemberListItem {
   userId: string;
@@ -10,21 +11,33 @@ export interface MemberListItem {
   confidence: number;
   reliability: number | null;
   joinedAt: string | Date;
+  verifiedMatchCount: number;
 }
 
 const NEW_MEMBER_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Prototype screen 4's 3-dot Placement Trio progress — one filled dot per verified match so far, capped at PLACEMENT_TRIO_SIZE. */
+function PlacementTrioProgress({ verifiedMatchCount }: { verifiedMatchCount: number }) {
+  const filled = Math.min(verifiedMatchCount, PLACEMENT_TRIO_SIZE);
+  return (
+    <div className="flex items-center gap-1" aria-label={`Placement Trio: ${filled} of ${PLACEMENT_TRIO_SIZE} played`}>
+      {Array.from({ length: PLACEMENT_TRIO_SIZE }, (_, i) => (
+        <span
+          key={i}
+          className={`w-1.5 h-1.5 rounded-full ${i < filled ? "bg-action" : "bg-ink-hairline-3"}`}
+          aria-hidden
+        />
+      ))}
+    </div>
+  );
+}
 
 /**
  * Members tab (prototype screen 4): Glass + confidence, a reliability line
  * ("✓ shows up 97%"), and one role chip per row — ORGANISER > YOU > NEW,
  * matching the prototype's precedence (a row never carries two badges).
- *
- * Data gap: the prototype's unrated rows show a 3-dot Placement Trio
- * progress indicator (games played so far). That count isn't in
- * `CircleMemberView` (only rating/confidence/reliability are) — surfacing it
- * would need a server-side change, which is out of scope here. Unrated rows
- * render `?.??` plus a plain "Placement Trio in progress" line instead of
- * fabricating a dot count.
+ * Unrated rows (rating === null) render `?.??` plus the 3-dot Placement
+ * Trio progress indicator instead of a confidence line.
  */
 export function MemberList({ members, currentUserId }: { members: MemberListItem[]; currentUserId: string }) {
   return (
@@ -74,9 +87,9 @@ export function MemberList({ members, currentUserId }: { members: MemberListItem
                   conf {Math.round(m.confidence * 100)}%
                 </Meta>
               ) : (
-                <Meta as="p" className="mt-0.5">
-                  Placement Trio
-                </Meta>
+                <div className="mt-1 flex justify-end">
+                  <PlacementTrioProgress verifiedMatchCount={m.verifiedMatchCount} />
+                </div>
               )}
             </div>
           </div>

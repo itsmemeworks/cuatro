@@ -1,4 +1,4 @@
-import { index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { sessions } from './sessions.js'
 import { users } from './users.js'
@@ -68,7 +68,38 @@ export const matchConfirmations = sqliteTable(
   }),
 )
 
+// A member's 👏 Respect tap on a verified match's Feed result post. `kind`
+// is a fixed enum of one value today (only Respect exists in v0 — see
+// design/HANDOFF.md screen 4), kept as a column rather than a boolean flag
+// so a second reaction kind can land later without a new table. One row per
+// (match, user, kind): the unique index is both the storage for "did this
+// user already react" and what makes the toggle endpoint idempotent.
+export const matchReactions = sqliteTable(
+  'match_reactions',
+  {
+    id: idColumn(),
+    matchId: text('match_id')
+      .notNull()
+      .references(() => matches.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind', { enum: ['respect'] }).notNull().default('respect'),
+    createdAt: createdAtColumn(),
+  },
+  (table) => ({
+    matchUserKindUnique: unique('match_reactions_match_user_kind_unique').on(
+      table.matchId,
+      table.userId,
+      table.kind,
+    ),
+    matchIdIdx: index('match_reactions_match_id_idx').on(table.matchId),
+  }),
+)
+
 export type Match = typeof matches.$inferSelect
 export type NewMatch = typeof matches.$inferInsert
 export type MatchConfirmation = typeof matchConfirmations.$inferSelect
 export type NewMatchConfirmation = typeof matchConfirmations.$inferInsert
+export type MatchReaction = typeof matchReactions.$inferSelect
+export type NewMatchReaction = typeof matchReactions.$inferInsert

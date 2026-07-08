@@ -266,12 +266,17 @@ export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Dat
     }
 
     if (existing) {
+      // Explicit `source: "rsvp"` (not just the schema default) so a plain
+      // RSVP tap always overwrites a stale "claimed via fourth_call" flag
+      // from an earlier claim on this same row (see fourth-call.ts's
+      // findFourthCallClaimant) — once someone RSVPs the ordinary way,
+      // that's the accurate story for how the slot is filled now.
       tx.update(rsvps)
-        .set({ status: newStatus, position, respondedAt: now, cancelledAt: null, promotedAt: null })
+        .set({ status: newStatus, position, respondedAt: now, cancelledAt: null, promotedAt: null, source: "rsvp" })
         .where(eq(rsvps.id, existing.id))
         .run();
     } else {
-      tx.insert(rsvps).values({ sessionId, userId, status: newStatus, position, respondedAt: now }).run();
+      tx.insert(rsvps).values({ sessionId, userId, status: newStatus, position, respondedAt: now, source: "rsvp" }).run();
     }
 
     if (newStatus === "in") {

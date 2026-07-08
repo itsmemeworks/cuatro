@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { createClient, users } from "@cuatro/db";
 import type { CuatroClient } from "@cuatro/db";
 import {
@@ -98,6 +99,22 @@ describe("circles store (@cuatro/db)", () => {
 
   it("returns null from getCircleByInviteCode for an unknown code", async () => {
     expect(await store.getCircleByInviteCode("NOPE0000")).toBeNull();
+  });
+
+  it("exposes verifiedMatchCount per member for the Placement Trio progress dots", async () => {
+    const circle = await store.createCircle({ name: "Trio Circle", creatorUserId: organiser.id });
+    await store.joinCircle({ inviteCode: circle.inviteCode, userId: member.id });
+
+    const detailBefore = await store.getCircleDetail(circle.id, organiser.id);
+    const memberRowBefore = detailBefore!.members.find((m) => m.userId === member.id)!;
+    expect(memberRowBefore.rating).toBeNull();
+    expect(memberRowBefore.verifiedMatchCount).toBe(0);
+
+    await client.db.update(users).set({ verifiedMatchCount: 2 }).where(eq(users.id, member.id));
+
+    const detailAfter = await store.getCircleDetail(circle.id, organiser.id);
+    const memberRowAfter = detailAfter!.members.find((m) => m.userId === member.id)!;
+    expect(memberRowAfter.verifiedMatchCount).toBe(2);
   });
 
   it("enforces membership on getCircleDetail", async () => {

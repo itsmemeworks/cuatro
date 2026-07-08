@@ -17,6 +17,7 @@
  * makes someone a session participant (a plain `rsvps` row; that table has
  * no circle_members FK) without making them a circle member.
  */
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   circleMembers,
@@ -36,6 +37,111 @@ import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 export const FOURTH_CALL_LEVEL2_DELAY_MS = 20 * 60 * 1000;
 const FOURTH_CALL_LEVEL2_RATING_BAND = 0.5;
 export const FOURTH_CALL_LEVEL2_CAP = 12;
+
+// ---------------------------------------------------------------------------
+// Fourth Call — level 3 ("anyone with the link")
+// ---------------------------------------------------------------------------
+//
+// No new table: a ring-3 claim link is a self-contained, server-signed
+// token — `base64url(sessionId + "." + expiresAtMs) + "." + hmac(...)` —
+// not a stored invite row. Minting it (mintRing3ClaimToken /
+// getRing3ClaimLink) is a pure function of (sessionId, expiresAt), so
+// generating "the same" link twice (the organiser reopening the send
+// screen, or tapping Copy again) always reproduces the identical token —
+// idempotent by construction, no "already sent" bookkeeping needed the way
+// level 1/2's notification-based invites require. Verification
+// (parseRing3ClaimToken) re-derives the HMAC and checks expiry; tampering
+// with either half of the payload changes the signature, and
+// timingSafeEqual keeps that check from leaking timing information about
+// how close a forged signature got.
+//
+// Expiry is always the session's own kickoff time: claimFourthCallSlot
+// already rejects a claim once a session has started, so embedding a
+// separate, shorter TTL would just be a second, redundant clock to keep in
+// sync with the first.
+function ring3Secret(): string {
+  const secret = process.env.FOURTH_CALL_LINK_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    console.warn(
+      "[fourth-call] FOURTH_CALL_LINK_SECRET is not set — ring-3 claim links are being signed with an insecure fallback secret. Set FOURTH_CALL_LINK_SECRET in production.",
+    );
+  }
+  // Stable across a dev/test process so a minted link keeps verifying for
+  // the lifetime of one run; never used when the env var is set.
+  return "cuatro-dev-insecure-fourth-call-secret";
+}
+
+/** Pure signing — `secret` is a parameter (rather than reading env directly) so tests can exercise tamper/expiry without touching process.env. */
+export function signRing3Token(sessionId: string, expiresAt: Date, secret: string): string {
+  const payload = `${sessionId}.${expiresAt.getTime()}`;
+  const payloadB64 = Buffer.from(payload, "utf8").toString("base64url");
+  const sig = createHmac("sha256", secret).update(payloadB64).digest("base64url");
+  return `${payloadB64}.${sig}`;
+}
+
+/** Pure verification. Returns the embedded sessionId iff the signature matches and the token hasn't expired; null for anything else (malformed, tampered, or expired). */
+export function verifyRing3Token(token: string, secret: string, now: Date = new Date()): { sessionId: string } | null {
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [payloadB64, sig] = parts;
+
+  const expectedSig = createHmac("sha256", secret).update(payloadB64).digest("base64url");
+  const sigBuf = Buffer.from(sig);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) return null;
+
+  let payload: string;
+  try {
+    payload = Buffer.from(payloadB64, "base64url").toString("utf8");
+  } catch {
+    return null;
+  }
+  // UUIDs (idColumn()'s crypto.randomUUID()) never contain ".", so the
+  // *last* dot unambiguously separates sessionId from the expiry suffix
+  // even though sessionId itself is attacker-uncontrolled here anyway.
+  const dot = payload.lastIndexOf(".");
+  if (dot === -1) return null;
+  const sessionId = payload.slice(0, dot);
+  const exp = Number(payload.slice(dot + 1));
+  if (!sessionId || !Number.isFinite(exp)) return null;
+  if (now.getTime() > exp) return null;
+
+  return { sessionId };
+}
+
+export function mintRing3ClaimToken(sessionId: string, expiresAt: Date): string {
+  return signRing3Token(sessionId, expiresAt, ring3Secret());
+}
+
+export function parseRing3ClaimToken(token: string, now: Date = new Date()): { sessionId: string } | null {
+  return verifyRing3Token(token, ring3Secret(), now);
+}
+
+export interface Ring3ClaimLink {
+  sessionId: string;
+  token: string;
+  expiresAt: Date;
+  /** The public route this token is valid on — see app/fc/[token]/page.tsx. */
+  path: string;
+}
+
+export type Ring3LinkResult =
+  | { ok: true; value: Ring3ClaimLink }
+  | { ok: false; error: "session_not_found" | "session_started" };
+
+/** Ring 3's "Copy" action (organiser, fourth-call-send.tsx) — mints (or re-derives) the public claim link for a still-open, not-yet-started session. */
+export function getRing3ClaimLink(db: CuatroDb, sessionId: string, now: Date = new Date()): Ring3LinkResult {
+  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+  if (!session) return { ok: false, error: "session_not_found" };
+  if (session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+    return { ok: false, error: "session_started" };
+  }
+
+  const expiresAt = session.startsAt;
+  const token = mintRing3ClaimToken(sessionId, expiresAt);
+  return { ok: true, value: { sessionId, token, expiresAt, path: `/fc/${token}` } };
+}
 
 export type FourthCallLevel2Result =
   | {
@@ -302,19 +408,36 @@ export function hasFourthCallInvite(db: CuatroDb, sessionId: string, userId: str
   return !!invited;
 }
 
+export interface ClaimFourthCallOptions {
+  /** A ring-3 public-link token (see getRing3ClaimLink) — accepted in lieu of holding a fourth_call notification. Verified against `sessionId`, not just "any valid token", so one Circle's link can't claim a slot on a different session. */
+  ring3Token?: string;
+}
+
 /**
- * The non-member path onto an open slot: a Fourth Call invitee (typically a
- * level-2 candidate who isn't a circle member) taps "I can play" from their
- * notification. Mirrors games-service.ts's rsvpIn() slot-assignment but
- * swaps its isCircleMember() gate for "this user actually holds a
- * fourth_call invite for this session" — claiming does not enrol them in
- * the circle, it only creates a session participant.
+ * The non-member path onto an open slot: a Fourth Call invitee (a level-2
+ * candidate who isn't a circle member, or anyone who followed a ring-3
+ * public link) taps "I can play". Mirrors games-service.ts's rsvpIn()
+ * slot-assignment but swaps its isCircleMember() gate for "this user holds
+ * a fourth_call invite OR a valid ring-3 token for this session" —
+ * claiming does not enrol them in the circle, it only creates a session
+ * participant. Every successful claim through here is `source: "fourth_call"`
+ * on the rsvps row (see design/HANDOFF.md gap #5) — that's the honest
+ * "claimed via Fourth Call" signal fourth-call-send.tsx's banner now reads,
+ * replacing the old hasFourthCallInvite heuristic.
  */
-export function claimFourthCallSlot(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): ClaimOutcome {
+export function claimFourthCallSlot(
+  db: CuatroDb,
+  sessionId: string,
+  userId: string,
+  now: Date = new Date(),
+  options: ClaimFourthCallOptions = {},
+): ClaimOutcome {
   let circleId: string | undefined;
 
   const outcome = db.transaction((tx): ClaimOutcome => {
-    if (!hasFourthCallInvite(tx, sessionId, userId)) return { ok: false, error: "no_fourth_call_invite" };
+    const holdsInvite = hasFourthCallInvite(tx, sessionId, userId);
+    const ring3Valid = options.ring3Token ? parseRing3ClaimToken(options.ring3Token, now)?.sessionId === sessionId : false;
+    if (!holdsInvite && !ring3Valid) return { ok: false, error: "no_fourth_call_invite" };
 
     const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
     if (!session) return { ok: false, error: "session_not_found" };
@@ -335,11 +458,11 @@ export function claimFourthCallSlot(db: CuatroDb, sessionId: string, userId: str
 
     if (existing) {
       tx.update(rsvps)
-        .set({ status: "in", position: null, respondedAt: now, cancelledAt: null, promotedAt: null })
+        .set({ status: "in", position: null, respondedAt: now, cancelledAt: null, promotedAt: null, source: "fourth_call" })
         .where(eq(rsvps.id, existing.id))
         .run();
     } else {
-      tx.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt: now }).run();
+      tx.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt: now, source: "fourth_call" }).run();
     }
 
     tx.update(users)
@@ -363,4 +486,22 @@ export function claimFourthCallSlot(db: CuatroDb, sessionId: string, userId: str
     emitCircleEvent(circleId, "rsvp", { sessionId });
   }
   return outcome;
+}
+
+/**
+ * Whoever currently holds this session's open slot via a Fourth Call claim
+ * (level 2 or ring 3 — see claimFourthCallSlot's `source: "fourth_call"`
+ * write), or null if every confirmed slot was filled the ordinary way.
+ * Replaces the old hasFourthCallInvite-based guess in the send page, which
+ * could misfire for a regular circle member who separately held a stale
+ * fourth_call notification from an earlier escalation that they didn't
+ * actually claim through.
+ */
+export function findFourthCallClaimant(db: CuatroDb, sessionId: string): string | null {
+  const row = db
+    .select({ userId: rsvps.userId })
+    .from(rsvps)
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in"), eq(rsvps.source, "fourth_call")))
+    .get();
+  return row?.userId ?? null;
 }

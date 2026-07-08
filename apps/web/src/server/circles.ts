@@ -100,6 +100,8 @@ export interface CircleMemberView {
   confidence: number;
   /** Show-up rate placeholder (showUpCount / rsvpInCount); null = no RSVP history yet. */
   reliability: number | null;
+  /** Verified matches played so far — drives the Placement Trio progress dots for an unrated (rating === null) member. Capped display-side at PLACEMENT_TRIO_SIZE (3); this is the raw count. */
+  verifiedMatchCount: number;
 }
 
 export interface CircleDetail {
@@ -308,6 +310,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
           confidence: users.confidence,
           rsvpInCount: users.rsvpInCount,
           showUpCount: users.showUpCount,
+          verifiedMatchCount: users.verifiedMatchCount,
         })
         .from(circleMembers)
         .innerJoin(users, eq(circleMembers.userId, users.id))
@@ -323,6 +326,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         rating: row.rating,
         confidence: row.confidence,
         reliability: row.rsvpInCount > 0 ? row.showUpCount / row.rsvpInCount : null,
+        verifiedMatchCount: row.verifiedMatchCount,
       }));
 
       return {

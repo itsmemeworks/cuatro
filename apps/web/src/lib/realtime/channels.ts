@@ -37,6 +37,7 @@ export type RealtimeEventType =
   | "rsvp"
   | "fourth_call"
   | "match"
+  | "reaction"
   | "tab"
   | "notification"
   | "reconnect";

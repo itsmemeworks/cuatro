@@ -154,6 +154,25 @@ describe("rsvpIn / rsvpOut — slot and reserve assignment", () => {
     expect(user?.rsvpInCount).toBe(1);
   });
 
+  it("records rsvps.source: 'rsvp' on a fresh RSVP, and resets it back from a stale 'fourth_call' flag on re-RSVP", () => {
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const { fixture: fx, session } = makeSessionFixture(now);
+
+    rsvpIn(fx.db, session.id, fx.organiserId, now);
+    const [freshRow] = fx.db.select().from(rsvps).where(eq(rsvps.userId, fx.organiserId)).all();
+    expect(freshRow?.source).toBe("rsvp");
+
+    // Simulate a row that was previously claimed via Fourth Call (as
+    // claimFourthCallSlot would leave it), then dropped, then re-RSVP'd
+    // through the ordinary in-circle flow — the plain RSVP tap should
+    // overwrite the stale flag rather than leaving it "claimed via fourth
+    // call" for a slot filled the normal way.
+    fx.db.update(rsvps).set({ status: "out", source: "fourth_call" }).where(eq(rsvps.id, freshRow!.id)).run();
+    rsvpIn(fx.db, session.id, fx.organiserId, now);
+    const [reRow] = fx.db.select().from(rsvps).where(eq(rsvps.userId, fx.organiserId)).all();
+    expect(reRow?.source).toBe("rsvp");
+  });
+
   it("a reserve dropping out closes the gap in the queue behind them", () => {
     const now = new Date("2026-01-05T00:00:00.000Z");
     const { fixture: fx, session } = makeSessionFixture(now);

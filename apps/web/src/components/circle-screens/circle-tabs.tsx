@@ -9,6 +9,8 @@ import { InviteShareButton } from "@/components/circles/invite-share-button";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { PinnedGameBar } from "./pinned-game-bar";
 import { SessionCardWithToast } from "./session-card-with-toast";
+import { ResultPost, type ResultPostData } from "./result-post";
+import { RivalryCallout } from "./rivalry-callout";
 
 type Tab = "feed" | "chat" | "members";
 
@@ -21,15 +23,11 @@ function formatWhen(startsAt: Date): string {
  * pinned bar and Chat's pinned bar are the same live session, so both read
  * from the same `sessionCards` prop rather than each fetching separately.
  *
- * Data gaps (see report): the Feed's rivalry callout, result posts (score +
- * both Glass deltas), 👏 Respect / 💬 counts, and Placement-Trio "reveal"
- * posts all need a circle-scoped match/activity feed and a reactions store
- * that don't exist in `server/*` yet — listing a circle's *past* sessions
- * isn't exposed anywhere (only `listUpcomingSessionsForCircle`), and there's
- * no schema for a "respect" reaction. Building either is a server change,
- * which is out of this pass's scope (reskin + interaction layer only). The
- * Feed below renders only what's backed by real data: the pinned next-game
- * bar and any other upcoming sessions for this Circle.
+ * Result posts + the rivalry callout come from server/feed.ts's
+ * listRecentResultsForCircle (verified matches + Glass deltas + 👏 Respect
+ * counts). Note: 💬 counts from the prototype are NOT rendered — there's no
+ * comments backend in v0 (see result-post.tsx's header); Respect + a
+ * "rematch?" link stand in for that row instead.
  */
 export function CircleTabs({
   circleId,
@@ -42,6 +40,8 @@ export function CircleTabs({
   inviteCode,
   circleName,
   isOrganiser,
+  resultPosts,
+  rivalry,
 }: {
   circleId: string;
   circleColour: string;
@@ -53,6 +53,8 @@ export function CircleTabs({
   inviteCode: string;
   circleName: string;
   isOrganiser: boolean;
+  resultPosts: ResultPostData[];
+  rivalry: { opponentName: string; count: number; direction: "beaten" | "lost_to" } | null;
 }) {
   const [tab, setTab] = useState<Tab>("feed");
   const primary = sessionCards[0] ?? null;
@@ -86,6 +88,9 @@ export function CircleTabs({
       {tab === "feed" && (
         <div className="flex flex-col gap-3">
           {pinnedBar}
+          {rivalry && (
+            <RivalryCallout opponentName={rivalry.opponentName} count={rivalry.count} direction={rivalry.direction} />
+          )}
           {rest.length > 0 && (
             <div className="flex flex-col gap-3">
               {rest.map((c) => (
@@ -105,9 +110,17 @@ export function CircleTabs({
               )}
             </Card>
           )}
-          <Meta as="p" className="text-center px-4">
-            results, reactions and rivalries land here once match history + Respect are wired up
-          </Meta>
+          {resultPosts.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {resultPosts.map((post) => (
+                <ResultPost key={post.matchId} data={post} />
+              ))}
+            </div>
+          ) : (
+            <Meta as="p" className="text-center px-4">
+              results, reactions and rivalries land here once this Circle plays its first match
+            </Meta>
+          )}
         </div>
       )}
 

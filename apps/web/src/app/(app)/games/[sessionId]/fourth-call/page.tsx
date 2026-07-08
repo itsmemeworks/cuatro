@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { getSessionSummary, checkFourthCallLevel1 } from "@/server/games-service";
-import { checkFourthCallLevel2, hasFourthCallInvite } from "@/server/fourth-call";
+import { checkFourthCallLevel2, findFourthCallClaimant } from "@/server/fourth-call";
 import { isOrganiser } from "@/server/standing-games-service";
 import { getMatchesStore } from "@/server/matches-db";
 import { FourthCallSend, type RingState } from "@/components/circle-screens/fourth-call-send";
@@ -55,18 +55,19 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
   }
 
   const canEscalate = upcoming && !gameFull && ring2State === "pending";
+  const ring3Available = upcoming && !gameFull;
 
-  // "Claimed" — a confirmed player who holds a fourth_call invite for this
-  // session almost certainly filled the open slot through this flow rather
-  // than being an original Standing Game regular (see FourthCallReceive's
-  // doc comment for why this is the honest signal available without new
-  // server code: there's no "claimed via fourth call" flag on rsvps).
+  // "Claimed" — findFourthCallClaimant reads the rsvps.source flag
+  // (design/HANDOFF.md gap #5), set only by claimFourthCallSlot's level-2 /
+  // ring-3 paths, so this is exact rather than the old hasFourthCallInvite
+  // heuristic.
   let claimant: { displayName: string; avatarUrl: string | null; rating: number | null } | null = null;
-  for (const p of summary.confirmed) {
-    if (hasFourthCallInvite(db, sessionId, p.userId)) {
+  const claimantId = findFourthCallClaimant(db, sessionId);
+  if (claimantId) {
+    const p = summary.confirmed.find((c) => c.userId === claimantId);
+    if (p) {
       const glass = await (await getMatchesStore()).getProfileGlassView(p.userId);
       claimant = { displayName: p.displayName, avatarUrl: p.avatarUrl, rating: glass?.rating ?? null };
-      break;
     }
   }
 
@@ -100,6 +101,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
         ring2State={ring2State}
         ring2Label={ring2Label}
         canEscalate={canEscalate}
+        ring3Available={ring3Available}
       />
 
       {claimant && (

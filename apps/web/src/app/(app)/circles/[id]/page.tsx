@@ -3,7 +3,9 @@ import { getSessionUser } from "@/lib/session";
 import { NotMemberError, getCirclesStore, type CircleMessageView } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForCircle, isFourthCallActive } from "@/server/games-service";
+import { listRecentResultsForCircle } from "@/server/feed";
 import { CircleTabs } from "@/components/circle-screens/circle-tabs";
+import type { ResultPostData } from "@/components/circle-screens/result-post";
 import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
 import { InviteShareButton } from "@/components/circles/invite-share-button";
 import type { ChatMessage } from "@/components/circles/circle-chat";
@@ -50,6 +52,20 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
     fourthCallActive: isFourthCallActive(s),
   }));
 
+  const { posts, rivalry } = listRecentResultsForCircle(db, id, user.id);
+  const resultPosts: ResultPostData[] = posts.map((p) => ({
+    matchId: p.matchId,
+    playedAt: p.playedAt.toISOString(),
+    sets: p.sets,
+    outcome: p.outcome,
+    winner: p.winner,
+    teamA: p.teamA,
+    teamB: p.teamB,
+    respectCount: p.respectCount,
+    viewerRespected: p.viewerRespected,
+    rematchHref: p.rematchHref,
+  }));
+
   const colour = detail.colour ?? circleColorFor(detail.id);
 
   return (
@@ -84,6 +100,8 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           inviteCode={detail.inviteCode}
           circleName={detail.name}
           isOrganiser={detail.myRole === "organiser"}
+          resultPosts={resultPosts}
+          rivalry={rivalry ? { opponentName: rivalry.opponentName, count: rivalry.count, direction: rivalry.direction } : null}
         />
       </ToastBoundary>
     </main>
