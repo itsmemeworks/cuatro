@@ -57,7 +57,7 @@ const STATUS_COLOR: Record<string, string> = {
   void: "var(--c4-text-muted)",
 };
 
-export function MatchStatusBadge({ status }: { status: string }) {
+export function MatchStatusBadge({ status, outcome }: { status: string; outcome?: string }) {
   return (
     <span
       className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
@@ -68,6 +68,7 @@ export function MatchStatusBadge({ status }: { status: string }) {
       }}
     >
       {STATUS_LABEL[status] ?? status}
+      {outcome === "retired" && " (retired)"}
     </span>
   );
 }

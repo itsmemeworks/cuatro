@@ -1,35 +1,17 @@
 /**
- * Own DB connection for the games surface (Standing Games / Sessions /
- * RSVPs / notifications), mirroring lib/auth-store.ts's pattern: one
- * memoized connection per Node process, opened lazily against
- * DATABASE_PATH (falling back to ./dev.db) so it points at the same SQLite
- * file every other store in this app uses.
- *
- * This is a genuine `apps/web/src/server/db.ts`-shaped accessor kept under
- * a games-specific filename per the integration note: if a shared
- * `server/db.ts` lands from a sibling wave, games-service.ts/
- * standing-games-service.ts can be repointed at it — they only depend on
- * `CuatroDb`, not on how the connection was obtained.
+ * Games surface's DB accessor — now a thin re-export of the shared
+ * connection in ./db.ts (see that file's header for why matches-db.ts and
+ * this module were consolidated onto one connection). Kept as its own
+ * module/name so games-service.ts, standing-games-service.ts, and every
+ * games/* route and page can keep importing `getGamesClient` from here
+ * unchanged.
  *
  * Concurrency-critical mutations (RSVP dropout -> auto-promotion) run
- * inside `db.transaction(...)` against THIS shared connection. better-
+ * inside `db.transaction(...)` against this shared connection. better-
  * sqlite3 transactions execute fully synchronously (no `await` inside), so
- * as long as every write path in this module gets its `CuatroDb` from here
- * rather than opening a fresh connection per call, two "concurrent" RSVP
- * mutations within this process can never interleave mid-transaction —
- * one fully commits before the next transaction's callback runs.
+ * as long as every write path gets its `CuatroDb` from here rather than
+ * opening a fresh connection per call, two "concurrent" RSVP mutations
+ * within this process can never interleave mid-transaction — one fully
+ * commits before the next transaction's callback runs.
  */
-import { createClient } from "@cuatro/db";
-import type { CuatroClient } from "@cuatro/db";
-
-let clientPromise: Promise<CuatroClient> | null = null;
-
-export function getGamesClient(): Promise<CuatroClient> {
-  if (!clientPromise) clientPromise = Promise.resolve(createClient());
-  return clientPromise;
-}
-
-/** Test-only: force a fresh connection on next getGamesClient() call. */
-export function __resetGamesClientForTests() {
-  clientPromise = null;
-}
+export { getDb as getGamesClient, __resetDbForTests as __resetGamesClientForTests } from "./db";

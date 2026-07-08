@@ -531,19 +531,43 @@ export function listUpcomingSessionsForUser(db: CuatroDb, userId: string, now: D
     .map((r) => r.circleId);
   if (memberCircleIds.length === 0) return [];
 
-  for (const circleId of memberCircleIds) {
+  return listUpcomingSessionsForCircles(db, memberCircleIds, userId, now);
+}
+
+/**
+ * Upcoming sessions for one circle — the circle detail page's data source
+ * (shares the same lazy-generation + Fourth Call semantics as
+ * listUpcomingSessionsForUser, just scoped to a single circle instead of
+ * every circle a user belongs to).
+ */
+export function listUpcomingSessionsForCircle(
+  db: CuatroDb,
+  circleId: string,
+  viewerUserId: string,
+  now: Date = new Date(),
+): SessionSummary[] {
+  return listUpcomingSessionsForCircles(db, [circleId], viewerUserId, now);
+}
+
+function listUpcomingSessionsForCircles(
+  db: CuatroDb,
+  circleIds: string[],
+  viewerUserId: string,
+  now: Date,
+): SessionSummary[] {
+  for (const circleId of circleIds) {
     ensureUpcomingSessionsForCircle(db, circleId, now);
   }
 
   const upcoming = db
     .select()
     .from(sessions)
-    .where(and(inArray(sessions.circleId, memberCircleIds), eq(sessions.status, "upcoming"), gt(sessions.startsAt, now)))
+    .where(and(inArray(sessions.circleId, circleIds), eq(sessions.status, "upcoming"), gt(sessions.startsAt, now)))
     .orderBy(asc(sessions.startsAt))
     .all();
 
   const summaries = upcoming
-    .map((s) => getSessionSummary(db, s.id, userId))
+    .map((s) => getSessionSummary(db, s.id, viewerUserId))
     .filter((s): s is SessionSummary => s !== null);
 
   for (const summary of summaries) {

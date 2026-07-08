@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ProfileGlassView } from "@/server/matches-db";
 
 /**
@@ -70,6 +71,9 @@ export function GlassHero({ glass }: { glass: ProfileGlassView }) {
         {glass.verifiedMatchCount} verified {glass.verifiedMatchCount === 1 ? "match" : "matches"}. Confidence grows
         with opponent variety, not volume.
       </p>
+      <Link href="/profile/ledger" className="text-sm font-medium" style={{ color: "var(--c4-accent)" }}>
+        See exactly why in the Ledger →
+      </Link>
     </section>
   );
 }

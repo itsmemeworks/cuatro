@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthStore } from "@/lib/auth-store";
 import { getMailer } from "@/lib/mailer";
-import { isSafeRelativePath } from "@/lib/safe-redirect";
+import { isSafeRelativePath, resolveRequestOrigin } from "@/lib/safe-redirect";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const user = await store.findOrCreateUserByEmail(email);
   const token = await store.createMagicLinkToken(user.id, user.email);
 
-  const origin = request.nextUrl.origin;
+  const origin = resolveRequestOrigin(request);
   let verifyUrl = `${origin}/api/auth/verify?token=${token}`;
   // `next` (e.g. "/join/ABC123") carries the post-verify destination through
   // the magic-link email — only ever a validated same-origin relative path,

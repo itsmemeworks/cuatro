@@ -1,7 +1,9 @@
 /**
  * Result-entry + Glass persistence, backed by @cuatro/db (drizzle + better-sqlite3).
- * Mirrors the accessor pattern in ../lib/auth-store.ts: one createClient() per
- * store instance, a lazily-created singleton for the app, and a test-only reset.
+ * `createMatchesStore(dbPath?)` opens its own isolated client (what the
+ * test suite uses); the process-wide `getMatchesStore()` singleton instead
+ * shares the one connection in ./db.ts with the games surface (games-db.ts)
+ * — see that file's header for why.
  *
  * Ownership boundary: this file owns everything under matches/confirmations/
  * rating_events/notifications writes. It does NOT touch packages/db schema —
@@ -41,9 +43,11 @@ import {
   type FixtureOccurrence,
   type LedgerEvent,
   type MatchInput,
+  type MatchOutcome,
   type PlayerId,
   type PlayerState,
 } from "@cuatro/glass";
+import { getDb } from "./db";
 
 export type Team = "A" | "B";
 
@@ -63,6 +67,8 @@ export interface RecordMatchInput {
   teamA: [string, string];
   teamB: [string, string];
   sets: SetScore[];
+  /** Defaults to "completed". A "walkover" isn't reachable from the result-entry form yet (v0 has no no-show flow). */
+  outcome?: MatchOutcome;
 }
 
 export type ConfirmOutcome =
@@ -107,12 +113,21 @@ export interface LedgerEntryView {
   };
   explanation: string;
   createdAt: Date;
+  outcome: MatchOutcome;
 }
 
 export interface MatchHistorySummary {
   played: number;
   wins: number;
   losses: number;
+}
+
+/** One match still waiting on the viewer's own team to confirm it — the /home action-item feed. */
+export interface PendingConfirmationView {
+  matchId: string;
+  sessionId: string;
+  playedAt: Date;
+  opponentNames: string;
 }
 
 /** Which team (if any) a user is on for a given match row. */
@@ -133,11 +148,12 @@ function fourPlayerIds(match: Match): [string, string, string, string] {
 }
 
 /**
- * The winner is derived entirely from `score` — there is no `winner` (or
- * `outcome`/`retired`) column on `matches` (see README note below on the
- * schema gap this implies for a "retired" flag). Ties on sets fall back to
- * total games; form validation requires a decisive, non-empty score, so the
- * final fallback is only a defensive backstop.
+ * The winner is derived entirely from `score` — there is no `winner` column
+ * on `matches` (only `outcome`, for the completed/retired/walkover
+ * distinction — see @cuatro/glass's README "Walkover / retired policy").
+ * Ties on sets fall back to total games; the "A" final fallback only
+ * matters for a retired match recorded with zero games, which the Glass
+ * engine skips outright rather than trusting this fallback's pick.
  */
 export function computeWinner(sets: SetScore[]): "A" | "B" {
   let setsA = 0;
@@ -264,13 +280,16 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
     gamesWonA,
     gamesWonB,
     verified: true,
+    outcome: match.outcome,
   };
 
   const result = processMatch({ match: matchInput, players: playerStates, recentFixtures, opponentNames });
 
-  // Games > 0 is enforced at record time, so "skipped" shouldn't occur here in
-  // practice; if it ever does (e.g. a future outcome flag), still flip the
-  // match to verified with no Ledger movement rather than leaving it stuck.
+  // Games > 0 is enforced at record time for a "completed" match, but a
+  // "retired"/"walkover" one can legitimately have zero games — that's
+  // exactly the case @cuatro/glass's engine skips (see its README's
+  // walkover/retired policy table). Either way, still flip the match to
+  // verified with no Ledger movement rather than leaving it stuck.
   if (result.status === "skipped") {
     tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id)).run();
     return [];
@@ -345,6 +364,8 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
 export interface MatchesStore {
   db: CuatroDb;
   getSessionForEntry(sessionId: string): Promise<SessionForEntry | null>;
+  /** The most recently recorded match for a session, if any — used to cross-link a played session to "Record result" vs. its existing match. */
+  getMatchForSession(sessionId: string): Promise<{ id: string; status: string } | null>;
   recordMatch(input: RecordMatchInput): Promise<{ matchId: string }>;
   confirmMatch(matchId: string, userId: string): Promise<ConfirmOutcome>;
   disputeMatch(matchId: string, userId: string): Promise<ConfirmOutcome>;
@@ -352,11 +373,17 @@ export interface MatchesStore {
   getProfileGlassView(userId: string): Promise<ProfileGlassView | null>;
   getLedger(userId: string): Promise<LedgerEntryView[]>;
   getMatchHistorySummary(userId: string): Promise<MatchHistorySummary>;
+  getPendingConfirmationsForUser(userId: string): Promise<PendingConfirmationView[]>;
   close(): void;
 }
 
-export function createMatchesStore(dbPath?: string): MatchesStore {
-  const client: CuatroClient = createClient(dbPath);
+/**
+ * Builds the store on top of an already-open client — the shape tests need
+ * (an isolated `:memory:` client per test) and the shape the shared
+ * process-wide singleton needs (one client reused across every store
+ * dependent) both go through here; only how the client was obtained differs.
+ */
+export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore {
   const { db } = client;
 
   return {
@@ -375,16 +402,34 @@ export function createMatchesStore(dbPath?: string): MatchesStore {
       return { session: { id: session.id, startsAt: session.startsAt, status: session.status }, players };
     },
 
+    async getMatchForSession(sessionId) {
+      const rows = await db
+        .select({ id: matches.id, status: matches.status })
+        .from(matches)
+        .where(eq(matches.sessionId, sessionId))
+        .orderBy(desc(matches.createdAt))
+        .limit(1);
+      return rows[0] ?? null;
+    },
+
     async recordMatch(input) {
+      const outcome = input.outcome ?? "completed";
       const allIds = [...input.teamA, ...input.teamB];
       if (new Set(allIds).size !== 4) throw new Error("A match needs four distinct players");
       if (!allIds.includes(input.reporterId)) throw new Error("The reporter must be one of the four players");
-      if (input.sets.length < 1 || input.sets.length > 3) throw new Error("Enter between 1 and 3 sets");
+      if (input.sets.length > 3) throw new Error("Enter at most 3 sets");
+      // A "completed" match needs a real score; a "retired" one may have
+      // ended with zero games played (see @cuatro/glass README's walkover/
+      // retired policy table) — those still get recorded, just skipped by
+      // the Glass engine at confirmation time rather than rejected here.
+      if (outcome === "completed" && input.sets.length < 1) throw new Error("Enter between 1 and 3 sets");
       for (const s of input.sets) {
         if (s.a < 0 || s.b < 0) throw new Error("Games won cannot be negative");
       }
       const { gamesWonA, gamesWonB } = gamesTotals(input.sets);
-      if (gamesWonA + gamesWonB <= 0) throw new Error("At least one game must have been played");
+      if (outcome === "completed" && gamesWonA + gamesWonB <= 0) {
+        throw new Error("At least one game must have been played");
+      }
 
       const [session] = await db.select().from(sessions).where(eq(sessions.id, input.sessionId));
       if (!session) throw new Error(`No such session "${input.sessionId}"`);
@@ -400,6 +445,7 @@ export function createMatchesStore(dbPath?: string): MatchesStore {
             teamBPlayer2Id: input.teamB[1],
             score: input.sets,
             status: "pending_confirmation",
+            outcome,
             playedAt: session.startsAt,
           })
           .returning()
@@ -546,8 +592,13 @@ export function createMatchesStore(dbPath?: string): MatchesStore {
     },
 
     async getLedger(userId) {
-      const rows = await db.select().from(ratingEvents).where(eq(ratingEvents.userId, userId)).orderBy(desc(ratingEvents.createdAt));
-      return rows.map((r) => ({
+      const rows = await db
+        .select({ event: ratingEvents, matchOutcome: matches.outcome })
+        .from(ratingEvents)
+        .innerJoin(matches, eq(ratingEvents.matchId, matches.id))
+        .where(eq(ratingEvents.userId, userId))
+        .orderBy(desc(ratingEvents.createdAt));
+      return rows.map(({ event: r, matchOutcome }) => ({
         id: r.id,
         matchId: r.matchId,
         delta: r.delta,
@@ -564,6 +615,7 @@ export function createMatchesStore(dbPath?: string): MatchesStore {
         },
         explanation: r.explanation,
         createdAt: r.createdAt,
+        outcome: matchOutcome,
       }));
     },
 
@@ -593,16 +645,67 @@ export function createMatchesStore(dbPath?: string): MatchesStore {
       return { played: rows.length, wins, losses };
     },
 
+    async getPendingConfirmationsForUser(userId) {
+      const candidates = await db
+        .select()
+        .from(matches)
+        .where(
+          and(
+            eq(matches.status, "pending_confirmation"),
+            or(
+              eq(matches.teamAPlayer1Id, userId),
+              eq(matches.teamAPlayer2Id, userId),
+              eq(matches.teamBPlayer1Id, userId),
+              eq(matches.teamBPlayer2Id, userId),
+            ),
+          ),
+        )
+        .orderBy(desc(matches.playedAt));
+
+      const pending: PendingConfirmationView[] = [];
+      for (const m of candidates) {
+        const team = teamOf(m, userId);
+        if (!team) continue;
+
+        const confirmedTeams = new Set(
+          (await db.select({ team: matchConfirmations.team }).from(matchConfirmations).where(eq(matchConfirmations.matchId, m.id))).map(
+            (c) => c.team,
+          ),
+        );
+        // Already confirmed by the viewer's own team (whether the viewer or
+        // their partner did it) — not an action item for this viewer.
+        if (confirmedTeams.has(team)) continue;
+
+        const opponentRows = await db
+          .select({ displayName: users.displayName })
+          .from(users)
+          .where(inArray(users.id, opponentIdsOf(m, userId)));
+
+        pending.push({
+          matchId: m.id,
+          sessionId: m.sessionId,
+          playedAt: m.playedAt,
+          opponentNames: opponentRows.map((r) => r.displayName).join(" & "),
+        });
+      }
+      return pending;
+    },
+
     close() {
       client.close();
     },
   };
 }
 
+/** Convenience wrapper for tests and one-off scripts that want a fresh, isolated client (e.g. `:memory:`). */
+export function createMatchesStore(dbPath?: string): MatchesStore {
+  return createMatchesStoreFromClient(createClient(dbPath));
+}
+
 let storePromise: Promise<MatchesStore> | null = null;
 
 export function getMatchesStore(): Promise<MatchesStore> {
-  if (!storePromise) storePromise = Promise.resolve(createMatchesStore());
+  if (!storePromise) storePromise = getDb().then(createMatchesStoreFromClient);
   return storePromise;
 }
 

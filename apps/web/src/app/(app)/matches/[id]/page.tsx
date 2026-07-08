@@ -36,7 +36,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Match result</h1>
-        <MatchStatusBadge status={match.status} />
+        <MatchStatusBadge status={match.status} outcome={match.outcome} />
       </div>
 
       <section

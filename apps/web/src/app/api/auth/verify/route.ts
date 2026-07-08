@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthStore } from "@/lib/auth-store";
 import { setSessionCookie } from "@/lib/session";
-import { isSafeRelativePath } from "@/lib/safe-redirect";
+import { isSafeRelativePath, resolveRequestOrigin } from "@/lib/safe-redirect";
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   const next = request.nextUrl.searchParams.get("next");
-  const origin = request.nextUrl.origin;
+  const origin = resolveRequestOrigin(request);
 
   if (!token) {
     return NextResponse.redirect(`${origin}/login?error=missing_token`);

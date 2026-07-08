@@ -140,7 +140,6 @@ export default async function NewMatchPage({
                 min={0}
                 max={99}
                 name={`set${n}_a`}
-                required={n === 1}
                 placeholder="—"
                 className="w-16 rounded-lg px-3 py-2 text-center text-base"
                 style={{ ...inputStyle, minHeight: "var(--c4-touch-target)" }}
@@ -151,13 +150,16 @@ export default async function NewMatchPage({
                 min={0}
                 max={99}
                 name={`set${n}_b`}
-                required={n === 1}
                 placeholder="—"
                 className="w-16 rounded-lg px-3 py-2 text-center text-base"
                 style={{ ...inputStyle, minHeight: "var(--c4-touch-target)" }}
               />
             </div>
           ))}
+          <label className="flex items-center gap-2 text-sm mt-1" style={{ color: "var(--c4-text-muted)" }}>
+            <input type="checkbox" name="retired" value="retired" className="h-4 w-4" />
+            Match was retired early (injury, ran out of time, etc.)
+          </label>
         </section>
 
         <button

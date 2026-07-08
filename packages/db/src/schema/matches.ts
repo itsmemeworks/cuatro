@@ -32,6 +32,13 @@ export const matches = sqliteTable(
     })
       .notNull()
       .default('pending_confirmation'),
+    // Mirrors @cuatro/glass's MatchOutcome — see packages/glass/README.md
+    // "Walkover / retired match policy". Stored so the UI can label a
+    // partial/early-ended result, and so matches-db.ts can pass the right
+    // outcome into the Glass engine at confirmation time.
+    outcome: text('outcome', { enum: ['completed', 'retired', 'walkover'] })
+      .notNull()
+      .default('completed'),
     playedAt: timestampColumn('played_at').notNull(), // UTC
     createdAt: createdAtColumn(),
   },

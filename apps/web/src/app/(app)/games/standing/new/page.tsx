@@ -15,10 +15,15 @@ const WEEKDAYS = [
 
 const fieldStyle = { background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" };
 
-export default async function NewStandingGamePage() {
+export default async function NewStandingGamePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ circleId?: string }>;
+}) {
   const user = await getSessionUser();
   if (!user) return null;
 
+  const { circleId: preselectedCircleId } = await searchParams;
   const { db } = await getGamesClient();
   const organiserCircles = listCirclesForUser(db, user.id).filter((c) => c.role === "organiser");
 
@@ -34,7 +39,7 @@ export default async function NewStandingGamePage() {
         <form action={createStandingGameAction} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1 text-sm">
             Circle
-            <select name="circleId" required className="rounded-lg p-3" style={fieldStyle}>
+            <select name="circleId" required defaultValue={preselectedCircleId} className="rounded-lg p-3" style={fieldStyle}>
               {organiserCircles.map((c) => (
                 <option key={c.circleId} value={c.circleId}>
                   {c.circleName}

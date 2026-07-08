@@ -31,8 +31,12 @@ export async function recordMatchAction(formData: FormData): Promise<void> {
   const teamB2 = String(formData.get("teamB2") ?? "");
   if (!sessionId || !teamA1 || !teamA2 || !teamB1 || !teamB2) return;
 
+  // A retired match may legitimately have no score at all (ended before a
+  // set finished) — only a normal completed result needs at least one set;
+  // matches-db.recordMatch enforces the same rule server-side.
+  const retired = formData.get("retired") === "retired";
   const sets = parseSets(formData);
-  if (sets.length === 0) return;
+  if (sets.length === 0 && !retired) return;
 
   const store = await getMatchesStore();
   const { matchId } = await store.recordMatch({
@@ -41,6 +45,7 @@ export async function recordMatchAction(formData: FormData): Promise<void> {
     teamA: [teamA1, teamA2],
     teamB: [teamB1, teamB2],
     sets,
+    outcome: retired ? "retired" : "completed",
   });
 
   revalidatePath("/home");

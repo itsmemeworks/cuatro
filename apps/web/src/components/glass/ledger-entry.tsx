@@ -25,7 +25,12 @@ export function LedgerEntryRow({ entry }: { entry: LedgerEntryView }) {
         <span className="text-lg font-semibold tabular-nums shrink-0" style={{ color: deltaColor }}>
           {deltaLabel}
         </span>
-        <span className="flex-1 text-sm">{entry.explanation}</span>
+        <span className="flex-1 text-sm">
+          {entry.explanation}
+          {entry.outcome === "retired" && (
+            <span style={{ color: "var(--c4-text-muted)" }}> (retired)</span>
+          )}
+        </span>
         <span className="text-xs shrink-0" style={{ color: "var(--c4-text-muted)" }}>
           {formatDate(entry.createdAt)}
         </span>

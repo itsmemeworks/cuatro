@@ -271,4 +271,128 @@ describe("result entry + Glass verification flow", () => {
     expect(ratingAfterRepeat[0]!.confidence).toBeCloseTo(ratingAfterFirst[0]!.confidence, 10);
     expect(ratingAfterRepeat[0]!.verifiedMatchCount).toBe(1);
   });
+
+  it("defaults a match's outcome to 'completed'", async () => {
+    const a = insertUser(db, "a4@example.com", "A4");
+    const b = insertUser(db, "b4@example.com", "B4");
+    const c = insertUser(db, "c4@example.com", "C4");
+    const d = insertUser(db, "d4@example.com", "D4");
+    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: a.id,
+      teamA: [a.id, b.id],
+      teamB: [c.id, d.id],
+      sets: [{ a: 6, b: 2 }],
+    });
+
+    const [row] = await db.select().from(matches).where(eq(matches.id, matchId));
+    expect(row!.outcome).toBe("completed");
+  });
+
+  it("records a retired match with zero games, and verifying it moves no one's Glass", async () => {
+    const a = insertUser(db, "a5@example.com", "A5");
+    const b = insertUser(db, "b5@example.com", "B5");
+    const c = insertUser(db, "c5@example.com", "C5");
+    const d = insertUser(db, "d5@example.com", "D5");
+    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: a.id,
+      teamA: [a.id, b.id],
+      teamB: [c.id, d.id],
+      sets: [],
+      outcome: "retired",
+    });
+
+    const [row] = await db.select().from(matches).where(eq(matches.id, matchId));
+    expect(row!.outcome).toBe("retired");
+
+    const outcome = await store.confirmMatch(matchId, c.id);
+    expect(outcome.status).toBe("verified");
+
+    const [verifiedRow] = await db.select().from(matches).where(eq(matches.id, matchId));
+    expect(verifiedRow!.status).toBe("verified");
+
+    const events = await db.select().from(ratingEvents).where(eq(ratingEvents.matchId, matchId));
+    expect(events).toHaveLength(0);
+
+    for (const u of [a, b, c, d]) {
+      const [row2] = await db.select().from(users).where(eq(users.id, u.id));
+      expect(row2!.verifiedMatchCount).toBe(0);
+    }
+  });
+
+  it("rejects a completed match recorded with no sets", async () => {
+    const a = insertUser(db, "a6@example.com", "A6");
+    const b = insertUser(db, "b6@example.com", "B6");
+    const c = insertUser(db, "c6@example.com", "C6");
+    const d = insertUser(db, "d6@example.com", "D6");
+    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+
+    await expect(
+      store.recordMatch({
+        sessionId,
+        reporterId: a.id,
+        teamA: [a.id, b.id],
+        teamB: [c.id, d.id],
+        sets: [],
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("getMatchForSession finds the most recently recorded match, or null before one exists", async () => {
+    const a = insertUser(db, "a7@example.com", "A7");
+    const b = insertUser(db, "b7@example.com", "B7");
+    const c = insertUser(db, "c7@example.com", "C7");
+    const d = insertUser(db, "d7@example.com", "D7");
+    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+
+    expect(await store.getMatchForSession(sessionId)).toBeNull();
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: a.id,
+      teamA: [a.id, b.id],
+      teamB: [c.id, d.id],
+      sets: [{ a: 6, b: 2 }],
+    });
+
+    const found = await store.getMatchForSession(sessionId);
+    expect(found?.id).toBe(matchId);
+    expect(found?.status).toBe("pending_confirmation");
+  });
+
+  it("getPendingConfirmationsForUser lists matches awaiting the viewer's own team, and drops off once that team has confirmed", async () => {
+    const a = insertUser(db, "a8@example.com", "A8");
+    const b = insertUser(db, "b8@example.com", "B8");
+    const c = insertUser(db, "c8@example.com", "C8");
+    const d = insertUser(db, "d8@example.com", "D8");
+    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: a.id,
+      teamA: [a.id, b.id],
+      teamB: [c.id, d.id],
+      sets: [{ a: 6, b: 2 }],
+    });
+
+    // Reporter's team (A) already auto-confirmed at record time — no action item for them.
+    expect(await store.getPendingConfirmationsForUser(a.id)).toEqual([]);
+
+    // Team B hasn't confirmed yet — it's an action item for both of them.
+    const pendingForC = await store.getPendingConfirmationsForUser(c.id);
+    expect(pendingForC).toHaveLength(1);
+    expect(pendingForC[0]!.matchId).toBe(matchId);
+    expect(pendingForC[0]!.opponentNames.split(" & ").sort()).toEqual(["A8", "B8"]);
+
+    await store.confirmMatch(matchId, c.id);
+
+    // Now verified — no longer a pending action for either team.
+    expect(await store.getPendingConfirmationsForUser(c.id)).toEqual([]);
+    expect(await store.getPendingConfirmationsForUser(d.id)).toEqual([]);
+  });
 });

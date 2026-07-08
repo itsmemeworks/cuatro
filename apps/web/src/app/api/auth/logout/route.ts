@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getAuthStore } from "@/lib/auth-store";
 import { clearSessionCookie, SESSION_COOKIE } from "@/lib/session";
+import { resolveRequestOrigin } from "@/lib/safe-redirect";
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
@@ -13,5 +14,5 @@ export async function POST(request: NextRequest) {
   }
   await clearSessionCookie();
 
-  return NextResponse.redirect(new URL("/", request.url));
+  return NextResponse.redirect(`${resolveRequestOrigin(request)}/`);
 }
