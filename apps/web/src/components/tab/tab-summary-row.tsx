@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fact, Meta } from "@/components/ui";
 import { formatMoney } from "./money";
 
 export interface TabSummaryRowProps {
@@ -20,21 +21,18 @@ export function TabSummaryRow({ circleId, netPositionByCurrency }: TabSummaryRow
   return (
     <Link
       href={`/circles/${circleId}/tab`}
-      className="tab-summary-row flex items-center justify-between gap-3 rounded-xl p-3"
-      style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
+      className="tab-summary-row flex items-center justify-between gap-3 rounded-card bg-surface border border-ink-hairline-1 p-3"
     >
-      <span className="tab-summary-row__label text-sm font-medium">The Tab</span>
+      <span className="tab-summary-row__label text-cu-body font-bold text-ink">The Tab</span>
       {balances.length === 0 ? (
-        <span className="tab-summary-row__status text-sm" style={{ color: "var(--c4-text-muted)" }}>
-          All square ✓
-        </span>
+        <Meta as="span" className="tab-summary-row__status">All square ✓</Meta>
       ) : (
-        <span className="tab-summary-row__net flex gap-2 font-mono text-sm">
+        <span className="tab-summary-row__net flex gap-2">
           {balances.map(([currency, minor]) => (
-            <span key={currency} style={{ color: minor > 0 ? "var(--c4-accent)" : "var(--c4-danger)" }}>
+            <Fact key={currency} size="sm" weight="bold" tone={minor > 0 ? "win" : "loss"}>
               {minor > 0 ? "+" : ""}
               {formatMoney(minor, currency)}
-            </span>
+            </Fact>
           ))}
         </span>
       )}

@@ -1,11 +1,15 @@
-/** Zero-dependency inline-SVG sparkline of ratingAfter across Ledger entries, oldest -> newest. */
-export function Sparkline({ values, width = 240, height = 48 }: { values: number[]; width?: number; height?: number }) {
+/**
+ * Zero-dependency inline-SVG season sparkline: bars, oldest -> newest, the
+ * most recent bar always in the action colour — mirrors the little
+ * eight-bar chart next to the Glass hero number in design/CUATRO-Prototype
+ * (screen 8). Older bars fade in from a low ink opacity so the eye reads
+ * "building up to now" left-to-right.
+ */
+export function Sparkline({ values, height = 34 }: { values: number[]; height?: number }) {
   if (values.length < 2) {
     return (
-      <div style={{ height, display: "flex", alignItems: "center" }}>
-        <p className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
-          One more verified match unlocks your trend line.
-        </p>
+      <div style={{ height }} className="flex items-center">
+        <p className="text-cu-meta text-ink-muted">One more verified match unlocks your trend line.</p>
       </div>
     );
   }
@@ -13,20 +17,29 @@ export function Sparkline({ values, width = 240, height = 48 }: { values: number
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min || 1;
-  const pad = 4;
-  const points = values.map((v, i) => {
-    const x = pad + (i / (values.length - 1)) * (width - pad * 2);
-    const y = pad + (1 - (v - min) / span) * (height - pad * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  const barW = 9;
+  const gap = 3;
+  const width = values.length * barW + (values.length - 1) * gap;
+  const minBarH = 4;
+
+  const bars = values.map((v, i) => {
+    const h = minBarH + ((v - min) / span) * (height - minBarH);
+    return { x: i * (barW + gap), y: height - h, h, isLast: i === values.length - 1, fade: 0.12 + (i / (values.length - 1)) * 0.1 };
   });
 
-  const rising = values.at(-1)! >= values[0]!;
-  const stroke = rising ? "var(--c4-accent)" : "var(--c4-danger)";
-
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Rating trend">
-      <polyline points={points.join(" ")} fill="none" stroke={stroke} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={points.at(-1)!.split(",")[0]} cy={points.at(-1)!.split(",")[1]} r={3} fill={stroke} />
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Season trend">
+      {bars.map((b, i) => (
+        <rect
+          key={i}
+          x={b.x}
+          y={b.y}
+          width={barW}
+          height={b.h}
+          rx={3}
+          style={b.isLast ? { fill: "var(--color-action)" } : { fill: "var(--color-ink)", opacity: b.fade }}
+        />
+      ))}
     </svg>
   );
 }

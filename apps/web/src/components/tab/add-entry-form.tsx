@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button, Card, Meta } from "@/components/ui";
 import { parseAmountToMinor } from "./money";
 
 export interface AddEntryFormMember {
@@ -69,22 +70,13 @@ export function AddEntryForm({
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="tab-add-entry-form flex flex-col gap-3 rounded-2xl p-4"
-      style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
-    >
-      <p className="text-sm font-semibold">Add to the Tab</p>
+    <Card as="form" onSubmit={submit} className="tab-add-entry-form flex flex-col gap-3">
+      <p className="text-cu-card-title text-ink">Add to the Tab</p>
 
-      <label className="tab-add-entry-form__amount-field flex flex-col gap-1 text-xs" style={{ color: "var(--c4-text-muted)" }}>
-        You paid
+      <label className="tab-add-entry-form__amount-field flex flex-col gap-1">
+        <Meta>You paid</Meta>
         <input
-          className="tab-add-entry-form__amount rounded-lg px-3 py-2 text-sm font-mono"
-          style={{
-            background: "var(--c4-bg-elevated-2)",
-            border: "1px solid var(--c4-border)",
-            color: "var(--c4-text)",
-          }}
+          className="tab-add-entry-form__amount rounded-button px-3 py-2 text-cu-body font-mono tabular-nums bg-ground border border-ink-hairline-2 text-ink"
           inputMode="decimal"
           placeholder="32.00"
           value={amount}
@@ -92,18 +84,14 @@ export function AddEntryForm({
         />
       </label>
 
-      <div className="tab-add-entry-form__debtors flex flex-col gap-1">
-        <span className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
-          Split with
-        </span>
+      <div className="tab-add-entry-form__debtors flex flex-col gap-1.5">
+        <Meta>Split with</Meta>
         {debtorChoices.length === 0 ? (
-          <p className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
-            No other members in this Circle yet.
-          </p>
+          <p className="text-cu-secondary text-ink-muted">No other members in this Circle yet.</p>
         ) : (
           debtorChoices.map((m) => (
-            <label key={m.userId} className="tab-add-entry-form__debtor flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={selected.includes(m.userId)} onChange={() => toggle(m.userId)} />
+            <label key={m.userId} className="tab-add-entry-form__debtor flex items-center gap-2 text-cu-body text-ink">
+              <input type="checkbox" checked={selected.includes(m.userId)} onChange={() => toggle(m.userId)} className="h-4 w-4" />
               {m.displayName}
             </label>
           ))
@@ -111,24 +99,21 @@ export function AddEntryForm({
       </div>
 
       {error && (
-        <p className="tab-add-entry-form__error text-xs" style={{ color: "var(--c4-danger)" }}>
+        <Meta as="p" tone="loss" className="tab-add-entry-form__error">
           {error}
-        </p>
+        </Meta>
       )}
 
-      <button
+      <Button
         type="submit"
+        variant="primary"
+        size="lg"
+        fullWidth
         disabled={pending || debtorChoices.length === 0}
-        className="tab-add-entry-form__submit rounded-xl py-3 text-sm font-semibold"
-        style={{
-          minHeight: "var(--c4-touch-target)",
-          background: "var(--c4-accent)",
-          color: "var(--c4-accent-contrast)",
-          opacity: pending || debtorChoices.length === 0 ? 0.6 : 1,
-        }}
+        className="tab-add-entry-form__submit"
       >
         Add to the Tab
-      </button>
-    </form>
+      </Button>
+    </Card>
   );
 }

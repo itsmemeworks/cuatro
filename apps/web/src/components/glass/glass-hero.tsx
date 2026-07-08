@@ -1,30 +1,49 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Card, DashedSlot, Fact, Meta } from "@/components/ui";
+import { RatingReveal, hasSeenRatingReveal } from "@/components/glass-screens/rating-reveal";
 import type { ProfileGlassView } from "@/server/matches-db";
+import { Sparkline } from "./sparkline";
 
 /**
- * The big Glass number (or the Unrated placement-progress state). This is
- * the hero treatment for /profile — see DESIGN.md section 2 ("GLASS") and
- * the design brief's "anticipation framing" for the pre-placement state.
+ * The Glass hero (design/HANDOFF.md screen 8): 56px 2dp number, confidence
+ * bar, season sparkline, "sharpens every time you play". Also owns the
+ * Unrated placement-progress state, and the one-time Rating Reveal
+ * choreography (Directions turn 8c) the moment a player's Placement Trio
+ * verifies — see components/glass-screens/rating-reveal.tsx.
  */
-export function GlassHero({ glass }: { glass: ProfileGlassView }) {
+export function GlassHero({
+  glass,
+  userId,
+  sparklineValues,
+  deltaSinceFirst,
+}: {
+  glass: ProfileGlassView;
+  userId: string;
+  /** ratingAfter across every Ledger entry, oldest -> newest — the season sparkline. */
+  sparklineValues: number[];
+  /** Sum of every Ledger delta — "how far Glass has moved since it was poured." Null when there's nothing to compare yet. */
+  deltaSinceFirst: number | null;
+}) {
+  const [revealDismissed, setRevealDismissed] = useState(false);
+  const [showReveal, setShowReveal] = useState(false);
+
+  useEffect(() => {
+    if (glass.status === "rated" && !hasSeenRatingReveal(userId)) setShowReveal(true);
+  }, [glass.status, userId]);
+
   if (glass.status === "unrated") {
     const played = glass.verifiedMatchCount;
     const remaining = glass.matchesUntilPlacement;
     return (
-      <section
-        className="rounded-2xl p-5 flex flex-col gap-3"
-        style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
-      >
+      <Card className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <div
-            className="w-14 h-14 rounded-full flex items-center justify-center text-sm font-semibold"
-            style={{ background: "var(--c4-bg-elevated-2)", border: "1px dashed var(--c4-border)", color: "var(--c4-text-muted)" }}
-          >
-            {played}/3
-          </div>
+          <DashedSlot size="lg" label={`${played}/3`} />
           <div>
-            <p className="font-medium">Glass: Unrated</p>
-            <p className="text-sm" style={{ color: "var(--c4-text-muted)" }}>
+            <p className="text-cu-card-title text-ink">Glass: Unrated</p>
+            <p className="text-cu-secondary text-ink-muted mt-0.5">
               {remaining === 0
                 ? "Your Placement Trio is complete — your number appears the moment this match verifies."
                 : remaining === 1
@@ -33,47 +52,58 @@ export function GlassHero({ glass }: { glass: ProfileGlassView }) {
             </p>
           </div>
         </div>
-        <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "var(--c4-bg-elevated-2)" }}>
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${(played / 3) * 100}%`, background: "var(--c4-accent)" }}
-          />
+        <div className="w-full h-1.5 rounded-chip bg-ink-hairline-2 overflow-hidden">
+          <div className="h-full rounded-chip bg-action" style={{ width: `${(played / 3) * 100}%` }} />
         </div>
-        <p className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
-          No questionnaire. No guessing. Your number only shows once real matches have earned it.
-        </p>
-      </section>
+        <Meta>No questionnaire. No guessing. Your number only shows once real matches have earned it.</Meta>
+      </Card>
+    );
+  }
+
+  if (showReveal && !revealDismissed) {
+    return (
+      <RatingReveal
+        userId={userId}
+        displayName={glass.displayName.split(" ")[0] ?? glass.displayName}
+        rating={glass.rating!}
+        confidencePct={glass.confidencePct}
+        onDone={() => setRevealDismissed(true)}
+      />
     );
   }
 
   return (
-    <section
-      className="rounded-2xl p-5 flex flex-col gap-2"
-      style={{ background: "var(--c4-bg-elevated)", border: "1px solid var(--c4-border)" }}
-    >
-      <div className="flex items-end gap-3">
-        <span className="text-5xl font-semibold tabular-nums" style={{ color: "var(--c4-accent)" }}>
-          {glass.rating!.toFixed(2)}
-        </span>
-        <span className="text-sm mb-1.5" style={{ color: "var(--c4-text-muted)" }}>
-          Glass
-        </span>
+    <Card className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between">
+        <p className="text-cu-secondary font-extrabold tracking-[0.12em] text-ink-muted">GLASS</p>
+        {deltaSinceFirst != null && (
+          <Fact size="sm" weight="semibold" tone={deltaSinceFirst >= 0 ? "win" : "loss"}>
+            {deltaSinceFirst >= 0 ? "▲" : "▼"} {deltaSinceFirst >= 0 ? "+" : ""}
+            {deltaSinceFirst.toFixed(2)} overall
+          </Fact>
+        )}
       </div>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--c4-bg-elevated-2)" }}>
-          <div className="h-full rounded-full" style={{ width: `${glass.confidencePct}%`, background: "var(--c4-accent-strong)" }} />
+      <div className="flex items-baseline gap-3 mt-1">
+        <span className="text-cu-hero text-ink tabular-nums">{glass.rating!.toFixed(2)}</span>
+        <div className="flex-1 h-[34px]">
+          <Sparkline values={sparklineValues} />
         </div>
-        <span className="text-xs font-medium tabular-nums" style={{ color: "var(--c4-text-muted)" }}>
-          {glass.confidencePct}% confidence
-        </span>
       </div>
-      <p className="text-xs" style={{ color: "var(--c4-text-muted)" }}>
-        {glass.verifiedMatchCount} verified {glass.verifiedMatchCount === 1 ? "match" : "matches"}. Confidence grows
-        with opponent variety, not volume.
-      </p>
-      <Link href="/profile/ledger" className="text-sm font-medium" style={{ color: "var(--c4-accent)" }}>
+      <div className="mt-1.5">
+        <div className="flex justify-between text-cu-meta text-ink-muted">
+          <span>confidence</span>
+          <Fact size="meta" weight="semibold">{glass.confidencePct}%</Fact>
+        </div>
+        <div className="h-1.5 rounded-chip bg-ink-hairline-2 mt-1 overflow-hidden">
+          <div className="h-full rounded-chip bg-action" style={{ width: `${glass.confidencePct}%` }} />
+        </div>
+        <Meta className="mt-1.5 block">
+          based on {glass.verifiedMatchCount} verified {glass.verifiedMatchCount === 1 ? "game" : "games"} · sharpens every time you play
+        </Meta>
+      </div>
+      <Link href="/profile/ledger" className="text-cu-secondary font-bold text-action mt-1">
         See exactly why in the Ledger →
       </Link>
-    </section>
+    </Card>
   );
 }

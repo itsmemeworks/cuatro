@@ -1,63 +1,84 @@
-"use client";
-
-import { useState } from "react";
 import type { LedgerEntryView } from "@/server/matches-db";
+import { Fact, Meta } from "@/components/ui";
+import { LedgerRow } from "@/components/glass-screens/ledger-row";
 
 function formatDate(d: Date): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(d);
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(d);
 }
 
-/** One Ledger line — a bank-statement-style row that expands to show its factors. */
-export function LedgerEntryRow({ entry }: { entry: LedgerEntryView }) {
-  const [open, setOpen] = useState(false);
-  const positive = entry.delta >= 0;
-  const deltaColor = positive ? "var(--c4-accent)" : "var(--c4-danger)";
-  const deltaLabel = `${positive ? "+" : ""}${entry.delta.toFixed(2)}`;
+function fmtDelta(delta: number): string {
+  return `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
+}
+
+/** One Ledger line — a bank-statement-style row (design/HANDOFF.md screen 9): result + opponents, the delta, the plain-language why, the running balance; expands to the factors that produced it. */
+export function LedgerEntryRow({
+  entry,
+  opponentNames,
+  score,
+}: {
+  entry: LedgerEntryView;
+  opponentNames: string | null;
+  score: string | null;
+}) {
+  const won = entry.delta >= 0;
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--c4-border)" }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 p-4 text-left"
-        style={{ background: "var(--c4-bg-elevated)", minHeight: "var(--c4-touch-target)" }}
-      >
-        <span className="text-lg font-semibold tabular-nums shrink-0" style={{ color: deltaColor }}>
-          {deltaLabel}
-        </span>
-        <span className="flex-1 text-sm">
-          {entry.explanation}
-          {entry.outcome === "retired" && (
-            <span style={{ color: "var(--c4-text-muted)" }}> (retired)</span>
-          )}
-        </span>
-        <span className="text-xs shrink-0" style={{ color: "var(--c4-text-muted)" }}>
+    <LedgerRow
+      headline={
+        <>
+          {won ? "W" : "L"} {score ?? "—"}
+          {opponentNames && <span className="font-normal text-ink-muted"> vs {opponentNames}</span>}
+        </>
+      }
+      value={
+        <Fact size="md" weight="bold" tone={won ? "win" : "loss"}>
+          {fmtDelta(entry.delta)}
+        </Fact>
+      }
+      meta={
+        <>
           {formatDate(entry.createdAt)}
-        </span>
-      </button>
-      {open && (
-        <dl
-          className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 text-xs"
-          style={{ background: "var(--c4-bg-elevated-2)", borderTop: "1px solid var(--c4-border)" }}
-        >
-          <dt style={{ color: "var(--c4-text-muted)" }}>Rating after</dt>
-          <dd className="tabular-nums">{entry.ratingAfter.toFixed(2)}</dd>
-          <dt style={{ color: "var(--c4-text-muted)" }}>Win expectancy</dt>
-          <dd className="tabular-nums">{Math.round(entry.factors.expectedWin * 100)}%</dd>
-          <dt style={{ color: "var(--c4-text-muted)" }}>Margin multiplier</dt>
-          <dd className="tabular-nums">{entry.factors.marginMultiplier.toFixed(2)}×</dd>
-          <dt style={{ color: "var(--c4-text-muted)" }}>Echo Damping</dt>
-          <dd className="tabular-nums">
-            {entry.factors.isFirstMeeting ? "none (first meeting)" : `${Math.round(entry.factors.echoDampingMultiplier * 100)}% weight`}
+          {entry.outcome === "retired" && " · retired"}
+        </>
+      }
+      why={entry.explanation}
+      balance={{ label: "balance", value: entry.ratingAfter.toFixed(2) }}
+      details={
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-1">
+          <dt className="text-cu-meta text-ink-muted">Win expectancy</dt>
+          <dd className="text-right"><Fact size="sm">{Math.round(entry.factors.expectedWin * 100)}%</Fact></dd>
+          <dt className="text-cu-meta text-ink-muted">Margin weight</dt>
+          <dd className="text-right"><Fact size="sm">×{entry.factors.marginMultiplier.toFixed(2)}</Fact></dd>
+          <dt className="text-cu-meta text-ink-muted">Echo Damping</dt>
+          <dd className="text-right">
+            <Fact size="sm">
+              {entry.factors.isFirstMeeting ? "none (first meeting)" : `${Math.round(entry.factors.echoDampingMultiplier * 100)}% weight`}
+            </Fact>
           </dd>
-          <dt style={{ color: "var(--c4-text-muted)" }}>K-factor</dt>
-          <dd className="tabular-nums">{entry.factors.kFactor.toFixed(2)}</dd>
-          <dt style={{ color: "var(--c4-text-muted)" }}>Confidence</dt>
-          <dd className="tabular-nums">
-            {entry.confidenceBeforePct}% → {entry.confidenceAfterPct}%
+          <dt className="text-cu-meta text-ink-muted">K-factor</dt>
+          <dd className="text-right"><Fact size="sm">{entry.factors.kFactor.toFixed(2)}</Fact></dd>
+          <dt className="text-cu-meta text-ink-muted">Confidence</dt>
+          <dd className="text-right">
+            <Fact size="sm">{entry.confidenceBeforePct}% → {entry.confidenceAfterPct}%</Fact>
           </dd>
         </dl>
-      )}
+      }
+    />
+  );
+}
+
+/** The Ledger's origin row — "Glass poured" (design/HANDOFF.md screen 9's genesis row). One per player, ever. */
+export function GenesisRow({ entry, placementSize }: { entry: LedgerEntryView; placementSize: number }) {
+  return (
+    <div className="flex items-center gap-2.5 px-4 py-3 border-b border-ink-hairline-1 last:border-b-0">
+      <span className="text-cu-secondary font-bold text-action-strong">◆</span>
+      <div className="flex-1">
+        <p className="text-cu-body text-ink font-bold">Glass poured — Placement Trio complete</p>
+        <Meta className="mt-0.5 block">
+          {placementSize} verified games · opening balance {entry.ratingBefore != null ? entry.ratingBefore.toFixed(2) : "—"} · conf{" "}
+          {entry.confidenceBeforePct}%
+        </Meta>
+      </div>
     </div>
   );
 }

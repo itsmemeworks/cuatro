@@ -1,4 +1,6 @@
 import type { SetScore } from "@cuatro/db";
+import { Chip, Fact, Meta } from "@/components/ui";
+import type { ChipTone } from "@/components/ui";
 
 export function ScoreTable({
   sets,
@@ -10,36 +12,27 @@ export function ScoreTable({
   teamBName: string;
 }) {
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr style={{ color: "var(--c4-text-muted)" }}>
-          <th className="text-left font-medium py-1">Team</th>
-          {sets.map((_, i) => (
-            <th key={i} className="text-center font-medium py-1">
-              Set {i + 1}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td className="py-1">{teamAName}</td>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline gap-2">
+        <span className="text-cu-body text-ink font-bold flex-1">{teamAName}</span>
+        <div className="flex gap-3">
           {sets.map((s, i) => (
-            <td key={i} className="text-center tabular-nums py-1 font-semibold">
-              {s.a}
-            </td>
+            <Fact key={i} size="lg" weight="bold">{s.a}</Fact>
           ))}
-        </tr>
-        <tr>
-          <td className="py-1">{teamBName}</td>
+        </div>
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-cu-body text-ink-muted font-bold flex-1">{teamBName}</span>
+        <div className="flex gap-3">
           {sets.map((s, i) => (
-            <td key={i} className="text-center tabular-nums py-1 font-semibold">
-              {s.b}
-            </td>
+            <Fact key={i} size="lg" weight="bold" tone="muted">{s.b}</Fact>
           ))}
-        </tr>
-      </tbody>
-    </table>
+        </div>
+      </div>
+      <Meta className="mt-0.5">
+        {sets.map((_, i) => `Set ${i + 1}`).join(" · ")}
+      </Meta>
+    </div>
   );
 }
 
@@ -50,25 +43,19 @@ const STATUS_LABEL: Record<string, string> = {
   void: "Void",
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  pending_confirmation: "var(--c4-warning)",
-  verified: "var(--c4-accent)",
-  disputed: "var(--c4-danger)",
-  void: "var(--c4-text-muted)",
+const STATUS_TONE: Record<string, ChipTone> = {
+  pending_confirmation: "streak",
+  verified: "positive",
+  disputed: "neutral",
+  void: "neutral",
 };
 
+/** Dispute is a quiet fact, never an alarm — design/HANDOFF.md: "loss colour is for outcomes only." */
 export function MatchStatusBadge({ status, outcome }: { status: string; outcome?: string }) {
   return (
-    <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
-      style={{
-        background: "var(--c4-bg-elevated-2)",
-        color: STATUS_COLOR[status] ?? "var(--c4-text-muted)",
-        border: "1px solid var(--c4-border)",
-      }}
-    >
+    <Chip tone={STATUS_TONE[status] ?? "neutral"}>
       {STATUS_LABEL[status] ?? status}
       {outcome === "retired" && " (retired)"}
-    </span>
+    </Chip>
   );
 }
