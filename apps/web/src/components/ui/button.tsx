@@ -28,6 +28,13 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
   destructiveQuiet: "bg-transparent text-ink border border-ink-hairline-4",
 };
 
+/**
+ * `quiet`/`destructiveQuiet` on Card variant="feature" — see the `onFeature`
+ * prop below. `primary`/`strong` don't need an entry: bg-action/text-action-
+ * contrast and bg-strong-bg/text-strong-fg are already theme-independent.
+ */
+const ON_FEATURE_QUIET_CLASS = "bg-transparent text-ink-on-feature border border-ink-on-feature-hairline";
+
 const SIZE_CLASS: Record<ButtonSize, string> = {
   default: "min-h-11 px-4 text-[14px]", // 44px
   lg: "min-h-12 px-5 text-[15px]", // 48px
@@ -37,23 +44,33 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   fullWidth?: boolean;
+  /**
+   * Set true when this button sits on Card variant="feature" — that card is
+   * a fixed-dark surface in BOTH themes, so `quiet`/`destructiveQuiet` need
+   * bone ink/border instead of the theme-reactive `text-ink`/`border-ink-
+   * hairline-4`, which would render dark-on-dark under a light OS theme.
+   * No-op for `primary`/`strong`.
+   */
+  onFeature?: boolean;
 }
 
 export function Button({
   variant = "primary",
   size = "default",
   fullWidth = false,
+  onFeature = false,
   className = "",
   ...props
 }: ButtonProps) {
-  const weight = variant === "quiet" || variant === "destructiveQuiet" ? "font-semibold" : "font-extrabold";
+  const isQuiet = variant === "quiet" || variant === "destructiveQuiet";
+  const weight = isQuiet ? "font-semibold" : "font-extrabold";
   return (
     <button
       className={[
         "rounded-button inline-flex items-center justify-center gap-2 select-none",
         "transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none",
         weight,
-        VARIANT_CLASS[variant],
+        onFeature && isQuiet ? ON_FEATURE_QUIET_CLASS : VARIANT_CLASS[variant],
         SIZE_CLASS[size],
         fullWidth ? "w-full" : "",
         className,

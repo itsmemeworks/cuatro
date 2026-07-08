@@ -27,7 +27,7 @@ export function Wordmark({
   className?: string;
 }) {
   const sizeClass = size === "hero" ? "text-[44px]" : "text-[22px]";
-  const markClass = onDark ? "text-[#FF7A5C]" : "text-action";
+  const markClass = onDark ? "text-action-on-feature-link" : "text-action";
   const wordClass = onDark ? "text-[#F5F2EC]" : "text-ink";
   return (
     <div className={className}>

@@ -25,19 +25,37 @@ const TONE_CLASS: Record<Tone, string> = {
   action: "text-action",
 };
 
+/**
+ * `onFeature` overrides for the tones whose theme-reactive token would go
+ * dark-on-dark on Card variant="feature" (a fixed-dark surface in BOTH
+ * themes). `win`/`streak` are left out — nothing on surface-feature uses
+ * them yet, and their theme-reactive greens/ambers already read fine on a
+ * dark card in both themes.
+ */
+const ON_FEATURE_TONE_CLASS: Partial<Record<Tone, string>> = {
+  neutral: "text-ink-on-feature",
+  muted: "text-ink-on-feature-muted",
+  loss: "text-loss-on-feature",
+  action: "text-action-on-feature-label",
+};
+
 export function Meta({
   as: As = "span",
   tone = "muted",
+  onFeature = false,
   className = "",
   children,
 }: {
   as?: ElementType;
   tone?: Tone;
+  /** See Button's `onFeature` — this card's tones need fixed bone/coral colours, not the theme-reactive ones. */
+  onFeature?: boolean;
   className?: string;
   children: ReactNode;
 }) {
+  const toneClass = (onFeature && ON_FEATURE_TONE_CLASS[tone]) || TONE_CLASS[tone];
   return (
-    <As className={`text-cu-meta tabular-nums ${TONE_CLASS[tone]} ${className}`}>{children}</As>
+    <As className={`text-cu-meta tabular-nums ${toneClass} ${className}`}>{children}</As>
   );
 }
 
@@ -53,6 +71,7 @@ export function Fact({
   size = "sm",
   tone = "neutral",
   weight = "semibold",
+  onFeature = false,
   className = "",
   children,
 }: {
@@ -60,6 +79,8 @@ export function Fact({
   size?: keyof typeof FACT_SIZE_CLASS;
   tone?: Tone;
   weight?: "normal" | "medium" | "semibold" | "bold";
+  /** See Button's `onFeature` — this card's tones need fixed bone/coral colours, not the theme-reactive ones. */
+  onFeature?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -69,9 +90,10 @@ export function Fact({
     semibold: "font-semibold",
     bold: "font-bold",
   }[weight];
+  const toneClass = (onFeature && ON_FEATURE_TONE_CLASS[tone]) || TONE_CLASS[tone];
 
   return (
-    <As className={`font-mono tabular-nums ${weightClass} ${FACT_SIZE_CLASS[size]} ${TONE_CLASS[tone]} ${className}`}>
+    <As className={`font-mono tabular-nums ${weightClass} ${FACT_SIZE_CLASS[size]} ${toneClass} ${className}`}>
       {children}
     </As>
   );

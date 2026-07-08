@@ -63,11 +63,9 @@ export function MemberList({ members, currentUserId }: { members: MemberListItem
                     ORGANISER
                   </Chip>
                 ) : isYou ? (
-                  <span
-                    className="rounded-chip px-3 py-1.5 text-[9px] font-bold tracking-[0.06em] bg-[color:rgba(255,92,61,0.16)] text-action-strong"
-                  >
+                  <Chip tint={{ bg: "rgba(255,92,61,0.16)", text: "var(--color-action-strong)" }} className="text-[9px] tracking-[0.06em]">
                     YOU
-                  </span>
+                  </Chip>
                 ) : isNew ? (
                   <Chip tone="positive" className="text-[9px] tracking-[0.06em]">
                     NEW

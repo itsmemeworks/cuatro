@@ -55,6 +55,14 @@
      constants rather than following the theme's `action` colour. */
   --color-action-on-feature-label: #ff8a73;
   --color-action-on-feature-link: #ff7a5c;
+  /* Same rationale for the bone ink and loss-red text that also lands on
+     surface-feature — consumed by Button/Meta/Fact's `onFeature` prop
+     (components/ui) so their quiet/muted variants stay legible there
+     instead of following the theme-reactive `ink`/`loss` tokens. */
+  --color-ink-on-feature: #f5f2ec;
+  --color-ink-on-feature-muted: rgba(245, 242, 236, 0.7);
+  --color-ink-on-feature-hairline: rgba(245, 242, 236, 0.3);
+  --color-loss-on-feature: #e56b4f;
 
   --color-circle-1: #3e7bfa;
   --color-circle-2: #2fa05a;
@@ -224,6 +232,12 @@
   --color-strong-bg: var(--color-strong-bg);
   --color-strong-fg: var(--color-strong-fg);
   --color-court: var(--color-court);
+  --color-action-on-feature-label: var(--color-action-on-feature-label);
+  --color-action-on-feature-link: var(--color-action-on-feature-link);
+  --color-ink-on-feature: var(--color-ink-on-feature);
+  --color-ink-on-feature-muted: var(--color-ink-on-feature-muted);
+  --color-ink-on-feature-hairline: var(--color-ink-on-feature-hairline);
+  --color-loss-on-feature: var(--color-loss-on-feature);
   --color-circle-1: var(--color-circle-1);
   --color-circle-2: var(--color-circle-2);
   --color-circle-3: var(--color-circle-3);
@@ -388,6 +402,13 @@ input {
   animation: cu-pulse-ring 2.2s ease-out infinite;
 }
 
+/* One-shot version of the same ring — a slot that just arrived (SessionCard's
+   SlotTile) pulses once and settles, rather than pulsing forever like an
+   open/waiting slot does. */
+.animate-cu-pulse-once {
+  animation: cu-pulse-ring 700ms ease-out 1;
+}
+
 @keyframes cu-toast-in {
   from {
     opacity: 0;
@@ -466,7 +487,8 @@ input {
     animation-timing-function: ease !important;
     transform: none !important;
   }
-  .animate-cu-pulse {
+  .animate-cu-pulse,
+  .animate-cu-pulse-once {
     animation: none !important;
   }
   .animate-cu-court-kb,

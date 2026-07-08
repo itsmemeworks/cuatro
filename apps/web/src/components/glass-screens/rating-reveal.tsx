@@ -124,10 +124,7 @@ export function RatingReveal({
 
   return (
     <section className="rounded-card bg-surface-feature border border-ink-hairline-2 p-6 flex flex-col items-center text-center gap-1">
-      <p
-        className="text-cu-secondary font-extrabold tracking-[0.14em]"
-        style={{ color: "var(--color-action-on-feature-label)" }}
-      >
+      <p className="text-cu-secondary font-extrabold tracking-[0.14em] text-action-on-feature-label">
         PLACEMENT TRIO COMPLETE
       </p>
       <div className="flex justify-center gap-1.5 mt-3">

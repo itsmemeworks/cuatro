@@ -34,6 +34,13 @@ import { slotsForSession } from "./games-service";
 import { insertNotification } from "./notify";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 
+// Startup check (not the lazy per-call warn() below): fail loudly, once, at
+// module load in production if the real secret was never set, rather than
+// only surfacing it the first time a ring-3 link happens to be minted.
+if (process.env.NODE_ENV === "production" && !process.env.FOURTH_CALL_LINK_SECRET) {
+  console.error("[fourth-call] FOURTH_CALL_LINK_SECRET is not set — ring-3 claim links will be signed with an insecure fallback secret. Set FOURTH_CALL_LINK_SECRET in production.");
+}
+
 export const FOURTH_CALL_LEVEL2_DELAY_MS = 20 * 60 * 1000;
 const FOURTH_CALL_LEVEL2_RATING_BAND = 0.5;
 export const FOURTH_CALL_LEVEL2_CAP = 12;

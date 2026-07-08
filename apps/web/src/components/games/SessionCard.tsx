@@ -79,8 +79,7 @@ function SlotTile({
 }) {
   return (
     <div
-      className="flex-1 min-w-0 rounded-button border border-ink-hairline-2 bg-surface px-1 py-2.5 flex flex-col items-center gap-1.5 transition-cu-state"
-      style={arriving ? { animation: "cu-pulse-ring 700ms ease-out 1" } : undefined}
+      className={`flex-1 min-w-0 rounded-button border border-ink-hairline-2 bg-surface px-1 py-2.5 flex flex-col items-center gap-1.5 transition-cu-state ${arriving ? "animate-cu-pulse-once" : ""}`}
     >
       {player ? (
         <Avatar
