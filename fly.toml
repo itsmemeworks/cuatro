@@ -4,9 +4,22 @@ primary_region = "lhr"
 [build]
   dockerfile = "Dockerfile"
 
+  # Public-by-design client keys (anon key, not service-role) — safe to
+  # commit. Passed through as Docker build args because NEXT_PUBLIC_* vars
+  # are inlined into the bundle at `next build` time, not read at runtime
+  # (see Dockerfile's builder stage and [env] below, which covers runtime).
+  [build.args]
+    NEXT_PUBLIC_SUPABASE_URL = "https://piaeeuyqqbtmbuqfkfun.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpYWVldXlxcWJ0bWJ1cWZrZnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjA2NDMsImV4cCI6MjA5OTA5NjY0M30.0O7OQbRVV6TbqStsGhOb5_c4tVd9_88UIieRyOgoN2E"
+
 [env]
   PORT = "3000"
   DATABASE_PATH = "/data/cuatro.db"
+  # Dedicated cuatro Supabase project (prod). Local dev always points at the
+  # local Docker stack instead, for dev/prod parity — see apps/web/.env.local
+  # and .env.example.
+  NEXT_PUBLIC_SUPABASE_URL = "https://piaeeuyqqbtmbuqfkfun.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpYWVldXlxcWJ0bWJ1cWZrZnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjA2NDMsImV4cCI6MjA5OTA5NjY0M30.0O7OQbRVV6TbqStsGhOb5_c4tVd9_88UIieRyOgoN2E"
 
 [[mounts]]
   source = "cuatro_data"

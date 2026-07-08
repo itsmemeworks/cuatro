@@ -2,6 +2,15 @@
  * Auth persistence, backed by @cuatro/db (drizzle + better-sqlite3). This is
  * the ONE place the rest of the app talks to for auth storage.
  *
+ * Two provisioning paths write the same `users` table:
+ *   - findOrCreateUserByEmail + createMagicLinkToken/consumeMagicLinkToken —
+ *     the legacy custom magic-link flow, gated behind AUTH_LEGACY=1 (see
+ *     ../app/api/auth/{request,verify}/route.ts and ./session.ts).
+ *   - findOrCreateUserBySupabase — the primary flow, called once from
+ *     /auth/callback after Supabase exchanges its own auth code. It links
+ *     onto a legacy-created row by email if one exists, rather than
+ *     duplicating the user.
+ *
  * Gotchas this implementation has to respect:
  *   - magicLinkTokens/authSessions store `tokenHash`, not the raw token —
  *     the raw token only ever exists in the magic-link URL / session cookie.
@@ -31,6 +40,12 @@ export interface SessionUser {
   displayName: string | null;
 }
 
+export interface SupabaseProvisionParams {
+  supabaseUserId: string;
+  email: string;
+  displayName?: string | null;
+}
+
 export interface AuthStore {
   findOrCreateUserByEmail(email: string): Promise<SessionUser>;
   createMagicLinkToken(userId: string, email: string): Promise<string>;
@@ -39,6 +54,18 @@ export interface AuthStore {
   getSession(sessionToken: string): Promise<SessionUser | null>;
   deleteSession(sessionToken: string): Promise<void>;
   updateDisplayName(userId: string, displayName: string): Promise<void>;
+  /**
+   * Maps a Supabase Auth user onto a local `users` row — called once, from
+   * /auth/callback, right after exchangeCodeForSession. Lookup order:
+   * by supabaseUserId (returning player) -> by email (links an account that
+   * pre-dates Supabase Auth, e.g. one created via the legacy magic-link
+   * store) -> create fresh (displayName from Supabase user_metadata.name,
+   * falling back to the email local-part; countryCode defaults to GB same
+   * as the legacy path).
+   */
+  findOrCreateUserBySupabase(params: SupabaseProvisionParams): Promise<SessionUser>;
+  /** Read-only lookup for session resolution — never provisions. */
+  getUserBySupabaseId(supabaseUserId: string): Promise<SessionUser | null>;
 }
 
 function hashToken(token: string): string {
@@ -135,6 +162,42 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
 
     async updateDisplayName(userId: string, displayName: string): Promise<void> {
       await db.update(users).set({ displayName, updatedAt: new Date() }).where(eq(users.id, userId));
+    },
+
+    async findOrCreateUserBySupabase(params: SupabaseProvisionParams): Promise<SessionUser> {
+      const normalized = params.email.trim().toLowerCase();
+
+      const [bySupabaseId] = await db
+        .select()
+        .from(users)
+        .where(eq(users.supabaseUserId, params.supabaseUserId));
+      if (bySupabaseId) return toSessionUser(bySupabaseId);
+
+      const [byEmail] = await db.select().from(users).where(eq(users.email, normalized));
+      if (byEmail) {
+        const [linked] = await db
+          .update(users)
+          .set({ supabaseUserId: params.supabaseUserId, updatedAt: new Date() })
+          .where(eq(users.id, byEmail.id))
+          .returning();
+        return toSessionUser(linked);
+      }
+
+      const [created] = await db
+        .insert(users)
+        .values({
+          email: normalized,
+          displayName: params.displayName?.trim() || deriveDisplayName(normalized),
+          supabaseUserId: params.supabaseUserId,
+          countryCode: "GB",
+        })
+        .returning();
+      return toSessionUser(created);
+    },
+
+    async getUserBySupabaseId(supabaseUserId: string): Promise<SessionUser | null> {
+      const [row] = await db.select().from(users).where(eq(users.supabaseUserId, supabaseUserId));
+      return row ? toSessionUser(row) : null;
     },
   };
 }

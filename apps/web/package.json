@@ -14,6 +14,8 @@
   "dependencies": {
     "@cuatro/db": "*",
     "@cuatro/glass": "*",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.110.1",
     "next": "16.2.10",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

@@ -15,6 +15,11 @@ export const users = sqliteTable(
     emailVerifiedAt: timestampColumn('email_verified_at'),
     oauthGoogleId: text('oauth_google_id').unique(),
     oauthAppleId: text('oauth_apple_id').unique(),
+    // Supabase Auth's own user id (auth.users.id) — the primary identity once
+    // Supabase Auth is live. Nullable: legacy-flow accounts (created via the
+    // custom magic-link store, AUTH_LEGACY=1) never set this; a Supabase
+    // login later links onto the same row by email instead of duplicating it.
+    supabaseUserId: text('supabase_user_id').unique(),
     displayName: text('display_name').notNull(),
     avatarUrl: text('avatar_url'),
 

@@ -8,7 +8,7 @@
  */
 import Database from "better-sqlite3";
 import { randomBytes, randomUUID } from "crypto";
-import type { AuthStore, SessionUser } from "./auth-store";
+import type { AuthStore, SessionUser, SupabaseProvisionParams } from "./auth-store";
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -21,6 +21,7 @@ function openDb(path: string): Database.Database {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       display_name TEXT,
+      supabase_user_id TEXT UNIQUE,
       created_at TEXT NOT NULL
     );
 
@@ -127,6 +128,42 @@ export function createFallbackAuthStore(path: string): AuthStore {
 
     async updateDisplayName(userId: string, displayName: string): Promise<void> {
       db.prepare("UPDATE users SET display_name = ? WHERE id = ?").run(displayName, userId);
+    },
+
+    async findOrCreateUserBySupabase(params: SupabaseProvisionParams): Promise<SessionUser> {
+      const normalized = params.email.trim().toLowerCase();
+
+      const bySupabaseId = db
+        .prepare("SELECT id, email, display_name FROM users WHERE supabase_user_id = ?")
+        .get(params.supabaseUserId) as
+        | { id: string; email: string; display_name: string | null }
+        | undefined;
+      if (bySupabaseId) return toSessionUser(bySupabaseId);
+
+      const byEmail = db
+        .prepare("SELECT id, email, display_name FROM users WHERE email = ?")
+        .get(normalized) as { id: string; email: string; display_name: string | null } | undefined;
+      if (byEmail) {
+        db.prepare("UPDATE users SET supabase_user_id = ? WHERE id = ?").run(
+          params.supabaseUserId,
+          byEmail.id
+        );
+        return toSessionUser(byEmail);
+      }
+
+      const id = randomUUID();
+      const displayName = params.displayName?.trim() || null;
+      db.prepare(
+        "INSERT INTO users (id, email, display_name, supabase_user_id, created_at) VALUES (?, ?, ?, ?, ?)"
+      ).run(id, normalized, displayName, params.supabaseUserId, new Date().toISOString());
+      return { id, email: normalized, displayName };
+    },
+
+    async getUserBySupabaseId(supabaseUserId: string): Promise<SessionUser | null> {
+      const row = db
+        .prepare("SELECT id, email, display_name FROM users WHERE supabase_user_id = ?")
+        .get(supabaseUserId) as { id: string; email: string; display_name: string | null } | undefined;
+      return row ? toSessionUser(row) : null;
     },
   };
 }

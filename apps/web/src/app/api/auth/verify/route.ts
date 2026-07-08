@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthStore } from "@/lib/auth-store";
-import { setSessionCookie } from "@/lib/session";
+import { legacyAuthEnabled, setSessionCookie } from "@/lib/session";
 import { isSafeRelativePath, resolveRequestOrigin } from "@/lib/safe-redirect";
 
+/** Legacy counterpart to ./request/route.ts — same AUTH_LEGACY=1 gate. */
 export async function GET(request: NextRequest) {
+  if (!legacyAuthEnabled()) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
   const token = request.nextUrl.searchParams.get("token");
   const next = request.nextUrl.searchParams.get("next");
   const origin = resolveRequestOrigin(request);

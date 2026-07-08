@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthStore } from "@/lib/auth-store";
 import { getMailer } from "@/lib/mailer";
+import { legacyAuthEnabled } from "@/lib/session";
 import { isSafeRelativePath, resolveRequestOrigin } from "@/lib/safe-redirect";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Legacy custom magic-link request — only reachable with AUTH_LEGACY=1 (see
+ * ../../../lib/session.ts). Supabase Auth (signInWithOtp, called from the
+ * login page) is the primary flow now; this stays wired up purely so
+ * automated E2E tests can sign in without hosted email delivery.
+ */
 export async function POST(request: NextRequest) {
+  if (!legacyAuthEnabled()) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
   let email: unknown;
   let next: unknown;
   try {

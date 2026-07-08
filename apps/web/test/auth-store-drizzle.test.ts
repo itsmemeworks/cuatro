@@ -67,3 +67,68 @@ describe("drizzle auth store (@cuatro/db)", () => {
     expect(sessionUser?.displayName).toBe("Jamie");
   });
 });
+
+describe("findOrCreateUserBySupabase (Supabase Auth provisioning)", () => {
+  let store: AuthStore;
+
+  beforeEach(() => {
+    store = createDrizzleAuthStore(":memory:");
+  });
+
+  it("creates a brand-new user, using user_metadata.name for the display name", async () => {
+    const user = await store.findOrCreateUserBySupabase({
+      supabaseUserId: "sb-new-1",
+      email: "New.Player@Example.com",
+      displayName: "Jamie",
+    });
+
+    expect(user.email).toBe("new.player@example.com");
+    expect(user.displayName).toBe("Jamie");
+  });
+
+  it("falls back to the email local-part when no display name is supplied", async () => {
+    const user = await store.findOrCreateUserBySupabase({
+      supabaseUserId: "sb-new-2",
+      email: "noname@example.com",
+      displayName: null,
+    });
+
+    expect(user.displayName).toBe("noname");
+  });
+
+  it("is idempotent: a repeat login with the same supabaseUserId returns the same user without duplicating", async () => {
+    const first = await store.findOrCreateUserBySupabase({
+      supabaseUserId: "sb-repeat",
+      email: "repeat@example.com",
+      displayName: "Repeat",
+    });
+    const second = await store.findOrCreateUserBySupabase({
+      supabaseUserId: "sb-repeat",
+      email: "repeat@example.com",
+      displayName: "Repeat",
+    });
+
+    expect(second.id).toBe(first.id);
+  });
+
+  it("links onto a pre-existing account by email (e.g. one created via the legacy magic-link store)", async () => {
+    const legacyUser = await store.findOrCreateUserByEmail("legacy@example.com");
+
+    const linked = await store.findOrCreateUserBySupabase({
+      supabaseUserId: "sb-linked",
+      email: "Legacy@Example.com",
+      displayName: "Ignored — account already exists",
+    });
+
+    expect(linked.id).toBe(legacyUser.id);
+    // The pre-existing display name (from the legacy flow) is preserved, not overwritten.
+    expect(linked.displayName).toBe(legacyUser.displayName);
+
+    // The link persists: a subsequent lookup by supabaseUserId finds the same row.
+    expect(await store.getUserBySupabaseId("sb-linked")).toEqual(linked);
+  });
+
+  it("getUserBySupabaseId returns null for an unknown id and does not provision", async () => {
+    expect(await store.getUserBySupabaseId("sb-unknown")).toBeNull();
+  });
+});

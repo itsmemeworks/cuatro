@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getAuthStore } from "@/lib/auth-store";
 import { clearSessionCookie, SESSION_COOKIE } from "@/lib/session";
+import { createClient } from "@/lib/supabase/server";
 import { resolveRequestOrigin } from "@/lib/safe-redirect";
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
 
