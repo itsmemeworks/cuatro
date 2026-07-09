@@ -2,26 +2,52 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
-import { getTabView } from "@/server/tab";
+import { getTabView, type TabEntryView } from "@/server/tab";
 import { getCirclesStore } from "@/server/circles";
 import { formatMoney } from "@/components/tab/money";
-import { AddEntryForm } from "@/components/tab/add-entry-form";
-import { TabEntryRow } from "@/components/tab/tab-entry-row";
-import { LedgerRow } from "@/components/glass-screens/ledger-row";
+import { AddEntrySheet } from "@/components/tab/add-entry-sheet";
+import { TabEntryRow, AllSquareRow } from "@/components/tab/tab-entry-row";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { CircleSwitcher } from "@/components/circles/circle-switcher";
-import { Card, Fact, Meta } from "@/components/ui";
+import { Card, Meta } from "@/components/ui";
 
-function activityHeadline(
-  e: { payerUserId: string; payerName: string; debtorUserId: string; debtorName: string; status: "open" | "nudged" | "settled" },
-  viewerUserId: string,
-): string {
-  if (e.status === "settled") {
-    if (e.payerUserId === viewerUserId) return `you settled ${e.debtorName}`;
-    if (e.debtorUserId === viewerUserId) return `${e.payerName} settled you`;
-    return `${e.debtorName} settled ${e.payerName}`;
+/** "Tuesday's court split" — the only description a session-linked entry has, derived from the day it was created (the split is made right after the session). Manually-added entries (no session) get no subtitle rather than an invented one. */
+function weekdaySubtitle(createdAt: Date): string {
+  const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(createdAt);
+  return `${weekday}'s court split`;
+}
+
+function activityDateLabel(d: Date): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric" }).format(d);
+}
+
+/** One line of the mono activity feed (design/DESIGN-AUDIT.md T4) — every entry across the whole Circle, not just the viewer's own pairs (that filter is for the BALANCES section above, not this one). */
+function ActivityRow({ entry, viewerUserId }: { entry: TabEntryView; viewerUserId: string }) {
+  const dateLabel = activityDateLabel(entry.createdAt);
+
+  if (entry.status === "settled") {
+    const text =
+      entry.payerUserId === viewerUserId
+        ? `you settled ${entry.debtorName}`
+        : entry.debtorUserId === viewerUserId
+          ? "you settled up"
+          : `${entry.debtorName} settled up`;
+    return (
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 font-mono tabular-nums text-[11px] text-ink-muted">
+        <span>
+          {dateLabel} · {text}
+        </span>
+        <span className="text-win">{entry.payerUserId === viewerUserId ? `${formatMoney(entry.amountMinor, entry.currency)} ✓` : "✓"}</span>
+      </div>
+    );
   }
-  return `${e.debtorName} owes ${e.payerName}`;
+
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5 font-mono tabular-nums text-[11px] text-ink-muted">
+      <span>{dateLabel} · court split</span>
+      <span>{formatMoney(entry.amountMinor, entry.currency)} each</span>
+    </div>
+  );
 }
 
 export default async function TabPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,17 +62,43 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
   // anything to an outsider.
   if (!view) notFound();
 
-  // Powers the compact multi-Circle switcher (see components/circles/circle-switcher.tsx) — same pattern as circles/[id]/page.tsx's Circle tab.
   const store = await getCirclesStore();
-  const allCircles = await store.listCirclesForUser(user.id);
+  const [allCircles, detail] = await Promise.all([
+    store.listCirclesForUser(user.id),
+    store.getCircleDetail(circleId, user.id), // for the circle name + member avatars the Tab's rows need but TabView doesn't carry
+  ]);
+  const avatarByUserId = new Map((detail?.members ?? []).map((m) => [m.userId, m.avatarUrl]));
 
   const netEntries = Object.entries(view.netPositionByCurrency).filter(([, minor]) => minor !== 0);
-  const openEntries = view.activity.filter((e) => e.status !== "settled");
-  const settledEntries = view.activity.filter((e) => e.status === "settled");
-  const netStatusLabel = netEntries.length === 0 ? null : netEntries.some(([, m]) => m > 0) ? "you're owed, net" : "you owe, net";
+  const netStatusLabel = netEntries.length === 0 ? null : netEntries.some(([, m]) => m > 0) ? "you're owed, overall" : "you're down, overall";
+
+  // Only pairs involving the viewer (design/DESIGN-AUDIT.md T2) — grouped by
+  // counterparty so a pair with nothing currently open collapses to one
+  // "All square" row instead of one per historical (already-settled) entry.
+  const viewerEntries = view.activity.filter((e) => e.payerUserId === user.id || e.debtorUserId === user.id);
+  const byCounterparty = new Map<string, TabEntryView[]>();
+  for (const e of viewerEntries) {
+    const counterpartyId = e.payerUserId === user.id ? e.debtorUserId : e.payerUserId;
+    const list = byCounterparty.get(counterpartyId);
+    if (list) list.push(e);
+    else byCounterparty.set(counterpartyId, [e]);
+  }
+
+  const activeRows: TabEntryView[] = [];
+  const allSquare: { userId: string; name: string }[] = [];
+  for (const [counterpartyId, entries] of byCounterparty) {
+    const active = entries.filter((e) => e.status !== "settled");
+    if (active.length > 0) {
+      activeRows.push(...active);
+    } else {
+      const sample = entries[0]!;
+      allSquare.push({ userId: counterpartyId, name: sample.payerUserId === counterpartyId ? sample.payerName : sample.debtorName });
+    }
+  }
+  activeRows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   return (
-    <main className="px-4 pt-6 pb-6 flex flex-col gap-5">
+    <main className="px-4 pt-6 pb-6 flex flex-col gap-4">
       <LiveRefresh circleId={circleId} />
       <Link href={`/circles/${circleId}`} className="text-cu-secondary font-bold text-action">
         ‹ Circle
@@ -54,40 +106,60 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
 
       <CircleSwitcher circles={allCircles} activeCircleId={circleId} suffix="/tab" />
 
-      <header className="tab-header flex flex-col gap-1">
-        <h1 className="text-cu-title text-ink">The Tab</h1>
-        {netEntries.length === 0 ? (
-          <p className="tab-header__net text-cu-title font-mono tabular-nums text-ink">All square ✓</p>
-        ) : (
-          <div className="tab-header__net flex gap-3">
-            {netEntries.map(([currency, minor]) => (
-              <span
-                key={currency}
-                className={`font-mono tabular-nums font-extrabold text-2xl ${minor > 0 ? "text-win" : "text-loss"}`}
-              >
-                {minor > 0 ? "+" : ""}
-                {formatMoney(minor, currency)}
-              </span>
-            ))}
-          </div>
-        )}
-        {netStatusLabel && <Meta className="tab-header__status">{netStatusLabel}</Meta>}
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-cu-title text-ink">The Tab</h1>
+          {detail?.name && <Meta as="p" className="mt-1">{detail.name}</Meta>}
+        </div>
+        <div className="text-right">
+          {netEntries.length === 0 ? (
+            <p className="font-mono tabular-nums font-extrabold text-[22px] text-ink">All square ✓</p>
+          ) : (
+            <>
+              {netEntries.map(([currency, minor]) => (
+                <p key={currency} className={`font-mono tabular-nums font-extrabold text-[22px] leading-none ${minor > 0 ? "text-win" : "text-loss"}`}>
+                  {minor > 0 ? "+" : ""}
+                  {formatMoney(minor, currency)}
+                </p>
+              ))}
+              {netStatusLabel && <Meta as="p" className="mt-1">{netStatusLabel}</Meta>}
+            </>
+          )}
+        </div>
       </header>
 
-      <AddEntryForm circleId={circleId} members={view.members} payerUserId={user.id} defaultCurrency="GBP" />
+      <AddEntrySheet circleId={circleId} members={view.members} payerUserId={user.id} defaultCurrency="GBP" />
 
-      <section className="tab-balances flex flex-col gap-2">
-        <p className="text-cu-secondary font-extrabold tracking-[0.12em] text-ink-muted">BALANCES</p>
-        {openEntries.length === 0 ? (
-          <Meta>All square — nobody owes anybody right now.</Meta>
+      <Card padded={false} className="overflow-hidden divide-y divide-ink-hairline-1">
+        {activeRows.length === 0 && allSquare.length === 0 ? (
+          <p className="text-cu-body text-ink-muted px-4 py-3">All square — nobody owes anybody right now.</p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {openEntries.map((e) => (
-              <TabEntryRow key={e.id} entry={e} viewerUserId={user.id} />
+          <>
+            {activeRows.map((e) => (
+              <TabEntryRow
+                key={e.id}
+                entry={{
+                  id: e.id,
+                  payerUserId: e.payerUserId,
+                  payerName: e.payerName,
+                  debtorUserId: e.debtorUserId,
+                  debtorName: e.debtorName,
+                  amountMinor: e.amountMinor,
+                  currency: e.currency,
+                  status: e.status,
+                  pendingSettleBy: e.pendingSettleBy,
+                  subtitle: e.sessionId ? weekdaySubtitle(e.createdAt) : null,
+                }}
+                viewerUserId={user.id}
+                counterpartyAvatarUrl={avatarByUserId.get(e.payerUserId === user.id ? e.debtorUserId : e.payerUserId)}
+              />
             ))}
-          </div>
+            {allSquare.map((c) => (
+              <AllSquareRow key={c.userId} name={c.name} avatarUrl={avatarByUserId.get(c.userId)} />
+            ))}
+          </>
         )}
-      </section>
+      </Card>
 
       <div className="rounded-button bg-streak-tint p-3">
         <p className="text-cu-body text-ink">
@@ -97,29 +169,14 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
       </div>
 
       {view.activity.length > 0 && (
-        <section className="tab-activity">
-          <p className="text-cu-secondary font-extrabold tracking-[0.12em] text-ink-muted mb-2">ACTIVITY</p>
-          <Card padded={false} className="overflow-hidden">
-            {[...openEntries, ...settledEntries]
-              .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-              .map((e) => (
-                <LedgerRow
-                  key={e.id}
-                  quiet={e.status === "settled"}
-                  headline={activityHeadline(e, user.id)}
-                  meta={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(e.createdAt)}
-                  value={
-                    <Fact size="sm" weight="semibold" tone={e.status === "settled" ? "win" : "neutral"}>
-                      {e.status === "settled" ? `${formatMoney(e.amountMinor, e.currency)} ✓` : formatMoney(e.amountMinor, e.currency)}
-                    </Fact>
-                  }
-                />
-              ))}
-          </Card>
-        </section>
+        <Card padded={false} className="overflow-hidden divide-y divide-ink-hairline-1">
+          {view.activity.map((e) => (
+            <ActivityRow key={e.id} entry={e} viewerUserId={user.id} />
+          ))}
+        </Card>
       )}
 
-      <p className="tab-footer text-cu-meta text-ink-muted text-center">the Tab never charges fees — it just keeps score</p>
+      <p className="text-cu-meta text-ink-muted text-center">the Tab never charges fees — it just keeps score</p>
     </main>
   );
 }

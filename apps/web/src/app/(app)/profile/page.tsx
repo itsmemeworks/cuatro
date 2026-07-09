@@ -2,13 +2,14 @@ import Link from "next/link";
 import { eq, count } from "drizzle-orm";
 import { circleMembers } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
-import { updateDisplayNameAction } from "@/lib/actions";
 import { getDb } from "@/server/db";
 import { getMatchesStore, gamesTotals } from "@/server/matches-db";
 import { GlassHero } from "@/components/glass/glass-hero";
 import { ReliabilityBadge } from "@/components/glass/reliability-badge";
 import { computeStreak, computeBestWin } from "@/components/glass/profile-stats";
-import { Button, Card, Chip, Fact, Meta } from "@/components/ui";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
+import { SettingsSheet } from "@/components/profile/settings-sheet";
+import { Card, Chip, Meta } from "@/components/ui";
 
 export default async function ProfilePage() {
   const user = await getSessionUser();
@@ -44,6 +45,7 @@ export default async function ProfilePage() {
   return (
     <main className="px-4 pt-6 pb-6 flex flex-col gap-4">
       <div className="flex items-center gap-3">
+        <ProfileAvatar name={user.displayName ?? user.email} avatarUrl={user.avatarUrl} />
         <div className="flex-1">
           <h1 className="text-cu-title text-ink">{user.displayName}</h1>
           <div className="flex gap-1.5 mt-1.5 flex-wrap">
@@ -102,31 +104,7 @@ export default async function ProfilePage() {
         </div>
       )}
 
-      <Card className="flex flex-col gap-3">
-        <form action={updateDisplayNameAction} className="flex flex-col gap-3">
-          <label htmlFor="displayName" className="text-cu-secondary font-semibold text-ink-muted">
-            Display name
-          </label>
-          <input
-            id="displayName"
-            name="displayName"
-            defaultValue={user?.displayName ?? ""}
-            placeholder="What should your Circles call you?"
-            className="w-full rounded-button px-4 py-3 text-cu-body outline-none bg-ground border border-ink-hairline-2 text-ink"
-            style={{ minHeight: "var(--touch-target)" }}
-          />
-          <Button type="submit" variant="strong" size="lg" fullWidth>
-            Save
-          </Button>
-        </form>
-        <Meta>{user?.email}</Meta>
-      </Card>
-
-      <form action="/api/auth/logout" method="POST">
-        <Button type="submit" variant="quiet" size="lg" fullWidth>
-          Log out
-        </Button>
-      </form>
+      <SettingsSheet displayName={user.displayName} email={user.email} />
     </main>
   );
 }

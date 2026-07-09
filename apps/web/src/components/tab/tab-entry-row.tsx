@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, Fact, Meta } from "@/components/ui";
+import { Avatar, Chip, Fact } from "@/components/ui";
 import { formatMoney } from "./money";
 
 export interface TabEntryRowData {
@@ -15,16 +15,59 @@ export interface TabEntryRowData {
   currency: string;
   status: "open" | "nudged" | "settled";
   pendingSettleBy: string | null;
+  /** What the money was for, when known — e.g. "Tuesday's court split" from the linked session's date. Null for a manually-added entry. */
+  subtitle?: string | null;
 }
 
-/** One row of the Tab's balance/activity list — a single tab_entries row, not an aggregated pair balance (see @/server/tab's TabView doc comment). Nudge and Settle act on this entry only. */
-export function TabEntryRow({ entry, viewerUserId }: { entry: TabEntryRowData; viewerUserId: string }) {
+/** Compact pill for Nudge/Settle — smaller and rounder than the standard Button (design/HANDOFF.md's "the Tab" row anatomy: buttons sit inline in the row, not stacked below it). */
+function RowPill({
+  tone = "quiet",
+  disabled,
+  onClick,
+  children,
+}: {
+  tone?: "quiet" | "action";
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`shrink-0 rounded-chip px-3.5 py-2 text-[11px] font-bold whitespace-nowrap transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none ${
+        tone === "action" ? "bg-action text-action-contrast border border-transparent" : "border border-ink-hairline-3 text-ink"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * One balance row (design/CUATRO-Prototype-LATEST.dc.html's "The Tab" screen):
+ * avatar + who-owes-what + mono amount + Nudge/Settle in a single row. Acts
+ * on one tab_entries row, not an aggregated pair balance (see
+ * @/server/tab's TabView doc comment) — the page groups entries by
+ * counterparty and only falls back to this per-entry row while there's an
+ * unsettled entry to act on.
+ */
+export function TabEntryRow({
+  entry,
+  viewerUserId,
+  counterpartyAvatarUrl,
+}: {
+  entry: TabEntryRowData;
+  viewerUserId: string;
+  counterpartyAvatarUrl?: string | null;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const viewerIsPayer = entry.payerUserId === viewerUserId;
-  const viewerIsDebtor = entry.debtorUserId === viewerUserId;
+  const counterpartyName = viewerIsPayer ? entry.debtorName : entry.payerName;
 
   async function post(action: "nudge" | "settle") {
     setPending(true);
@@ -44,72 +87,51 @@ export function TabEntryRow({ entry, viewerUserId }: { entry: TabEntryRowData; v
     }
   }
 
-  if (entry.status === "settled") {
-    // Settled entries collapse to a quiet, dimmed line — design/HANDOFF.md screen 10.
-    return (
-      <div className="tab-entry-row tab-entry-row--settled flex items-center justify-between gap-3 rounded-button px-3 py-2.5 opacity-55">
-        <span className="text-cu-body text-ink">
-          {entry.debtorName} → {entry.payerName}
-        </span>
-        <Fact size="sm" tone="muted">All square ✓</Fact>
-      </div>
-    );
-  }
-
-  const label = viewerIsPayer
-    ? `${entry.debtorName} owes you`
-    : viewerIsDebtor
-      ? `You owe ${entry.payerName}`
-      : `${entry.debtorName} owes ${entry.payerName}`;
-
   const awaitingCounterparty = entry.pendingSettleBy != null;
   const viewerAlreadyProposed = entry.pendingSettleBy === viewerUserId;
 
   return (
-    <Card className="tab-entry-row flex flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-cu-body font-bold text-ink">{label}</span>
-        <Fact size="md" weight="bold" className="tab-entry-row__amount">
+    <div className="flex flex-col gap-1.5 px-4 py-3">
+      <div className="flex items-center gap-2.5">
+        <Avatar src={counterpartyAvatarUrl} name={counterpartyName} size="sm" />
+        <div className="flex-1 min-w-0">
+          <p className="text-cu-body font-bold text-ink truncate">
+            {viewerIsPayer ? `${counterpartyName} owes you` : `You owe ${counterpartyName}`}
+          </p>
+          {entry.subtitle && <p className="text-cu-secondary text-ink-muted mt-0.5">{entry.subtitle}</p>}
+        </div>
+        <Fact size="md" weight="bold" tone={viewerIsPayer ? "win" : "loss"}>
           {formatMoney(entry.amountMinor, entry.currency)}
         </Fact>
-      </div>
-
-      {error && (
-        <Meta as="p" className="tab-entry-row__error" tone="loss">
-          {error}
-        </Meta>
-      )}
-
-      <div className="flex gap-2">
         {viewerIsPayer && entry.status === "open" && (
-          <Button
-            type="button"
-            variant="quiet"
-            disabled={pending}
-            onClick={() => post("nudge")}
-            className="tab-entry-row__nudge"
-          >
-            Nudge
-          </Button>
+          <RowPill disabled={pending} onClick={() => post("nudge")}>
+            Nudge 👋
+          </RowPill>
         )}
-        {entry.status === "nudged" && (
-          <Meta as="span" className="tab-entry-row__nudged-tag self-center">
-            Nudged
-          </Meta>
-        )}
-        {(viewerIsPayer || viewerIsDebtor) && (
-          <Button
-            type="button"
-            variant="primary"
-            size="lg"
-            disabled={pending || viewerAlreadyProposed}
-            onClick={() => post("settle")}
-            className="tab-entry-row__settle"
-          >
-            {awaitingCounterparty ? (viewerAlreadyProposed ? "Waiting for confirm" : "Confirm settled") : "Settle"}
-          </Button>
-        )}
+        <RowPill
+          tone={awaitingCounterparty ? "quiet" : "action"}
+          disabled={pending || viewerAlreadyProposed}
+          onClick={() => post("settle")}
+        >
+          {awaitingCounterparty
+            ? viewerAlreadyProposed
+              ? "Waiting…"
+              : "Confirm ✓"
+            : `Settle ${formatMoney(entry.amountMinor, entry.currency)}`}
+        </RowPill>
       </div>
-    </Card>
+      {error && <Fact size="sm" tone="loss">{error}</Fact>}
+    </div>
+  );
+}
+
+/** A counterparty with nothing currently owed either way — every entry between them and the viewer is settled. Design/HANDOFF.md: "settled rows collapse to 'All square ✓'." */
+export function AllSquareRow({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
+  return (
+    <div className="flex items-center gap-2.5 px-4 py-3">
+      <Avatar src={avatarUrl} name={name} size="sm" />
+      <p className="flex-1 text-cu-body font-bold text-ink-muted truncate">{name}</p>
+      <Chip tone="positive">All square ✓</Chip>
+    </div>
   );
 }

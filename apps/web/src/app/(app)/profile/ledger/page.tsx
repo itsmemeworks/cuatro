@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { eq, inArray } from "drizzle-orm";
+import { sessions, venues } from "@cuatro/db";
 import { PLACEMENT_TRIO_SIZE } from "@cuatro/glass";
 import { getSessionUser } from "@/lib/session";
+import { getDb } from "@/server/db";
 import { getMatchesStore, gamesTotals } from "@/server/matches-db";
 import { LedgerEntryRow, GenesisRow } from "@/components/glass/ledger-entry";
 import { Card, Fact } from "@/components/ui";
@@ -20,19 +23,36 @@ export default async function LedgerPage() {
   const store = await getMatchesStore();
   const [glass, entries] = await Promise.all([store.getProfileGlassView(user.id), store.getLedger(user.id)]);
 
-  const enriched = await Promise.all(
-    entries.map(async (entry) => {
-      const detail = await store.getMatchDetail(entry.matchId, user.id);
-      if (!detail || !detail.viewerTeam) return { entry, opponentNames: null, score: null };
-      const { gamesWonA, gamesWonB } = gamesTotals(detail.match.score);
-      const [yourGames, oppGames] = detail.viewerTeam === "A" ? [gamesWonA, gamesWonB] : [gamesWonB, gamesWonA];
-      const opponentIds = detail.viewerTeam === "A"
-        ? [detail.match.teamBPlayer1Id, detail.match.teamBPlayer2Id]
-        : [detail.match.teamAPlayer1Id, detail.match.teamAPlayer2Id];
-      const opponentNames = opponentIds.map((id) => detail.players[id] ?? "someone").join(" & ");
-      return { entry, opponentNames, score: `${yourGames}–${oppGames}` };
-    }),
-  );
+  const details = await Promise.all(entries.map((entry) => store.getMatchDetail(entry.matchId, user.id)));
+
+  // Venue for the "date · venue" meta line (design/DESIGN-AUDIT.md P5) — a
+  // light join the read models above don't carry, done here rather than in
+  // matches-db.ts (owned elsewhere) since it's purely a display enrichment.
+  const { db } = await getDb();
+  const sessionIds = [...new Set(details.map((d) => d?.match.sessionId).filter((id): id is string => !!id))];
+  const venueBySessionId = new Map<string, string>();
+  if (sessionIds.length > 0) {
+    const sessionRows = db.select({ id: sessions.id, venueId: sessions.venueId }).from(sessions).where(inArray(sessions.id, sessionIds)).all();
+    const venueIds = [...new Set(sessionRows.map((r) => r.venueId).filter((id): id is string => !!id))];
+    const venueRows = venueIds.length > 0 ? db.select({ id: venues.id, name: venues.name }).from(venues).where(inArray(venues.id, venueIds)).all() : [];
+    const venueNameById = new Map(venueRows.map((v) => [v.id, v.name]));
+    for (const row of sessionRows) {
+      const name = row.venueId ? venueNameById.get(row.venueId) : undefined;
+      if (name) venueBySessionId.set(row.id, name);
+    }
+  }
+
+  const enriched = entries.map((entry, i) => {
+    const detail = details[i];
+    if (!detail || !detail.viewerTeam) return { entry, opponentNames: null, score: null, venueName: null };
+    const { gamesWonA, gamesWonB } = gamesTotals(detail.match.score);
+    const [yourGames, oppGames] = detail.viewerTeam === "A" ? [gamesWonA, gamesWonB] : [gamesWonB, gamesWonA];
+    const opponentIds = detail.viewerTeam === "A"
+      ? [detail.match.teamBPlayer1Id, detail.match.teamBPlayer2Id]
+      : [detail.match.teamAPlayer1Id, detail.match.teamAPlayer2Id];
+    const opponentNames = opponentIds.map((id) => detail.players[id] ?? "someone").join(" & ");
+    return { entry, opponentNames, score: `${yourGames}–${oppGames}`, venueName: venueBySessionId.get(detail.match.sessionId) ?? null };
+  });
 
   const groups: { label: string; rows: typeof enriched }[] = [];
   for (const row of enriched) {
@@ -75,11 +95,11 @@ export default async function LedgerPage() {
               <div className="px-4 py-2.5 bg-ink-hairline-1">
                 <p className="text-cu-secondary font-extrabold tracking-[0.14em] text-ink-muted">{group.label}</p>
               </div>
-              {group.rows.map(({ entry, opponentNames, score }) =>
+              {group.rows.map(({ entry, opponentNames, score, venueName }) =>
                 entry.explanation.startsWith("Placement Trio complete") ? (
                   <GenesisRow key={entry.id} entry={entry} placementSize={PLACEMENT_TRIO_SIZE} />
                 ) : (
-                  <LedgerEntryRow key={entry.id} entry={entry} opponentNames={opponentNames} score={score} />
+                  <LedgerEntryRow key={entry.id} entry={entry} opponentNames={opponentNames} score={score} venueName={venueName} />
                 ),
               )}
             </Card>

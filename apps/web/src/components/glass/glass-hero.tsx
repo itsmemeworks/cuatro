@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Card, DashedSlot, Fact, Meta } from "@/components/ui";
 import { RatingReveal, hasSeenRatingReveal } from "@/components/glass-screens/rating-reveal";
 import type { ProfileGlassView } from "@/server/matches-db";
@@ -79,7 +78,7 @@ export function GlassHero({
         {deltaSinceFirst != null && (
           <Fact size="sm" weight="semibold" tone={deltaSinceFirst >= 0 ? "win" : "loss"}>
             {deltaSinceFirst >= 0 ? "▲" : "▼"} {deltaSinceFirst >= 0 ? "+" : ""}
-            {deltaSinceFirst.toFixed(2)} overall
+            {deltaSinceFirst.toFixed(2)} this season
           </Fact>
         )}
       </div>
@@ -101,9 +100,6 @@ export function GlassHero({
           based on {glass.verifiedMatchCount} verified {glass.verifiedMatchCount === 1 ? "game" : "games"} · sharpens every time you play
         </Meta>
       </div>
-      <Link href="/profile/ledger" className="text-cu-secondary font-bold text-action mt-1">
-        See exactly why in the Ledger →
-      </Link>
     </Card>
   );
 }

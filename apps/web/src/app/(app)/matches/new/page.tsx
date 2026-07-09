@@ -1,6 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
+import { getDb } from "@/server/db";
 import { getMatchesStore } from "@/server/matches-db";
+import { getSessionSummary } from "@/server/games-service";
 import { ResultEntryForm, type ResultEntryPlayer } from "@/components/matches/result-entry-form";
 import { Card, Meta } from "@/components/ui";
 
@@ -55,19 +58,38 @@ export default async function NewMatchPage({
     );
   }
 
+  // Avatars + Circle name aren't on matches-db's own read model (that store
+  // has no reason to carry them) — games-service.ts already computes both
+  // for this same session, so read from there rather than duplicating a
+  // query. Player-list validation above still goes through matches-db's own
+  // getSessionForEntry untouched.
+  const { db } = await getDb();
+  const summary = getSessionSummary(db, sessionId, user.id);
+  const avatarById = new Map((summary?.confirmed ?? []).map((p) => [p.userId, p.avatarUrl]));
+
   const entryPlayers: ResultEntryPlayer[] = await Promise.all(
     players.map(async (p) => {
       const glass = await store.getProfileGlassView(p.id);
-      return { id: p.id, displayName: p.displayName, rating: glass?.status === "rated" ? glass.rating : null };
+      return {
+        id: p.id,
+        displayName: p.displayName,
+        rating: glass?.status === "rated" ? glass.rating : null,
+        avatarUrl: avatarById.get(p.id) ?? null,
+      };
     }),
   );
 
   return (
     <main className="px-4 pt-6 pb-6 flex flex-col gap-5">
+      <Link href={`/games/${sessionId}`} className="text-cu-secondary font-bold text-action">
+        ‹ Game
+      </Link>
+
       <div>
         <h1 className="text-cu-title text-ink">How did it go?</h1>
         <Meta className="mt-1 block">
-          {session.startsAt.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+          {session.startsAt.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+          {summary?.circleName && ` · ${summary.circleName}`}
         </Meta>
       </div>
 

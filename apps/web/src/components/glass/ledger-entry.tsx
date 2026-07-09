@@ -15,10 +15,12 @@ export function LedgerEntryRow({
   entry,
   opponentNames,
   score,
+  venueName,
 }: {
   entry: LedgerEntryView;
   opponentNames: string | null;
   score: string | null;
+  venueName?: string | null;
 }) {
   const won = entry.delta >= 0;
 
@@ -38,6 +40,7 @@ export function LedgerEntryRow({
       meta={
         <>
           {formatDate(entry.createdAt)}
+          {venueName && ` · ${venueName}`}
           {entry.outcome === "retired" && " · retired"}
         </>
       }
