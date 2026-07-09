@@ -14,58 +14,67 @@
  * the same UX as today. Every failure is swallowed and logged with
  * `console.warn`.
  *
- * Sends over the classic subscribe-then-broadcast websocket path
- * (RealtimeChannel#send after joining), not RealtimeChannel#httpSend's REST
- * endpoint — httpSend requires Realtime server v2.97.0+, and the local dev
- * stack (supabase/config.toml's pinned image, currently v2.73.2 — see
- * `docker ps`) is older, so httpSend 404s in dev even though it may well
- * work against hosted Supabase in prod. The subscribe+send path has existed
- * since broadcast shipped and works on both, at the cost of a short-lived
- * websocket per call instead of a single REST POST — acceptable at this
- * app's v0 mutation volume (SQLite on one Fly machine).
+ * Sends via Realtime's broadcast REST endpoint (`POST
+ * .../realtime/v1/api/broadcast`) rather than the classic
+ * subscribe-then-send websocket path (RealtimeChannel#send after joining).
+ * That older path was tried first and reliably failed in prod with "channel
+ * join timed out": Realtime's per-project "tenant" process (the thing that
+ * actually terminates a websocket's `phx_join`) shuts itself down after a
+ * period with no connected clients and has to cold-start on the next join
+ * — cheap on Supabase's local dev image (near-zero real traffic to begin
+ * with) but, on this app's low-traffic prod project, the tenant is cold
+ * more often than not, and a fresh server-side connect+join sometimes
+ * outran the old code's hardcoded 5s client-side join timeout. The REST
+ * broadcast endpoint has no such join handshake to race — it's a single
+ * POST that Realtime accepts (202) once the broadcast is queued, cold
+ * tenant or not, so a generous fetch timeout below comfortably absorbs a
+ * cold start instead of a fixed join deadline gambling on one.
+ *
+ * This is the `{"messages": [...]}` broadcast shape (supported since
+ * Realtime v2.37.0), not RealtimeChannel#httpSend's newer
+ * per-topic-per-event REST shape (needs v2.97.0+, confirmed 404 on the
+ * local dev stack's pinned v2.73.2 image — see `docker ps`). The messages
+ * shape works unchanged against both: verified directly against the local
+ * stack and the hosted prod project. Because this only ever needs
+ * url+key, there's no @supabase/supabase-js/realtime-js dependency (and no
+ * websocket transport, bundled or not) left in this module at all.
  */
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { circleChannel, sessionChannel, userChannel, type RealtimeEventType } from "./channels";
 
-let cachedClient: SupabaseClient | null = null;
-
-function getClient(): SupabaseClient {
-  if (!cachedClient) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) {
-      throw new Error("realtime broadcast: NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY are not configured");
-    }
-    cachedClient = createClient(url, key);
-  }
-  return cachedClient;
-}
-
-const JOIN_TIMEOUT_MS = 5000;
+const BROADCAST_TIMEOUT_MS = 10000;
 
 async function realSend(topic: string, type: string, fields: Record<string, unknown>): Promise<void> {
-  const supabase = getClient();
-  const channel = supabase.channel(topic);
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("channel join timed out")), JOIN_TIMEOUT_MS);
-      channel.subscribe((status, err) => {
-        if (status === "SUBSCRIBED") {
-          clearTimeout(timeout);
-          resolve();
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          clearTimeout(timeout);
-          reject(err ?? new Error(`channel join failed: ${status}`));
-        }
-      });
-    });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error("realtime broadcast: NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY are not configured");
+  }
 
-    const result = await channel.send({ type: "broadcast", event: type, payload: { type, ts: Date.now(), ...fields } });
-    if (result !== "ok") {
-      console.warn(`[realtime] broadcast rejected: ${topic}/${type}`, result);
+  const res = await fetch(`${url}/realtime/v1/api/broadcast`, {
+    method: "POST",
+    headers: {
+      apikey: key,
+      // Required alongside apikey — Realtime's AuthTenant plug pattern-matches
+      // the Authorization header regardless of apikey being present, and 500s
+      // (not 401s) if it's missing.
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messages: [{ topic, event: type, payload: { type, ts: Date.now(), ...fields } }],
+    }),
+    signal: AbortSignal.timeout(BROADCAST_TIMEOUT_MS),
+  });
+
+  if (res.status !== 202) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.error ?? body.message ?? detail;
+    } catch {
+      // Non-JSON error body — fall back to statusText already captured above.
     }
-  } finally {
-    await supabase.removeChannel(channel);
+    throw new Error(`broadcast rejected (${res.status}): ${detail}`);
   }
 }
 
