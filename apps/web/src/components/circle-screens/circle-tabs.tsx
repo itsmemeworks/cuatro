@@ -9,7 +9,7 @@ import { MemberList, type MemberListItem } from "@/components/circles/member-lis
 import { InviteShareButton, InviteLinkText } from "@/components/circles/invite-share-button";
 import { KnockPanel, type KnockPanelItem } from "@/components/circles/knock-panel";
 import { DoorControls } from "@/components/circles/door-controls";
-import { EditCircleSheet, type EditAnchor } from "@/components/circles/edit-circle-sheet";
+import { EditCircleSheet, type EditAnchor, type EditVenueOption } from "@/components/circles/edit-circle-sheet";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { useCircleLive } from "@/lib/realtime/hooks";
 import { PinnedGameBar } from "./pinned-game-bar";
@@ -57,6 +57,11 @@ export function CircleTabs({
   boardEnabled,
   vibeLine,
   anchor,
+  headerImage,
+  homeVenueId,
+  maxMembers,
+  memberCount,
+  venueOptions,
   pendingKnocks,
   feedItems,
   rivalry,
@@ -76,6 +81,11 @@ export function CircleTabs({
   boardEnabled: boolean;
   vibeLine: string | null;
   anchor: EditAnchor | null;
+  headerImage: string | null;
+  homeVenueId: string | null;
+  maxMembers: number | null;
+  memberCount: number;
+  venueOptions: EditVenueOption[];
   pendingKnocks: KnockPanelItem[];
   feedItems: FeedItemData[];
   rivalry: { opponentName: string; opponentAvatarUrl: string | null; count: number; direction: "beaten" | "lost_to" } | null;
@@ -237,6 +247,11 @@ export function CircleTabs({
                 initialName={circleName}
                 initialColour={circleColour}
                 initialEmblem={circleEmblem}
+                initialHeaderImage={headerImage}
+                initialHomeVenueId={homeVenueId}
+                initialMaxMembers={maxMembers}
+                memberCount={memberCount}
+                venueOptions={venueOptions}
                 anchor={anchor}
               />
               <DoorControls

@@ -14,6 +14,7 @@ export async function joinCircleAction(formData: FormData): Promise<void> {
   const store = await getCirclesStore();
   const result = await store.joinCircle({ inviteCode: code, userId: user.id });
   if (!result) redirect("/circles?error=invalid_invite");
+  if (result.full) redirect(`/join/${code}?error=circle_full`);
 
   redirect(`/circles/${result.circleId}`);
 }

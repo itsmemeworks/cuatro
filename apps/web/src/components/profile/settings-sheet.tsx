@@ -32,6 +32,23 @@ export function SettingsSheet({
 }) {
   const [open, setOpen] = useState(false);
 
+  // Close the sheet once a save lands. This is load-bearing, not cosmetic:
+  // React 19 auto-resets a `<form action={fn}>` as soon as the action resolves,
+  // and this sheet stays mounted across a save, so an uncontrolled field would
+  // snap straight back to its mount-time default the instant the write
+  // succeeds — the home venue you just picked reverts to "No home venue" and
+  // reads as "the save didn't take". Hit Save again on that reverted control
+  // and the stale default is what gets persisted, genuinely undoing the change.
+  // Closing unmounts the fields before the reset can fire; revalidatePath() in
+  // the actions means the next open remounts them from the freshly-saved server
+  // props, so the sheet always reflects what's actually stored.
+  function saveThenClose(action: (formData: FormData) => Promise<void>) {
+    return async (formData: FormData) => {
+      await action(formData);
+      setOpen(false);
+    };
+  }
+
   return (
     <>
       <button
@@ -44,7 +61,7 @@ export function SettingsSheet({
       <Sheet open={open} onClose={() => setOpen(false)} title="Settings">
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-3">
-            <form action={updateDisplayNameAction} className="flex flex-col gap-3">
+            <form action={saveThenClose(updateDisplayNameAction)} className="flex flex-col gap-3">
               <label htmlFor="displayName" className="text-cu-secondary font-semibold text-ink-muted">
                 Display name
               </label>
@@ -64,7 +81,7 @@ export function SettingsSheet({
           </Card>
 
           <Card className="flex flex-col gap-3">
-            <form action={updateDiscoverySettingsAction} className="flex flex-col gap-3">
+            <form action={saveThenClose(updateDiscoverySettingsAction)} className="flex flex-col gap-3">
               <p className="text-cu-secondary font-semibold text-ink-muted">
                 Games <InfoTerm term="board" label="near you" />
               </p>

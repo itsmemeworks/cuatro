@@ -439,6 +439,27 @@ describe("reliability counters", () => {
     expect(user?.lateCancelCount).toBe(0);
   });
 
+  it("a repeat rsvpOut on an already-out player does not double-count the late cancel", () => {
+    fixture = seedCircle({
+      memberCount: 1,
+      standingGame: { weekday: 2, startTime: "20:00", slots: 4, rsvpWindowDays: 6 },
+    });
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, now);
+
+    const lateCancelTime = new Date(session.startsAt.getTime() - 12 * 60 * 60 * 1000); // 12h before
+    rsvpOut(fixture.db, session.id, fixture.organiserId, lateCancelTime);
+    // Second (and third) tap-out while already out — a double click, a stale
+    // client — must be a no-op: the early "already out" return runs before the
+    // late-cancel increment, so the count stays at one per confirmed dropout.
+    rsvpOut(fixture.db, session.id, fixture.organiserId, lateCancelTime);
+    rsvpOut(fixture.db, session.id, fixture.organiserId, lateCancelTime);
+
+    const user = fixture.db.select().from(users).where(eq(users.id, fixture.organiserId)).get();
+    expect(user?.lateCancelCount).toBe(1);
+  });
+
   it("does not penalise a reserve who drops out of the queue (they never held a slot)", () => {
     fixture = seedCircle({
       memberCount: 5,

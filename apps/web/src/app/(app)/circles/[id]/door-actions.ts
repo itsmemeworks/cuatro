@@ -7,6 +7,9 @@ import {
   InvalidCircleNameError,
   InvalidColourError,
   InvalidEmblemError,
+  InvalidHeaderImageError,
+  InvalidHomeVenueError,
+  InvalidMaxMembersError,
   NotMemberError,
   NotOrganiserError,
 } from "@/server/circles";
@@ -52,7 +55,14 @@ export async function saveDoorSettings(
  */
 export async function saveCircleSettings(
   circleId: string,
-  updates: { name?: string; colour?: string; emblem?: string | null },
+  updates: {
+    name?: string;
+    colour?: string;
+    emblem?: string | null;
+    headerImage?: string | null;
+    homeVenueId?: string | null;
+    maxMembers?: number | null;
+  },
 ): Promise<DoorSettingsResult> {
   const user = await getSessionUser();
   if (!user) return { ok: false, error: "unauthorized" };
@@ -66,6 +76,9 @@ export async function saveCircleSettings(
     if (err instanceof InvalidCircleNameError) return { ok: false, error: "invalid_circle_name" };
     if (err instanceof InvalidEmblemError) return { ok: false, error: "invalid_emblem" };
     if (err instanceof InvalidColourError) return { ok: false, error: "invalid_colour" };
+    if (err instanceof InvalidHeaderImageError) return { ok: false, error: "invalid_header_image" };
+    if (err instanceof InvalidHomeVenueError) return { ok: false, error: "invalid_home_venue" };
+    if (err instanceof InvalidMaxMembersError) return { ok: false, error: "invalid_max_members" };
     throw err;
   }
   revalidatePath(`/circles/${circleId}`);

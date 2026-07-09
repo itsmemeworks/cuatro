@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { createClient, users } from "@cuatro/db";
+import { createClient, users, venues } from "@cuatro/db";
 import type { CuatroClient } from "@cuatro/db";
 import {
   createCirclesStore,
@@ -8,6 +8,9 @@ import {
   InvalidCircleNameError,
   InvalidColourError,
   InvalidEmblemError,
+  InvalidHeaderImageError,
+  InvalidHomeVenueError,
+  InvalidMaxMembersError,
   MAX_CIRCLE_NAME_LENGTH,
   MessageTooLongError,
   NotMemberError,
@@ -85,11 +88,13 @@ describe("circles store (@cuatro/db)", () => {
   it("joins a circle by invite code and is idempotent on re-join", async () => {
     const circle = await store.createCircle({ name: "Weekend Four", creatorUserId: organiser.id });
 
+    // `full` is part of the join result now (Circle v2 capacity): false here
+    // since this Circle is uncapped.
     const firstJoin = await store.joinCircle({ inviteCode: circle.inviteCode, userId: member.id });
-    expect(firstJoin).toEqual({ circleId: circle.id, circleName: circle.name, alreadyMember: false });
+    expect(firstJoin).toEqual({ circleId: circle.id, circleName: circle.name, alreadyMember: false, full: false });
 
     const secondJoin = await store.joinCircle({ inviteCode: circle.inviteCode, userId: member.id });
-    expect(secondJoin).toEqual({ circleId: circle.id, circleName: circle.name, alreadyMember: true });
+    expect(secondJoin).toEqual({ circleId: circle.id, circleName: circle.name, alreadyMember: true, full: false });
 
     const detail = await store.getCircleDetail(circle.id, organiser.id);
     const memberRows = detail!.members.filter((m) => m.userId === member.id);
@@ -294,6 +299,108 @@ describe("circles store (@cuatro/db)", () => {
 
     const messages = await store.listMessages(circle.id, organiser.id, { after: first.createdAt });
     expect(messages.map((m) => m.id)).toEqual([second.id]);
+  });
+
+  // ── Circle v2: header image, home venue, capacity ──────────────────────
+
+  it("createCircle stores a valid header key and rejects an invalid one", async () => {
+    const c = await store.createCircle({ name: "Header", headerImage: "court-03", creatorUserId: organiser.id });
+    expect(c.headerImage).toBe("court-03");
+    const detail = await store.getCircleDetail(c.id, organiser.id);
+    expect(detail!.headerImage).toBe("court-03");
+
+    await expect(
+      store.createCircle({ name: "Bad", headerImage: "not-a-key", creatorUserId: organiser.id }),
+    ).rejects.toThrow(InvalidHeaderImageError);
+    // A URL is never a valid header value — the column stores a key only.
+    await expect(
+      store.createCircle({ name: "Bad", headerImage: "https://x/y.jpg", creatorUserId: organiser.id }),
+    ).rejects.toThrow(InvalidHeaderImageError);
+  });
+
+  it("createCircle validates the maxMembers range and stores a valid cap", async () => {
+    const c = await store.createCircle({ name: "Capped", maxMembers: 8, creatorUserId: organiser.id });
+    expect(c.maxMembers).toBe(8);
+
+    await expect(store.createCircle({ name: "Lo", maxMembers: 3, creatorUserId: organiser.id })).rejects.toThrow(
+      InvalidMaxMembersError,
+    );
+    await expect(store.createCircle({ name: "Hi", maxMembers: 65, creatorUserId: organiser.id })).rejects.toThrow(
+      InvalidMaxMembersError,
+    );
+    await expect(store.createCircle({ name: "Frac", maxMembers: 5.5, creatorUserId: organiser.id })).rejects.toThrow(
+      InvalidMaxMembersError,
+    );
+  });
+
+  it("resolves an explicit home venue's name/address on the detail, and rejects a non-existent one", async () => {
+    const [venue] = await client.db
+      .insert(venues)
+      .values({ name: "Powerleague Shoreditch", address: "EC2A 3AR" })
+      .returning();
+    const c = await store.createCircle({ name: "Homed", homeVenueId: venue.id, creatorUserId: organiser.id });
+    const detail = await store.getCircleDetail(c.id, organiser.id);
+    expect(detail!.homeVenueId).toBe(venue.id);
+    expect(detail!.homeVenueName).toBe("Powerleague Shoreditch");
+    expect(detail!.homeVenueAddress).toBe("EC2A 3AR");
+
+    await expect(
+      store.createCircle({ name: "Ghost", homeVenueId: "nope", creatorUserId: organiser.id }),
+    ).rejects.toThrow(InvalidHomeVenueError);
+  });
+
+  it("joinCircle reports full at the cap, and succeeds once the cap is raised", async () => {
+    // Organiser occupies 1 of a 4-cap (the minimum: one full court).
+    const c = await store.createCircle({ name: "Court Four", maxMembers: 4, creatorUserId: organiser.id });
+    const [a] = await client.db.insert(users).values({ email: "a@e.com", displayName: "A" }).returning();
+    const [b] = await client.db.insert(users).values({ email: "b@e.com", displayName: "B" }).returning();
+
+    await store.joinCircle({ inviteCode: c.inviteCode, userId: member.id }); // 2
+    await store.joinCircle({ inviteCode: c.inviteCode, userId: a.id }); // 3
+    const fill = await store.joinCircle({ inviteCode: c.inviteCode, userId: b.id }); // 4 = full
+    expect(fill).toMatchObject({ alreadyMember: false, full: false });
+
+    // A 5th distinct member is refused — the Circle is full.
+    const refused = await store.joinCircle({ inviteCode: c.inviteCode, userId: outsider.id });
+    expect(refused).toMatchObject({ full: true, alreadyMember: false });
+    let detail = await store.getCircleDetail(c.id, organiser.id);
+    expect(detail!.memberCount).toBe(4);
+
+    // An already-in member re-joining is never blocked by the cap (no new slot).
+    const rejoin = await store.joinCircle({ inviteCode: c.inviteCode, userId: member.id });
+    expect(rejoin).toMatchObject({ alreadyMember: true, full: false });
+
+    // Raise the cap → the 5th join now succeeds.
+    await store.updateCircleSettings(c.id, organiser.id, { maxMembers: 5 });
+    const ok = await store.joinCircle({ inviteCode: c.inviteCode, userId: outsider.id });
+    expect(ok).toMatchObject({ alreadyMember: false, full: false });
+    detail = await store.getCircleDetail(c.id, organiser.id);
+    expect(detail!.memberCount).toBe(5);
+  });
+
+  it("updateCircleSettings refuses a cap below the current member count", async () => {
+    const c = await store.createCircle({ name: "Fiver", creatorUserId: organiser.id }); // organiser = 1
+    const [a] = await client.db.insert(users).values({ email: "aa@e.com", displayName: "A" }).returning();
+    const [b] = await client.db.insert(users).values({ email: "bb@e.com", displayName: "B" }).returning();
+    const [d] = await client.db.insert(users).values({ email: "dd@e.com", displayName: "D" }).returning();
+    for (const u of [member, a, b, d]) await store.joinCircle({ inviteCode: c.inviteCode, userId: u.id }); // 5 members
+
+    // 4 is a valid RANGE value but below the current count of 5 → refused.
+    await expect(store.updateCircleSettings(c.id, organiser.id, { maxMembers: 4 })).rejects.toThrow(
+      InvalidMaxMembersError,
+    );
+    // Exactly at the current count is fine; null (uncap) is always fine.
+    await store.updateCircleSettings(c.id, organiser.id, { maxMembers: 5 });
+    await store.updateCircleSettings(c.id, organiser.id, { maxMembers: null });
+    const detail = await store.getCircleDetail(c.id, organiser.id);
+    expect(detail!.maxMembers).toBeNull();
+  });
+
+  it("getCircleByInviteCode exposes memberCount and maxMembers for join/invite surfaces", async () => {
+    const c = await store.createCircle({ name: "Invite", maxMembers: 6, creatorUserId: organiser.id });
+    await store.joinCircle({ inviteCode: c.inviteCode, userId: member.id });
+    const found = await store.getCircleByInviteCode(c.inviteCode);
+    expect(found).toMatchObject({ id: c.id, memberCount: 2, maxMembers: 6 });
   });
 
   it("postMessage broadcasts a minimal 'message' event on the circle's realtime channel — never the body", async () => {

@@ -6,6 +6,7 @@ import { getGuestToken, setGuestCookie } from "@/lib/guest-session";
 const STATUS_FOR_ERROR: Record<string, number> = {
   invalid_name: 400,
   circle_not_found: 404,
+  circle_full: 409,
 };
 
 /**

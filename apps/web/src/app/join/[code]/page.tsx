@@ -37,6 +37,38 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   };
 }
 
+/** The warm dead-end for a Circle that has hit its player limit. */
+function CircleFullNotice({
+  circleName,
+  colour,
+  emblem,
+}: {
+  circleName: string;
+  colour: string | null;
+  emblem: string | null;
+}) {
+  return (
+    <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink">
+      <div className="flex flex-col items-center gap-4">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center text-3xl text-white"
+          style={{ background: colour ?? "var(--color-ink-hairline-3)" }}
+          aria-hidden
+        >
+          {emblem ?? "⭘"}
+        </div>
+        <div>
+          <h1 className="text-cu-title">{circleName} is full</h1>
+          <p className="text-cu-body text-ink-muted max-w-xs mt-2">
+            This Circle is at its limit, so no one new can join right now. Ask the organiser about the next game instead.
+          </p>
+        </div>
+      </div>
+      <Meta>no fees · no ads · no dark patterns</Meta>
+    </main>
+  );
+}
+
 function formatWhen(when: Date, timeZone: string): string {
   return when.toLocaleString("en-GB", {
     weekday: "short",
@@ -48,8 +80,15 @@ function formatWhen(when: Date, timeZone: string): string {
   });
 }
 
-export default async function JoinPage({ params }: { params: Promise<{ code: string }> }) {
+export default async function JoinPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ code: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { code } = await params;
+  const { error } = await searchParams;
   const store = await getCirclesStore();
   const circle = await store.getCircleByInviteCode(code);
 
@@ -64,6 +103,11 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
     );
   }
 
+  // A capped Circle at its limit: no one new can join. Shown warmly (never as a
+  // shut door) both proactively at render and after a race-lost join tap that
+  // redirects here with ?error=circle_full.
+  const isFull = circle.maxMembers != null && circle.memberCount >= circle.maxMembers;
+
   const user = await getSessionUser();
 
   // Logged-out invitee: the growth-loop promise — join as a guest with just a
@@ -76,6 +120,12 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
     const guestToken = await getGuestToken();
     const guestUserId = guestToken ? getGuestUserId(db, guestToken) : null;
     const membership = guestUserId ? getGuestMembership(db, guestUserId, circle.id) : null;
+
+    // A newcomer arriving at a full Circle: warm dead-end, not a locked door.
+    // A guest who is already a member still resumes into their spot below.
+    if (!membership && isFull) {
+      return <CircleFullNotice circleName={circle.name} colour={circle.colour} emblem={circle.emblem} />;
+    }
 
     let initial: GuestCircleJoinInitial = { step: "join" };
     if (membership && guestUserId) {
@@ -114,6 +164,12 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
         <Meta>no fees · no ads · no dark patterns</Meta>
       </main>
     );
+  }
+
+  // Logged-in invitee at a full Circle (or a race-lost join that redirected
+  // back here): the same warm full notice.
+  if (isFull || error === "circle_full") {
+    return <CircleFullNotice circleName={circle.name} colour={circle.colour} emblem={circle.emblem} />;
   }
 
   return (

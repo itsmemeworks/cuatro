@@ -27,6 +27,9 @@ export async function POST(request: NextRequest) {
   if (!result) {
     return NextResponse.json({ ok: false, error: "invalid_invite_code" }, { status: 404 });
   }
+  if (result.full) {
+    return NextResponse.json({ ok: false, error: "circle_full" }, { status: 409 });
+  }
 
   return NextResponse.json({ ok: true, ...result });
 }

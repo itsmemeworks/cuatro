@@ -18,7 +18,7 @@
  * .all() exclusively, never `await`, and any async work (e.g. loading the
  * session row for its playedAt) happens before the transaction starts.
  */
-import { and, desc, eq, gte, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 import {
   circleMembers,
   circles,
@@ -314,12 +314,53 @@ function loadRecentFixtures(tx: CuatroDb, fourIds: readonly PlayerId[], beforePl
 }
 
 /**
+ * Closes the Reliability loop (../DESIGN.md → RELIABILITY, CLAUDE.md rule 13).
+ * The moment a match is sealed, credit a show-up to each player who both
+ * PLAYED it (is on the verified roster) AND had said they'd be there — an
+ * `rsvps` row with status="in" on the linked session. That "in" row is exactly
+ * what games-service.rsvpIn incremented rsvpInCount for, so showUpCount and
+ * rsvpInCount stay paired: the Reliability ratio (showUpCount / rsvpInCount)
+ * only ever moves for players who committed via RSVP.
+ *
+ * The three cases that get NOTHING here, all honestly:
+ * - No-show: rsvp="in" but absent from the roster — not iterated, so their
+ *   ratio quietly drops (their rsvpInCount already moved). This is the whole
+ *   anti-no-show mechanic: automatic, no flag, no notification, no shaming.
+ * - Sub / match-minted guest with no "in" row: never had rsvpInCount moved
+ *   either, so the ratio's denominator is untouched — no phantom show-up.
+ * - Ring-3 claimant (rsvp source=fourth_call, status="in"): DOES get credited,
+ *   correctly — claiming a slot moved their rsvpInCount, and they turned up.
+ *
+ * Idempotent by construction: applyGlassAndPersist runs exactly once per match
+ * (confirmMatch's status guard makes a re-confirm a no-op before reaching
+ * here), so a double/re-verification can never double-credit. Runs inside the
+ * verify transaction for both the Glass path and the skipped (walkover/retired)
+ * path — a sealed match means the players turned up regardless of whether the
+ * engine moved anyone's rating.
+ */
+function creditShowUps(tx: CuatroDb, match: Match): void {
+  for (const id of fourPlayerIds(match)) {
+    const saidTheyWereIn = tx
+      .select({ id: rsvps.id })
+      .from(rsvps)
+      .where(and(eq(rsvps.sessionId, match.sessionId), eq(rsvps.userId, id), eq(rsvps.status, "in")))
+      .get();
+    if (saidTheyWereIn) {
+      tx.update(users)
+        .set({ showUpCount: sql`${users.showUpCount} + 1` })
+        .where(eq(users.id, id))
+        .run();
+    }
+  }
+}
+
+/**
  * Runs the Glass engine for a now-fully-confirmed match and persists its
  * output: one rating_events row per player (the Ledger — append-only), the
- * users table's mirrored rating/confidence/verifiedMatchCount, and
- * notifications. Must run inside the same transaction as the confirmation
- * write that triggered it, so a crash between "both confirmed" and "Glass
- * applied" can't happen.
+ * users table's mirrored rating/confidence/verifiedMatchCount, Reliability
+ * show-up credit (see creditShowUps), and notifications. Must run inside the
+ * same transaction as the confirmation write that triggered it, so a crash
+ * between "both confirmed" and "Glass applied" can't happen.
  */
 function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[] {
   const fourIds = fourPlayerIds(match);
@@ -356,6 +397,7 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
   // walkover/retired policy table). Either way, still flip the match to
   // verified with no Ledger movement rather than leaving it stuck.
   if (result.status === "skipped") {
+    creditShowUps(tx, match);
     tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id)).run();
     return [];
   }
@@ -417,6 +459,7 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
     );
   }
 
+  creditShowUps(tx, match);
   tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id)).run();
   return ledgerEvents;
 }

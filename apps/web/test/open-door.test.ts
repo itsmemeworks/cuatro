@@ -24,6 +24,7 @@ import {
 } from "@/server/open-door";
 import { createSessionKnock } from "@/server/discovery";
 import { NotMemberError, NotOrganiserError, createCirclesStore, __resetCirclesStoreForTests } from "@/server/circles";
+import { joinGuestCircle } from "@/server/guest";
 import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
 
 // Real London pins from the geo contract §7. Distances from Shoreditch:
@@ -166,6 +167,80 @@ describe("Open Door", () => {
     await addStandingGame(c.id, shoreditch.id);
     const anchor = await circleAnchor(db, c.id);
     expect(anchor?.venueName).toBe("Stratford");
+  });
+
+  it("prefers an explicit pinned home venue over the derived anchor", async () => {
+    const organiser = await mkUser();
+    const shoreditch = await mkVenue("Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Stratford", STRATFORD);
+    // Two standing games at Stratford would DERIVE Stratford as the anchor ...
+    const c = await mkCircle(organiser.id, { homeVenueId: shoreditch.id });
+    await addStandingGame(c.id, stratford.id);
+    await addStandingGame(c.id, stratford.id);
+    // ... but the explicit, pinned home venue (Shoreditch) wins.
+    const anchor = await circleAnchor(db, c.id);
+    expect(anchor?.venueName).toBe("Shoreditch");
+  });
+
+  it("falls back to the derived anchor when the explicit home venue is unpinned", async () => {
+    const organiser = await mkUser();
+    const unpinned = await mkVenue("Unpinned Club", null);
+    const stratford = await mkVenue("Stratford", STRATFORD);
+    const c = await mkCircle(organiser.id, { homeVenueId: unpinned.id });
+    await addStandingGame(c.id, stratford.id);
+    // The explicit home venue has no lat/lng, so it can't be an anchor — the
+    // derived most-used pinned venue (Stratford) is used instead.
+    const anchor = await circleAnchor(db, c.id);
+    expect(anchor?.venueName).toBe("Stratford");
+  });
+
+  it("exposes the non-guest member roster on a nearby circle card, organiser-first then rating desc", async () => {
+    const { viewer, stratOpen } = await scenario();
+    const [card] = await nearbyCircles(db, viewer.id);
+    // organiser(4.0) first, then rating desc: Rated B(4.1), Rated A(3.4), unrated New last. Guest excluded.
+    expect(card.members.map((m) => m.displayName)).toEqual(["Olive Organiser", "Rated B", "Rated A", "New"]);
+    expect(card.members.find((m) => m.displayName === "New")!.rating).toBeNull();
+    expect(card.members.some((m) => m.displayName === "Guest")).toBe(false);
+    // Aggregate glass range is still present for the prominent header.
+    expect(card.level).toEqual({ min: 3.4, max: 4.1 });
+  });
+
+  it("refuses a knock accept when the circle is at its cap (circle_full)", async () => {
+    const { viewer, organiser, stratOpen } = await scenario();
+    // scenario seeds stratOpen with 5 member rows (organiser + 3 + 1 guest).
+    await db.update(circles).set({ maxMembers: 5 }).where(eq(circles.id, stratOpen.id));
+    const created = await createCircleKnock(db, { circleId: stratOpen.id, userId: viewer.id });
+    if (!created.ok) throw new Error("knock failed");
+
+    const decided = await decideCircleKnock(db, { knockId: created.knockId, organiserId: organiser.id, action: "accept" });
+    expect(decided).toEqual({ ok: false, error: "circle_full" });
+
+    // Rolled back whole: no membership, knock still pending.
+    const membership = await db
+      .select()
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, stratOpen.id), eq(circleMembers.userId, viewer.id)));
+    expect(membership).toHaveLength(0);
+    const [k] = await db.select().from(knocks).where(eq(knocks.id, created.knockId));
+    expect(k.status).toBe("pending");
+
+    // Raising the cap lets the same accept through.
+    await db.update(circles).set({ maxMembers: 6 }).where(eq(circles.id, stratOpen.id));
+    const retry = await decideCircleKnock(db, { knockId: created.knockId, organiserId: organiser.id, action: "accept" });
+    expect(retry.ok).toBe(true);
+  });
+
+  it("joinGuestCircle reports circle_full at the cap and leaves no orphan guest row", async () => {
+    const organiser = await mkUser();
+    const c = await mkCircle(organiser.id, { maxMembers: 1 });
+    await addMember(c.id, organiser.id, "organiser"); // 1 of 1 → full
+
+    const before = (await db.select().from(users)).length;
+    const res = joinGuestCircle(db, { inviteCode: c.inviteCode, rawName: "Gina Guest" });
+    expect(res).toEqual({ ok: false, error: "circle_full" });
+    // The transaction rolled back — no freshly-minted guest user left behind.
+    const after = (await db.select().from(users)).length;
+    expect(after).toBe(before);
   });
 
   it("surfaces a nearby open circle but not the 11 km one, the joined one, or the closed one", async () => {
@@ -334,9 +409,15 @@ describe("Open Door", () => {
     expect(preview!.level).toEqual({ min: 3.4, max: 4.1 });
     expect(preview!.unratedCount).toBe(1);
     expect(preview!.memberCount).toBe(4);
-    // The preview object has no member list, chat, tab, or coordinates.
+    // Circle v2 (Pete's deliberate privacy-model change): the preview now
+    // exposes the non-guest member ROSTER (avatar/name/Glass/role) because
+    // level fit is why people browse. Chat, Tab, history, coordinates, and
+    // per-member reliability stay out. `members` is organiser-first then
+    // rating desc; the four non-guest members appear, the guest does not.
+    expect(preview!.members.map((m) => m.displayName)).toEqual(["Olive Organiser", "Rated B", "Rated A", "New"]);
+    expect(preview!.members.every((m) => !("reliability" in m) && !("email" in m))).toBe(true);
     expect(Object.keys(preview!).sort()).toEqual(
-      ["cadence", "circleId", "colour", "distanceLabel", "emblem", "hasPendingKnock", "level", "memberCount", "name", "unratedCount", "venueArea", "vibeLine"].sort(),
+      ["cadence", "circleId", "colour", "distanceLabel", "emblem", "hasPendingKnock", "headerImage", "level", "members", "memberCount", "name", "unratedCount", "venueArea", "vibeLine"].sort(),
     );
   });
 
@@ -429,9 +510,12 @@ describe("Open Door", () => {
     const preview = await circlePreview(db, inviteOnly.id, viewer.id);
     expect(preview).not.toBeNull();
     expect(preview!.venueArea).toBe("Padel Social Club Stratford");
-    // Same coordinate-free, member-list-free shape as the open-circle preview.
+    // Same coordinate-free shape as the open-circle preview — including the
+    // Circle v2 member roster (see the open-circle preview test for the
+    // rationale). Invite-only Circles expose the same public roster.
+    expect(preview!.members.map((m) => m.displayName)).toEqual(["Org"]);
     expect(Object.keys(preview!).sort()).toEqual(
-      ["cadence", "circleId", "colour", "distanceLabel", "emblem", "hasPendingKnock", "level", "memberCount", "name", "unratedCount", "venueArea", "vibeLine"].sort(),
+      ["cadence", "circleId", "colour", "distanceLabel", "emblem", "hasPendingKnock", "headerImage", "level", "members", "memberCount", "name", "unratedCount", "venueArea", "vibeLine"].sort(),
     );
   });
 

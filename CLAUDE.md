@@ -32,6 +32,7 @@ npm-workspaces monorepo:
 11. New sign-ups with an email-derived display name route through `/welcome/name` once (cookie `cuatro_named`); OAuth buttons render only when `NEXT_PUBLIC_OAUTH_APPLE/GOOGLE=1` (fly.toml build args) — enable when the parked provider credentials go live.
 12. QR codes use the vendored zero-dep encoder in `lib/qr/` (verified bit-for-bit vs the `qrcode` npm pkg) — don't add a QR dependency. QRs render dark-on-light regardless of theme (inverted codes fail on some scanners).
 13. Match results record who PLAYED, not who RSVP'd (roster editable at /matches/new; guests minted inside the recording transaction); seal = any real member of a team confirms for it; an all-guest team leaves the match pending, never fake-verified.
+14. **React 19 auto-resets `<form action={fn}>` fields when the action resolves.** A form inside a still-mounted Sheet/overlay with uncontrolled fields will visibly revert after save (and a re-save persists the stale default = data loss). Pattern: save-then-close (unmount before the reset) or fully controlled fields — see settings-sheet.tsx.
 
 ## Dev environment
 - Local Supabase stack on **544xx ports** (543xx is held by apex's stack): API 54421, Studio 54423, **Mailpit 54424** (captures ALL auth emails — magic links are E2E-testable). `supabase start` from repo root.

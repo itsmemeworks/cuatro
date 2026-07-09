@@ -21,6 +21,11 @@ const ERROR_COPY: Record<string, string> = {
   // Knocks (The Board — ask-to-join a game near you).
   already_knocked: "You've already asked to join this game. The organiser will get back to you.",
   already_member: "You're already in this Circle, so just RSVP to the game.",
+  circle_full: "That Circle is at its limit, so no one new can join right now.",
+  // Circle settings + create field errors (Circle v2).
+  invalid_max_members: "Set a limit from 4 to 64 players, or leave it open. It can't drop below who's already in.",
+  invalid_header_image: "Pick one of the header images.",
+  invalid_home_venue: "Pick a venue from the list for your home court.",
   already_in: "You're already in for this game.",
   window_not_open: "RSVPs for this game haven't opened yet. Try again closer to the date.",
   no_open_knock: "There's no open ask to withdraw.",

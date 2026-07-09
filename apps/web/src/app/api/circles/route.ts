@@ -5,6 +5,9 @@ import {
   InvalidCircleNameError,
   InvalidColourError,
   InvalidEmblemError,
+  InvalidHeaderImageError,
+  InvalidHomeVenueError,
+  InvalidMaxMembersError,
 } from "@/server/circles";
 
 export async function POST(request: NextRequest) {
@@ -20,7 +23,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
 
-  const { name, emblem, colour, timezone } = (body ?? {}) as Record<string, unknown>;
+  const { name, emblem, colour, timezone, headerImage, homeVenueId, maxMembers } = (body ?? {}) as Record<
+    string,
+    unknown
+  >;
   if (typeof name !== "string" || name.trim().length === 0) {
     return NextResponse.json({ ok: false, error: "invalid_name" }, { status: 400 });
   }
@@ -32,6 +38,9 @@ export async function POST(request: NextRequest) {
       name,
       emblem: typeof emblem === "string" ? emblem : null,
       colour: typeof colour === "string" ? colour : null,
+      headerImage: typeof headerImage === "string" ? headerImage : null,
+      homeVenueId: typeof homeVenueId === "string" ? homeVenueId : null,
+      maxMembers: typeof maxMembers === "number" ? maxMembers : maxMembers === null ? null : undefined,
       timezone: typeof timezone === "string" ? timezone : undefined,
       creatorUserId: user.id,
     });
@@ -44,6 +53,15 @@ export async function POST(request: NextRequest) {
     }
     if (err instanceof InvalidColourError) {
       return NextResponse.json({ ok: false, error: "invalid_colour" }, { status: 400 });
+    }
+    if (err instanceof InvalidHeaderImageError) {
+      return NextResponse.json({ ok: false, error: "invalid_header_image" }, { status: 400 });
+    }
+    if (err instanceof InvalidHomeVenueError) {
+      return NextResponse.json({ ok: false, error: "invalid_home_venue" }, { status: 400 });
+    }
+    if (err instanceof InvalidMaxMembersError) {
+      return NextResponse.json({ ok: false, error: "invalid_max_members" }, { status: 400 });
     }
     throw err;
   }

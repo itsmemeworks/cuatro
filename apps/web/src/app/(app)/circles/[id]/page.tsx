@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { matches, sessions, venues, type CuatroDb } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { NotMemberError, getCirclesStore, type CircleMessageView } from "@/server/circles";
@@ -16,6 +16,8 @@ import { InviteShareButton } from "@/components/circles/invite-share-button";
 import { CircleSwitcher } from "@/components/circles/circle-switcher";
 import { RememberLastCircle } from "@/components/circles/remember-last-circle";
 import { AvatarStack } from "@/components/ui";
+import { CircleHeaderHero } from "@/components/circles/circle-header";
+import type { EditVenueOption } from "@/components/circles/edit-circle-sheet";
 import type { ChatMessage } from "@/components/circles/circle-chat";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { circleColorFor } from "@/lib/design";
@@ -129,6 +131,20 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
     anchor = { venueName: anchorPoint.venueName, address: venue?.address ?? null };
   }
 
+  // The pinned venues the organiser can pick as an explicit home court (the
+  // same set the profile home-venue picker offers). Only loaded for the edit
+  // surface, but cheap enough to always fetch.
+  const venueOptions: EditVenueOption[] = await db
+    .select({ id: venues.id, name: venues.name })
+    .from(venues)
+    .where(and(isNotNull(venues.lat), isNotNull(venues.lng)))
+    .orderBy(asc(venues.name));
+
+  // Home court, stated honestly: an organiser's explicit choice reads "set by
+  // organiser"; otherwise it's the derived anchor, "based on where you play".
+  const homeCourtName = detail.homeVenueId ? detail.homeVenueName : (anchor?.venueName ?? null);
+  const homeCourtExplicit = detail.homeVenueId != null;
+
   // Open Door: an organiser sees pending knocks + the door controls. circleKnocks
   // itself re-checks the organiser role, so this is safe even if myRole drifted.
   const pendingKnocks: KnockPanelItem[] =
@@ -155,42 +171,43 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
       <RememberLastCircle circleId={detail.id} />
       <CircleSwitcher circles={allCircles} activeCircleId={detail.id} />
 
-      <header className="flex items-center gap-3">
-        <div
-          className="w-12 h-12 rounded-card flex items-center justify-center text-2xl shrink-0"
-          style={{ background: colour }}
-          aria-hidden
-        >
-          <span className="text-white font-extrabold text-base">{detail.emblem ?? detail.name.slice(0, 2).toUpperCase()}</span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-cu-card-title text-ink truncate" style={{ fontSize: 19 }}>
-            {detail.name}
-          </h1>
-          <p className="text-cu-meta text-ink-muted mt-0.5">
-            {detail.members.length} member{detail.members.length === 1 ? "" : "s"} · {gamesCount} game{gamesCount === 1 ? "" : "s"}
+      <CircleHeaderHero
+        circleId={detail.id}
+        headerImage={detail.headerImage}
+        colour={colour}
+        emblem={detail.emblem}
+        name={detail.name}
+        facts={
+          <>
+            {detail.members.length} member{detail.members.length === 1 ? "" : "s"} · {gamesCount} game
+            {gamesCount === 1 ? "" : "s"}
             {foundedYear != null && ` · est. ${foundedYear}`}
-          </p>
-        </div>
+          </>
+        }
+      />
+
+      <div className="flex items-center gap-3">
         <AvatarStack
-          people={detail.members.slice(0, 3).map((m) => ({ src: m.avatarUrl, name: m.displayName }))}
+          people={detail.members.slice(0, 4).map((m) => ({ src: m.avatarUrl, name: m.displayName }))}
           size="sm"
           ring="ground"
         />
+        <div className="flex-1" />
         <InviteShareButton
           inviteCode={detail.inviteCode}
           circleName={detail.name}
           label={detail.members.length <= 1 ? "Invite" : "Copy ↗"}
         />
-      </header>
+      </div>
 
-      {anchor ? (
+      {homeCourtName ? (
         <p className="text-cu-meta text-ink-muted">
-          Home court: <span className="text-ink">{anchor.venueName}</span>
+          Home court: <span className="text-ink">{homeCourtName}</span>
+          {homeCourtExplicit ? " · set by organiser" : " · based on where you play"}
         </p>
       ) : (
         <p className="text-cu-meta text-ink-muted">
-          No home court yet. Set a venue with an address on your Standing Game and it pins itself.
+          No home court yet. Set one in Edit Circle, or play a venue with an address and it pins itself.
         </p>
       )}
 
@@ -211,6 +228,11 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           boardEnabled={detail.boardEnabled}
           vibeLine={detail.vibeLine}
           anchor={anchor}
+          headerImage={detail.headerImage}
+          homeVenueId={detail.homeVenueId}
+          maxMembers={detail.maxMembers}
+          memberCount={detail.memberCount}
+          venueOptions={venueOptions}
           pendingKnocks={pendingKnocks}
           feedItems={feedItems}
           rivalry={

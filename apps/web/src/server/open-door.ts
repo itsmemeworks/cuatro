@@ -46,7 +46,7 @@ import { boundingBox, coarseDistanceLabel, DEFAULT_RADIUS_KM, haversineKm, withi
 import { resolvePatch } from "@/server/patch";
 import { boardGames } from "@/server/discovery";
 import { insertNotification } from "@/server/notify";
-import { NotMemberError, NotOrganiserError, insertCircleMembership } from "@/server/circles";
+import { CircleFullError, NotMemberError, NotOrganiserError, insertCircleMembership } from "@/server/circles";
 import { emitCircleEvent } from "@/lib/realtime/broadcast";
 
 /** A Circle's canonical location for the directory: its most-used pinned venue. */
@@ -83,6 +83,23 @@ export interface NearbyCircleOpenGame {
   viewerHasPendingKnock: boolean;
 }
 
+/**
+ * A member as exposed in a Circle's public preview / directory card (Circle v2,
+ * Pete's deliberate privacy-model change: level fit is why people browse, so
+ * the member roster is now visible pre-join). Carries ONLY the same public
+ * values any members tab already shows — avatar, display name, Glass rating,
+ * role. No email, no reliability, no chat/Tab/history. GUESTS ARE EXCLUDED.
+ * `avatarUrl` matches what components/circles/member-list.tsx renders.
+ */
+export interface CirclePreviewMember {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  /** Public Glass rating; null while unrated (still being placed). */
+  rating: number | null;
+  role: "organiser" | "member";
+}
+
 /** One card in the "Circles near you" directory. */
 export interface NearbyCircle {
   circleId: string;
@@ -90,6 +107,8 @@ export interface NearbyCircle {
   emblem: string | null;
   colour: string | null;
   vibeLine: string | null;
+  /** Organiser's explicit curated-header key; null = deterministic auto-assign (headerFor). */
+  headerImage: string | null;
   /** open = knockable; invite_only = visible + games take asks, joining is by invite link. */
   tier: CircleTier;
   /** The anchor venue's NAME only — never coordinates. The "venue area" a knocker sees. */
@@ -100,10 +119,12 @@ export interface NearbyCircle {
   cadence: string | null;
   /** Non-guest members only. */
   memberCount: number;
-  /** Glass range across rated, non-guest members; null when nobody is rated yet. */
+  /** Glass range across rated, non-guest members (the aggregate the UI shows prominently); null when nobody is rated yet. */
   level: { min: number; max: number } | null;
   /** Members still being placed (unrated) — surfaced honestly rather than folded into the range. */
   unratedCount: number;
+  /** Non-guest member roster (avatar/name/Glass/role), organiser-first then rating desc. Circle v2 exposes this pre-join. */
+  members: CirclePreviewMember[];
   /** The viewer already has an open knock on this Circle (card shows the waiting state). */
   hasPendingKnock: boolean;
   /**
@@ -136,12 +157,17 @@ export interface CirclePreview {
   emblem: string | null;
   colour: string | null;
   vibeLine: string | null;
+  /** Organiser's explicit curated-header key; null = deterministic auto-assign (headerFor). */
+  headerImage: string | null;
   /** The anchor venue's NAME only — never coordinates. */
   venueArea: string | null;
   distanceLabel: string | null;
   memberCount: number;
+  /** Glass range across rated, non-guest members (shown prominently); null when nobody is rated yet. */
   level: { min: number; max: number } | null;
   unratedCount: number;
+  /** Non-guest member roster (avatar/name/Glass/role), organiser-first then rating desc. Circle v2 exposes this pre-join. */
+  members: CirclePreviewMember[];
   /** e.g. "Tuesdays 20:00" — the soonest/active Standing Game cadence, or null. */
   cadence: string | null;
   hasPendingKnock: boolean;
@@ -153,7 +179,7 @@ export type KnockResult =
 
 export type DecideResult =
   | { ok: true }
-  | { ok: false; error: "knock_not_found" | "not_organiser" | "already_decided" };
+  | { ok: false; error: "knock_not_found" | "not_organiser" | "already_decided" | "circle_full" };
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 
@@ -163,11 +189,27 @@ function formatCadence(weekday: number, startTime: string): string {
 }
 
 /**
- * A Circle's anchor: the pinned venue appearing most across its Standing Games
- * and sessions. Ties broken by venue id. Null when the Circle has no pinned
- * venue at all (so it can never surface in discovery). See file header.
+ * A Circle's anchor for the directory. Priority (Circle v2):
+ *  1. the EXPLICIT home venue (circles.homeVenueId) when it is set AND pinned —
+ *     the organiser's stated home club is the truth when they've named one;
+ *  2. otherwise the DERIVED anchor: the pinned venue appearing most across the
+ *     Circle's Standing Games and sessions, ties broken by venue id.
+ * Null when neither yields a pinned venue (the Circle can't surface). An
+ * explicit home venue that is UNPINNED (not geocoded) does not win — it falls
+ * through to the derived anchor, exactly like an unpinned home venue in
+ * resolvePatch. See file header.
  */
 export async function circleAnchor(db: CuatroDb, circleId: string): Promise<CircleAnchor | null> {
+  // 1. Explicit home venue, if set and pinned.
+  const [circle] = await db.select({ homeVenueId: circles.homeVenueId }).from(circles).where(eq(circles.id, circleId));
+  if (circle?.homeVenueId) {
+    const [home] = await db.select().from(venues).where(eq(venues.id, circle.homeVenueId));
+    if (home && home.lat != null && home.lng != null) {
+      return { venueId: home.id, venueName: home.name, lat: home.lat, lng: home.lng };
+    }
+  }
+
+  // 2. Derived: most-used pinned venue across standing games + sessions.
   const sgRows = await db
     .select({ venueId: standingGames.venueId })
     .from(standingGames)
@@ -203,6 +245,21 @@ function levelContext(ratings: (number | null)[]): { level: { min: number; max: 
   const unratedCount = ratings.length - rated.length;
   if (rated.length === 0) return { level: null, unratedCount };
   return { level: { min: Math.min(...rated), max: Math.max(...rated) }, unratedCount };
+}
+
+/**
+ * Order preview members organiser-first, then by Glass rating descending, with
+ * unrated (null) members last and display name as the stable final tie-break.
+ * Deterministic so previews and cards render members identically.
+ */
+function comparePreviewMembers(a: CirclePreviewMember, b: CirclePreviewMember): number {
+  const roleRank = (m: CirclePreviewMember) => (m.role === "organiser" ? 0 : 1);
+  if (roleRank(a) !== roleRank(b)) return roleRank(a) - roleRank(b);
+  if (a.rating == null && b.rating == null) return a.displayName.localeCompare(b.displayName);
+  if (a.rating == null) return 1;
+  if (b.rating == null) return -1;
+  if (b.rating !== a.rating) return b.rating - a.rating;
+  return a.displayName.localeCompare(b.displayName);
 }
 
 /**
@@ -307,6 +364,7 @@ export async function nearbyCircles(
       emblem: circles.emblem,
       colour: circles.colour,
       vibeLine: circles.vibeLine,
+      headerImage: circles.headerImage,
       openDoor: circles.openDoor,
     })
     .from(circles)
@@ -334,17 +392,31 @@ export async function nearbyCircles(
     openGamesByCircle.set(g.circleId, list);
   }
 
-  // Member Glass ratings per Circle, non-guests only.
-  const memberStats = await db
-    .select({ circleId: circleMembers.circleId, rating: users.rating })
+  // Member roster per Circle, non-guests only — Circle v2 exposes the roster
+  // (avatar/name/Glass/role) on the card, not just the aggregate range.
+  const rosterRows = await db
+    .select({
+      circleId: circleMembers.circleId,
+      userId: users.id,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      rating: users.rating,
+      role: circleMembers.role,
+    })
     .from(circleMembers)
     .innerJoin(users, eq(users.id, circleMembers.userId))
     .where(and(inArray(circleMembers.circleId, ids), eq(users.isGuest, false)));
-  const ratingsByCircle = new Map<string, (number | null)[]>();
-  for (const row of memberStats) {
-    const list = ratingsByCircle.get(row.circleId) ?? [];
-    list.push(row.rating);
-    ratingsByCircle.set(row.circleId, list);
+  const membersByCircle = new Map<string, CirclePreviewMember[]>();
+  for (const row of rosterRows) {
+    const list = membersByCircle.get(row.circleId) ?? [];
+    list.push({
+      userId: row.userId,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+      rating: row.rating,
+      role: row.role,
+    });
+    membersByCircle.set(row.circleId, list);
   }
 
   // Cadence per Circle: its soonest-weekday active Standing Game, one batched query.
@@ -360,8 +432,8 @@ export async function nearbyCircles(
 
   const result: (NearbyCircle & { km: number })[] = anchored.map(({ id, anchor }) => {
     const base = baseById.get(id)!;
-    const ratings = ratingsByCircle.get(id) ?? [];
-    const { level, unratedCount } = levelContext(ratings);
+    const members = (membersByCircle.get(id) ?? []).slice().sort(comparePreviewMembers);
+    const { level, unratedCount } = levelContext(members.map((m) => m.rating));
     const cad = cadenceByCircle.get(id);
     const km = distanceFrom(patch, anchor);
     return {
@@ -370,13 +442,15 @@ export async function nearbyCircles(
       emblem: base.emblem,
       colour: base.colour,
       vibeLine: base.vibeLine,
+      headerImage: base.headerImage,
       tier: base.openDoor ? "open" : "invite_only",
       venueArea: anchor.venueName,
       distanceLabel: coarseDistanceLabel(km),
       cadence: cad ? formatCadence(cad.weekday, cad.startTime) : null,
-      memberCount: ratings.length,
+      memberCount: members.length,
       level,
       unratedCount,
+      members,
       hasPendingKnock: pendingIds.has(id),
       openGames: openGamesByCircle.get(id) ?? [],
       km,
@@ -455,19 +529,28 @@ export async function circleKnocks(db: CuatroDb, circleId: string, requestingUse
 /** The public preview a knocker expands before deciding to knock. Group facts only. */
 export async function circlePreview(db: CuatroDb, circleId: string, viewerId: string): Promise<CirclePreview | null> {
   const [circle] = await db
-    .select({ id: circles.id, name: circles.name, emblem: circles.emblem, colour: circles.colour, vibeLine: circles.vibeLine, openDoor: circles.openDoor })
+    .select({ id: circles.id, name: circles.name, emblem: circles.emblem, colour: circles.colour, vibeLine: circles.vibeLine, headerImage: circles.headerImage, openDoor: circles.openDoor })
     .from(circles)
     .where(eq(circles.id, circleId));
   if (!circle) return null;
 
   const anchor = await circleAnchor(db, circleId);
 
-  const memberStats = await db
-    .select({ rating: users.rating })
+  const memberRows = await db
+    .select({
+      userId: users.id,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      rating: users.rating,
+      role: circleMembers.role,
+    })
     .from(circleMembers)
     .innerJoin(users, eq(users.id, circleMembers.userId))
     .where(and(eq(circleMembers.circleId, circleId), eq(users.isGuest, false)));
-  const { level, unratedCount } = levelContext(memberStats.map((r) => r.rating));
+  const members: CirclePreviewMember[] = memberRows
+    .map((r) => ({ userId: r.userId, displayName: r.displayName, avatarUrl: r.avatarUrl, rating: r.rating, role: r.role }))
+    .sort(comparePreviewMembers);
+  const { level, unratedCount } = levelContext(members.map((m) => m.rating));
 
   // Cadence from the soonest active Standing Game (weekday + start time).
   const [sg] = await db
@@ -495,11 +578,13 @@ export async function circlePreview(db: CuatroDb, circleId: string, viewerId: st
     emblem: circle.emblem,
     colour: circle.colour,
     vibeLine: circle.vibeLine,
+    headerImage: circle.headerImage,
     venueArea: anchor?.venueName ?? null,
     distanceLabel,
-    memberCount: memberStats.length,
+    memberCount: members.length,
     level,
     unratedCount,
+    members,
     cadence,
     hasPendingKnock: Boolean(pending),
   };
@@ -622,32 +707,41 @@ export async function decideCircleKnock(
   if (!membership || membership.role !== "organiser") return { ok: false, error: "not_organiser" };
 
   const now = new Date();
-  const committed = db.transaction((tx) => {
-    // Guard again inside the transaction against a concurrent decide.
-    const fresh = tx.select({ status: knocks.status }).from(knocks).where(eq(knocks.id, knockId)).get();
-    if (!fresh || fresh.status !== "pending") return false;
+  let committed: boolean;
+  try {
+    committed = db.transaction((tx) => {
+      // Guard again inside the transaction against a concurrent decide.
+      const fresh = tx.select({ status: knocks.status }).from(knocks).where(eq(knocks.id, knockId)).get();
+      if (!fresh || fresh.status !== "pending") return false;
 
-    tx.update(knocks)
-      .set({ status: action === "accept" ? "accepted" : "declined", decidedAt: now, decidedBy: organiserId })
-      .where(eq(knocks.id, knockId))
-      .run();
+      tx.update(knocks)
+        .set({ status: action === "accept" ? "accepted" : "declined", decidedAt: now, decidedBy: organiserId })
+        .where(eq(knocks.id, knockId))
+        .run();
 
-    if (action === "accept") {
-      insertCircleMembership(tx, circleId, knock.userId);
-      insertNotification(tx, {
-        userId: knock.userId,
-        type: "knock_accepted",
-        payload: { knockId, kind: "circle", targetId: circleId },
-      });
-    } else {
-      insertNotification(tx, {
-        userId: knock.userId,
-        type: "knock_declined",
-        payload: { knockId, kind: "circle", targetId: circleId },
-      });
-    }
-    return true;
-  });
+      if (action === "accept") {
+        // Capacity is enforced here, inside the accept transaction: a full
+        // capped Circle throws CircleFullError, rolling back the knock
+        // resolution AND the membership together (caught below → circle_full).
+        insertCircleMembership(tx, circleId, knock.userId);
+        insertNotification(tx, {
+          userId: knock.userId,
+          type: "knock_accepted",
+          payload: { knockId, kind: "circle", targetId: circleId },
+        });
+      } else {
+        insertNotification(tx, {
+          userId: knock.userId,
+          type: "knock_declined",
+          payload: { knockId, kind: "circle", targetId: circleId },
+        });
+      }
+      return true;
+    });
+  } catch (err) {
+    if (err instanceof CircleFullError) return { ok: false, error: "circle_full" };
+    throw err;
+  }
 
   if (!committed) return { ok: false, error: "already_decided" };
   emitCircleEvent(circleId, "notification", { reason: "knock" });

@@ -2,9 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Meta, Fact, Sheet, Button } from "@/components/ui";
+import { Card, Meta, Fact, Sheet, Button, Avatar, AvatarStack, InfoTerm } from "@/components/ui";
 import { BoardCard, type BoardCardProps } from "@/components/games/board-card";
-import { circleColorFor } from "@/lib/design";
+import { circleColorFor, formatGlass } from "@/lib/design";
+import { CircleCardArt } from "./circle-header";
+
+/** Serializable mirror of server/open-door.ts's CirclePreviewMember. */
+export interface CirclePreviewMemberData {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rating: number | null;
+  role: "organiser" | "member";
+}
 
 /** One open game an invite-only Circle carries; mirrors server/open-door.ts's NearbyCircleOpenGame. */
 export interface NearbyCircleOpenGameData {
@@ -24,6 +34,8 @@ export interface NearbyCircleData {
   emblem: string | null;
   colour: string | null;
   vibeLine: string | null;
+  /** Organiser's explicit curated-header key; null falls back to the deterministic auto-assign. */
+  headerImage: string | null;
   tier: "open" | "invite_only";
   venueArea: string | null;
   distanceLabel: string;
@@ -31,6 +43,7 @@ export interface NearbyCircleData {
   memberCount: number;
   level: { min: number; max: number } | null;
   unratedCount: number;
+  members: CirclePreviewMemberData[];
   hasPendingKnock: boolean;
   openGames: NearbyCircleOpenGameData[];
 }
@@ -43,17 +56,15 @@ const KNOCK_ERROR_COPY: Record<string, string> = {
   already_knocked: "You've already knocked here, the organiser will get back to you.",
   is_guest: "Claim your account first, then you can knock.",
   circle_not_found: "That Circle isn't around any more.",
+  circle_full: "That Circle is at its limit, so no one new can join right now.",
   network_error: "Couldn't reach the server, check your connection and try again.",
   something_went_wrong: "That didn't go through. Give it another tap.",
 };
 
-function levelLabel(data: Pick<NearbyCircleData, "level" | "unratedCount">): string {
-  const parts: string[] = [];
-  if (data.level) {
-    parts.push(data.level.min === data.level.max ? data.level.min.toFixed(2) : `${data.level.min.toFixed(2)}–${data.level.max.toFixed(2)}`);
-  }
-  if (data.unratedCount > 0) parts.push(`${data.unratedCount} still placing`);
-  return parts.length ? parts.join(" · ") : "levels forming";
+/** The Glass range as text, en-dash for a true range (a legitimate dash use). */
+function glassRangeText(level: NearbyCircleData["level"]): string | null {
+  if (!level) return null;
+  return level.min === level.max ? level.min.toFixed(2) : `${level.min.toFixed(2)}–${level.max.toFixed(2)}`;
 }
 
 /** Same "when" format The Board uses on Home, so an ask reads identically wherever it appears. */
@@ -67,22 +78,90 @@ function whenLabelFor(startsAtMs: number): string {
   });
 }
 
-function EmblemMark({ colour, emblem, name, size }: { colour: string; emblem: string | null; name: string; size: "sm" | "md" }) {
-  const box = size === "md" ? "w-12 h-12" : "w-11 h-11";
+/**
+ * The Glass range, promoted to a first-class fact on every discovery card:
+ * you browse Circles to find one at your level, so level-fit has to read at a
+ * glance. Big mono range in a tinted pill, with the "still placing" count kept
+ * honest beside it. `showInfo` renders the Glass explainer once per screen.
+ */
+function GlassBand({ data, showInfo }: { data: NearbyCircleData; showInfo: boolean }) {
+  const range = glassRangeText(data.level);
   return (
-    <div className={`${box} rounded-card flex items-center justify-center shrink-0`} style={{ background: colour }} aria-hidden>
-      <span className="text-white font-extrabold text-base">{emblem ?? name.slice(0, 2).toUpperCase()}</span>
+    <div className="flex items-center justify-between gap-3 rounded-button bg-ink-hairline-1 px-3.5 py-2.5">
+      <span className="text-cu-meta uppercase tracking-[0.12em] text-ink-muted">
+        {showInfo ? <InfoTerm term="glass" label="Glass" /> : "Glass"} level
+      </span>
+      <div className="text-right">
+        {range ? (
+          <Fact size="lg" weight="bold">
+            {range}
+          </Fact>
+        ) : (
+          <Meta tone="neutral">levels forming</Meta>
+        )}
+        {data.unratedCount > 0 && (
+          <Meta as="p" className="mt-0.5">
+            {data.unratedCount} still placing
+          </Meta>
+        )}
+      </div>
     </div>
   );
 }
 
-export function NearbyCircleCard({ data }: { data: NearbyCircleData }) {
-  if (data.tier === "invite_only") return <InviteOnlyCircleCard data={data} />;
-  return <OpenCircleCard data={data} />;
+/** Overlapping faces + count, from the pre-join roster (guests already excluded server-side). */
+function MembersRow({ data }: { data: NearbyCircleData }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      {data.members.length > 0 && (
+        <AvatarStack
+          people={data.members.map((m) => ({ src: m.avatarUrl, name: m.displayName }))}
+          size="sm"
+          max={5}
+        />
+      )}
+      <Meta>
+        {data.memberCount} member{data.memberCount === 1 ? "" : "s"}
+      </Meta>
+    </div>
+  );
+}
+
+/** The pre-join roster: avatar, name, Glass. The reason people browse — level fit. */
+function MembersPreviewList({ members }: { members: CirclePreviewMemberData[] }) {
+  if (members.length === 0) return null;
+  return (
+    <div className="mt-4 flex flex-col gap-1">
+      <Meta as="p" className="mb-1">
+        Who plays here
+      </Meta>
+      {members.map((m) => (
+        <div key={m.userId} className="flex items-center gap-3 py-1.5">
+          <Avatar src={m.avatarUrl} name={m.displayName} size="md" />
+          <div className="flex-1 min-w-0">
+            <span className="text-cu-body text-ink truncate">{m.displayName}</span>
+            {m.role === "organiser" && <Meta as="p">organiser</Meta>}
+          </div>
+          {m.rating != null ? (
+            <Fact size="md" weight="bold">
+              {formatGlass(m.rating)}
+            </Fact>
+          ) : (
+            <Meta>not rated yet</Meta>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function NearbyCircleCard({ data, showGlassInfo = false }: { data: NearbyCircleData; showGlassInfo?: boolean }) {
+  if (data.tier === "invite_only") return <InviteOnlyCircleCard data={data} showGlassInfo={showGlassInfo} />;
+  return <OpenCircleCard data={data} showGlassInfo={showGlassInfo} />;
 }
 
 /** OPEN tier: the directory card whose primary affordance is a circle-knock. */
-function OpenCircleCard({ data }: { data: NearbyCircleData }) {
+function OpenCircleCard({ data, showGlassInfo }: { data: NearbyCircleData; showGlassInfo: boolean }) {
   const router = useRouter();
   const [pending, setPending] = useState(data.hasPendingKnock);
   const [busy, setBusy] = useState(false);
@@ -138,44 +217,44 @@ function OpenCircleCard({ data }: { data: NearbyCircleData }) {
   }
 
   return (
-    <Card className="flex flex-col gap-3">
-      <button type="button" onClick={() => setPreviewOpen(true)} className="flex items-start gap-3 text-left w-full">
-        <EmblemMark colour={colour} emblem={data.emblem} name={data.name} size="sm" />
-        <div className="flex-1 min-w-0">
-          <p className="text-cu-card-title text-ink truncate">{data.name}</p>
-          <p className="text-cu-secondary text-ink-muted mt-0.5 line-clamp-2">{vibe}</p>
-        </div>
+    <Card padded={false} className="overflow-hidden">
+      <button type="button" onClick={() => setPreviewOpen(true)} className="block w-full text-left">
+        <CircleCardArt circleId={data.circleId} headerImage={data.headerImage} colour={colour} emblem={data.emblem} name={data.name} />
       </button>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Meta>{data.venueArea ?? "Nearby"} · {data.distanceLabel}</Meta>
-        <Meta>
-          Glass <Fact as="span" size="sm" className="text-ink-muted">{levelLabel(data)}</Fact>
-        </Meta>
-        <Meta>{data.memberCount} member{data.memberCount === 1 ? "" : "s"}</Meta>
+      <div className="p-4 flex flex-col gap-3">
+        <p className="text-cu-secondary text-ink-muted line-clamp-2">{vibe}</p>
+
+        <GlassBand data={data} showInfo={showGlassInfo} />
+
+        <div className="flex items-center justify-between gap-3">
+          <Meta>{data.venueArea ?? "Nearby"} · {data.distanceLabel}</Meta>
+          <MembersRow data={data} />
+        </div>
+
+        {pending ? (
+          <div className="flex items-center justify-between gap-3">
+            <Meta>knocked, waiting on the organiser</Meta>
+            <Button variant="quiet" onClick={withdraw} disabled={busy}>
+              Withdraw
+            </Button>
+          </div>
+        ) : (
+          <Button variant="strong" onClick={knock} disabled={busy} fullWidth>
+            Knock to join
+          </Button>
+        )}
+
+        {error && <Meta tone="loss">{KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}</Meta>}
       </div>
 
-      {pending ? (
-        <div className="flex items-center justify-between gap-3">
-          <Meta>knocked, waiting on the organiser</Meta>
-          <Button variant="quiet" onClick={withdraw} disabled={busy}>
-            Withdraw
-          </Button>
-        </div>
-      ) : (
-        <Button variant="strong" onClick={knock} disabled={busy} fullWidth>
-          Knock to join
-        </Button>
-      )}
-
-      {error && <Meta tone="loss">{KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}</Meta>}
-
       <Sheet open={previewOpen} onClose={() => setPreviewOpen(false)} title={data.name}>
-        <div className="flex items-center gap-3">
-          <EmblemMark colour={colour} emblem={data.emblem} name={data.name} size="md" />
-          <p className="text-cu-body text-ink flex-1">{vibe}</p>
+        <p className="text-cu-body text-ink">{vibe}</p>
+        <div className="mt-4">
+          <GlassBand data={data} showInfo={false} />
         </div>
         <PreviewFacts data={data} />
+        <MembersPreviewList members={data.members} />
         <p className="text-cu-meta text-ink-muted mt-4">
           Only the organiser sees your knock, nothing about this Circle is shared until you&apos;re in.
         </p>
@@ -204,7 +283,7 @@ function OpenCircleCard({ data }: { data: NearbyCircleData }) {
  * clarity line spells the functionality out so it can't be mistaken for a
  * locked door.
  */
-function InviteOnlyCircleCard({ data }: { data: NearbyCircleData }) {
+function InviteOnlyCircleCard({ data, showGlassInfo }: { data: NearbyCircleData; showGlassInfo: boolean }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const colour = data.colour ?? circleColorFor(data.circleId);
   const vibe = data.vibeLine ?? "A padel Circle near your patch.";
@@ -221,49 +300,49 @@ function InviteOnlyCircleCard({ data }: { data: NearbyCircleData }) {
   });
 
   return (
-    <Card className="flex flex-col gap-3">
-      <button type="button" onClick={() => setPreviewOpen(true)} className="flex items-start gap-3 text-left w-full">
-        <EmblemMark colour={colour} emblem={data.emblem} name={data.name} size="sm" />
-        <div className="flex-1 min-w-0">
-          <p className="text-cu-card-title text-ink truncate">{data.name}</p>
-          <p className="text-cu-secondary text-ink-muted mt-0.5 line-clamp-2">{vibe}</p>
-        </div>
+    <Card padded={false} className="overflow-hidden">
+      <button type="button" onClick={() => setPreviewOpen(true)} className="block w-full text-left">
+        <CircleCardArt circleId={data.circleId} headerImage={data.headerImage} colour={colour} emblem={data.emblem} name={data.name} />
       </button>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Meta>{data.venueArea ?? "Nearby"} · {data.distanceLabel}</Meta>
-        <Meta>
-          Glass <Fact as="span" size="sm" className="text-ink-muted">{levelLabel(data)}</Fact>
-        </Meta>
-        <Meta>{data.memberCount} member{data.memberCount === 1 ? "" : "s"}</Meta>
-      </div>
+      <div className="p-4 flex flex-col gap-3">
+        <p className="text-cu-secondary text-ink-muted line-clamp-2">{vibe}</p>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="self-start rounded-chip inline-flex items-center px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide bg-ink-hairline-2 text-ink-muted">
-          Invite only
-        </span>
-        <Meta as="p">Membership is by invite. Their open games still take asks.</Meta>
-      </div>
+        <GlassBand data={data} showInfo={showGlassInfo} />
 
-      {data.openGames.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          <Meta as="p">
-            {data.openGames.length} game{data.openGames.length === 1 ? "" : "s"} with a spot this week
-          </Meta>
-          {data.openGames.map((g) => (
-            <BoardCard key={g.sessionId} {...boardProps(g)} />
-          ))}
+        <div className="flex items-center justify-between gap-3">
+          <Meta>{data.venueArea ?? "Nearby"} · {data.distanceLabel}</Meta>
+          <MembersRow data={data} />
         </div>
-      ) : (
-        <Meta as="p">No open games with a spot right now.</Meta>
-      )}
+
+        <div className="flex flex-col gap-1.5">
+          <span className="self-start rounded-chip inline-flex items-center px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide bg-ink-hairline-2 text-ink-muted">
+            Invite only
+          </span>
+          <Meta as="p">Membership is by invite. Their open games still take asks.</Meta>
+        </div>
+
+        {data.openGames.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <Meta as="p">
+              {data.openGames.length} game{data.openGames.length === 1 ? "" : "s"} with a spot this week
+            </Meta>
+            {data.openGames.map((g) => (
+              <BoardCard key={g.sessionId} {...boardProps(g)} />
+            ))}
+          </div>
+        ) : (
+          <Meta as="p">No open games with a spot right now.</Meta>
+        )}
+      </div>
 
       <Sheet open={previewOpen} onClose={() => setPreviewOpen(false)} title={data.name}>
-        <div className="flex items-center gap-3">
-          <EmblemMark colour={colour} emblem={data.emblem} name={data.name} size="md" />
-          <p className="text-cu-body text-ink flex-1">{vibe}</p>
+        <p className="text-cu-body text-ink">{vibe}</p>
+        <div className="mt-4">
+          <GlassBand data={data} showInfo={false} />
         </div>
         <PreviewFacts data={data} />
+        <MembersPreviewList members={data.members} />
         <p className="text-cu-meta text-ink-muted mt-4">
           Membership is by invite link. You can still ask into one of their open games above, the organiser decides.
         </p>
@@ -286,10 +365,6 @@ function PreviewFacts({ data }: { data: NearbyCircleData }) {
           <Meta as="dd" tone="neutral">{data.cadence}</Meta>
         </div>
       )}
-      <div className="flex justify-between gap-3">
-        <Meta as="dt">Level</Meta>
-        <Fact as="dd" size="sm">{levelLabel(data)}</Fact>
-      </div>
       <div className="flex justify-between gap-3">
         <Meta as="dt">Members</Meta>
         <Meta as="dd" tone="neutral">{data.memberCount}</Meta>

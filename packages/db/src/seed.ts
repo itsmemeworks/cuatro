@@ -140,7 +140,7 @@ export async function seed(db: CuatroDb) {
     countryCode: 'GB',
     timezone: 'Europe/London',
     inviteCode: 'SHOREDITCH4',
-    vibeLine: 'Chilled Tuesday-night doubles in Shoreditch — all levels welcome.',
+    vibeLine: 'Chilled Tuesday-night doubles in Shoreditch. All levels welcome.',
     createdBy: alex.id,
   }
   const weekendCircle = {
@@ -151,7 +151,7 @@ export async function seed(db: CuatroDb) {
     countryCode: 'GB',
     timezone: 'Europe/London',
     inviteCode: 'WANDSWORTH4',
-    vibeLine: 'Saturday-morning weekend four in Wandsworth — competitive but friendly.',
+    vibeLine: 'Saturday-morning weekend four in Wandsworth. Competitive but friendly.',
     createdBy: nadia.id,
   }
   await db.insert(circles).values([tuesdayCircle, weekendCircle])

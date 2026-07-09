@@ -40,6 +40,7 @@ import { circleMembers, circles, rsvps, sessions, standingGames, users, type Cua
 import { slotsForSession } from "./games-service";
 import { parseRing3ClaimToken } from "./fourth-call";
 import { insertNotification } from "./notify";
+import { CircleFullError, insertCircleMembership } from "./circles";
 import { displayNameLooksDerived } from "@/lib/entry-name";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 
@@ -276,7 +277,7 @@ export function getGuestUserId(db: CuatroDb, rawToken: string): string | null {
 
 export type JoinGuestCircleOutcome =
   | { ok: true; guestUserId: string; token: string | null; circleId: string; circleName: string; displayName: string }
-  | { ok: false; error: "invalid_name" | "circle_not_found" };
+  | { ok: false; error: "invalid_name" | "circle_not_found" | "circle_full" };
 
 /**
  * The circle-invite counterpart to claimGuestSlot — the growth-loop promise
@@ -315,35 +316,40 @@ export function joinGuestCircle(
   const rawToken = mintGuestToken();
   const tokenHash = hashGuestToken(rawToken);
 
-  return db.transaction((tx): JoinGuestCircleOutcome => {
-    const existing = existingGuestUserId
-      ? tx.select().from(users).where(eq(users.id, existingGuestUserId)).get()
-      : undefined;
-    const reuse = existing?.isGuest ? existing : null;
+  try {
+    return db.transaction((tx): JoinGuestCircleOutcome => {
+      const existing = existingGuestUserId
+        ? tx.select().from(users).where(eq(users.id, existingGuestUserId)).get()
+        : undefined;
+      const reuse = existing?.isGuest ? existing : null;
 
-    let guestUserId: string;
-    let token: string | null;
-    if (reuse) {
-      tx.update(users).set({ displayName, updatedAt: now }).where(eq(users.id, reuse.id)).run();
-      guestUserId = reuse.id;
-      token = null; // the device cookie already carries this identity
-    } else {
-      const guest = tx
-        .insert(users)
-        .values({ displayName, isGuest: true, guestClaimTokenHash: tokenHash, countryCode: circle.countryCode })
-        .returning()
-        .get();
-      guestUserId = guest.id;
-      token = rawToken;
-    }
+      let guestUserId: string;
+      let token: string | null;
+      if (reuse) {
+        tx.update(users).set({ displayName, updatedAt: now }).where(eq(users.id, reuse.id)).run();
+        guestUserId = reuse.id;
+        token = null; // the device cookie already carries this identity
+      } else {
+        const guest = tx
+          .insert(users)
+          .values({ displayName, isGuest: true, guestClaimTokenHash: tokenHash, countryCode: circle.countryCode })
+          .returning()
+          .get();
+        guestUserId = guest.id;
+        token = rawToken;
+      }
 
-    tx.insert(circleMembers)
-      .values({ circleId: circle.id, userId: guestUserId, role: "member" })
-      .onConflictDoNothing()
-      .run();
+      // Shared membership path — enforces the Circle's capacity in this same
+      // transaction. A full capped Circle throws CircleFullError, rolling back
+      // the whole join (including a freshly-minted guest row), caught below.
+      insertCircleMembership(tx, circle.id, guestUserId);
 
-    return { ok: true, guestUserId, token, circleId: circle.id, circleName: circle.name, displayName };
-  });
+      return { ok: true, guestUserId, token, circleId: circle.id, circleName: circle.name, displayName };
+    });
+  } catch (err) {
+    if (err instanceof CircleFullError) return { ok: false, error: "circle_full" };
+    throw err;
+  }
 }
 
 /** The guest's displayName if `guestUserId` is already a member of `circleId`, else null — the /join/[code] page's "is this guest in yet?" check that picks the done-vs-join step. */

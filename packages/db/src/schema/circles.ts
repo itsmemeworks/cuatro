@@ -1,6 +1,7 @@
-import { index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { booleanColumn, createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { users } from './users.js'
+import { venues } from './venues.js'
 
 // A Circle is the persistent group: members, chat, history, the Tab, its
 // Standing Games. Joined by link or QR only — never by phone number.
@@ -27,6 +28,21 @@ export const circles = sqliteTable(
     boardEnabled: booleanColumn('board_enabled').notNull().default(true),
     openDoor: booleanColumn('open_door').notNull().default(true),
     vibeLine: text('vibe_line'),
+
+    // Circle v2 presentation + membership controls.
+    // `headerImage` is a curated-collection KEY (e.g. "court-03"), NOT a URL —
+    // the actual asset ships in apps/web/public/circle-headers and is resolved
+    // client-side (offline PWA + CSP forbid hotlinking). Null means "no explicit
+    // choice yet"; the UI falls back to a deterministic auto-assignment
+    // (headerFor(circleId)) so every Circle has a stable header without a
+    // backfill. `homeVenueId` is the organiser's EXPLICIT home club — it takes
+    // priority over the derived most-used-venue anchor (see server/open-door.ts
+    // circleAnchor) when it is set AND that venue is pinned. `maxMembers` caps
+    // the roster (null = uncapped); it is enforced in the same transaction as
+    // every membership insert (circle_full).
+    headerImage: text('header_image'),
+    homeVenueId: text('home_venue_id').references(() => venues.id),
+    maxMembers: integer('max_members'),
 
     createdAt: createdAtColumn(),
   },

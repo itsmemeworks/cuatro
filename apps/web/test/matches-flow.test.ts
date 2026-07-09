@@ -50,8 +50,14 @@ function addMember(db: CuatroDb, circleId: string, userId: string, role: "organi
   db.insert(circleMembers).values({ circleId, userId, role }).run();
 }
 
-function rsvpIn(db: CuatroDb, sessionId: string, userId: string, respondedAt: Date) {
-  db.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt }).run();
+function rsvpIn(
+  db: CuatroDb,
+  sessionId: string,
+  userId: string,
+  respondedAt: Date,
+  source: "rsvp" | "fourth_call" = "rsvp",
+) {
+  db.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt, source }).run();
 }
 
 describe("result entry + Glass verification flow", () => {
@@ -558,6 +564,198 @@ describe("substitutes at result entry — record who PLAYED, not who RSVP'd", ()
 
     // No orphan guest row survives a rejected record.
     expect(await db.select().from(users).where(eq(users.isGuest, true))).toHaveLength(0);
+  });
+});
+
+describe("Reliability — show-up crediting on verification (the who-PLAYED loop)", () => {
+  let store: MatchesStore;
+  let db: CuatroDb;
+
+  beforeEach(() => {
+    store = createMatchesStore(":memory:");
+    db = store.db;
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  const showUpOf = async (userId: string) =>
+    (await db.select().from(users).where(eq(users.id, userId)))[0]!.showUpCount;
+
+  it("credits showUp exactly once to each RSVP'd-in player who played the verified match", async () => {
+    const alex = insertUser(db, "su-a@example.com", "Alex");
+    const priya = insertUser(db, "su-p@example.com", "Priya");
+    const jordan = insertUser(db, "su-j@example.com", "Jordan");
+    const kwame = insertUser(db, "su-k@example.com", "Kwame");
+    const now = Date.now();
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, kwame]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, kwame.id],
+      sets: [{ a: 6, b: 3 }],
+    });
+
+    // Pending, not yet verified — no show-up credited until the seal.
+    expect(await showUpOf(alex.id)).toBe(0);
+
+    const outcome = await store.confirmMatch(matchId, jordan.id);
+    expect(outcome.status).toBe("verified");
+
+    for (const u of [alex, priya, jordan, kwame]) {
+      expect(await showUpOf(u.id)).toBe(1);
+    }
+  });
+
+  it("credits a ring-3 claimant (rsvp status=in, source=fourth_call) who turned up", async () => {
+    const alex = insertUser(db, "su-fa@example.com", "Alex");
+    const priya = insertUser(db, "su-fp@example.com", "Priya");
+    const jordan = insertUser(db, "su-fj@example.com", "Jordan");
+    const claimant = insertUser(db, "su-fc@example.com", "Claimant");
+    const now = Date.now();
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+    // The fourth was filled through the Fourth Call — a real "in" commitment.
+    rsvpIn(db, sessionId, claimant.id, new Date(now - DAY_MS), "fourth_call");
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, claimant.id],
+      sets: [{ a: 6, b: 4 }],
+    });
+    await store.confirmMatch(matchId, jordan.id);
+
+    expect(await showUpOf(claimant.id)).toBe(1);
+  });
+
+  it("a no-show (rsvp'd in but absent from the played roster) gets no show-up", async () => {
+    const alex = insertUser(db, "ns-a@example.com", "Alex");
+    const priya = insertUser(db, "ns-p@example.com", "Priya");
+    const jordan = insertUser(db, "ns-j@example.com", "Jordan");
+    const noShow = insertUser(db, "ns-x@example.com", "NoShow"); // said "in", never turned up
+    const sub = insertUser(db, "ns-s@example.com", "Sub"); // turned up in their place, never RSVP'd
+    const now = Date.now();
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, noShow]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+
+    // The roster records who PLAYED: the no-show is replaced by the sub.
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, sub.id],
+      sets: [{ a: 6, b: 2 }],
+    });
+    await store.confirmMatch(matchId, jordan.id);
+
+    // The three who both RSVP'd-in and played are credited.
+    for (const u of [alex, priya, jordan]) expect(await showUpOf(u.id)).toBe(1);
+    // The no-show RSVP'd in but isn't on the roster — no credit, so their ratio drops.
+    expect(await showUpOf(noShow.id)).toBe(0);
+    // The sub played but never RSVP'd in — no credit, and their rsvpInCount was never moved either.
+    expect(await showUpOf(sub.id)).toBe(0);
+  });
+
+  it("a sub who played without any rsvp row gets nothing", async () => {
+    const alex = insertUser(db, "sub-a@example.com", "Alex");
+    const priya = insertUser(db, "sub-p@example.com", "Priya");
+    const jordan = insertUser(db, "sub-j@example.com", "Jordan");
+    const sub = insertUser(db, "sub-s@example.com", "Sub"); // no rsvp row at all
+    const now = Date.now();
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, sub.id],
+      sets: [{ a: 6, b: 3 }],
+    });
+    await store.confirmMatch(matchId, jordan.id);
+
+    expect(await showUpOf(sub.id)).toBe(0);
+  });
+
+  it("does not credit a show-up for a match that never reaches verified (still pending, or disputed)", async () => {
+    const alex = insertUser(db, "pv-a@example.com", "Alex");
+    const priya = insertUser(db, "pv-p@example.com", "Priya");
+    const jordan = insertUser(db, "pv-j@example.com", "Jordan");
+    const kwame = insertUser(db, "pv-k@example.com", "Kwame");
+    const now = Date.now();
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, kwame]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, kwame.id],
+      sets: [{ a: 6, b: 3 }],
+    });
+    // Disputed before both teams confirmed — no seal, so no show-up moves.
+    await store.disputeMatch(matchId, jordan.id);
+
+    for (const u of [alex, priya, jordan, kwame]) expect(await showUpOf(u.id)).toBe(0);
+  });
+
+  it("re-verification (double / teammate re-confirm) never double-credits a show-up", async () => {
+    const alex = insertUser(db, "dc-a@example.com", "Alex");
+    const priya = insertUser(db, "dc-p@example.com", "Priya");
+    const jordan = insertUser(db, "dc-j@example.com", "Jordan");
+    const kwame = insertUser(db, "dc-k@example.com", "Kwame");
+    const now = Date.now();
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, kwame]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, kwame.id],
+      sets: [{ a: 6, b: 3 }],
+    });
+    expect((await store.confirmMatch(matchId, jordan.id)).status).toBe("verified");
+
+    // The other member of the already-confirmed team, then a repeat by the
+    // same user — both must be no-ops that leave showUp untouched.
+    await store.confirmMatch(matchId, kwame.id);
+    await store.confirmMatch(matchId, jordan.id);
+
+    for (const u of [alex, priya, jordan, kwame]) expect(await showUpOf(u.id)).toBe(1);
+  });
+
+  it("credits show-ups even for a skipped (retired, zero-games) verified match — the players still turned up", async () => {
+    const alex = insertUser(db, "rt-a@example.com", "Alex");
+    const priya = insertUser(db, "rt-p@example.com", "Priya");
+    const jordan = insertUser(db, "rt-j@example.com", "Jordan");
+    const kwame = insertUser(db, "rt-k@example.com", "Kwame");
+    const now = Date.now();
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, kwame]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, kwame.id],
+      sets: [],
+      outcome: "retired",
+    });
+    const outcome = await store.confirmMatch(matchId, jordan.id);
+    expect(outcome.status).toBe("verified");
+
+    // Glass moved no one (see the retired-zero-games test above), but everyone
+    // who RSVP'd in and showed up is still credited a show-up.
+    const events = await db.select().from(ratingEvents).where(eq(ratingEvents.matchId, matchId));
+    expect(events).toHaveLength(0);
+    for (const u of [alex, priya, jordan, kwame]) expect(await showUpOf(u.id)).toBe(1);
   });
 });
 

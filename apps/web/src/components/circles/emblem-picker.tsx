@@ -66,7 +66,7 @@ export function EmblemPicker({
         placeholder="or type any emoji"
         className={emblemFieldClass}
       />
-      <Meta as="p">A flag for your Circle, not a mascot. Tap a mark, or type any emoji.</Meta>
+      <Meta as="p">Pick a vibe, or type any emoji. It flies white on your Circle colour.</Meta>
     </div>
   );
 }

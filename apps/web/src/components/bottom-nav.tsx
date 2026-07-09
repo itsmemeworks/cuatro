@@ -180,7 +180,7 @@ export function BottomNav({
         </NavIcon>
       </NavItem>
 
-      <NavItem href="/feed" active={active === "circle"} label="Circles">
+      <NavItem href="/circles" active={active === "circle"} label="Circles">
         <div className="relative">
           <NavIcon active={active === "circle"}>
             <path d="M20 11.5a8 8 0 1 0-3.2 6.4L20.5 19l-.9-3.4A7.96 7.96 0 0 0 20 11.5z" />

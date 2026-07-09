@@ -1,12 +1,15 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
+import { circleMembers, users } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getCirclesStore } from "@/server/circles";
 import { getDb } from "@/server/db";
 import { circleAnchor, nearbyCircles } from "@/server/open-door";
 import { resolvePatch } from "@/server/patch";
-import { Card, Meta } from "@/components/ui";
+import { Card, Meta, AvatarStack } from "@/components/ui";
 import { InfoTerm } from "@/components/ui/info-term";
 import { NearbyCircleCard } from "@/components/circles/nearby-circle-card";
+import { CircleCardArt } from "@/components/circles/circle-header";
 import { circleColorFor } from "@/lib/design";
 import { errorCopy } from "@/lib/error-copy";
 
@@ -29,12 +32,25 @@ export default async function CirclesPage({
   const patch = user ? await resolvePatch(db, user.id) : null;
   const nearby = user && patch ? await nearbyCircles(db, user.id) : [];
 
-  // Each Circle's home court (its derived anchor venue) for the row subtitle —
-  // display only, name never coordinates. Null Circles simply omit the line.
+  // Per-Circle extras for the rich cards: the home-court anchor name (display
+  // only, never coordinates) and a few member faces for the avatar stack. Both
+  // are page-level composition over the shared read models — the list is a
+  // viewer's own Circles, so this stays a handful of small reads.
   const anchorNameByCircle = new Map<string, string>();
+  const facesByCircle = new Map<string, { src: string | null; name: string }[]>();
   for (const c of myCircles) {
     const anchor = await circleAnchor(db, c.id);
     if (anchor) anchorNameByCircle.set(c.id, anchor.venueName);
+    const faces = await db
+      .select({ avatarUrl: users.avatarUrl, displayName: users.displayName })
+      .from(circleMembers)
+      .innerJoin(users, eq(circleMembers.userId, users.id))
+      .where(eq(circleMembers.circleId, c.id))
+      .limit(5);
+    facesByCircle.set(
+      c.id,
+      faces.map((f) => ({ src: f.avatarUrl, name: f.displayName })),
+    );
   }
 
   return (
@@ -67,27 +83,22 @@ export default async function CirclesPage({
         <div className="flex flex-col gap-3">
           {myCircles.map((c) => {
             const colour = c.colour ?? circleColorFor(c.id);
+            const faces = facesByCircle.get(c.id) ?? [];
             return (
               <Link key={c.id} href={`/circles/${c.id}`} className="block">
-                <Card className="flex items-center gap-3">
-                  <div
-                    className="w-11 h-11 rounded-card flex items-center justify-center text-xl shrink-0"
-                    style={{ background: colour }}
-                    aria-hidden
-                  >
-                    <span className="text-white font-extrabold text-base">
-                      {c.emblem ?? c.name.slice(0, 2).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-cu-card-title text-ink truncate">{c.name}</p>
-                    <Meta as="p" className="mt-0.5">
-                      {c.memberCount} member{c.memberCount === 1 ? "" : "s"} ·{" "}
-                      {c.myRole === "organiser" ? "Organiser" : "Member"}
-                    </Meta>
+                <Card padded={false} className="overflow-hidden">
+                  <CircleCardArt circleId={c.id} headerImage={c.headerImage} colour={colour} emblem={c.emblem} name={c.name} />
+                  <div className="p-4 flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <Meta>
+                        {c.memberCount} member{c.memberCount === 1 ? "" : "s"} ·{" "}
+                        {c.myRole === "organiser" ? "Organiser" : "Member"}
+                      </Meta>
+                      {faces.length > 0 && <AvatarStack people={faces} size="sm" max={5} />}
+                    </div>
                     {anchorNameByCircle.has(c.id) && (
-                      <Meta as="p" className="mt-0.5 truncate">
-                        {anchorNameByCircle.get(c.id)}
+                      <Meta as="p" className="truncate">
+                        Home court: {anchorNameByCircle.get(c.id)}
                       </Meta>
                     )}
                   </div>
@@ -122,8 +133,8 @@ export default async function CirclesPage({
             </Card>
           ) : (
             <div className="flex flex-col gap-3">
-              {nearby.map((c) => (
-                <NearbyCircleCard key={c.circleId} data={c} />
+              {nearby.map((c, i) => (
+                <NearbyCircleCard key={c.circleId} data={c} showGlassInfo={i === 0} />
               ))}
             </div>
           )}
