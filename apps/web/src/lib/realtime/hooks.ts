@@ -25,7 +25,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { circleChannel, sessionChannel, userChannel, type RealtimeEvent } from "./channels";
+import { circleChannel, sessionChannel, userChannel, createRejoinTracker, type RealtimeEvent } from "./channels";
 
 function useRealtimeChannel(topic: string | null, onEvent?: (event: RealtimeEvent) => void): void {
   const router = useRouter();
@@ -37,7 +37,7 @@ function useRealtimeChannel(topic: string | null, onEvent?: (event: RealtimeEven
 
     const supabase = createClient();
     const channel = supabase.channel(topic);
-    let joinedOnce = false;
+    const isRejoin = createRejoinTracker();
 
     const fire = (event: RealtimeEvent) => {
       if (handlerRef.current) handlerRef.current(event);
@@ -49,9 +49,7 @@ function useRealtimeChannel(topic: string | null, onEvent?: (event: RealtimeEven
         fire(message.payload as RealtimeEvent);
       })
       .subscribe((status) => {
-        if (status !== "SUBSCRIBED") return;
-        if (joinedOnce) fire({ type: "reconnect", ts: Date.now() });
-        joinedOnce = true;
+        if (isRejoin(status)) fire({ type: "reconnect", ts: Date.now() });
       });
 
     return () => {

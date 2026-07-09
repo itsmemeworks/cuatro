@@ -276,6 +276,62 @@ describe("checkFourthCallLevel2 — candidate selection", () => {
     expect(allFourthCalls.filter((r) => r.userId === candidate.id)).toHaveLength(1);
   });
 
+  it("boundary: a candidate exactly ±0.5 from the slot-holder average is included, one hundredth further out is excluded", () => {
+    const organiser = seedUser();
+    const circleA = seedCircle(organiser.id);
+    const p1 = seedUser({ rating: 4.0 });
+    addMember(circleA.id, p1.id);
+    const session = seedSession(circleA.id, { slots: 4 });
+    rsvpConfirmed(session.id, p1.id); // slot-holder average = 4.0 (only rated participant)
+
+    const circleB = seedCircle(organiser.id);
+    addMember(circleB.id, p1.id);
+    const onBand = seedUser({ rating: 4.5 }); // distance exactly 0.5 — must pass (band check is `> 0.5`, not `>= 0.5`)
+    const justOutside = seedUser({ rating: 4.51 }); // distance 0.51 — must be excluded
+    addMember(circleB.id, onBand.id);
+    addMember(circleB.id, justOutside.id);
+
+    const result = checkFourthCallLevel2(db, session.id, new Date("2026-08-04T18:00:00.000Z"), { forceEscalate: true });
+
+    expect(result.fired).toBe(true);
+    if (!result.fired) throw new Error("unreachable");
+    expect(result.notifiedUserIds).toEqual([onBand.id]);
+    expect(result.notifiedUserIds).not.toContain(justOutside.id);
+  });
+
+  it("end-to-end: a genuine extended-network candidate (shared OTHER circle, no session-circle membership) gets notified and can claim the open slot without joining", () => {
+    // This is the exact scenario the live E2E pass couldn't construct
+    // (E2E-RESULTS.md's escalation #3: "would require constructing
+    // shared-circle or match-history state for a brand-new test user") —
+    // reproduced here as a fixture instead of a live browser session.
+    const organiser = seedUser();
+    const circleA = seedCircle(organiser.id); // the session's own circle
+    const p1 = seedUser({ rating: 4.0 });
+    const p2 = seedUser({ rating: 4.0 });
+    addMember(circleA.id, p1.id);
+    addMember(circleA.id, p2.id);
+    const session = seedSession(circleA.id, { slots: 3 }); // one slot still open
+    rsvpConfirmed(session.id, p1.id);
+    rsvpConfirmed(session.id, p2.id);
+
+    const circleB = seedCircle(organiser.id); // p1's OTHER circle — not the session's circle
+    addMember(circleB.id, p1.id);
+    const erin = seedUser({ rating: 4.2 }); // shares circleB with p1; not a circleA member at all
+    addMember(circleB.id, erin.id);
+
+    const level2 = checkFourthCallLevel2(db, session.id, new Date("2026-08-04T18:00:00.000Z"), { forceEscalate: true });
+    expect(level2.fired).toBe(true);
+    if (!level2.fired) throw new Error("unreachable");
+    expect(level2.notifiedUserIds).toEqual([erin.id]);
+
+    const claim = claimFourthCallSlot(db, session.id, erin.id, new Date("2026-08-04T18:05:00.000Z"));
+    expect(claim).toEqual({ ok: true, status: "in", alreadyIn: false });
+
+    const membership = db.select().from(circleMembers).where(eq(circleMembers.userId, erin.id)).all();
+    expect(membership.map((m) => m.circleId)).toEqual([circleB.id]); // still not a circleA member
+    expect(findFourthCallClaimant(db, session.id)).toBe(erin.id);
+  });
+
   it("declines to fire once the session is already full", () => {
     const organiser = seedUser();
     const circleA = seedCircle(organiser.id);

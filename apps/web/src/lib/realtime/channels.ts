@@ -47,3 +47,35 @@ export interface RealtimeEvent {
   ts: number;
   [field: string]: unknown;
 }
+
+/**
+ * Pure rejoin-detection state machine backing hooks.ts's reconnect
+ * synthesis: returns true iff a `SUBSCRIBED` status is a rejoin after an
+ * earlier join on the same channel (not its first successful subscribe).
+ * Kept here — framework-free, alongside the rest of this module — rather
+ * than inline in the React effect, so the transition logic is unit-testable
+ * without mounting a component or opening a real websocket (see
+ * test/realtime-hooks.test.ts).
+ */
+export function createRejoinTracker(): (status: string) => boolean {
+  let joinedOnce = false;
+  return (status: string): boolean => {
+    if (status !== "SUBSCRIBED") return false;
+    const isRejoin = joinedOnce;
+    joinedOnce = true;
+    return isRejoin;
+  };
+}
+
+/**
+ * Which realtime events should trigger CircleChat's backfill fetch. The
+ * circle channel's broadcasts never carry a message body (see this file's
+ * header), so both a genuine new "message" and a resynced "reconnect" route
+ * through the same GET .../messages?after= catch-up; everything else falls
+ * through to a plain page refresh. Extracted so this routing decision is
+ * unit-testable without mounting circle-chat.tsx (see
+ * test/realtime-hooks.test.ts).
+ */
+export function isChatBackfillEvent(event: Pick<RealtimeEvent, "type">): boolean {
+  return event.type === "message" || event.type === "reconnect";
+}

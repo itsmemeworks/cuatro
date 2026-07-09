@@ -368,6 +368,77 @@ describe("reliability counters", () => {
     expect(user?.lateCancelCount).toBe(0);
   });
 
+  // Exact edge of the 24h window: "inside 24h" reads as strictly less than
+  // 24h of notice remaining, so exactly-24h-before is the last moment that
+  // still counts as early (mirrors games-service.ts's `msToStart <
+  // LATE_CANCEL_WINDOW_MS`, not `<=`).
+  it("boundary: cancelling 1s inside 24h (23:59:59 notice) counts as a late cancel", () => {
+    fixture = seedCircle({
+      memberCount: 1,
+      standingGame: { weekday: 2, startTime: "20:00", slots: 4, rsvpWindowDays: 6 },
+    });
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, now);
+
+    const cancelTime = new Date(session.startsAt.getTime() - (DAY_MS - 1000)); // 23h 59m 59s before
+    rsvpOut(fixture.db, session.id, fixture.organiserId, cancelTime);
+
+    const user = fixture.db.select().from(users).where(eq(users.id, fixture.organiserId)).get();
+    expect(user?.lateCancelCount).toBe(1);
+  });
+
+  it("boundary: cancelling at exactly 24:00:00 notice does not count as a late cancel", () => {
+    fixture = seedCircle({
+      memberCount: 1,
+      standingGame: { weekday: 2, startTime: "20:00", slots: 4, rsvpWindowDays: 6 },
+    });
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, now);
+
+    const cancelTime = new Date(session.startsAt.getTime() - DAY_MS); // exactly 24h before
+    rsvpOut(fixture.db, session.id, fixture.organiserId, cancelTime);
+
+    const user = fixture.db.select().from(users).where(eq(users.id, fixture.organiserId)).get();
+    expect(user?.lateCancelCount).toBe(0);
+  });
+
+  it("boundary: cancelling 1s outside 24h (24:00:01 notice) does not count as a late cancel", () => {
+    fixture = seedCircle({
+      memberCount: 1,
+      standingGame: { weekday: 2, startTime: "20:00", slots: 4, rsvpWindowDays: 6 },
+    });
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, now);
+
+    const cancelTime = new Date(session.startsAt.getTime() - (DAY_MS + 1000)); // 24h + 1s before
+    rsvpOut(fixture.db, session.id, fixture.organiserId, cancelTime);
+
+    const user = fixture.db.select().from(users).where(eq(users.id, fixture.organiserId)).get();
+    expect(user?.lateCancelCount).toBe(0);
+  });
+
+  it("boundary: a reserve dropping out 1h before start is never a late cancel — reserves never held a slot", () => {
+    fixture = seedCircle({
+      memberCount: 5,
+      standingGame: { weekday: 2, startTime: "20:00", slots: 4, rsvpWindowDays: 6 },
+    });
+    const now = new Date("2026-01-05T00:00:00.000Z");
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, now);
+    const [p1, p2, p3, p4, p5] = [fixture.organiserId, ...fixture.memberIds];
+    for (const uid of [p1, p2, p3, p4, p5]) rsvpIn(fixture.db, session.id, uid, now);
+
+    // p5 is queued as reserve #1 (well inside the late-cancel window).
+    const oneHourBefore = new Date(session.startsAt.getTime() - 60 * 60 * 1000);
+    const outcome = rsvpOut(fixture.db, session.id, p5, oneHourBefore);
+    expect(outcome).toEqual({ ok: true, status: "out" });
+
+    const user = fixture.db.select().from(users).where(eq(users.id, p5)).get();
+    expect(user?.lateCancelCount).toBe(0);
+  });
+
   it("does not penalise a reserve who drops out of the queue (they never held a slot)", () => {
     fixture = seedCircle({
       memberCount: 5,

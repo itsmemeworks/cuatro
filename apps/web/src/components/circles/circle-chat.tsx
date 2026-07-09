@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useCircleLive } from "@/lib/realtime/hooks";
+import { isChatBackfillEvent } from "@/lib/realtime/channels";
 import { Meta } from "@/components/ui";
 
 export interface ChatMessage {
@@ -65,7 +66,7 @@ export function CircleChat({
   }, [circleId]);
 
   useCircleLive(circleId, (event) => {
-    if (event.type === "message" || event.type === "reconnect") backfill();
+    if (isChatBackfillEvent(event)) backfill();
     else router.refresh();
   });
 

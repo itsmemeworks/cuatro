@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
-import { getMatchesStore, computeWinner } from "@/server/matches-db";
+import { getMatchesStore, computeWinner, gamesTotals } from "@/server/matches-db";
 import { confirmMatchAction, disputeMatchAction } from "@/server/matches-actions";
 import { ScoreTable, MatchStatusBadge } from "@/components/matches/score-table";
 import { MatchConfirmFlow } from "@/components/matches/match-confirm-flow";
@@ -30,6 +30,13 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const teamAName = `${players[match.teamAPlayer1Id]} & ${players[match.teamAPlayer2Id]}`;
   const teamBName = `${players[match.teamBPlayer1Id]} & ${players[match.teamBPlayer2Id]}`;
   const winner = computeWinner(match.score);
+  // computeWinner falls back to "A" when there are no games to compare (see
+  // its own doc comment) — a real pick for a genuine 0-0 tie, but nonsense
+  // for a walkover or a match retired before any games were played. Same
+  // "totalGames <= 0" condition @cuatro/glass's engine itself uses to skip
+  // Glass entirely for that case (packages/glass/src/engine.ts).
+  const { gamesWonA, gamesWonB } = gamesTotals(match.score);
+  const noRealWinner = match.outcome === "walkover" || gamesWonA + gamesWonB <= 0;
 
   const viewerHasConfirmed = viewerTeam !== null && confirmedTeams.includes(viewerTeam);
   const canAct = match.status === "pending_confirmation" && viewerTeam !== null && !viewerHasConfirmed;
@@ -47,12 +54,13 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 
       <Card className="flex flex-col gap-3">
         <ScoreTable sets={match.score} teamAName={teamAName} teamBName={teamBName} />
-        <Meta>{winner === "A" ? teamAName : teamBName} won</Meta>
+        <Meta>{noRealWinner ? "No games played" : `${winner === "A" ? teamAName : teamBName} won`}</Meta>
       </Card>
 
       {match.status !== "void" && (
         <MatchConfirmFlow
           status={match.status}
+          outcome={match.outcome}
           teamAName={teamAName}
           teamBName={teamBName}
           confirmedTeams={confirmedTeams}

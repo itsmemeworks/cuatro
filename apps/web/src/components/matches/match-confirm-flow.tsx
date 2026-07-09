@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, Card, Fact } from "@/components/ui";
-import type { LedgerEvent } from "@cuatro/glass";
+import type { LedgerEvent, MatchOutcome } from "@cuatro/glass";
 
 export type Team = "A" | "B";
 export type MatchStatus = "pending_confirmation" | "verified" | "disputed" | "void";
@@ -24,8 +24,25 @@ function fmtDelta(delta: number): string {
  * teams see immediately, so it must honour the same "hidden until revealed"
  * rule as the Ledger and GlassHero rather than leaking the number early.
  */
-function ratingStillHidden(explanation: string): boolean {
+export function ratingStillHidden(explanation: string): boolean {
   return explanation.startsWith("Placement match");
+}
+
+/**
+ * A verified match with zero Ledger rows means the Glass engine skipped it
+ * outright — @cuatro/glass's README "Walkover / retired policy": every
+ * walkover is skipped regardless of games played, and a "retired" outcome
+ * is only skipped when it ended with zero games (matches-db.ts's
+ * applyGlassAndPersist still flips the match to "verified" in this case, so
+ * without this check the seal card would render "written to both Ledgers"
+ * over two silently-empty columns — indistinguishable from a rendering bug).
+ * Exported so the copy is unit-testable without mounting the component —
+ * see test/match-confirm-flow.test.ts.
+ */
+export function glassSkipNote(outcome: MatchOutcome, ledgerEventCount: number): string | null {
+  if (ledgerEventCount > 0) return null;
+  if (outcome === "walkover") return "Recorded as a walkover — no one's Glass rating moved.";
+  return "No games were played — no one's Glass rating moved.";
 }
 
 /**
@@ -47,6 +64,7 @@ function ratingStillHidden(explanation: string): boolean {
  */
 export function MatchConfirmFlow({
   status,
+  outcome,
   teamAName,
   teamBName,
   confirmedTeams,
@@ -60,6 +78,7 @@ export function MatchConfirmFlow({
   disputeAction,
 }: {
   status: MatchStatus;
+  outcome: MatchOutcome;
   teamAName: string;
   teamBName: string;
   confirmedTeams: Team[];
@@ -109,6 +128,19 @@ export function MatchConfirmFlow({
   }
 
   if (phase === "sealed" && ledgerEvents) {
+    const skipNote = glassSkipNote(outcome, ledgerEvents.length);
+    if (skipNote) {
+      // Same quiet-fact framing as the disputed card above — a skipped
+      // engine run is a neutral outcome, not something to dress up as a
+      // celebratory seal with two blank columns underneath it.
+      return (
+        <Card>
+          <p className="text-cu-body font-semibold text-ink">Result sealed.</p>
+          <p className="text-cu-secondary text-ink-muted mt-1">{skipNote}</p>
+        </Card>
+      );
+    }
+
     const teamAEvents = ledgerEvents.filter((e) => teamAPlayerIds.includes(e.playerId));
     const teamBEvents = ledgerEvents.filter((e) => teamBPlayerIds.includes(e.playerId));
     return (
