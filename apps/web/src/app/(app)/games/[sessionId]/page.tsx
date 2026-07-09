@@ -3,16 +3,21 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
-import { checkFourthCallLevel1, getSessionSummary, isFourthCallActive } from "@/server/games-service";
+import { checkFourthCallLevel1, getSessionSummary, isFourthCallActive, DEFAULT_SESSION_DURATION_MINUTES } from "@/server/games-service";
 import { hasFourthCallInvite } from "@/server/fourth-call";
 import { isOrganiser } from "@/server/standing-games-service";
 import { getMatchesStore } from "@/server/matches-db";
 import { listNotificationsForUser } from "@/server/notifications";
+import { hasTabSplitForSession } from "@/server/session-tab";
+import { createTabSplitForSessionAction } from "@/server/session-tab-actions";
+import { pinVenueLocationAction } from "@/server/pin-location-actions";
 import { SessionCard, type SessionCardData } from "@/components/games/SessionCard";
 import { FourthCallReceive } from "@/components/circle-screens/fourth-call-receive";
 import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
-import { Meta } from "@/components/ui";
+import { Button, Meta } from "@/components/ui";
 import { sessionOgImageUrl } from "@/lib/og";
+import { googleMapsUrl, appleMapsUrl } from "@/lib/directions";
+import { formatMoney } from "@/components/tab/money";
 
 // getSessionSummary has no membership gate on reads (only the RSVP mutations
 // do — see server/games-service.ts), so this is safe to build without a
@@ -146,6 +151,13 @@ export default async function SessionDetailPage({
   const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt.getTime();
   const viewerIsOrganiser = isOrganiser(db, summary.circleId, user.id);
 
+  const durationMinutes = summary.standingGame?.durationMinutes ?? DEFAULT_SESSION_DURATION_MINUTES;
+  const alreadySplit = isPast && summary.costMinor != null ? hasTabSplitForSession(db, sessionId) : false;
+  const boundCreateSplit = createTabSplitForSessionAction.bind(null, sessionId);
+  const boundPinLocation = summary.venue
+    ? pinVenueLocationAction.bind(null, summary.circleId, summary.venue.name, summary.venue.address ?? null)
+    : null;
+
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-4">
       <Link href="/home" className="text-cu-body font-bold text-action-strong">
@@ -165,13 +177,71 @@ export default async function SessionDetailPage({
         </Link>
       )}
 
-      <Link
-        href={`/circles/${summary.circleId}/tab`}
-        className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3"
-      >
-        <span className="text-cu-body text-ink flex-1">Court split goes on the Tab</span>
-        <Meta tone="action">The Tab →</Meta>
-      </Link>
+      {summary.venue && (
+        <div className="rounded-button bg-surface border border-ink-hairline-1 p-4 flex flex-col gap-2.5">
+          <div>
+            <p className="text-cu-body font-bold text-ink">{summary.venue.name}</p>
+            {summary.venue.address && <Meta as="p" className="font-mono">{summary.venue.address}</Meta>}
+          </div>
+          <div className="flex gap-2">
+            <a
+              href={googleMapsUrl(summary.venue.address || summary.venue.name)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 rounded-button border border-ink-hairline-3 text-ink text-[13px] font-bold py-2.5 text-center transition-cu-state active:opacity-80"
+            >
+              Google Maps
+            </a>
+            <a
+              href={appleMapsUrl(summary.venue.address || summary.venue.name)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 rounded-button border border-ink-hairline-3 text-ink text-[13px] font-bold py-2.5 text-center transition-cu-state active:opacity-80"
+            >
+              Apple Maps
+            </a>
+          </div>
+          {boundPinLocation && (
+            <form action={boundPinLocation}>
+              <button
+                type="submit"
+                className="w-full rounded-button border border-dashed border-action text-action-strong text-[13px] font-bold py-2.5 text-center transition-cu-state active:opacity-80"
+              >
+                📍 Pin location to the Lot&apos;s chat
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {summary.costMinor != null ? (
+        <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex flex-col gap-2.5">
+          <p className="text-cu-body text-ink font-mono">
+            {formatMoney(summary.costMinor, summary.costCurrency)} court
+            {summary.costPerHeadMinor != null && ` · ${formatMoney(summary.costPerHeadMinor, summary.costCurrency)} each`}
+            {` · ${durationMinutes} min`}
+          </p>
+          {isPast ? (
+            <form action={boundCreateSplit}>
+              <Button type="submit" variant={alreadySplit ? "quiet" : "primary"} disabled={alreadySplit} fullWidth>
+                {alreadySplit ? "Split on the Tab ✓" : "Goes on the Tab"}
+              </Button>
+            </form>
+          ) : (
+            <Link href={`/circles/${summary.circleId}/tab`} className="text-cu-body font-bold text-action-strong">
+              The Tab →
+            </Link>
+          )}
+        </div>
+      ) : (
+        <Link
+          href={`/circles/${summary.circleId}/tab`}
+          className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3"
+        >
+          <span className="text-cu-body text-ink flex-1">Court split goes on the Tab</span>
+          <Meta tone="action">The Tab →</Meta>
+        </Link>
+      )}
 
       {isPast && (
         <Link

@@ -35,6 +35,7 @@ import {
 import { computeNextOccurrence } from "./tz";
 import { resolveVenue, isOrganiser } from "./standing-games-service";
 import { insertNotification } from "./notify";
+import { computeEqualSplit } from "./tab";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -526,7 +527,18 @@ export type SessionSummary = {
   reserves: PlayerRef[]; // ordered by position
   viewerStatus: "in" | "reserve" | "out" | null;
   rsvpWindowOpensAt: Date;
+  /** null when the standing game's organiser hasn't set a court cost yet (design/DESIGN-AUDIT.md F4) — a one-off session (no standing game) never has one, matching the schema (cost lives on standing_games only). */
+  costMinor: number | null;
+  costCurrency: string;
+  /** floor(cost / slots), remainder absorbed by whoever ends up paying — same rule as server/tab.ts's computeEqualSplit, reused here for display before any Tab split exists. */
+  costPerHeadMinor: number | null;
 };
+
+/** "£32 court, 4 slots" -> £8 each, floor + payer-absorbs-remainder, reusing tab.ts's computeEqualSplit (design/DESIGN-AUDIT.md F4). Null when there's no cost, or fewer than 2 slots (nothing to split). */
+export function computeSessionCostPerHead(costMinor: number | null, slots: number): number | null {
+  if (costMinor == null || slots < 2) return null;
+  return computeEqualSplit(costMinor, slots - 1).shareMinor;
+}
 
 export function getSessionSummary(
   db: CuatroDb,
@@ -570,6 +582,8 @@ export function getSessionSummary(
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
     .map(toPlayerRef);
   const viewerRow = rows.find((r) => r.userId === viewerUserId);
+  const slots = slotsForSession(standingGame);
+  const costMinor = standingGame?.costMinor ?? null;
 
   return {
     session,
@@ -577,11 +591,14 @@ export function getSessionSummary(
     venue,
     circleId: session.circleId,
     circleName: circle?.name ?? "",
-    slots: slotsForSession(standingGame),
+    slots,
     confirmed,
     reserves,
     viewerStatus: (viewerRow?.status as "in" | "reserve" | "out" | undefined) ?? null,
     rsvpWindowOpensAt: new Date(session.startsAt.getTime() - rsvpWindowDaysFor(standingGame) * DAY_MS),
+    costMinor,
+    costCurrency: standingGame?.costCurrency ?? "GBP",
+    costPerHeadMinor: computeSessionCostPerHead(costMinor, slots),
   };
 }
 

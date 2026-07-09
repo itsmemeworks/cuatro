@@ -20,6 +20,12 @@ export const standingGames = sqliteTable(
     slots: integer('slots').notNull().default(4),
     rsvpWindowDays: integer('rsvp_window_days').notNull().default(6),
     active: booleanColumn('active').notNull().default(true),
+    // The court cost for one occurrence (design/DESIGN-AUDIT.md F4) — null
+    // means the organiser hasn't set a price, so no "goes on the Tab" split
+    // can be offered. World-ready rule: minor units + ISO 4217, never a
+    // float (see packages/db/src/schema/tabs.ts's amount_minor precedent).
+    costMinor: integer('cost_minor'),
+    costCurrency: text('cost_currency').notNull().default('GBP'),
     createdAt: createdAtColumn(),
   },
   (table) => ({

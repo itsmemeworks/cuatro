@@ -1,19 +1,24 @@
 /**
- * Circle Feed read model: verified-match result posts + the rivalry/streak
- * callout (design/HANDOFF.md screen 4). Lives apart from server/circles.ts
- * (which owns Circle/chat persistence) and server/matches-db.ts (which owns
- * a single match's own record/confirm/dispute lifecycle) because this is a
- * third thing — a circle-scoped aggregation *over* already-verified matches
- * — rather than a mutation on either.
+ * Circle Feed read model: verified-match result posts, placement-reveal
+ * posts, and the rivalry/streak callout (design/HANDOFF.md screen 4,
+ * design/DESIGN-AUDIT.md F2). Lives apart from server/circles.ts (which owns
+ * Circle/chat persistence) and server/matches-db.ts (which owns a single
+ * match's own record/confirm/dispute lifecycle) because this is a third
+ * thing — a circle-scoped aggregation *over* already-verified matches —
+ * rather than a mutation on either.
  *
  * 👏 Respect is the one reaction kind in v0 (see @cuatro/db's
- * match_reactions table). 💬 counts are NOT built here: the prototype ties a
- * comment count to each result post, but there's no comments backend in
- * v0 — building one (threaded, per-match) is out of this pass's scope.
- * ResultPostView deliberately has no `commentCount` field; the Feed UI
- * shows Respect + a "rematch?" link instead (see circle-tabs.tsx).
+ * match_reactions table); 💬 counts come from server/comments.ts's
+ * match_comments table (design/DESIGN-AUDIT.md F1) — this module only reads
+ * counts, comment CRUD itself lives there.
+ *
+ * `listCircleFeed` is the canonical Feed data source (result posts ∪
+ * placement reveals, merged and time-sorted — see FeedItem):
+ * `listRecentResultsForCircle` stays around, unchanged in shape, purely for
+ * backward compatibility with existing callers/tests that only want result
+ * posts.
  */
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, like } from "drizzle-orm";
 import {
   circleMembers,
   matchReactions,
@@ -25,8 +30,9 @@ import {
   type CuatroDb,
   type SetScore,
 } from "@cuatro/db";
-import type { MatchOutcome } from "@cuatro/glass";
-import { computeWinner } from "./matches-db";
+import { PLACEMENT_TRIO_SIZE, type MatchOutcome } from "@cuatro/glass";
+import { computeWinner, PLACEMENT_REVEAL_EXPLANATION_PREFIX } from "./matches-db";
+import { getCommentCounts } from "./comments";
 import { emitCircleEvent } from "@/lib/realtime/broadcast";
 
 /** A streak below this length isn't a "rivalry" yet — just a couple of results. */
@@ -56,9 +62,35 @@ export interface ResultPostView {
   teamB: ResultPostTeam;
   respectCount: number;
   viewerRespected: boolean;
+  commentCount: number;
   /** "rematch?" creates nothing — links to the circle's standing game page, or the circle itself if it has none. */
   rematchHref: string;
 }
+
+/**
+ * "P finished her Placement Trio — Glass revealed: 4.15 / 3 verified games ·
+ * confidence 41%" (design/DESIGN-AUDIT.md C5) — one item per player whose
+ * Trio completed on `matchId`. `matchId` is the triggering match, so 👏
+ * Respect reuses match_reactions/toggleRespect exactly as a result post does
+ * (see listCircleFeed's header note on why that's trivial here).
+ */
+export interface PlacementRevealView {
+  ratingEventId: string;
+  matchId: string;
+  playedAt: Date;
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rating: number;
+  confidencePct: number;
+  verifiedGamesRequired: number;
+  respectCount: number;
+  viewerRespected: boolean;
+}
+
+export type FeedItem =
+  | { kind: "result"; post: ResultPostView }
+  | { kind: "placement_reveal"; reveal: PlacementRevealView };
 
 export interface RivalryCallout {
   opponentUserId: string;
@@ -207,6 +239,8 @@ export function listRecentResultsForCircle(
   const activeStandingGame = db.select({ id: standingGames.id }).from(standingGames).where(and(eq(standingGames.circleId, circleId), eq(standingGames.active, true))).get();
   const rematchHref = activeStandingGame ? `/games/standing/${activeStandingGame.id}` : `/circles/${circleId}`;
 
+  const commentCounts = getCommentCounts(db, matchIds);
+
   function teamDelta(deltas: Map<string, number> | undefined, playerIds: readonly [string, string]): number | null {
     if (!deltas) return null;
     const values = playerIds.map((id) => deltas.get(id)).filter((v): v is number => v != null);
@@ -228,6 +262,7 @@ export function listRecentResultsForCircle(
       teamB: { players: [refOf(m.teamBPlayer1Id), refOf(m.teamBPlayer2Id)], avgDelta: teamDelta(deltas, [m.teamBPlayer1Id, m.teamBPlayer2Id]) },
       respectCount: reactorIds.length,
       viewerRespected: reactorIds.includes(viewerUserId),
+      commentCount: commentCounts.get(m.id) ?? 0,
       rematchHref,
     };
   });
@@ -242,6 +277,87 @@ export function listRecentResultsForCircle(
   const rivalry = computeRivalryCallout(streakMatches, viewerUserId, nameOf);
 
   return { posts, rivalry };
+}
+
+/**
+ * The canonical Feed data source (design/DESIGN-AUDIT.md F2): result posts
+ * ∪ placement-reveal posts, time-sorted together and capped to `limit`
+ * overall. Wraps listRecentResultsForCircle for the result-post half rather
+ * than re-querying — a placement reveal's `matchId` is always one of the
+ * same `displayMatches` that call already loaded (a reveal is written on
+ * the very match that completed someone's Trio), so `posts` already carries
+ * everything a reveal needs to reuse for 👏 Respect (see
+ * PlacementRevealView's header note).
+ */
+export function listCircleFeed(
+  db: CuatroDb,
+  circleId: string,
+  viewerUserId: string,
+  limit = DEFAULT_FEED_LIMIT,
+): { items: FeedItem[]; rivalry: RivalryCallout | null } {
+  const { posts, rivalry } = listRecentResultsForCircle(db, circleId, viewerUserId, limit);
+  if (posts.length === 0) return { items: [], rivalry };
+
+  const matchIds = posts.map((p) => p.matchId);
+  const postByMatchId = new Map(posts.map((p) => [p.matchId, p]));
+
+  const revealRows = db
+    .select({
+      id: ratingEvents.id,
+      matchId: ratingEvents.matchId,
+      userId: ratingEvents.userId,
+      ratingAfter: ratingEvents.ratingAfter,
+      confidenceAfter: ratingEvents.confidenceAfter,
+    })
+    .from(ratingEvents)
+    .where(and(inArray(ratingEvents.matchId, matchIds), like(ratingEvents.explanation, `${PLACEMENT_REVEAL_EXPLANATION_PREFIX}%`)))
+    .all();
+
+  const revealUserIds = [...new Set(revealRows.map((r) => r.userId))];
+  const revealUsers = revealUserIds.length
+    ? db.select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(inArray(users.id, revealUserIds)).all()
+    : [];
+  const revealUserById = new Map(revealUsers.map((u) => [u.id, u]));
+
+  const reveals: PlacementRevealView[] = revealRows.map((r) => {
+    const post = postByMatchId.get(r.matchId)!;
+    const u = revealUserById.get(r.userId);
+    return {
+      ratingEventId: r.id,
+      matchId: r.matchId,
+      playedAt: post.playedAt,
+      userId: r.userId,
+      displayName: u?.displayName ?? "Unknown",
+      avatarUrl: u?.avatarUrl ?? null,
+      rating: r.ratingAfter,
+      confidencePct: Math.round(r.confidenceAfter * 100),
+      verifiedGamesRequired: PLACEMENT_TRIO_SIZE,
+      respectCount: post.respectCount,
+      viewerRespected: post.viewerRespected,
+    };
+  });
+
+  function timeOf(item: FeedItem): number {
+    return (item.kind === "result" ? item.post.playedAt : item.reveal.playedAt).getTime();
+  }
+  function sortIdOf(item: FeedItem): string {
+    return item.kind === "result" ? item.post.matchId : item.reveal.ratingEventId;
+  }
+
+  const items: FeedItem[] = [
+    ...posts.map((post): FeedItem => ({ kind: "result", post })),
+    ...reveals.map((reveal): FeedItem => ({ kind: "placement_reveal", reveal })),
+  ]
+    .sort((a, b) => {
+      const byTime = timeOf(b) - timeOf(a);
+      if (byTime !== 0) return byTime;
+      const aId = sortIdOf(a);
+      const bId = sortIdOf(b);
+      return aId < bId ? 1 : aId > bId ? -1 : 0;
+    })
+    .slice(0, limit);
+
+  return { items, rivalry };
 }
 
 export type ToggleRespectOutcome =

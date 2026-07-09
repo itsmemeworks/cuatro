@@ -1,6 +1,6 @@
 import { relations } from 'drizzle-orm'
 import { circleMembers, circleMessages, circles } from './circles.js'
-import { matchConfirmations, matchReactions, matches } from './matches.js'
+import { matchComments, matchConfirmations, matchReactions, matches } from './matches.js'
 import { notifications } from './notifications.js'
 import { ratingEvents } from './rating-events.js'
 import { rsvps } from './rsvps.js'
@@ -124,6 +124,7 @@ export const matchesRelations = relations(matches, ({ one, many }) => ({
   confirmations: many(matchConfirmations),
   ratingEvents: many(ratingEvents),
   reactions: many(matchReactions),
+  comments: many(matchComments),
 }))
 
 export const matchReactionsRelations = relations(matchReactions, ({ one }) => ({
@@ -133,6 +134,17 @@ export const matchReactionsRelations = relations(matchReactions, ({ one }) => ({
   }),
   user: one(users, {
     fields: [matchReactions.userId],
+    references: [users.id],
+  }),
+}))
+
+export const matchCommentsRelations = relations(matchComments, ({ one }) => ({
+  match: one(matches, {
+    fields: [matchComments.matchId],
+    references: [matches.id],
+  }),
+  user: one(users, {
+    fields: [matchComments.userId],
     references: [users.id],
   }),
 }))

@@ -97,9 +97,34 @@ export const matchReactions = sqliteTable(
   }),
 )
 
+// 💬 comments on a verified match's Feed result post (design/DESIGN-AUDIT.md
+// F1). Flat, no replies/threads at v0 — same shape choice circle_messages
+// made (see circles.ts). Body length (≤1000) is enforced app-side (see
+// server/comments.ts's MAX_COMMENT_LENGTH), not a DB CHECK constraint —
+// matching circle_messages' MAX_MESSAGE_LENGTH precedent.
+export const matchComments = sqliteTable(
+  'match_comments',
+  {
+    id: idColumn(),
+    matchId: text('match_id')
+      .notNull()
+      .references(() => matches.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    body: text('body').notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (table) => ({
+    matchIdCreatedAtIdx: index('match_comments_match_id_created_at_idx').on(table.matchId, table.createdAt),
+  }),
+)
+
 export type Match = typeof matches.$inferSelect
 export type NewMatch = typeof matches.$inferInsert
 export type MatchConfirmation = typeof matchConfirmations.$inferSelect
 export type NewMatchConfirmation = typeof matchConfirmations.$inferInsert
 export type MatchReaction = typeof matchReactions.$inferSelect
 export type NewMatchReaction = typeof matchReactions.$inferInsert
+export type MatchComment = typeof matchComments.$inferSelect
+export type NewMatchComment = typeof matchComments.$inferInsert

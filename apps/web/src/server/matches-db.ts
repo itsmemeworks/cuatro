@@ -52,6 +52,16 @@ import { emitCircleEvent, emitSessionEvent, emitUserEvent } from "@/lib/realtime
 
 export type Team = "A" | "B";
 
+/**
+ * The literal marker applyGlassAndPersist writes into a rating_event's
+ * `explanation` the moment a player's Placement Trio completes. server/
+ * feed.ts's placement-reveal Feed items (design/DESIGN-AUDIT.md F2) key off
+ * this exact prefix rather than re-deriving "was this player's Nth verified
+ * match exactly PLACEMENT_TRIO_SIZE" from scratch — same signal, one place
+ * it's written.
+ */
+export const PLACEMENT_REVEAL_EXPLANATION_PREFIX = "Placement Trio complete";
+
 export interface SessionEntryPlayer {
   id: string;
   displayName: string;
@@ -326,7 +336,7 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
 
     const explanation =
       wasUnrated && nowRated
-        ? `Placement Trio complete — your Glass number is live: ${ev.ratingAfter.toFixed(2)}`
+        ? `${PLACEMENT_REVEAL_EXPLANATION_PREFIX} — your Glass number is live: ${ev.ratingAfter.toFixed(2)}`
         : wasUnrated
           ? `Placement match ${updated.matchesPlayed} of ${PLACEMENT_TRIO_SIZE} — your Glass number stays hidden until the Trio completes`
           : ev.explanation;

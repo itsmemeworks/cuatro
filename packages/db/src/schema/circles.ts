@@ -1,5 +1,5 @@
 import { index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { createdAtColumn, idColumn } from './_columns.js'
+import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { users } from './users.js'
 
 // A Circle is the persistent group: members, chat, history, the Tab, its
@@ -37,6 +37,10 @@ export const circleMembers = sqliteTable(
       .notNull()
       .default('member'),
     joinedAt: createdAtColumn('joined_at'),
+    // Chat unread tracking (design/DESIGN-AUDIT.md F3): null means "never
+    // opened this Circle's chat" — every message counts as unread until the
+    // first markCircleRead() call, not zero of them.
+    lastReadAt: timestampColumn('last_read_at'),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.circleId, table.userId] }),

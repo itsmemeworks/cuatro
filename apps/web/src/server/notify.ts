@@ -48,6 +48,7 @@ export type NotificationInput =
   | { type: "result_verified"; payload: { matchId: string; delta: number; explanation: string } }
   | { type: "result_disputed"; payload: { matchId: string } }
   | { type: "confirm_result"; payload: { matchId: string; sessionId: string } }
+  | { type: "match_comment"; payload: { matchId: string; commenterId: string } }
   | {
       type: "tab_nudge";
       payload: { circleId: string; tabEntryId: string; amountMinor: number; currency: string };
@@ -172,6 +173,17 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
         body: `${input.payload.currency} ${amount} outstanding on the Tab. Settle when you can.`,
       };
     }
+    case "match_comment": {
+      const commenter = tx
+        .select({ displayName: users.displayName })
+        .from(users)
+        .where(eq(users.id, input.payload.commenterId))
+        .get();
+      return {
+        title: "A comment on your result",
+        body: `${commenter?.displayName ?? "Someone"} commented on a match you played. Tap to read it.`,
+      };
+    }
   }
 }
 
@@ -189,6 +201,7 @@ export function deepLinkFor(input: NotificationInput): string {
       return "/profile/ledger";
     case "result_disputed":
     case "confirm_result":
+    case "match_comment":
       return `/matches/${input.payload.matchId}`;
     case "tab_nudge":
       return `/circles/${input.payload.circleId}`;

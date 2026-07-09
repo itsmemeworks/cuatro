@@ -38,6 +38,7 @@ export type RealtimeEventType =
   | "fourth_call"
   | "match"
   | "reaction"
+  | "comment"
   | "tab"
   | "notification"
   | "reconnect";

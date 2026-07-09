@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { circleMembers, circles, sessions, standingGames, users, type CuatroDb } from "@cuatro/db";
 import { createMatchesStore, type MatchesStore } from "@/server/matches-db";
-import { computeRivalryCallout, listRecentResultsForCircle, toggleRespect, MIN_RIVALRY_STREAK } from "@/server/feed";
+import { computeRivalryCallout, listCircleFeed, listRecentResultsForCircle, toggleRespect, MIN_RIVALRY_STREAK } from "@/server/feed";
+import { addComment } from "@/server/comments";
 import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
 import { circleChannel } from "@/lib/realtime/channels";
 
@@ -76,6 +77,7 @@ describe("server/feed — circle Feed read model", () => {
     expect(post.teamB.avgDelta!).toBeLessThan(0); // losers lose
     expect(post.respectCount).toBe(0);
     expect(post.viewerRespected).toBe(false);
+    expect(post.commentCount).toBe(0);
     expect(post.rematchHref).toBe(`/circles/${circle.id}`);
     // No rivalry yet — only one match played between any pairing.
     expect(rivalry).toBeNull();
@@ -346,5 +348,88 @@ describe("computeRivalryCallout (pure)", () => {
   it("ignores matches the viewer wasn't part of", () => {
     const matches = [match("1", 1, ["k", "m"], ["x1", "x2"], "A")];
     expect(computeRivalryCallout(matches, "v", nameOf)).toBeNull();
+  });
+});
+
+describe("listCircleFeed — result posts ∪ placement reveals", () => {
+  let store: MatchesStore;
+  let db: CuatroDb;
+
+  beforeEach(() => {
+    store = createMatchesStore(":memory:");
+    db = store.db;
+  });
+
+  afterEach(() => {
+    store.close();
+    __setRealtimeSenderForTests(null);
+  });
+
+  it("reflects server/comments.ts's live comment count on each result post", async () => {
+    const organiser = insertUser(db, "cf-org@example.com", "CFOrg");
+    const circle = insertCircle(db, organiser.id);
+    addMember(db, circle.id, organiser.id, "organiser");
+    const b = insertUser(db, "cf-b@example.com", "CFB");
+    const c = insertUser(db, "cf-c@example.com", "CFC");
+    const d = insertUser(db, "cf-d@example.com", "CFD");
+    for (const u of [b, c, d]) addMember(db, circle.id, u.id);
+
+    const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+    const { matchId } = await store.recordMatch({
+      sessionId: session.id,
+      reporterId: organiser.id,
+      teamA: [organiser.id, b.id],
+      teamB: [c.id, d.id],
+      sets: [{ a: 6, b: 2 }],
+    });
+    await store.confirmMatch(matchId, c.id);
+    addComment(db, matchId, organiser.id, "great game");
+    addComment(db, matchId, b.id, "gg");
+
+    const { items } = listCircleFeed(db, circle.id, organiser.id);
+    const resultItem = items.find((i) => i.kind === "result");
+    expect(resultItem?.kind).toBe("result");
+    if (resultItem?.kind !== "result") throw new Error("unreachable");
+    expect(resultItem.post.commentCount).toBe(2);
+  });
+
+  it("adds a placement_reveal item for every player whose Trio completes on a match, reusing that match's 👏 Respect", async () => {
+    const p1 = insertUser(db, "pr-1@example.com", "PR One");
+    const p2 = insertUser(db, "pr-2@example.com", "PR Two");
+    const p3 = insertUser(db, "pr-3@example.com", "PR Three");
+    const p4 = insertUser(db, "pr-4@example.com", "PR Four");
+    const circle = insertCircle(db, p1.id);
+    for (const u of [p1, p2, p3, p4]) addMember(db, circle.id, u.id, u.id === p1.id ? "organiser" : "member");
+
+    // Same four players, three matches — every player's verifiedMatchCount
+    // goes 0 -> 1 -> 2 -> 3, so the THIRD match completes everyone's
+    // Placement Trio at once (PLACEMENT_TRIO_SIZE = 3).
+    let thirdMatchId = "";
+    for (let i = 0; i < 3; i++) {
+      const session = insertSession(db, circle.id, new Date(Date.now() - (3 - i) * DAY_MS));
+      const { matchId } = await store.recordMatch({
+        sessionId: session.id,
+        reporterId: p1.id,
+        teamA: [p1.id, p2.id],
+        teamB: [p3.id, p4.id],
+        sets: [{ a: 6, b: 2 }],
+      });
+      await store.confirmMatch(matchId, p3.id);
+      thirdMatchId = matchId;
+    }
+
+    const { items } = listCircleFeed(db, circle.id, p1.id);
+    const reveals = items.filter((i) => i.kind === "placement_reveal").map((i) => (i.kind === "placement_reveal" ? i.reveal : null))!;
+    expect(reveals).toHaveLength(4); // all four players' Trio completes on the same match
+    expect(new Set(reveals.map((r) => r!.userId))).toEqual(new Set([p1.id, p2.id, p3.id, p4.id]));
+    for (const r of reveals) {
+      expect(r!.matchId).toBe(thirdMatchId);
+      expect(r!.verifiedGamesRequired).toBe(3);
+      expect(typeof r!.rating).toBe("number");
+      expect(r!.respectCount).toBe(0); // reused from the triggering match's own reactions — none yet
+    }
+
+    // The three matches also produce three ordinary result posts.
+    expect(items.filter((i) => i.kind === "result")).toHaveLength(3);
   });
 });

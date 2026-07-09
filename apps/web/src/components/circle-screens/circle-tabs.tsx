@@ -1,18 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { SegmentedControl, Card, DashedSlot, Meta } from "@/components/ui";
 import { CircleChat, type ChatMessage } from "@/components/circles/circle-chat";
 import { MemberList, type MemberListItem } from "@/components/circles/member-list";
 import { InviteShareButton } from "@/components/circles/invite-share-button";
 import type { SessionCardData } from "@/components/games/SessionCard";
+import { useCircleLive } from "@/lib/realtime/hooks";
 import { PinnedGameBar } from "./pinned-game-bar";
 import { SessionCardWithToast } from "./session-card-with-toast";
 import { ResultPost, type ResultPostData } from "./result-post";
+import { PlacementRevealPost, type PlacementRevealPostData } from "./placement-reveal-post";
 import { RivalryCallout } from "./rivalry-callout";
 
 type Tab = "feed" | "chat" | "members";
+
+/** Serialized mirror of server/feed.ts's FeedItem — result posts ∪ placement reveals, already time-sorted by the caller. */
+export type FeedItemData =
+  | { kind: "result"; post: ResultPostData }
+  | { kind: "placement_reveal"; reveal: PlacementRevealPostData };
 
 function formatWhen(startsAt: Date): string {
   return startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }).replace(",", "");
@@ -23,16 +30,18 @@ function formatWhen(startsAt: Date): string {
  * pinned bar and Chat's pinned bar are the same live session, so both read
  * from the same `sessionCards` prop rather than each fetching separately.
  *
- * Result posts + the rivalry callout come from server/feed.ts's
- * listRecentResultsForCircle (verified matches + Glass deltas + 👏 Respect
- * counts). Note: 💬 counts from the prototype are NOT rendered — there's no
- * comments backend in v0 (see result-post.tsx's header); Respect + a
- * "rematch?" link stand in for that row instead.
+ * Feed items (result posts + placement reveals) + the rivalry callout come
+ * from server/feed.ts's listCircleFeed (design/DESIGN-AUDIT.md F2).
+ *
+ * `unreadChatBadge` is the server-rendered initial count (design/
+ * DESIGN-AUDIT.md F3); it's kept live here — not just inside CircleChat,
+ * which only mounts while the Chat segment is active — so the "Chat ·N"
+ * label still updates while the viewer is looking at Feed/Members.
  */
 export function CircleTabs({
   circleId,
   circleColour,
-  unreadChatBadge,
+  unreadChatBadge = 0,
   sessionCards,
   messages,
   members,
@@ -40,7 +49,7 @@ export function CircleTabs({
   inviteCode,
   circleName,
   isOrganiser,
-  resultPosts,
+  feedItems,
   rivalry,
 }: {
   circleId: string;
@@ -53,12 +62,35 @@ export function CircleTabs({
   inviteCode: string;
   circleName: string;
   isOrganiser: boolean;
-  resultPosts: ResultPostData[];
+  feedItems: FeedItemData[];
   rivalry: { opponentName: string; count: number; direction: "beaten" | "lost_to" } | null;
 }) {
   const [tab, setTab] = useState<Tab>("feed");
+  const [unread, setUnread] = useState(unreadChatBadge);
   const primary = sessionCards[0] ?? null;
   const rest = sessionCards.slice(1);
+
+  const refreshUnread = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/circles/${circleId}/unread-count`);
+      if (!res.ok) return;
+      const body = await res.json();
+      if (typeof body.count === "number") setUnread(body.count);
+    } catch {
+      // Best-effort — stays at its last known value until the next live event.
+    }
+  }, [circleId]);
+
+  // While the Chat segment is open, CircleChat itself marks the circle read
+  // on mount and on every new message — this listener exists so a viewer
+  // sitting on Feed/Members still sees "Chat ·N" tick up/down live.
+  useCircleLive(tab === "chat" ? null : circleId, (event) => {
+    if (event.type === "message" || event.type === "reconnect") refreshUnread();
+  });
+
+  useEffect(() => {
+    if (tab === "chat") setUnread(0); // CircleChat's own mount-time markCircleRead call is about to zero this server-side
+  }, [tab]);
 
   const pinnedBar = primary && (
     <PinnedGameBar
@@ -78,7 +110,7 @@ export function CircleTabs({
       <SegmentedControl
         options={[
           { value: "feed", label: "Feed" },
-          { value: "chat", label: "Chat", badge: unreadChatBadge && unreadChatBadge > 0 ? unreadChatBadge : undefined },
+          { value: "chat", label: "Chat", badge: unread > 0 ? unread : undefined },
           { value: "members", label: "Members" },
         ]}
         value={tab}
@@ -110,11 +142,15 @@ export function CircleTabs({
               )}
             </Card>
           )}
-          {resultPosts.length > 0 ? (
+          {feedItems.length > 0 ? (
             <div className="flex flex-col gap-3">
-              {resultPosts.map((post) => (
-                <ResultPost key={post.matchId} data={post} />
-              ))}
+              {feedItems.map((item) =>
+                item.kind === "result" ? (
+                  <ResultPost key={`result-${item.post.matchId}`} data={item.post} />
+                ) : (
+                  <PlacementRevealPost key={`reveal-${item.reveal.ratingEventId}`} data={item.reveal} />
+                ),
+              )}
             </div>
           ) : (
             <Meta as="p" className="text-center px-4">

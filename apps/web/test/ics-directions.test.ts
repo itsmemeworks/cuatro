@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildIcsEvent } from "@/lib/ics";
-import { googleMapsUrl, venueDirectionsUrl } from "@/lib/directions";
+import { appleMapsUrl, googleMapsUrl, venueAppleMapsUrl, venueDirectionsUrl } from "@/lib/directions";
 
 describe("buildIcsEvent", () => {
   it("renders a single-VEVENT VCALENDAR with UTC basic-format dates", () => {
@@ -59,5 +59,23 @@ describe("googleMapsUrl / venueDirectionsUrl", () => {
   it("falls back to the name when there's no address, and to null when there's no venue", () => {
     expect(venueDirectionsUrl({ name: "Powerleague Shoreditch" })).toBe(googleMapsUrl("Powerleague Shoreditch"));
     expect(venueDirectionsUrl(null)).toBeNull();
+  });
+});
+
+describe("appleMapsUrl / venueAppleMapsUrl", () => {
+  it("URL-encodes the query against maps.apple.com", () => {
+    expect(appleMapsUrl("Powerleague Shoreditch, London")).toBe(
+      "https://maps.apple.com/?q=Powerleague%20Shoreditch%2C%20London",
+    );
+  });
+
+  it("prefers a venue's address over its bare name, same as venueDirectionsUrl", () => {
+    const url = venueAppleMapsUrl({ name: "Powerleague Shoreditch", address: "Braithwaite St, E1 6GJ" });
+    expect(url).toBe(appleMapsUrl("Braithwaite St, E1 6GJ"));
+  });
+
+  it("falls back to the name when there's no address, and to null when there's no venue", () => {
+    expect(venueAppleMapsUrl({ name: "Powerleague Shoreditch" })).toBe(appleMapsUrl("Powerleague Shoreditch"));
+    expect(venueAppleMapsUrl(null)).toBeNull();
   });
 });

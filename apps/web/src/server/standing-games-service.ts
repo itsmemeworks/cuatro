@@ -31,12 +31,26 @@ export type StandingGameInput = {
   venueId?: string | null;
   /** Free-text create-or-pick: matched by exact name, else a new venue row is created. */
   venueName?: string | null;
+  /** Sets/overwrites the resolved venue's address (design/DESIGN-AUDIT.md F5) — undefined leaves it untouched, "" clears it. */
+  venueAddress?: string | null;
+  /** The court cost for one occurrence (design/DESIGN-AUDIT.md F4). null/undefined leaves it unset — no "goes on the Tab" split can be offered until an organiser sets one. */
+  costMinor?: number | null;
+  costCurrency?: string;
 };
 
 export type StandingGamePatch = Partial<
   Pick<
     StandingGameInput,
-    "weekday" | "startTime" | "durationMinutes" | "slots" | "rsvpWindowDays" | "venueId" | "venueName"
+    | "weekday"
+    | "startTime"
+    | "durationMinutes"
+    | "slots"
+    | "rsvpWindowDays"
+    | "venueId"
+    | "venueName"
+    | "venueAddress"
+    | "costMinor"
+    | "costCurrency"
   >
 > & { active?: boolean };
 
@@ -51,31 +65,52 @@ export function isOrganiser(db: CuatroDb, circleId: string, userId: string): boo
   return row?.role === "organiser";
 }
 
-/** Create-or-pick a venue by exact free-text name, scoped to no particular circle (venues are global rows) but defaulted to the circle's country/timezone when created fresh. */
+/**
+ * Create-or-pick a venue by exact free-text name, scoped to no particular
+ * circle (venues are global rows) but defaulted to the circle's
+ * country/timezone when created fresh. `venueAddress` (design/
+ * DESIGN-AUDIT.md F5), if given, is written onto whichever venue this call
+ * resolves to — an existing venue's address is editable this way too, not
+ * just a freshly-created one's.
+ */
 export function resolveVenue(
   db: CuatroDb,
   circleId: string,
   venueId?: string | null,
   venueName?: string | null,
+  venueAddress?: string | null,
 ): string | null {
-  if (venueId) return venueId;
-  const name = venueName?.trim();
-  if (!name) return null;
+  let resolvedId: string | null;
 
-  const existing = db.select().from(venues).where(eq(venues.name, name)).get();
-  if (existing) return existing.id;
+  if (venueId) {
+    resolvedId = venueId;
+  } else {
+    const name = venueName?.trim();
+    if (!name) return null;
 
-  const circle = db.select().from(circles).where(eq(circles.id, circleId)).get();
-  const created = db
-    .insert(venues)
-    .values({
-      name,
-      countryCode: circle?.countryCode ?? "GB",
-      timezone: circle?.timezone ?? "Europe/London",
-    })
-    .returning()
-    .get();
-  return created.id;
+    const existing = db.select().from(venues).where(eq(venues.name, name)).get();
+    if (existing) {
+      resolvedId = existing.id;
+    } else {
+      const circle = db.select().from(circles).where(eq(circles.id, circleId)).get();
+      const created = db
+        .insert(venues)
+        .values({
+          name,
+          address: venueAddress?.trim() || null,
+          countryCode: circle?.countryCode ?? "GB",
+          timezone: circle?.timezone ?? "Europe/London",
+        })
+        .returning()
+        .get();
+      return created.id;
+    }
+  }
+
+  if (venueAddress !== undefined) {
+    db.update(venues).set({ address: venueAddress?.trim() || null }).where(eq(venues.id, resolvedId)).run();
+  }
+  return resolvedId;
 }
 
 function validateWeekdayAndTime(weekday: number, startTime: string): string | null {
@@ -94,7 +129,7 @@ export function createStandingGame(
   const validationError = validateWeekdayAndTime(input.weekday, input.startTime);
   if (validationError) return { ok: false, error: validationError };
 
-  const venueId = resolveVenue(db, input.circleId, input.venueId, input.venueName);
+  const venueId = resolveVenue(db, input.circleId, input.venueId, input.venueName, input.venueAddress);
 
   const created = db
     .insert(standingGames)
@@ -107,6 +142,8 @@ export function createStandingGame(
       slots: input.slots ?? 4,
       rsvpWindowDays: input.rsvpWindowDays ?? 6,
       active: true,
+      costMinor: input.costMinor ?? null,
+      costCurrency: input.costCurrency ?? "GBP",
     })
     .returning()
     .get();
@@ -140,10 +177,18 @@ export function updateStandingGame(
     if (validationError) return { ok: false, error: validationError };
   }
 
-  const venueId =
-    patch.venueId !== undefined || patch.venueName !== undefined
-      ? resolveVenue(db, existing.circleId, patch.venueId, patch.venueName)
-      : undefined;
+  // A venueName (or venueId) patch resolves/creates as before, now carrying
+  // venueAddress along to whichever venue that resolves to. An address-only
+  // patch (no venue swap) instead re-resolves the CURRENT venue by id, so
+  // "edit the address" works without also having to re-supply a name — but
+  // only if there's a venue to attach it to; a standing game with none yet
+  // has nowhere for a bare address to go.
+  let venueId: string | null | undefined;
+  if (patch.venueId !== undefined || patch.venueName !== undefined) {
+    venueId = resolveVenue(db, existing.circleId, patch.venueId, patch.venueName, patch.venueAddress);
+  } else if (patch.venueAddress !== undefined && existing.venueId) {
+    venueId = resolveVenue(db, existing.circleId, existing.venueId, undefined, patch.venueAddress);
+  }
 
   const updated = db
     .update(standingGames)
@@ -155,6 +200,8 @@ export function updateStandingGame(
       ...(patch.rsvpWindowDays !== undefined ? { rsvpWindowDays: patch.rsvpWindowDays } : {}),
       ...(venueId !== undefined ? { venueId } : {}),
       ...(patch.active !== undefined ? { active: patch.active } : {}),
+      ...(patch.costMinor !== undefined ? { costMinor: patch.costMinor } : {}),
+      ...(patch.costCurrency !== undefined ? { costCurrency: patch.costCurrency } : {}),
     })
     .where(eq(standingGames.id, id))
     .returning()

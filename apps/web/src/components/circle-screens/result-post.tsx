@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Avatar, Card, Chip, Fact, Meta } from "@/components/ui";
+import { CommentSheet } from "./comment-sheet";
+import { useRespectToggle } from "./use-respect-toggle";
 
 export interface ResultPostPlayer {
   userId: string;
@@ -20,6 +22,7 @@ export interface ResultPostData {
   teamB: { players: ResultPostPlayer[]; avgDelta: number | null };
   respectCount: number;
   viewerRespected: boolean;
+  commentCount: number;
   rematchHref: string;
 }
 
@@ -51,40 +54,14 @@ function TeamColumn({ team, won }: { team: ResultPostData["teamA"]; won: boolean
 
 /**
  * A Feed result post (prototype screen 4): big score, both teams' Glass
- * deltas, 👏 Respect. There is no comment count here — see server/feed.ts's
- * header for why 💬 (tied to a comments backend the prototype assumes but
- * v0 doesn't have) is deliberately left out; "rematch?" links into the
- * circle's Standing Game instead and creates nothing.
+ * deltas, 👏 Respect, 💬 comment count (server/comments.ts — tapping it
+ * opens the thread in a Sheet, see comment-sheet.tsx). "rematch?" links
+ * into the circle's Standing Game instead and creates nothing.
  */
 export function ResultPost({ data }: { data: ResultPostData }) {
-  const [respected, setRespected] = useState(data.viewerRespected);
-  const [count, setCount] = useState(data.respectCount);
-  const [pending, setPending] = useState(false);
-
-  async function toggleRespect() {
-    if (pending) return;
-    setPending(true);
-    const prevRespected = respected;
-    const prevCount = count;
-    setRespected(!prevRespected);
-    setCount(prevCount + (prevRespected ? -1 : 1));
-    try {
-      const res = await fetch(`/api/matches/${data.matchId}/respect`, { method: "POST" });
-      const body = await res.json();
-      if (res.ok && body.ok) {
-        setRespected(body.respected);
-        setCount(body.count);
-      } else {
-        setRespected(prevRespected);
-        setCount(prevCount);
-      }
-    } catch {
-      setRespected(prevRespected);
-      setCount(prevCount);
-    } finally {
-      setPending(false);
-    }
-  }
+  const { respected, count, pending, toggle: toggleRespect } = useRespectToggle(data.matchId, data.viewerRespected, data.respectCount);
+  const [commentCount, setCommentCount] = useState(data.commentCount);
+  const [commentsOpen, setCommentsOpen] = useState(false);
 
   const scoreLabel = data.sets.map((s) => `${s.a}-${s.b}`).join(", ");
 
@@ -115,6 +92,13 @@ export function ResultPost({ data }: { data: ResultPostData }) {
         >
           <span aria-hidden>👏</span> {count}
         </button>
+        <button
+          type="button"
+          onClick={() => setCommentsOpen(true)}
+          className="rounded-chip px-3 py-1.5 text-[12px] font-bold flex items-center gap-1.5 bg-ink-hairline-2 text-ink transition-cu-state active:opacity-80"
+        >
+          <span aria-hidden>💬</span> {commentCount}
+        </button>
         <Link href={data.rematchHref} className="text-cu-body font-bold text-action-strong">
           rematch?
         </Link>
@@ -122,6 +106,13 @@ export function ResultPost({ data }: { data: ResultPostData }) {
           {new Date(data.playedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
         </Meta>
       </div>
+
+      <CommentSheet
+        matchId={data.matchId}
+        open={commentsOpen}
+        onClose={() => setCommentsOpen(false)}
+        onCountChange={setCommentCount}
+      />
     </Card>
   );
 }

@@ -78,6 +78,26 @@ describe("createStandingGame", () => {
     const allVenues = fixture.db.select().from(venues).where(eq(venues.name, "Padel Palace")).all();
     expect(allVenues).toHaveLength(1);
   });
+
+  it("stores the venue's address and the standing game's cost when both are given (design/DESIGN-AUDIT.md F4/F5)", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const result = createStandingGame(fixture.db, fixture.organiserId, {
+      circleId: fixture.circleId,
+      weekday: 2,
+      startTime: "20:00",
+      venueName: "Padel Palace",
+      venueAddress: "1 Court Lane, London",
+      costMinor: 3200,
+      costCurrency: "GBP",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.costMinor).toBe(3200);
+    expect(result.value.costCurrency).toBe("GBP");
+
+    const venue = fixture.db.select().from(venues).where(eq(venues.id, result.value.venueId!)).get();
+    expect(venue?.address).toBe("1 Court Lane, London");
+  });
 });
 
 describe("updateStandingGame", () => {
@@ -100,6 +120,42 @@ describe("updateStandingGame", () => {
     fixture = seedCircle({ memberCount: 1 });
     const result = updateStandingGame(fixture.db, fixture.organiserId, "does-not-exist", { active: false });
     expect(result).toEqual({ ok: false, error: "not_found" });
+  });
+
+  it("sets the cost (design/DESIGN-AUDIT.md F4), defaulting currency to GBP and leaving it unset when omitted", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+
+    const withoutCost = updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { active: true });
+    if (!withoutCost.ok) throw new Error("unreachable");
+    expect(withoutCost.value.costMinor).toBeNull();
+    expect(withoutCost.value.costCurrency).toBe("GBP");
+
+    const result = updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 3200, costCurrency: "EUR" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.costMinor).toBe(3200);
+    expect(result.value.costCurrency).toBe("EUR");
+  });
+
+  it("edits the resolved venue's address without needing to re-supply its name", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    // seedCircle's venue has no address yet.
+    const before = fixture.db.select().from(venues).where(eq(venues.id, fixture.venueId)).get();
+    expect(before?.address ?? null).toBeNull();
+
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { venueAddress: "Braithwaite St, E1 6GJ" });
+    const after = fixture.db.select().from(venues).where(eq(venues.id, fixture.venueId)).get();
+    expect(after?.address).toBe("Braithwaite St, E1 6GJ");
+  });
+
+  it("attaches a fresh address to a newly-created venue when venueName + venueAddress are both given", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      venueName: "Padel Palace",
+      venueAddress: "1 Court Lane",
+    });
+    const created = fixture.db.select().from(venues).where(eq(venues.name, "Padel Palace")).get();
+    expect(created?.address).toBe("1 Court Lane");
   });
 });
 

@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+import { venues } from "@cuatro/db";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
@@ -26,6 +28,9 @@ export default async function EditStandingGamePage({ params }: { params: Promise
   const { db } = await getGamesClient();
   const standingGame = getStandingGame(db, id);
   if (!standingGame) notFound();
+
+  const venue = standingGame.venueId ? (db.select().from(venues).where(eq(venues.id, standingGame.venueId)).get() ?? null) : null;
+  const currentCostLabel = standingGame.costMinor != null ? (standingGame.costMinor / 100).toFixed(2) : "";
 
   const canManage = isOrganiser(db, standingGame.circleId, user.id);
   const boundUpdate = updateStandingGameAction.bind(null, id);
@@ -93,7 +98,17 @@ export default async function EditStandingGamePage({ params }: { params: Promise
 
             <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
               Venue
-              <input type="text" name="venueName" placeholder="Leave blank to keep current venue" className={fieldClass} />
+              <input type="text" name="venueName" placeholder="Leave blank to keep current venue" defaultValue={venue?.name ?? ""} className={fieldClass} />
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
+              Venue address
+              <input type="text" name="venueAddress" placeholder="e.g. Braithwaite St, London E1 6GJ" defaultValue={venue?.address ?? ""} className={fieldClass} />
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
+              Court cost (optional — splits on the Tab)
+              <input type="text" name="costAmount" inputMode="decimal" placeholder="32.00" defaultValue={currentCostLabel} className={fieldClass} />
             </label>
 
             <Button type="submit" size="lg" fullWidth>

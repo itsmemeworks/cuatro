@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { rsvps, sessions, users } from "@cuatro/db";
+import { rsvps, sessions, standingGames, users } from "@cuatro/db";
 import { seedCircle, type Fixture } from "./support/games-fixtures";
 import {
   DEFAULT_SESSION_DURATION_MINUTES,
@@ -665,5 +665,37 @@ describe("ensureSessionPlayedTransition — lazy played sweep", () => {
 
     const summary = getSessionSummary(fixture.db, session.id, fixture.organiserId, afterFullTime);
     expect(summary?.session.status).toBe("played");
+  });
+});
+
+describe("standing-game cost read model (design/DESIGN-AUDIT.md F4)", () => {
+  it("getSessionSummary exposes null cost fields when the organiser hasn't set a price", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00", slots: 4 } });
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, new Date("2026-01-04T00:00:00.000Z"));
+
+    const summary = getSessionSummary(fixture.db, session.id, fixture.organiserId);
+    expect(summary?.costMinor).toBeNull();
+    expect(summary?.costCurrency).toBe("GBP");
+    expect(summary?.costPerHeadMinor).toBeNull();
+  });
+
+  it("computes floor(cost / slots) per head once a cost is set, matching tab.ts's remainder-to-payer rule", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00", slots: 4 } });
+    fixture.db.update(standingGames).set({ costMinor: 3200 }).where(eq(standingGames.id, fixture.standingGameId!)).run();
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, new Date("2026-01-04T00:00:00.000Z"));
+
+    const summary = getSessionSummary(fixture.db, session.id, fixture.organiserId);
+    expect(summary?.costMinor).toBe(3200);
+    expect(summary?.costPerHeadMinor).toBe(800); // 3200 / 4 divides evenly
+  });
+
+  it("a one-off session (no standing game) never has a cost", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const created = createOneOffSession(fixture.db, fixture.organiserId, { circleId: fixture.circleId, startsAt: new Date(Date.now() + DAY_MS) });
+    if (!created.ok) throw new Error("unreachable");
+
+    const summary = getSessionSummary(fixture.db, created.value.id, fixture.organiserId);
+    expect(summary?.costMinor).toBeNull();
+    expect(summary?.costPerHeadMinor).toBeNull();
   });
 });

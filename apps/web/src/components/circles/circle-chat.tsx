@@ -47,6 +47,12 @@ export function CircleChat({
     initialMessages.reduce((max, m) => Math.max(max, new Date(m.createdAt).getTime()), 0),
   );
 
+  // Best-effort — a failed mark-read just leaves the unread count stale
+  // until the next mount/message; never blocks the chat itself.
+  const markRead = useCallback(() => {
+    fetch(`/api/circles/${circleId}/read`, { method: "POST" }).catch(() => {});
+  }, [circleId]);
+
   const backfill = useCallback(async () => {
     try {
       const res = await fetch(`/api/circles/${circleId}/messages?after=${lastSeenAtRef.current}`);
@@ -60,21 +66,26 @@ export function CircleChat({
         lastSeenAtRef.current = Math.max(lastSeenAtRef.current, new Date(m.createdAt).getTime());
       }
       setMessages((prev) => [...prev, ...fresh]);
+      // This chat view is open and just took on a new message — it counts
+      // as read the instant it lands, same as messaging apps' "read while
+      // looking at the thread" behaviour.
+      markRead();
     } catch {
       // Best-effort — the next live event (or a manual refresh) will retry.
     }
-  }, [circleId]);
+  }, [circleId, markRead]);
 
   useCircleLive(circleId, (event) => {
     if (isChatBackfillEvent(event)) backfill();
     else router.refresh();
   });
 
-  // Mount-time catch-up: a message posted between the server render and the
-  // socket subscribing above would otherwise sit unseen until the next
-  // broadcast.
+  // Mount-time: catch up on anything posted between the server render and
+  // the socket subscribing above, and mark the circle read for having
+  // opened the chat view at all (design/DESIGN-AUDIT.md F3).
   useEffect(() => {
     backfill();
+    markRead();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

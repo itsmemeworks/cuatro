@@ -70,6 +70,16 @@ export default async function NewStandingGamePage({
           </label>
 
           <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
+            Venue address
+            <input type="text" name="venueAddress" placeholder="e.g. Braithwaite St, London E1 6GJ" className={fieldClass} />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
+            Court cost (optional — splits on the Tab)
+            <input type="text" name="costAmount" inputMode="decimal" placeholder="32.00" className={fieldClass} />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
             Duration (minutes)
             <input type="number" name="durationMinutes" defaultValue={90} min={30} step={15} className={fieldClass} />
           </label>
