@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Card, AvatarStack, Meta } from "@/components/ui";
@@ -9,8 +10,17 @@ export type NeedsAnswerSession = {
   circleName: string;
   venueName: string | null;
   startsAt: Date;
+  slots: number;
   confirmed: { userId: string; displayName: string; avatarUrl: string | null }[];
 };
+
+/** "Kav & Mags are in" / "Kav is in" / "Kav, Mags & Tom are in" — the prototype's naming convention (design/CUATRO-Prototype-LATEST.dc.html's Home screen), first names only. */
+function namesLine(confirmed: { displayName: string }[]): string {
+  const firstNames = confirmed.map((p) => p.displayName.split(" ")[0]);
+  if (firstNames.length === 1) return `${firstNames[0]} is in`;
+  const [last, ...rest] = [...firstNames].reverse();
+  return `${rest.reverse().join(", ")} & ${last} are in`;
+}
 
 /**
  * The single surface-feature card on Home (design/HANDOFF.md screen 3):
@@ -50,12 +60,17 @@ export function NeedsAnswerCard({ session }: { session: NeedsAnswerSession }) {
 
   const when = session.startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
   const place = session.venueName ? ` · ${session.venueName}` : "";
+  const spotsToFill = Math.max(session.slots - session.confirmed.length, 0);
 
   return (
     <Card variant="feature">
       <div className="flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-action" aria-hidden />
         <p className="text-[10.5px] font-extrabold tracking-[0.1em] text-action-on-feature-label">NEEDS YOUR ANSWER</p>
+        <span className="flex-1" />
+        <Link href={`/games/${session.sessionId}`} className="text-[11px] font-bold text-action-on-feature-link">
+          View game →
+        </Link>
       </div>
       <p className="text-cu-title text-[19px] leading-[1.2] mt-2.5 text-ink-on-feature">
         {session.circleName}
@@ -67,7 +82,7 @@ export function NeedsAnswerCard({ session }: { session: NeedsAnswerSession }) {
         <div className="flex items-center gap-2.5 mt-3">
           <AvatarStack people={session.confirmed.map((p) => ({ src: p.avatarUrl, name: p.displayName }))} size="sm" ring="surface-feature" max={3} />
           <span className="text-[11.5px] font-medium text-ink-on-feature-muted">
-            {session.confirmed.length} in — you make it a four
+            {namesLine(session.confirmed)} — {spotsToFill} spot{spotsToFill === 1 ? "" : "s"} to fill
           </span>
         </div>
       )}

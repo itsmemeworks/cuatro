@@ -13,7 +13,7 @@ export default async function NotificationsPage() {
   const hasUnread = groups.some((g) => g.notifications.some((n) => !n.read));
 
   return (
-    <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
+    <main className="px-5 pt-8 pb-6 flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <h1 className="text-cu-title">Notifications</h1>
         {hasUnread && <MarkAllReadButton />}
@@ -26,8 +26,8 @@ export default async function NotificationsPage() {
       ) : (
         groups.map((group) => (
           <section key={group.label} className="flex flex-col gap-2">
-            <h2 className="text-cu-secondary uppercase tracking-wide text-ink-muted">{group.label}</h2>
-            <div className="flex flex-col gap-2">
+            <h2 className="text-cu-meta uppercase tracking-wide text-ink-muted">{group.label}</h2>
+            <div className="flex flex-col gap-1.5">
               {group.notifications.map((n) => (
                 <NotificationRow key={n.id} notification={n} />
               ))}

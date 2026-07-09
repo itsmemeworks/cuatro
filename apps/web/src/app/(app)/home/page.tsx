@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/session";
-import { getCirclesStore, type CircleSummary } from "@/server/circles";
+import { getCirclesStore } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForUser, isFourthCallActive, type SessionSummary } from "@/server/games-service";
 import { getMatchesStore, type PendingConfirmationView } from "@/server/matches-db";
@@ -12,21 +12,34 @@ import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { Card, Avatar, Meta, Fact } from "@/components/ui";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { NeedsAnswerCard, type NeedsAnswerSession } from "./needs-answer-card";
+import { FourthCallCard, type FourthCallHomeSession } from "./fourth-call-card";
 
+/**
+ * `quiet` (design/DESIGN-AUDIT.md H4's "'Manage' quiet") is ink-muted, not
+ * coral — this screen's one coral action is the needs-answer card's "I'm
+ * in", so every other tap-through link here (Manage, Fourth Call's "See
+ * all", etc.) stays quiet per components/ui/button.tsx's "one primary per
+ * screen" rule extended to link-style affordances.
+ */
 function SectionHeader({
   title,
   seeAllHref,
   linkLabel = "See all →",
+  linkTone = "action",
 }: {
   title: string;
   seeAllHref?: string;
   linkLabel?: string;
+  linkTone?: "action" | "quiet";
 }) {
   return (
     <div className="flex items-center justify-between">
       <h2 className="text-cu-secondary uppercase tracking-wide text-ink-muted">{title}</h2>
       {seeAllHref && (
-        <Link href={seeAllHref} className="text-cu-secondary font-bold text-action">
+        <Link
+          href={seeAllHref}
+          className={`text-cu-secondary font-bold ${linkTone === "action" ? "text-action" : "text-ink-muted"}`}
+        >
           {linkLabel}
         </Link>
       )}
@@ -83,32 +96,12 @@ function ConfirmedGameRow({ session }: { session: SessionCardData }) {
           </p>
           <p className="text-cu-secondary text-ink-muted mt-0.5">
             {session.confirmed.length} of {session.slots}
-            {full ? " · full" : ""}
+            {full ? " · court booked" : ""}
           </p>
         </div>
         {session.viewerStatus === "in" && (
           <span className="rounded-chip px-2.5 py-1.5 text-[10.5px] font-bold bg-win-tint text-win whitespace-nowrap">You&apos;re in ✓</span>
         )}
-      </Card>
-    </Link>
-  );
-}
-
-function CircleRow({ circle }: { circle: CircleSummary }) {
-  return (
-    <Link href={`/circles/${circle.id}`} className="block">
-      <Card className="flex items-center gap-3">
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0 text-white"
-          style={{ background: circle.colour ?? "var(--color-ink-hairline-3)" }}
-          aria-hidden
-        >
-          {circle.emblem ?? "⭘"}
-        </div>
-        <p className="flex-1 min-w-0 text-cu-card-title text-[14px] truncate">{circle.name}</p>
-        <Meta>
-          {circle.memberCount} member{circle.memberCount === 1 ? "" : "s"}
-        </Meta>
       </Card>
     </Link>
   );
@@ -195,6 +188,7 @@ export default async function HomePage() {
         circleName: featured.circleName,
         venueName: featured.venue?.name ?? null,
         startsAt: featured.session.startsAt,
+        slots: featured.slots,
         confirmed: featured.confirmed,
       }
     : null;
@@ -210,15 +204,6 @@ export default async function HomePage() {
       title: `Confirm your result vs ${m.opponentNames}`,
       subtitle: "Both teams need to confirm before Glass moves.",
     })),
-    ...activeFourthCalls
-      .filter((s) => s.session.id !== featured?.session.id)
-      .map((s) => ({
-        key: `fc-${s.session.id}`,
-        href: `/games/${s.session.id}`,
-        emoji: "🔔",
-        title: `${s.circleName} needs a fourth`,
-        subtitle: `${s.confirmed.length}/${s.slots} confirmed — kicks off soon.`,
-      })),
     ...(showPlacementNudge
       ? [
           {
@@ -234,6 +219,39 @@ export default async function HomePage() {
         ]
       : []),
   ];
+
+  // The incoming-Fourth-Call card (design/DESIGN-AUDIT.md H4) — everything
+  // isFourthCallActive() flags, minus whichever session is already the
+  // featured needs-answer card. "their level X–Y" mirrors fc/[token]/
+  // page.tsx's own levelMatchLabel derivation (Glass ratings of everyone
+  // already confirmed); "yours Z" reuses the `glass` view already fetched
+  // above rather than a second lookup.
+  const fourthCallCards: FourthCallHomeSession[] = await Promise.all(
+    activeFourthCalls
+      .filter((s) => s.session.id !== featured?.session.id)
+      .map(async (s) => {
+        const ratings = (
+          await Promise.all(s.confirmed.map(async (p) => (await matchesStore.getProfileGlassView(p.userId))?.rating ?? null))
+        ).filter((r): r is number => r != null);
+        const levelRangeLabel =
+          ratings.length === 0
+            ? null
+            : Math.min(...ratings) === Math.max(...ratings)
+              ? `their level ${Math.min(...ratings).toFixed(2)}`
+              : `their level ${Math.min(...ratings).toFixed(2)}–${Math.max(...ratings).toFixed(2)}`;
+        const asker = s.confirmed[0] ?? null;
+        return {
+          sessionId: s.session.id,
+          circleName: s.circleName,
+          venueName: s.venue?.name ?? null,
+          startsAt: s.session.startsAt,
+          askerAvatarUrl: asker?.avatarUrl ?? null,
+          askerName: asker?.displayName ?? s.circleName,
+          levelRangeLabel,
+          viewerRating: glass?.rating ?? null,
+        };
+      }),
+  );
 
   // Tab settle preview: aggregated across every Circle the viewer is in
   // (getTabView is scoped per-circle — see server/tab.ts) since Home is the
@@ -274,8 +292,7 @@ export default async function HomePage() {
         <div className="flex items-center gap-3">
           <NotificationBell userId={user.id} initialUnreadCount={initialUnreadCount} />
           <Link href="/profile">
-            {/* SessionUser has no avatarUrl field yet — falls back to Avatar's initials treatment. */}
-            <Avatar src={null} name={name} size="md" ring="ground" />
+            <Avatar src={user.avatarUrl} name={name} size="md" ring="ground" />
           </Link>
         </div>
       </div>
@@ -295,7 +312,7 @@ export default async function HomePage() {
 
       <section className="flex flex-col gap-3">
         {/* "Manage" (Standing Games) used to be the standalone /games list page's header link — that page now redirects here (see (app)/games/page.tsx), so its one bit of chrome that isn't already on Home moves onto this section instead. */}
-        <SectionHeader title="Your games this week" seeAllHref="/games/standing" linkLabel="Manage" />
+        <SectionHeader title="Your games this week" seeAllHref="/games/standing" linkLabel="Manage" linkTone="quiet" />
         {restSessionCards.length === 0 && !featuredCard ? (
           <EmptyCard
             title="No games yet"
@@ -318,6 +335,14 @@ export default async function HomePage() {
         )}
       </section>
 
+      {fourthCallCards.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {fourthCallCards.map((fc) => (
+            <FourthCallCard key={fc.sessionId} session={fc} />
+          ))}
+        </div>
+      )}
+
       {owedRows.length > 0 && (
         <section className="flex flex-col gap-3">
           <SectionHeader title="The Tab" />
@@ -328,33 +353,6 @@ export default async function HomePage() {
           </div>
         </section>
       )}
-
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Your Circles" seeAllHref={circles.length > 3 ? "/circles" : undefined} />
-        {hasNoCircles ? (
-          <Card className="flex flex-col gap-3">
-            <div>
-              <p className="text-cu-card-title">You&apos;re not in a Circle yet</p>
-              <p className="text-cu-body text-ink-muted mt-1">
-                Join one with a link or QR code from a friend, or create your own to bring your padel group over from
-                WhatsApp.
-              </p>
-            </div>
-            <Link
-              href="/circles/new"
-              className="rounded-button min-h-11 flex items-center justify-center text-[14px] font-extrabold bg-action text-action-contrast"
-            >
-              + Create a Circle
-            </Link>
-          </Card>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {circles.slice(0, 3).map((c) => (
-              <CircleRow key={c.id} circle={c} />
-            ))}
-          </div>
-        )}
-      </section>
     </main>
   );
 }

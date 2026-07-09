@@ -122,11 +122,13 @@ export function BottomNav({
   displayName,
   avatarUrl = null,
   initialHasOpenTabEntries = false,
+  initialHasUnreadCircleMessages = false,
 }: {
   userId: string;
   displayName: string;
   avatarUrl?: string | null;
   initialHasOpenTabEntries?: boolean;
+  initialHasUnreadCircleMessages?: boolean;
 }) {
   const pathname = usePathname();
   const active = navKeyForPath(pathname);
@@ -135,16 +137,25 @@ export function BottomNav({
   // count: refetch on every event on the viewer's user channel rather than
   // trusting the broadcast payload (see lib/realtime/channels.ts).
   const [hasOpenTabEntries, setHasOpenTabEntries] = useState(initialHasOpenTabEntries);
+  const [hasUnreadCircleMessages, setHasUnreadCircleMessages] = useState(initialHasUnreadCircleMessages);
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/tab/has-open-entries");
-      if (!res.ok) return;
-      const body = await res.json();
-      if (!cancelledRef.current && typeof body.hasOpenEntries === "boolean") setHasOpenTabEntries(body.hasOpenEntries);
+      const [tabRes, circlesRes] = await Promise.all([
+        fetch("/api/tab/has-open-entries"),
+        fetch("/api/circles/unread-count"),
+      ]);
+      if (tabRes.ok) {
+        const body = await tabRes.json();
+        if (!cancelledRef.current && typeof body.hasOpenEntries === "boolean") setHasOpenTabEntries(body.hasOpenEntries);
+      }
+      if (circlesRes.ok) {
+        const body = await circlesRes.json();
+        if (!cancelledRef.current && typeof body.hasUnread === "boolean") setHasUnreadCircleMessages(body.hasUnread);
+      }
     } catch {
-      // Silent — the dot just keeps its last known state until the next live event.
+      // Silent — the dots just keep their last known state until the next live event.
     }
   }, []);
 
@@ -170,9 +181,18 @@ export function BottomNav({
       </NavItem>
 
       <NavItem href="/feed" active={active === "circle"} label="Circle">
-        <NavIcon active={active === "circle"}>
-          <path d="M20 11.5a8 8 0 1 0-3.2 6.4L20.5 19l-.9-3.4A7.96 7.96 0 0 0 20 11.5z" />
-        </NavIcon>
+        <div className="relative">
+          <NavIcon active={active === "circle"}>
+            <path d="M20 11.5a8 8 0 1 0-3.2 6.4L20.5 19l-.9-3.4A7.96 7.96 0 0 0 20 11.5z" />
+          </NavIcon>
+          {hasUnreadCircleMessages && (
+            <span
+              aria-hidden
+              className="absolute rounded-full bg-action"
+              style={{ width: 7, height: 7, top: -2, right: -4, border: "2px solid var(--color-surface)" }}
+            />
+          )}
+        </div>
       </NavItem>
 
       <NavItem href="/tab" active={active === "tab"} label="Tab">

@@ -34,22 +34,22 @@ export function NotificationRow({ notification }: { notification: NotificationVi
     <button
       type="button"
       onClick={handleClick}
-      className={`rounded-card p-4 flex items-start gap-3 text-left w-full border transition-cu-state ${
+      className={`rounded-card p-3.5 flex items-start gap-2.5 text-left w-full border transition-cu-state ${
         read ? "bg-surface border-ink-hairline-1" : "bg-surface-feature border-action/50"
       }`}
     >
-      <span className="text-xl shrink-0" aria-hidden>
+      <span className="text-lg shrink-0" aria-hidden>
         {TYPE_EMOJI[notification.type] ?? "🔔"}
       </span>
       <div className="flex-1 min-w-0">
         {/* surface-feature is dark in both themes (see globals.css) — fixed
             bone/muted-bone text when unread, theme-reactive ink otherwise. */}
-        <p className={`text-cu-card-title text-[14px] ${read ? "text-ink" : "text-[#F5F2EC]"}`}>{notification.title}</p>
-        <p className={`text-cu-body mt-0.5 ${read ? "text-ink-muted" : ""}`} style={read ? undefined : { color: "rgba(245,242,236,.65)" }}>
+        <p className={`text-cu-card-title text-[13.5px] ${read ? "text-ink" : "text-[#F5F2EC]"}`}>{notification.title}</p>
+        <p className={`text-cu-secondary mt-0.5 ${read ? "text-ink-muted" : ""}`} style={read ? undefined : { color: "rgba(245,242,236,.65)" }}>
           {notification.body}
         </p>
       </div>
-      <div className="flex flex-col items-end gap-2 shrink-0">
+      <div className="flex flex-col items-end gap-1.5 shrink-0">
         {read ? (
           <Meta>{notification.createdAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</Meta>
         ) : (

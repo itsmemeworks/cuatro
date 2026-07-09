@@ -5,6 +5,7 @@ import { isSafeRelativePath } from "@/lib/safe-redirect";
 import { getDb } from "@/server/db";
 import { getCirclesStore } from "@/server/circles";
 import { hasOpenEntriesAgainstViewer } from "@/server/tab";
+import { hasUnreadMessages } from "@/server/circle-unread";
 import { BottomNav } from "@/components/bottom-nav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -21,11 +22,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { db } = await getDb();
   const store = await getCirclesStore();
   const circles = await store.listCirclesForUser(user.id);
-  const initialHasOpenTabEntries = hasOpenEntriesAgainstViewer(
-    db,
-    circles.map((c) => c.id),
-    user.id,
-  );
+  const circleIds = circles.map((c) => c.id);
+  const initialHasOpenTabEntries = hasOpenEntriesAgainstViewer(db, circleIds, user.id);
+  // Powers N2 (design/DESIGN-AUDIT.md) — the nav Circle-item's unread-chat dot.
+  const initialHasUnreadCircleMessages = hasUnreadMessages(db, circleIds, user.id);
 
   return (
     <div className="min-h-dvh flex flex-col bg-ground text-ink pt-safe">
@@ -37,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         displayName={user.displayName || user.email.split("@")[0] || "there"}
         avatarUrl={user.avatarUrl}
         initialHasOpenTabEntries={initialHasOpenTabEntries}
+        initialHasUnreadCircleMessages={initialHasUnreadCircleMessages}
       />
     </div>
   );
