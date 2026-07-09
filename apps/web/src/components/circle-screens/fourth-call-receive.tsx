@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AvatarStack, Button, Fact, Meta } from "@/components/ui";
+import { PresenceTracker } from "@/components/realtime/PresenceTracker";
 import type { SessionCardPlayer } from "@/components/games/SessionCard";
 
 function formatCountdown(msRemaining: number): string {
@@ -33,6 +34,7 @@ export function FourthCallReceive({
   levelMatchLabel,
   expiresAt,
   passNotificationId,
+  viewerId,
 }: {
   sessionId: string;
   circleName: string;
@@ -44,6 +46,8 @@ export function FourthCallReceive({
   expiresAt: Date;
   /** The fourth_call notification backing this invite, for "Pass" — null if it couldn't be found (still lets the viewer claim). */
   passNotificationId: string | null;
+  /** The signed-in viewer's user id, so the organiser's live "N viewing…" count (fourth-call-send.tsx) can exclude a specific id — see lib/realtime/presence.ts. */
+  viewerId?: string | null;
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
@@ -101,6 +105,7 @@ export function FourthCallReceive({
 
   return (
     <div className="flex flex-col items-center gap-5 py-6 text-center">
+      <PresenceTracker sessionId={sessionId} viewerId={viewerId} />
       <Meta className="uppercase tracking-[0.12em] text-action-strong font-extrabold">Fourth Call</Meta>
       <AvatarStack people={confirmed.map((p) => ({ src: p.avatarUrl, name: p.displayName }))} size="lg" ring="ground" />
       <div>

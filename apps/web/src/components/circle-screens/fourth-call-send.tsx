@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Meta } from "@/components/ui";
+import { usePresenceCount } from "@/lib/realtime/presence";
 
 export type RingState = "pending" | "sent" | "done";
 
@@ -23,6 +24,7 @@ export function FourthCallSend({
   ring2Label,
   canEscalate,
   ring3Available,
+  organiserId,
 }: {
   sessionId: string;
   ring1State: RingState;
@@ -32,12 +34,21 @@ export function FourthCallSend({
   canEscalate: boolean;
   /** Whether ring 3's link can be generated right now (the session hasn't started and the four isn't already full). */
   ring3Available: boolean;
+  /** The organiser's own user id, excluded from the live "viewing" count below — see lib/realtime/presence.ts. */
+  organiserId?: string | null;
 }) {
   const router = useRouter();
   const [escalating, setEscalating] = useState(false);
   const [ring3Pending, setRing3Pending] = useState(false);
   const [ring3Copied, setRing3Copied] = useState(false);
   const [ring3Error, setRing3Error] = useState(false);
+
+  // Live "N viewing…" (design/HANDOFF.md screen 6) — aggregates every
+  // viewer currently on the receive screen or the public ring-3 link, both
+  // of which track presence on this same session channel. Organiser-only
+  // and only meaningful while slots are still open (ring3Available already
+  // encodes "upcoming and not full" — see the page component).
+  const viewingCount = usePresenceCount(sessionId, organiserId);
 
   async function escalate() {
     setEscalating(true);
@@ -117,6 +128,11 @@ export function FourthCallSend({
           <Meta as="p" className="mt-0.5">
             {ring2Label}
           </Meta>
+          {ring3Available && viewingCount > 0 && (
+            <Meta as="p" tone="action" className="mt-0.5 font-extrabold">
+              {viewingCount} viewing right now…
+            </Meta>
+          )}
         </div>
         {canEscalate && (
           <Button variant="quiet" size="default" disabled={escalating} onClick={escalate}>

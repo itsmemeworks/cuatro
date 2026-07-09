@@ -7,6 +7,7 @@ import { parseRing3ClaimToken } from "@/server/fourth-call";
 import { getMatchesStore } from "@/server/matches-db";
 import { AvatarStack, Meta } from "@/components/ui";
 import { FourthCallLinkClaim } from "@/components/circle-screens/fourth-call-link-claim";
+import { PresenceTracker } from "@/components/realtime/PresenceTracker";
 
 /**
  * Fourth Call ring 3's public claim page — "anyone with the link"
@@ -85,6 +86,8 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
 
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink">
+      {/* Anonymous viewer — always an ephemeral id, never this page's signed-in `user` (if any), per design/HANDOFF.md screen 6's ring-3 trust model. */}
+      <PresenceTracker sessionId={parsed.sessionId} />
       <div className="flex flex-col items-center gap-4">
         <Meta className="uppercase tracking-[0.12em] text-action-strong font-extrabold">Fourth Call</Meta>
         <AvatarStack people={summary.confirmed.map((p) => ({ src: p.avatarUrl, name: p.displayName }))} size="lg" ring="ground" />
