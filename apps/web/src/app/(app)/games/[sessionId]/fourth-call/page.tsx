@@ -2,11 +2,18 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
-import { getSessionSummary, checkFourthCallLevel1, checkFourthCallLocalRing } from "@/server/games-service";
+import {
+  getSessionSummary,
+  checkFourthCallLevel1,
+  checkFourthCallLocalRing,
+  checkFourthCallPlayedWith,
+  playedWithInvitedUserIds,
+} from "@/server/games-service";
+import { playedWithCandidates } from "@/server/played-with";
 import { findFourthCallClaimant } from "@/server/fourth-call";
 import { isOrganiser } from "@/server/standing-games-service";
 import { getMatchesStore } from "@/server/matches-db";
-import { FourthCallSend, type RingState } from "@/components/circle-screens/fourth-call-send";
+import { FourthCallSend, type RingState, type PlayedWithRow } from "@/components/circle-screens/fourth-call-send";
 import { Avatar, Meta } from "@/components/ui";
 import { formatGlass } from "@/lib/design";
 
@@ -21,7 +28,12 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
 
   if (!isOrganiser(db, summary.circleId, user.id)) redirect(`/games/${sessionId}`);
 
+  // Ladder order matters: ring 1, then played-with (ring 2a), then the geo
+  // Local Ring (ring 2b) — the geo ring's auto-open gate waits until
+  // played-with has had its first-refusal turn (see checkFourthCallLocalRing),
+  // so played-with MUST run before it on this same view.
   const result1 = checkFourthCallLevel1(db, sessionId);
+  await checkFourthCallPlayedWith(db, sessionId);
   const result2 = await checkFourthCallLocalRing(db, sessionId);
 
   const gameFull = summary.confirmed.length >= summary.slots;
@@ -54,6 +66,43 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
   } else if (result2.reason === "session_not_upcoming") {
     ring2State = "done";
     ring2Label = "this game has already started or been played";
+  }
+
+  // Played-with ring (2a). Its faces + per-person invite state come from the
+  // candidate query; "sent to N" counts the via="played_with" invites already
+  // out (including anyone who has since claimed and dropped off the candidate
+  // list). Available candidates exclude circle members, guests, opted-out
+  // players, and current session participants — see server/played-with.ts.
+  const pwInvitedIds = new Set(playedWithInvitedUserIds(db, sessionId));
+  const pwCandidates = await playedWithCandidates(db, sessionId, { limit: 8 });
+  const playedWith: PlayedWithRow[] = pwCandidates.map((c) => ({
+    userId: c.userId,
+    displayName: c.displayName,
+    avatarUrl: c.avatarUrl,
+    rating: c.rating,
+    sharedMatchCount: c.sharedMatchCount,
+    lastPlayedWithLabel: c.lastPlayedWithLabel,
+    invited: pwInvitedIds.has(c.userId),
+  }));
+  const pwSentCount = pwInvitedIds.size;
+
+  let playedWithState: RingState = "pending";
+  let playedWithLabel = "reaches people from your past games";
+  if (gameFull) {
+    playedWithState = "done";
+    playedWithLabel = "not needed, the four's full";
+  } else if (!upcoming) {
+    playedWithState = "done";
+    playedWithLabel = "this game has already started or been played";
+  } else if (pwSentCount > 0) {
+    playedWithState = "sent";
+    playedWithLabel = `sent to ${pwSentCount} ${pwSentCount === 1 ? "person" : "people"} you've played with, first to tap in gets it`;
+  } else if (pwCandidates.length > 0) {
+    playedWithState = "pending";
+    playedWithLabel = "reaches people from your past games";
+  } else {
+    playedWithState = "done";
+    playedWithLabel = "nobody from your past games is free this time";
   }
 
   const canEscalate = upcoming && !gameFull && ring2State === "pending";
@@ -101,6 +150,9 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
         sessionId={sessionId}
         ring1State={ring1State}
         ring1Label={ring1Label}
+        playedWithState={playedWithState}
+        playedWithLabel={playedWithLabel}
+        playedWith={playedWith}
         ring2State={ring2State}
         ring2Label={ring2Label}
         canEscalate={canEscalate}

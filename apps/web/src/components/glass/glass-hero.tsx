@@ -19,6 +19,7 @@ export function GlassHero({
   userId,
   sparklineValues,
   deltaSinceFirst,
+  enableReveal = true,
 }: {
   glass: ProfileGlassView;
   userId: string;
@@ -26,13 +27,15 @@ export function GlassHero({
   sparklineValues: number[];
   /** Sum of every Ledger delta — "how far Glass has moved since it was poured." Null when there's nothing to compare yet. */
   deltaSinceFirst: number | null;
+  /** The one-time Rating Reveal choreography is the OWNER's first-look moment — suppress it when someone else is viewing this player's public profile. */
+  enableReveal?: boolean;
 }) {
   const [revealDismissed, setRevealDismissed] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
 
   useEffect(() => {
-    if (glass.status === "rated" && !hasSeenRatingReveal(userId)) setShowReveal(true);
-  }, [glass.status, userId]);
+    if (enableReveal && glass.status === "rated" && !hasSeenRatingReveal(userId)) setShowReveal(true);
+  }, [enableReveal, glass.status, userId]);
 
   if (glass.status === "unrated") {
     const played = glass.verifiedMatchCount;

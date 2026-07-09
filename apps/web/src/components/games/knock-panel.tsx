@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, Button, Card, Fact, Meta } from "@/components/ui";
+import { PlayerLink } from "./roster";
 import { errorCopy } from "@/lib/error-copy";
 
 /**
@@ -13,6 +14,8 @@ import { errorCopy } from "@/lib/error-copy";
  */
 export interface KnockRow {
   knockId: string;
+  /** The asker's user id, for the profile link. Optional: not every surface that renders a knock supplies it. Askers are always real users (guests can't knock), so no guest gate is needed. */
+  userId?: string;
   displayName: string;
   avatarUrl: string | null;
   message: string | null;
@@ -64,9 +67,21 @@ export function KnockPanel({ knocks }: { knocks: KnockRow[] }) {
         {knocks.map((k) => (
           <Card key={k.knockId} className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
-              <Avatar src={k.avatarUrl} name={k.displayName} size="md" ring="ground" />
+              {k.userId ? (
+                <PlayerLink userId={k.userId} className="shrink-0">
+                  <Avatar src={k.avatarUrl} name={k.displayName} size="md" ring="ground" />
+                </PlayerLink>
+              ) : (
+                <Avatar src={k.avatarUrl} name={k.displayName} size="md" ring="ground" />
+              )}
               <div className="flex-1 min-w-0">
-                <p className="text-cu-card-title text-[15px] truncate">{k.displayName}</p>
+                {k.userId ? (
+                  <PlayerLink userId={k.userId}>
+                    <p className="text-cu-card-title text-[15px] truncate">{k.displayName}</p>
+                  </PlayerLink>
+                ) : (
+                  <p className="text-cu-card-title text-[15px] truncate">{k.displayName}</p>
+                )}
                 <p className="text-cu-secondary text-ink-muted mt-0.5 truncate">
                   <Fact as="span" size="meta" tone="muted">
                     {k.levelLabel}

@@ -4,15 +4,22 @@ import { sessions } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { isOrganiser } from "@/server/standing-games-service";
-import { checkFourthCallLocalRing } from "@/server/games-service";
+import { checkFourthCallLocalRing, checkFourthCallPlayedWith } from "@/server/games-service";
 import { getRing3ClaimLink } from "@/server/fourth-call";
 
 /**
- * Organiser-triggered escalation. Default (no body, or `{ level: 2 }`) opens
- * the Local Ring — reaches nearby, level-matched players — skipping the
- * 20-minutes-after-ring-1 wait. `{ level: 3 }` mints/re-derives the ring-3
- * public claim link instead (see getRing3ClaimLink — pure function of
- * sessionId+kickoff time, so there's nothing to "fire" or mark as already-sent).
+ * Organiser-triggered escalation, one ring per call, following the Fourth Call
+ * ladder: circle (ring 1, automatic) -> played-with (ring 2a) -> nearby (ring
+ * 2b, the geo Local Ring) -> link (ring 3). Each manual step skips the
+ * 20-minutes-after-ring-1 wait (forceEscalate).
+ *
+ *  - `{ ring: "played_with" }` invites everyone from the four's verified match
+ *    history; `{ ring: "played_with", userId }` invites just that one person
+ *    (the send screen's per-person "Invite" buttons). Never nags anyone twice.
+ *  - `{ level: 2 }` or no body opens the geo Local Ring (the pre-existing
+ *    "Reach nearby players" caller sends no body — kept working unchanged).
+ *  - `{ level: 3 }` mints/re-derives the ring-3 public claim link (a pure
+ *    function of sessionId+kickoff time, so there's nothing to "fire").
  */
 export async function POST(request: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const user = await getSessionUser();
@@ -28,12 +35,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
   }
 
   let level: 2 | 3 = 2;
+  let ring: "played_with" | null = null;
+  let onlyUserIds: string[] | undefined;
   try {
     const body = await request.json();
-    if (body && typeof body === "object" && body.level === 3) level = 3;
+    if (body && typeof body === "object") {
+      if (body.level === 3) level = 3;
+      if (body.ring === "played_with") {
+        ring = "played_with";
+        if (typeof body.userId === "string") onlyUserIds = [body.userId];
+      }
+    }
   } catch {
-    // No body (or non-JSON) — the pre-existing caller (ring 2's "Escalate
-    // now") never sent one; default to level 2 unchanged.
+    // No body (or non-JSON) — the pre-existing caller (ring 2b's "Reach nearby
+    // players") never sent one; default to the geo ring unchanged.
+  }
+
+  if (ring === "played_with") {
+    const result = await checkFourthCallPlayedWith(db, sessionId, new Date(), { forceEscalate: true, onlyUserIds });
+    return NextResponse.json({ ok: true, ring: "played_with", result });
   }
 
   if (level === 3) {

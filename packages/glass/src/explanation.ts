@@ -51,9 +51,9 @@ function ordinal(n: number): string {
 }
 
 function describeEcho(occurrence: number, multiplier: number): string {
-  if (occurrence <= 1) return "first meeting — full weight";
+  if (occurrence <= 1) return "first meeting, full weight";
   const pct = Math.round(multiplier * 100);
-  return `${ordinal(occurrence)} meeting within 30 days — ${pct}% weight`;
+  return `${ordinal(occurrence)} meeting within 30 days, ${pct}% weight`;
 }
 
 function describeOpponents(ids: readonly [PlayerId, PlayerId], names?: Readonly<Record<PlayerId, string>>): string {
@@ -63,7 +63,7 @@ function describeOpponents(ids: readonly [PlayerId, PlayerId], names?: Readonly<
 
 /**
  * Builds a Ledger-ready one-liner, e.g.
- * "+0.02 · beat a slightly stronger pair, comfortable margin · vs J, K (first meeting — full weight)"
+ * "+0.02 · beat a slightly stronger pair, comfortable margin · vs J, K (first meeting, full weight)"
  */
 export function buildExplanation(input: ExplanationInput): string {
   const sign = input.delta >= 0 ? "+" : "";

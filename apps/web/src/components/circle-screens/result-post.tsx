@@ -10,6 +10,8 @@ export interface ResultPostPlayer {
   userId: string;
   displayName: string;
   avatarUrl: string | null;
+  /** Guests have no public profile — their name renders unlinked. Optional: absent means "not a guest". */
+  isGuest?: boolean;
 }
 
 export interface ResultPostTeamData {
@@ -36,6 +38,26 @@ export interface ResultPostData {
 /** First names, joined — "Kav & Tom" (prototype's header/delta-line convention). */
 function teamNames(team: ResultPostData["teamA"]): string {
   return team.players.map((p) => p.displayName.split(" ")[0]).join(" & ");
+}
+
+/** The header's team line, each first name a tap-through to that player's profile (guests unlinked). */
+function TeamNamesLinked({ team }: { team: ResultPostTeamData }) {
+  return (
+    <>
+      {team.players.map((p, i) => (
+        <span key={p.userId}>
+          {i > 0 && <span className="text-ink-muted font-normal"> &amp; </span>}
+          {p.isGuest ? (
+            <span className="font-bold">{p.displayName.split(" ")[0]}</span>
+          ) : (
+            <Link href={`/players/${p.userId}`} className="font-bold active:opacity-70">
+              {p.displayName.split(" ")[0]}
+            </Link>
+          )}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function formatDelta(delta: number): string {
@@ -103,9 +125,9 @@ export function ResultPost({ data }: { data: ResultPostData }) {
         <Avatar src={heroPlayer.avatarUrl} name={heroPlayer.displayName} size="sm" />
         <div className="flex-1 min-w-0">
           <p className="text-cu-body text-ink leading-snug">
-            <span className="font-bold">{teamNames(winningTeam)}</span>{" "}
+            <TeamNamesLinked team={winningTeam} />{" "}
             <span className="text-ink-muted">beat</span>{" "}
-            <span className="font-bold">{teamNames(losingTeam)}</span>
+            <TeamNamesLinked team={losingTeam} />
           </p>
           <Meta as="p" className="mt-0.5">
             {relativeDayLabel(data.playedAt)} · confirmed ✓

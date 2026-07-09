@@ -1,13 +1,13 @@
-import { eq } from "drizzle-orm";
-import { venues } from "@cuatro/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { getStandingGame, isOrganiser } from "@/server/standing-games-service";
+import { listVenuesForCircle } from "@/server/venues";
 import { ensureUpcomingSessionForStandingGame } from "@/server/games-service";
 import { toggleStandingGameActiveAction, updateStandingGameAction } from "@/server/games-actions";
 import { Button, Meta } from "@/components/ui";
+import { VenuePicker } from "../venue-picker";
 
 const WEEKDAYS = [
   { value: 0, label: "Sunday" },
@@ -38,18 +38,18 @@ export default async function EditStandingGamePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; matched?: string }>;
 }) {
   const user = await getSessionUser();
   if (!user) return null;
 
   const { id } = await params;
-  const { created } = await searchParams;
+  const { created, matched } = await searchParams;
   const { db } = await getGamesClient();
   const standingGame = getStandingGame(db, id);
   if (!standingGame) notFound();
 
-  const venue = standingGame.venueId ? (db.select().from(venues).where(eq(venues.id, standingGame.venueId)).get() ?? null) : null;
+  const venueOptions = listVenuesForCircle(db, standingGame.circleId);
   const currentCostLabel = standingGame.costMinor != null ? (standingGame.costMinor / 100).toFixed(2) : "";
 
   const canManage = isOrganiser(db, standingGame.circleId, user.id);
@@ -101,6 +101,10 @@ export default async function EditStandingGamePage({
             Invite your mates
           </Link>
         </div>
+      )}
+
+      {matched && (
+        <Meta as="p">Matched your court to {matched}, no duplicate created.</Meta>
       )}
 
       {!canManage ? (
@@ -159,15 +163,7 @@ export default async function EditStandingGamePage({
               />
             </label>
 
-            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
-              Venue
-              <input type="text" name="venueName" placeholder="Leave blank to keep current venue" defaultValue={venue?.name ?? ""} className={fieldClass} />
-            </label>
-
-            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
-              Venue address
-              <input type="text" name="venueAddress" placeholder="e.g. Braithwaite St, London E1 6GJ" defaultValue={venue?.address ?? ""} className={fieldClass} />
-            </label>
+            <VenuePicker venues={venueOptions} defaultVenueId={standingGame.venueId} />
 
             <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
               Court cost (optional, splits on the Tab)

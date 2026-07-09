@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Avatar, Card, Chip, Fact, InfoTerm, Meta } from "@/components/ui";
 import { formatGlass } from "@/lib/design";
 import { PLACEMENT_TRIO_SIZE } from "@cuatro/glass";
@@ -14,6 +15,8 @@ export interface MemberListItem {
   reliability: number | null;
   joinedAt: string | Date;
   verifiedMatchCount: number;
+  /** Guests have no public profile — their row renders unlinked. Optional: upstream mappers may not set it, in which case a guest tapped through lands on the graceful guest presence page. */
+  isGuest?: boolean;
 }
 
 const NEW_MEMBER_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
@@ -46,11 +49,12 @@ export function MemberList({ members, currentUserId }: { members: MemberListItem
             "no RSVP history yet"
           );
 
-        return (
-          <div
-            key={m.userId}
-            className={`flex items-center gap-3 px-4 py-3.5 ${i < members.length - 1 ? "border-b border-ink-hairline-1" : ""}`}
-          >
+        // Tap a member to view their profile. Guests have no profile (unlinked);
+        // your own row goes to your canonical /profile.
+        const href = m.isGuest ? null : isYou ? "/profile" : `/players/${m.userId}`;
+        const rowClass = `flex items-center gap-3 px-4 py-3.5 ${i < members.length - 1 ? "border-b border-ink-hairline-1" : ""}`;
+        const rowInner = (
+          <>
             <Avatar src={m.avatarUrl} name={m.displayName} size="md" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -88,6 +92,16 @@ export function MemberList({ members, currentUserId }: { members: MemberListItem
                 </div>
               )}
             </div>
+          </>
+        );
+
+        return href ? (
+          <Link key={m.userId} href={href} className={`${rowClass} transition-cu-state active:bg-ink-hairline-1`}>
+            {rowInner}
+          </Link>
+        ) : (
+          <div key={m.userId} className={rowClass}>
+            {rowInner}
           </div>
         );
       })}

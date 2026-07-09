@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSessionLive } from "@/lib/realtime/hooks";
 import { Avatar, Button, Card, Chip, DashedSlot, Fact, Meta } from "@/components/ui";
+import { CircleEmblem } from "./roster";
 import { errorCopy } from "@/lib/error-copy";
 
 export type SessionCardPlayer = {
@@ -180,7 +181,10 @@ export function SessionCard({
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Meta as="p">{data.circleName}</Meta>
+          <div className="flex items-center gap-2">
+            <CircleEmblem seed={data.circleId} name={data.circleName} px={18} />
+            <Meta as="p">{data.circleName}</Meta>
+          </div>
           <p className="text-cu-card-title text-ink mt-0.5">
             {data.startsAt.toLocaleString("en-GB", {
               weekday: "short",

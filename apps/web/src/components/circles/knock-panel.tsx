@@ -83,7 +83,7 @@ export function KnockPanel({ knocks }: { knocks: KnockPanelItem[] }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-cu-body font-bold text-ink">
-        Knocks · {knocks.length}
+        Asks to join · {knocks.length}
       </p>
       <Meta as="p">Players near your patch asking to join. You decide.</Meta>
       <div className="flex flex-col gap-2 mt-1">

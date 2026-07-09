@@ -21,7 +21,7 @@ describe("buildExplanation", () => {
 
   it("describes a comfortable win against a slightly weaker pair, first meeting", () => {
     const text = buildExplanation(base);
-    expect(text).toBe("+0.02 · beat a slightly weaker pair, comfortable margin · vs b1, b2 (first meeting — full weight)");
+    expect(text).toBe("+0.02 · beat a slightly weaker pair, comfortable margin · vs b1, b2 (first meeting, full weight)");
   });
 
   it("uses display names when provided", () => {
@@ -81,17 +81,17 @@ describe("buildExplanation", () => {
   describe("echo damping phrasing", () => {
     it("labels a first meeting as full weight", () => {
       const text = buildExplanation({ ...base, occurrence: 1, dampingMultiplier: 1 });
-      expect(text).toContain("(first meeting — full weight)");
+      expect(text).toContain("(first meeting, full weight)");
     });
 
     it("labels a second meeting with its ordinal and percentage", () => {
       const text = buildExplanation({ ...base, occurrence: 2, dampingMultiplier: 0.6 });
-      expect(text).toContain("(2nd meeting within 30 days — 60% weight)");
+      expect(text).toContain("(2nd meeting within 30 days, 60% weight)");
     });
 
     it("labels a third meeting correctly", () => {
       const text = buildExplanation({ ...base, occurrence: 3, dampingMultiplier: 0.36 });
-      expect(text).toContain("(3rd meeting within 30 days — 36% weight)");
+      expect(text).toContain("(3rd meeting within 30 days, 36% weight)");
     });
 
     it("labels an eleventh meeting with the correct 'th' ordinal", () => {

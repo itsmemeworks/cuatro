@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSessionLive } from "@/lib/realtime/hooks";
-import { Avatar, Button, Card, Chip, DashedSlot, Meta } from "@/components/ui";
+import { Avatar, Button, Card, Chip, DashedSlot, Fact, Meta } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
+import { formatGlass } from "@/lib/design";
+import { CircleEmblem, PlayerLink, circleColour } from "./roster";
 import type { SessionCardPlayer } from "./SessionCard";
 
 function formatCountdown(msRemaining: number): string {
@@ -33,6 +35,8 @@ function formatCountdown(msRemaining: number): string {
  */
 export function StandingGameWeekCard({
   sessionId,
+  circleId,
+  circleName,
   weekLabel,
   slots,
   confirmed,
@@ -45,9 +49,14 @@ export function StandingGameWeekCard({
   startsAt,
   canSendFourthCall,
   fourthCallHref,
+  glassByUserId,
+  guestByUserId,
   onPromoted,
 }: {
   sessionId: string;
+  /** Circle identity for the header emblem + colour accent (never coral). */
+  circleId: string;
+  circleName: string;
   weekLabel: string;
   slots: number;
   confirmed: SessionCardPlayer[];
@@ -61,6 +70,10 @@ export function StandingGameWeekCard({
   /** Only an organiser may send a Fourth Call — see games/[sessionId]/fourth-call's own gate. */
   canSendFourthCall: boolean;
   fourthCallHref: string;
+  /** Glass per player, keyed by userId; a value of null means unrated. Omitted keys render "not rated yet". */
+  glassByUserId?: Record<string, number | null>;
+  /** Guests (no profile) render unlinked; keyed by userId. */
+  guestByUserId?: Record<string, boolean>;
   onPromoted?: () => void;
 }) {
   const router = useRouter();
@@ -117,29 +130,51 @@ export function StandingGameWeekCard({
   const viewerHoldsSlot = viewerStatus === "in";
   const viewerReserved = viewerStatus === "reserve";
 
+  const glassFor = (userId: string) => (glassByUserId ? glassByUserId[userId] ?? null : undefined);
+
   return (
     <>
       <Card padded={false} className="overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-ink-hairline-1">
-          <p className="text-cu-card-title text-ink">This week · {weekLabel}</p>
-          <p className={`font-mono tabular-nums font-bold text-[10.5px] ${openCount === 0 ? "text-win" : "text-action-strong"}`}>
+        {/* Circle-colour accent along the top — identity, not action. */}
+        <span aria-hidden className="block h-1" style={{ background: circleColour(circleId) }} />
+        <div className="flex items-center gap-2.5 px-4 py-3 bg-ink-hairline-1">
+          <CircleEmblem seed={circleId} name={circleName} px={28} />
+          <div className="flex-1 min-w-0">
+            <p className="text-cu-card-title text-ink truncate">{circleName}</p>
+            <p className="text-cu-meta text-ink-muted">This week · {weekLabel}</p>
+          </div>
+          <p className={`font-mono tabular-nums font-bold text-[10.5px] whitespace-nowrap ${openCount === 0 ? "text-win" : "text-action-strong"}`}>
             {openCount === 0 ? `FULL · ${slots} OF ${slots}` : `${openCount} SPOT${openCount > 1 ? "S" : ""} OPEN`}
           </p>
         </div>
 
         <div className="px-4 pt-1.5">
           <div className="flex items-center gap-2.5 py-2.5 border-b border-ink-hairline-1">
-            <Avatar src={viewerAvatarUrl} name={viewerDisplayName} size="sm" />
-            <span className="flex-1 text-cu-body font-bold text-ink truncate">
-              {viewerDisplayName} <span className="font-normal text-ink-muted">(you)</span>
-            </span>
+            <PlayerLink userId={viewerUserId} className="flex items-center gap-2.5 flex-1 min-w-0">
+              <Avatar src={viewerAvatarUrl} name={viewerDisplayName} size="sm" />
+              <span className="flex-1 text-cu-body font-bold text-ink truncate">
+                {viewerDisplayName} <span className="font-normal text-ink-muted">(you)</span>
+              </span>
+            </PlayerLink>
+            {glassFor(viewerUserId) !== undefined && (
+              <Fact size="sm" tone="muted" className="whitespace-nowrap">
+                {formatGlass(glassFor(viewerUserId))}
+              </Fact>
+            )}
             <Chip tone={youChip.tone}>{youChip.label}</Chip>
           </div>
 
           {others.map((p) => (
             <div key={p.userId} className="flex items-center gap-2.5 py-2.5 border-b border-ink-hairline-1">
-              <Avatar src={p.avatarUrl} name={p.displayName} size="sm" />
-              <span className="flex-1 text-cu-body font-bold text-ink truncate">{p.displayName}</span>
+              <PlayerLink userId={p.userId} isGuest={guestByUserId?.[p.userId]} className="flex items-center gap-2.5 flex-1 min-w-0">
+                <Avatar src={p.avatarUrl} name={p.displayName} size="sm" />
+                <span className="flex-1 text-cu-body font-bold text-ink truncate">{p.displayName}</span>
+              </PlayerLink>
+              {glassFor(p.userId) !== undefined && (
+                <Fact size="sm" tone="muted" className="whitespace-nowrap">
+                  {formatGlass(glassFor(p.userId))}
+                </Fact>
+              )}
               <Chip tone="positive">In ✓</Chip>
             </div>
           ))}
@@ -172,11 +207,13 @@ export function StandingGameWeekCard({
               {reserves.map((r, i) => (
                 <div key={r.userId} className="flex items-center gap-2.5">
                   <span className="font-mono tabular-nums text-[11px] text-ink-muted w-3">{i + 1}</span>
-                  <Avatar src={r.avatarUrl} name={r.displayName} size="xs" />
-                  <span className="flex-1 text-cu-secondary font-semibold text-ink truncate">
-                    {r.displayName}
-                    {r.userId === viewerUserId && <span className="text-action"> (you)</span>}
-                  </span>
+                  <PlayerLink userId={r.userId} isGuest={guestByUserId?.[r.userId]} className="flex items-center gap-2.5 flex-1 min-w-0">
+                    <Avatar src={r.avatarUrl} name={r.displayName} size="xs" />
+                    <span className="flex-1 text-cu-secondary font-semibold text-ink truncate">
+                      {r.displayName}
+                      {r.userId === viewerUserId && <span className="text-action"> (you)</span>}
+                    </span>
+                  </PlayerLink>
                   {i === 0 && <span className="font-mono text-[10px] text-win">auto-promotes ✓</span>}
                 </div>
               ))}

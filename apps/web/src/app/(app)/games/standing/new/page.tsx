@@ -1,9 +1,11 @@
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { listCirclesForUser } from "@/server/standing-games-service";
+import { listVenuesForCircle } from "@/server/venues";
 import { createStandingGameAction } from "@/server/games-actions";
 import { errorCopy } from "@/lib/error-copy";
 import { Button, Meta } from "@/components/ui";
+import { VenuePicker } from "../venue-picker";
 
 // Organiser-facing copy for the validation codes createStandingGameAction can
 // bounce back; anything unlisted falls through to the shared errorCopy() so no
@@ -38,6 +40,11 @@ export default async function NewStandingGamePage({
   const { circleId: preselectedCircleId, error } = await searchParams;
   const { db } = await getGamesClient();
   const organiserCircles = listCirclesForUser(db, user.id).filter((c) => c.role === "organiser");
+  // Order the venue dropdown by the circle the form will open on (preselected,
+  // else the first organiser circle). The full list of known venues shows
+  // regardless of circle; only the home-court-first ordering is circle-specific.
+  const orderingCircleId = preselectedCircleId ?? organiserCircles[0]?.circleId;
+  const venueOptions = orderingCircleId ? listVenuesForCircle(db, orderingCircleId) : [];
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
@@ -85,15 +92,7 @@ export default async function NewStandingGamePage({
             <input type="time" name="startTime" required defaultValue="20:00" className={fieldClass} />
           </label>
 
-          <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
-            Venue
-            <input type="text" name="venueName" placeholder="e.g. Powerleague Shoreditch" className={fieldClass} />
-          </label>
-
-          <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
-            Venue address
-            <input type="text" name="venueAddress" placeholder="e.g. Braithwaite St, London E1 6GJ" className={fieldClass} />
-          </label>
+          <VenuePicker venues={venueOptions} />
 
           <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
             Court cost (optional, splits on the Tab)

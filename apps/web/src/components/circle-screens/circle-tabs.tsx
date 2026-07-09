@@ -17,7 +17,7 @@ import { ResultPost, type ResultPostData } from "./result-post";
 import { PlacementRevealPost, type PlacementRevealPostData } from "./placement-reveal-post";
 import { RivalryCallout } from "./rivalry-callout";
 
-type Tab = "feed" | "chat" | "members";
+type Tab = "feed" | "chat" | "members" | "settings";
 
 /** Serialized mirror of server/feed.ts's FeedItem — result posts ∪ placement reveals, already time-sorted by the caller. */
 export type FeedItemData =
@@ -92,6 +92,10 @@ export function CircleTabs({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("feed");
+  // Settings is organiser-only, so guard the rendered surface too: a member who
+  // somehow lands on it (a stale tab value, a future deep link) falls back to
+  // the Feed rather than seeing an empty screen.
+  const activeTab: Tab = tab === "settings" && !isOrganiser ? "feed" : tab;
   const [unread, setUnread] = useState(unreadChatBadge);
   // The invite QR (shared by the solo-circle and Members invite blocks). The
   // origin is resolved after mount — same reason as InviteLinkText — so the
@@ -158,12 +162,15 @@ export function CircleTabs({
           { value: "feed", label: "Feed" },
           { value: "chat", label: "Chat", badge: unread > 0 ? unread : undefined },
           { value: "members", label: "Members" },
+          // The organiser gets a dedicated Settings surface; members never see
+          // the tab at all (nothing on it is theirs to touch).
+          ...(isOrganiser ? [{ value: "settings" as const, label: "Settings" }] : []),
         ]}
-        value={tab}
+        value={activeTab}
         onChange={setTab}
       />
 
-      {tab === "feed" && (
+      {activeTab === "feed" && (
         <div className="flex flex-col gap-3">
           {soloCircle && (
             <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
@@ -229,39 +236,16 @@ export function CircleTabs({
         </div>
       )}
 
-      {tab === "chat" && (
+      {activeTab === "chat" && (
         <div className="flex flex-col gap-3">
           {pinnedBar}
           <CircleChat circleId={circleId} currentUserId={currentUserId} initialMessages={messages} />
         </div>
       )}
 
-      {tab === "members" && (
+      {activeTab === "members" && (
         <div className="flex flex-col gap-3">
-          {isOrganiser && <KnockPanel knocks={pendingKnocks} />}
           <MemberList members={members} currentUserId={currentUserId} />
-          {isOrganiser && (
-            <>
-              <EditCircleSheet
-                circleId={circleId}
-                initialName={circleName}
-                initialColour={circleColour}
-                initialEmblem={circleEmblem}
-                initialHeaderImage={headerImage}
-                initialHomeVenueId={homeVenueId}
-                initialMaxMembers={maxMembers}
-                memberCount={memberCount}
-                venueOptions={venueOptions}
-                anchor={anchor}
-              />
-              <DoorControls
-                circleId={circleId}
-                initialOpenDoor={openDoor}
-                initialBoardEnabled={boardEnabled}
-                initialVibeLine={vibeLine}
-              />
-            </>
-          )}
           <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
             <div className="flex items-center gap-3">
               <DashedSlot label="+" size="md" />
@@ -287,6 +271,53 @@ export function CircleTabs({
           <Meta as="p" className="text-center">
             ratings are everyone&apos;s business here, that&apos;s the point
           </Meta>
+        </div>
+      )}
+
+      {activeTab === "settings" && isOrganiser && (
+        <div className="flex flex-col gap-6">
+          {/* Circle details — the full identity + config sheet (name, colour,
+              emblem, header image, home court, max players). Kept as its
+              save-then-close sheet so React 19's form reset can't revert a
+              save mid-edit (hard convention 14). */}
+          <section className="flex flex-col gap-3">
+            <div>
+              <p className="text-cu-body font-bold text-ink">Circle details</p>
+              <Meta as="p" className="mt-0.5">
+                Name, colour, emblem, header image, home court and size.
+              </Meta>
+            </div>
+            <EditCircleSheet
+              circleId={circleId}
+              initialName={circleName}
+              initialColour={circleColour}
+              initialEmblem={circleEmblem}
+              initialHeaderImage={headerImage}
+              initialHomeVenueId={homeVenueId}
+              initialMaxMembers={maxMembers}
+              memberCount={memberCount}
+              venueOptions={venueOptions}
+              anchor={anchor}
+            />
+          </section>
+
+          {/* Discovery — the door controls self-label with the "Discovery"
+              InfoTerm and live tier line, so they stand as their own headed
+              group without a duplicate title above them. */}
+          <section className="flex flex-col gap-3">
+            <DoorControls
+              circleId={circleId}
+              initialOpenDoor={openDoor}
+              initialBoardEnabled={boardEnabled}
+              initialVibeLine={vibeLine}
+            />
+          </section>
+
+          {/* Asks to join — pending knocks from Open Door. KnockPanel renders
+              nothing when the queue is empty, and self-labels "Asks to join ·N"
+              when it isn't, so it reads as its own section only when there's
+              something to action. */}
+          <KnockPanel knocks={pendingKnocks} />
         </div>
       )}
 

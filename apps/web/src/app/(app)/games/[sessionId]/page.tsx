@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { and, eq, sql } from "drizzle-orm";
-import { notifications } from "@cuatro/db";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { notifications, users } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { checkFourthCallLevel1, getSessionSummary, DEFAULT_SESSION_DURATION_MINUTES } from "@/server/games-service";
@@ -173,6 +173,7 @@ export default async function SessionDetailPage({
   const knockRows: KnockRow[] = viewerIsOrganiser
     ? (await sessionKnocks(db, sessionId)).map((k) => ({
         knockId: k.knockId,
+        userId: k.userId,
         displayName: k.displayName,
         avatarUrl: k.avatarUrl,
         message: k.message,
@@ -198,6 +199,28 @@ export default async function SessionDetailPage({
   // Plain one-line state confirmation at the top — the pattern every
   // Playtomic-fluent user already reads for free ("You are enrolled…").
   // Upcoming games only; the "Played" card below owns the past state.
+  // Roster enrichment for the hero: each player's Glass (the roster is the
+  // reason you open this screen, so level reads at a glance) and their guest
+  // flag (guests have no profile, so they render unlinked). Page-level reads
+  // over the existing stores — small (a four plus a short reserve queue), and
+  // Glass reuses the same getProfileGlassView the Fourth Call path above uses.
+  const rosterPlayers = [...summary.confirmed, ...summary.reserves];
+  const glassByUserId: Record<string, number | null> = {};
+  await Promise.all(
+    [{ userId: user.id }, ...rosterPlayers].map(async (p) => {
+      glassByUserId[p.userId] = (await matchesStore.getProfileGlassView(p.userId))?.rating ?? null;
+    }),
+  );
+  const guestByUserId: Record<string, boolean> = {};
+  if (rosterPlayers.length > 0) {
+    const guestRows = db
+      .select({ id: users.id, isGuest: users.isGuest })
+      .from(users)
+      .where(inArray(users.id, rosterPlayers.map((p) => p.userId)))
+      .all();
+    for (const row of guestRows) guestByUserId[row.id] = row.isGuest;
+  }
+
   const whenShort = summary.session.startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
   const rsvpWindowOpen = upcoming && Date.now() >= summary.rsvpWindowOpensAt.getTime();
   let viewerStatusLine: string | null = null;
@@ -245,6 +268,8 @@ export default async function SessionDetailPage({
       <ToastBoundary>
         <StandingGameWeekCard
           sessionId={sessionId}
+          circleId={summary.circleId}
+          circleName={summary.circleName}
           weekLabel={summary.session.startsAt.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
           slots={summary.slots}
           confirmed={summary.confirmed}
@@ -257,6 +282,8 @@ export default async function SessionDetailPage({
           startsAt={summary.session.startsAt}
           canSendFourthCall={upcoming && !gameFull && viewerIsOrganiser}
           fourthCallHref={`/games/${sessionId}/fourth-call`}
+          glassByUserId={glassByUserId}
+          guestByUserId={guestByUserId}
         />
       </ToastBoundary>
 

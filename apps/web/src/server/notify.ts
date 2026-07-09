@@ -43,7 +43,12 @@ export type NotificationInput =
   | { type: "game_filled"; payload: { sessionId: string } }
   | { type: "slot_promoted"; payload: { sessionId: string } }
   | { type: "dropout"; payload: { sessionId: string; userId: string } }
-  | { type: "fourth_call"; payload: { sessionId: string; level: 1 | 2 } }
+  | {
+      type: "fourth_call";
+      // level 1 = own circle; level 2 = beyond it. `via: "played_with"` marks the
+      // played-with ring (people from your verified matches) vs the geo Local Ring.
+      payload: { sessionId: string; level: 1 | 2; via?: "played_with" };
+    }
   | { type: "placement_complete"; payload: { matchId: string; rating: number | null } }
   | { type: "result_verified"; payload: { matchId: string; delta: number; explanation: string } }
   | { type: "result_disputed"; payload: { matchId: string } }
@@ -124,6 +129,14 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
     }
     case "fourth_call": {
       const ctx = sessionContext(tx, input.payload.sessionId);
+      if (input.payload.via === "played_with") {
+        return {
+          title: "A four you know needs a player",
+          body: ctx
+            ? `${ctx.circleName} is short for ${ctx.when}. You've played with this lot before. Tap in if you can make it.`
+            : "A game with people you've played with is short a player.",
+        };
+      }
       return input.payload.level === 1
         ? {
             title: "Your circle needs a fourth",

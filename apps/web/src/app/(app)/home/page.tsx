@@ -10,6 +10,7 @@ import { formatMoney } from "@/components/tab/money";
 import { type SessionCardData } from "@/components/games/SessionCard";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { Card, Avatar, Meta, Fact } from "@/components/ui";
+import { CircleEmblem, RosterStack, circleColour } from "@/components/games/roster";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { NeedsAnswerCard, type NeedsAnswerSession } from "./needs-answer-card";
 import { FourthCallCard, type FourthCallHomeSession } from "./fourth-call-card";
@@ -95,29 +96,43 @@ function AttentionRow({ href, emoji, title, subtitle }: { href: string; emoji: s
 function GameRow({ session }: { session: SessionCardData }) {
   const dayLabel = session.startsAt.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase();
   const timeLabel = session.startsAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const full = session.confirmed.length >= session.slots;
+  const openCount = Math.max(0, session.slots - session.confirmed.length);
+  const reserveCount = session.reserves.length;
   return (
     <Link href={`/games/${session.sessionId}`} className="block">
-      <Card className="flex items-center gap-3">
-        <div className="w-11 text-center shrink-0">
-          <p className="text-cu-card-title text-[15px] leading-none">{dayLabel}</p>
-          <Fact size="meta" tone="muted" className="mt-1 block">
-            {timeLabel}
-          </Fact>
+      {/* padded={false} so the Circle-colour edge strip runs the full height flush to the card edge; the row pads itself. */}
+      <Card padded={false} className="overflow-hidden flex items-stretch">
+        <span aria-hidden className="w-1.5 shrink-0" style={{ background: circleColour(session.circleId) }} />
+        <div className="flex items-center gap-3 flex-1 min-w-0 px-3.5 py-3">
+          <div className="w-11 text-center shrink-0">
+            <p className="text-cu-card-title text-[15px] leading-none">{dayLabel}</p>
+            <Fact size="meta" tone="muted" className="mt-1 block">
+              {timeLabel}
+            </Fact>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <CircleEmblem seed={session.circleId} name={session.circleName} px={20} />
+              <p className="text-cu-card-title text-[13px] truncate">
+                {session.circleName}
+                {session.venueName ? ` · ${session.venueName}` : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 mt-1.5">
+              <RosterStack confirmed={session.confirmed} slots={session.slots} size="sm" />
+              <span className="text-cu-secondary text-ink-muted truncate">
+                {openCount === 0 ? "court booked" : `${openCount} spot${openCount === 1 ? "" : "s"} open`}
+                {reserveCount > 0 ? ` · ${reserveCount} waiting` : ""}
+              </span>
+            </div>
+          </div>
+          {session.viewerStatus === "in" && (
+            <span className="rounded-chip px-2.5 py-1.5 text-[10.5px] font-bold bg-win-tint text-win whitespace-nowrap">You&apos;re in ✓</span>
+          )}
+          <span className="text-ink-muted shrink-0" aria-hidden>
+            ›
+          </span>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-cu-card-title text-[13px] truncate">
-            {session.circleName}
-            {session.venueName ? ` · ${session.venueName}` : ""}
-          </p>
-          <p className="text-cu-secondary text-ink-muted mt-0.5">
-            {session.confirmed.length} of {session.slots}
-            {full ? " · court booked" : ""}
-          </p>
-        </div>
-        {session.viewerStatus === "in" && (
-          <span className="rounded-chip px-2.5 py-1.5 text-[10.5px] font-bold bg-win-tint text-win whitespace-nowrap">You&apos;re in ✓</span>
-        )}
       </Card>
     </Link>
   );
@@ -217,6 +232,7 @@ export default async function HomePage() {
   const featuredCard: NeedsAnswerSession | null = featured
     ? {
         sessionId: featured.session.id,
+        circleId: featured.circleId,
         circleName: featured.circleName,
         venueName: featured.venue?.name ?? null,
         startsAt: featured.session.startsAt,
@@ -336,6 +352,7 @@ export default async function HomePage() {
   ]);
   const boardCards: BoardCardProps[] = board.map((g) => ({
     sessionId: g.sessionId,
+    circleId: g.circleId,
     circleName: g.circleName,
     venueName: g.venueName,
     whenLabel: g.startsAt.toLocaleString("en-GB", {

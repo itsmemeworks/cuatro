@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Meta, Fact, Sheet, Button, Avatar, AvatarStack, InfoTerm } from "@/components/ui";
 import { BoardCard, type BoardCardProps } from "@/components/games/board-card";
@@ -136,7 +137,7 @@ function MembersPreviewList({ members }: { members: CirclePreviewMemberData[] })
         Who plays here
       </Meta>
       {members.map((m) => (
-        <div key={m.userId} className="flex items-center gap-3 py-1.5">
+        <Link key={m.userId} href={`/players/${m.userId}`} className="flex items-center gap-3 py-1.5 rounded-button transition-cu-state active:bg-ink-hairline-1">
           <Avatar src={m.avatarUrl} name={m.displayName} size="md" />
           <div className="flex-1 min-w-0">
             <span className="text-cu-body text-ink truncate">{m.displayName}</span>
@@ -149,7 +150,7 @@ function MembersPreviewList({ members }: { members: CirclePreviewMemberData[] })
           ) : (
             <Meta>not rated yet</Meta>
           )}
-        </div>
+        </Link>
       ))}
     </div>
   );

@@ -3,10 +3,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, InfoTerm, Meta, QrShareSheet } from "@/components/ui";
+import { Avatar, Button, InfoTerm, Meta, QrShareSheet } from "@/components/ui";
 import { usePresenceCount } from "@/lib/realtime/presence";
+import { formatGlass } from "@/lib/design";
 
 export type RingState = "pending" | "sent" | "done";
+
+/** One played-with candidate row (ring 2a) — someone from the confirmed four's verified match history. */
+export type PlayedWithRow = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rating: number | null;
+  sharedMatchCount: number;
+  lastPlayedWithLabel: string;
+  /** Already sent a played-with invite for this session (never nag twice). */
+  invited: boolean;
+};
 
 /**
  * Fourth Call — send (organiser view, prototype screen 6). Ring 1 + ring 2
@@ -29,6 +42,9 @@ export function FourthCallSend({
   sessionId,
   ring1State,
   ring1Label,
+  playedWithState,
+  playedWithLabel,
+  playedWith,
   ring2State,
   ring2Label,
   canEscalate,
@@ -39,6 +55,11 @@ export function FourthCallSend({
   sessionId: string;
   ring1State: RingState;
   ring1Label: string;
+  /** Played-with ring (2a) status + copy — computed server-side (see the page component). */
+  playedWithState: RingState;
+  playedWithLabel: string;
+  /** The played-with candidates to show (faces + the expandable list with per-person Invite). */
+  playedWith: PlayedWithRow[];
   ring2State: RingState;
   ring2Label: string;
   canEscalate: boolean;
@@ -51,6 +72,12 @@ export function FourthCallSend({
 }) {
   const router = useRouter();
   const [escalating, setEscalating] = useState(false);
+  const [playedWithExpanded, setPlayedWithExpanded] = useState(false);
+  // Optimistic per-person state so a tapped "Invite" reads as sent immediately,
+  // before router.refresh() re-renders from the server's notified set.
+  const [invitingIds, setInvitingIds] = useState<Set<string>>(new Set());
+  const [invitedLocally, setInvitedLocally] = useState<Set<string>>(new Set());
+  const [invitingAll, setInvitingAll] = useState(false);
   const [ring3Pending, setRing3Pending] = useState(false);
   const [ring3Copied, setRing3Copied] = useState(false);
   const [ring3Error, setRing3Error] = useState(false);
@@ -73,6 +100,37 @@ export function FourthCallSend({
       setEscalating(false);
     }
   }
+
+  // Ring 2a: invite one played-with candidate (userId), or everyone (no
+  // userId). Both go through the same escalate route / transaction / notify
+  // path — never-nag-twice is enforced per person server-side.
+  async function invitePlayedWith(userId?: string) {
+    if (userId) setInvitingIds((s) => new Set(s).add(userId));
+    else setInvitingAll(true);
+    try {
+      await fetch(`/api/fourth-call/${sessionId}/escalate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userId ? { ring: "played_with", userId } : { ring: "played_with" }),
+      });
+      if (userId) setInvitedLocally((s) => new Set(s).add(userId));
+      else setInvitedLocally((s) => new Set([...s, ...playedWith.map((p) => p.userId)]));
+      router.refresh();
+    } finally {
+      if (userId) {
+        setInvitingIds((s) => {
+          const next = new Set(s);
+          next.delete(userId);
+          return next;
+        });
+      } else {
+        setInvitingAll(false);
+      }
+    }
+  }
+
+  const isInvited = (p: PlayedWithRow) => p.invited || invitedLocally.has(p.userId);
+  const anyToInvite = playedWith.some((p) => !isInvited(p));
 
   // Both ring-3 affordances (Copy and Show QR) mint the same signed public
   // claim link — see server/fourth-call.ts getRing3ClaimLink.
@@ -167,6 +225,87 @@ export function FourthCallSend({
               {ring1Label}
             </Meta>
           </div>
+        </div>
+
+        <div className="py-3.5">
+          <div className="flex items-center gap-3">
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${
+                playedWithState === "pending" ? "border border-ink-hairline-4 text-ink-muted" : "bg-win text-action-contrast"
+              }`}
+            >
+              {playedWithState === "pending" ? "2" : "✓"}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-cu-body font-bold text-ink">
+                People you&apos;ve played with{" "}
+                {playedWithState === "sent" && <span className="text-action-strong font-extrabold">· live</span>}
+              </p>
+              <Meta as="p" className="mt-0.5">
+                {playedWithLabel}
+              </Meta>
+            </div>
+            {playedWith.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPlayedWithExpanded((v) => !v)}
+                className="shrink-0 flex items-center gap-1.5 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-2.5 py-1.5 transition-cu-state active:opacity-80"
+                aria-expanded={playedWithExpanded}
+              >
+                <span className="flex -space-x-1.5">
+                  {playedWith.slice(0, 3).map((p) => (
+                    <Avatar key={p.userId} src={p.avatarUrl} name={p.displayName} size="xs" ring="surface" />
+                  ))}
+                </span>
+                {playedWith.length}
+                <span aria-hidden>{playedWithExpanded ? "▴" : "▾"}</span>
+              </button>
+            )}
+          </div>
+
+          {playedWithExpanded && playedWith.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              {playedWith.map((p) => {
+                const invited = isInvited(p);
+                const busy = invitingIds.has(p.userId) || invitingAll;
+                return (
+                  <div key={p.userId} className="flex items-center gap-3">
+                    <Avatar src={p.avatarUrl} name={p.displayName} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-cu-body font-bold text-ink truncate">{p.displayName}</p>
+                      <Meta as="p" className="mt-0.5 truncate">
+                        Glass {formatGlass(p.rating)} · {p.lastPlayedWithLabel}
+                      </Meta>
+                    </div>
+                    {invited ? (
+                      <span className="shrink-0 rounded-chip border border-win text-win font-bold text-[10.5px] px-3 py-1.5">
+                        Invited ✓
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => invitePlayedWith(p.userId)}
+                        disabled={busy}
+                        className="shrink-0 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+                      >
+                        {invitingIds.has(p.userId) ? "…" : "Invite"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {anyToInvite && (
+                <button
+                  type="button"
+                  onClick={() => invitePlayedWith()}
+                  disabled={invitingAll}
+                  className="self-start mt-0.5 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+                >
+                  {invitingAll ? "…" : "Invite all"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3 py-3.5">

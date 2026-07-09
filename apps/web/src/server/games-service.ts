@@ -37,6 +37,7 @@ import { resolveVenue, isOrganiser } from "./standing-games-service";
 import { insertNotification } from "./notify";
 import { computeEqualSplit } from "./tab";
 import { localRingCandidates, LOCAL_RING_FANOUT_CAP } from "./local-ring";
+import { playedWithCandidates, PLAYED_WITH_FANOUT_CAP } from "./played-with";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -528,7 +529,14 @@ function fourthCallLevel1FiredAt(db: CuatroDb, sessionId: string): Date | null {
   return row?.createdAt ?? null;
 }
 
-/** Has ring 2 (level 2) already fired for this session? Its notification is the idempotency marker. */
+/**
+ * Has the GEO Local Ring (level 2, no `via`) already fired for this session?
+ * Its notification is the idempotency marker. Deliberately excludes the
+ * played-with ring's notifications — those also carry level 2 but a
+ * `via: "played_with"` tag (json_extract of a missing key is NULL, so the geo
+ * ring's own invites are `$.via IS NULL`). Without this the played-with ring
+ * firing first would wrongly mark the geo ring as already-done.
+ */
 function fourthCallLevel2AlreadyFired(db: CuatroDb, sessionId: string): boolean {
   return !!db
     .select({ id: notifications.id })
@@ -538,9 +546,44 @@ function fourthCallLevel2AlreadyFired(db: CuatroDb, sessionId: string): boolean 
         eq(notifications.type, "fourth_call"),
         sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
         sql`json_extract(${notifications.payload}, '$.level') = 2`,
+        sql`json_extract(${notifications.payload}, '$.via') IS NULL`,
       ),
     )
     .get();
+}
+
+/** When did the played-with ring (via="played_with") first fire for this session? Null if it never has — used to order the geo ring strictly after it. */
+function fourthCallPlayedWithFiredAt(db: CuatroDb, sessionId: string): Date | null {
+  const row = db
+    .select({ createdAt: notifications.createdAt })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.type, "fourth_call"),
+        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+        sql`json_extract(${notifications.payload}, '$.via') = 'played_with'`,
+      ),
+    )
+    .orderBy(asc(notifications.createdAt))
+    .limit(1)
+    .get();
+  return row?.createdAt ?? null;
+}
+
+/** Everyone already invited through the played-with ring for this session — the page reads this for its "sent to N" count and per-person invited state. */
+export function playedWithInvitedUserIds(db: CuatroDb, sessionId: string): string[] {
+  return db
+    .select({ userId: notifications.userId })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.type, "fourth_call"),
+        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+        sql`json_extract(${notifications.payload}, '$.via') = 'played_with'`,
+      ),
+    )
+    .all()
+    .map((r) => r.userId);
 }
 
 /** Everyone already sent a fourth_call notification (any level) for this session — the never-nag-twice set. */
@@ -600,8 +643,15 @@ export async function checkFourthCallLocalRing(
   }
 
   if (!options.forceEscalate) {
-    const firedAt = fourthCallLevel1FiredAt(db, sessionId);
-    if (!firedAt || now.getTime() - firedAt.getTime() < FOURTH_CALL_LOCAL_RING_DELAY_MS) {
+    // Ladder: the played-with ring (checkFourthCallPlayedWith) gets first
+    // refusal. If it has fired, the geo ring waits its grace window before
+    // widening to the map. Only if played-with never fired (no verified-match
+    // connections to reach) does the geo ring fall back to ring 1's grace
+    // window, as before. This relies on the send page running played-with
+    // before this on the same view (see the fourth-call page component);
+    // the organiser's manual "Reach nearby players" bypasses it via forceEscalate.
+    const gateFrom = fourthCallPlayedWithFiredAt(db, sessionId) ?? fourthCallLevel1FiredAt(db, sessionId);
+    if (!gateFrom || now.getTime() - gateFrom.getTime() < FOURTH_CALL_LOCAL_RING_DELAY_MS) {
       return { fired: false, reason: "not_yet" };
     }
   }
@@ -648,6 +698,146 @@ export async function checkFourthCallLocalRing(
   if (result.fired && circleId) {
     emitSessionEvent(sessionId, "fourth_call", { circleId, level: 2 });
     emitCircleEvent(circleId, "fourth_call", { sessionId, level: 2 });
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Fourth Call — ring 2a (THE PLAYED-WITH RING): people you've shared a
+// verified match with, from any circle. Sits between ring 1 (this circle) and
+// ring 2b (the geo Local Ring) in the escalation ladder — connection before
+// proximity, per Pete's brief. The "who have you played with" query is
+// server/played-with.ts; this is the escalation around it, the same
+// async-candidates-then-synchronous-transaction shape as the geo ring, with a
+// `via: "played_with"` tag on the fourth_call notification so notify.ts renders
+// "A four you know needs a player" and the geo ring's level-2 marker stays
+// distinct from these. A played-with invitee need not be a circle member, so
+// they claim through fourth-call.ts's claimFourthCallSlot, not rsvpIn.
+// ---------------------------------------------------------------------------
+
+export type FourthCallPlayedWithResult =
+  | {
+      fired: false;
+      reason: "not_yet" | "already_full" | "already_notified" | "session_not_upcoming" | "no_candidates";
+    }
+  | { fired: true; notifiedUserIds: string[] };
+
+export interface FourthCallPlayedWithOptions {
+  /** Organiser tapped an invite (Invite all, or an individual Invite) — skips the 20-minutes-after-ring-1 wait. */
+  forceEscalate?: boolean;
+  /** Restrict the invite to specific candidates — the send screen's per-person "Invite" buttons pass one id. Omitted = every eligible played-with candidate ("Invite all" / the auto path). */
+  onlyUserIds?: string[];
+}
+
+/**
+ * Escalate a short game to the played-with ring — people from the confirmed
+ * four's verified match history (any circle) get a level-2 `via:"played_with"`
+ * fourth_call notification, which is both the nudge and the claim grant (see
+ * fourth-call.ts's hasFourthCallInvite/claimFourthCallSlot).
+ *
+ * Timing tier: the SAME as the geo ring (opens 20 minutes after ring 1's
+ * first-refusal window) but ordered BEFORE it in the ladder — the geo ring
+ * additionally waits until this has fired (see checkFourthCallLocalRing).
+ * Fires lazily on view once that window elapses, or immediately when the
+ * organiser taps an invite (`forceEscalate`).
+ *
+ * There is no blanket "already fired" gate here (unlike the geo ring): the
+ * never-nag-twice invariant is enforced strictly per person via the shared
+ * fourth_call notified set, which is what lets the organiser hand-pick
+ * candidates one at a time (`onlyUserIds`) without a first invite locking out
+ * the rest. `reason: "already_notified"` means everyone reachable has already
+ * been invited; `"no_candidates"` means there's genuinely no shared history.
+ *
+ * ASYNC, like the geo ring: playedWithCandidates does reads better-sqlite3
+ * can't do inside a synchronous transaction, so the candidate list is computed
+ * first (outside any transaction), then a single synchronous transaction
+ * re-validates and inserts, and realtime emits only after it commits.
+ */
+export async function checkFourthCallPlayedWith(
+  db: CuatroDb,
+  sessionId: string,
+  now: Date = new Date(),
+  options: FourthCallPlayedWithOptions = {},
+): Promise<FourthCallPlayedWithResult> {
+  // --- Phase A: async gates + candidate computation (no transaction) --------
+  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+  if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+    return { fired: false, reason: "session_not_upcoming" };
+  }
+
+  const standingGame = session.standingGameId
+    ? (db.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+    : null;
+  if (countConfirmed(db, sessionId) >= slotsForSession(standingGame)) {
+    return { fired: false, reason: "already_full" };
+  }
+
+  if (!options.forceEscalate) {
+    const firedAt = fourthCallLevel1FiredAt(db, sessionId);
+    if (!firedAt || now.getTime() - firedAt.getTime() < FOURTH_CALL_LOCAL_RING_DELAY_MS) {
+      return { fired: false, reason: "not_yet" };
+    }
+  }
+
+  const alreadyNotified = fourthCallNotifiedUserIds(db, sessionId);
+  let candidates = await playedWithCandidates(db, sessionId, {
+    limit: PLAYED_WITH_FANOUT_CAP,
+    excludeUserIds: [...alreadyNotified],
+    now,
+  });
+  if (options.onlyUserIds) {
+    const only = new Set(options.onlyUserIds);
+    candidates = candidates.filter((c) => only.has(c.userId));
+  }
+  if (candidates.length === 0) {
+    // Distinguish "everyone reachable is already invited" from "no shared
+    // history at all" so the send screen can say the right thing. The universe
+    // query drops the never-nag-twice exclusion (but keeps onlyUserIds) —
+    // if it's non-empty, the reason we found nobody is that they're all invited.
+    let universe = await playedWithCandidates(db, sessionId, { limit: PLAYED_WITH_FANOUT_CAP, now });
+    if (options.onlyUserIds) {
+      const only = new Set(options.onlyUserIds);
+      universe = universe.filter((c) => only.has(c.userId));
+    }
+    return { fired: false, reason: universe.length > 0 ? "already_notified" : "no_candidates" };
+  }
+
+  // --- Phase B: synchronous transaction — re-validate + write invites -------
+  let circleId: string | undefined;
+  const result = db.transaction((tx): FourthCallPlayedWithResult => {
+    const s = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    if (!s || s.status !== "upcoming" || now.getTime() >= s.startsAt.getTime()) {
+      return { fired: false, reason: "session_not_upcoming" };
+    }
+    circleId = s.circleId;
+
+    const sg = s.standingGameId
+      ? (tx.select().from(standingGames).where(eq(standingGames.id, s.standingGameId)).get() ?? null)
+      : null;
+    if (countConfirmed(tx, sessionId) >= slotsForSession(sg)) {
+      return { fired: false, reason: "already_full" };
+    }
+
+    // Re-read the notified set inside the transaction so a concurrent
+    // escalation can't cause a double-invite (never nag twice, per person).
+    const notifiedNow = fourthCallNotifiedUserIds(tx, sessionId);
+    const chosen = candidates.filter((c) => !notifiedNow.has(c.userId));
+    if (chosen.length === 0) return { fired: false, reason: "already_notified" };
+
+    for (const c of chosen) {
+      insertNotification(tx, {
+        userId: c.userId,
+        type: "fourth_call",
+        payload: { sessionId, level: 2, via: "played_with" },
+      });
+    }
+    return { fired: true, notifiedUserIds: chosen.map((c) => c.userId) };
+  });
+
+  // --- Phase C: realtime AFTER commit (never inside the transaction) --------
+  if (result.fired && circleId) {
+    emitSessionEvent(sessionId, "fourth_call", { circleId, level: 2, via: "played_with" });
+    emitCircleEvent(circleId, "fourth_call", { sessionId, level: 2, via: "played_with" });
   }
   return result;
 }

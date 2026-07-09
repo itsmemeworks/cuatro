@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Avatar, Button, Card, Meta } from "@/components/ui";
+import { Avatar, Button, Card, DashedSlot, Meta } from "@/components/ui";
+import { CircleEmblem } from "@/components/games/roster";
 import { errorCopy } from "@/lib/error-copy";
 
 export type NeedsAnswerSession = {
   sessionId: string;
+  circleId: string;
   circleName: string;
   venueName: string | null;
   startsAt: Date;
@@ -91,9 +93,13 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
           View game →
         </Link>
       </div>
-      <p className="text-cu-title text-[19px] leading-[1.2] mt-2.5 text-ink-on-feature">
-        {session.circleName}
-        <br />
+      <div className="flex items-center gap-2 mt-2.5">
+        <CircleEmblem seed={session.circleId} name={session.circleName} px={22} />
+        <p className="text-[11.5px] font-extrabold uppercase tracking-[0.08em] text-ink-on-feature-muted truncate">
+          {session.circleName}
+        </p>
+      </div>
+      <p className="text-cu-title text-[19px] leading-[1.2] mt-1.5 text-ink-on-feature">
         {when}
         {place}
       </p>
@@ -119,6 +125,10 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
                 +{overflow}
               </div>
             )}
+            {/* One dashed-coral slot per spot still to fill — the fourth's empty chair, honest at a glance. */}
+            {Array.from({ length: spotsToFill }, (_, i) => (
+              <DashedSlot key={`open-${i}`} size="sm" label="" overlap={shown.length > 0 || overflow > 0 || i > 0} />
+            ))}
           </div>
           <span className="text-[11.5px] font-medium text-ink-on-feature-muted">
             {optimisticIn

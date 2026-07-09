@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, Fact, Meta, Sheet } from "@/components/ui";
+import { Button, Card, DashedSlot, Fact, Meta, Sheet } from "@/components/ui";
+import { CircleEmblem, circleColour } from "./roster";
 import { errorCopy } from "@/lib/error-copy";
 
 /**
@@ -15,6 +16,8 @@ import { errorCopy } from "@/lib/error-copy";
  */
 export interface BoardCardProps {
   sessionId: string;
+  /** Stable seed for the Circle's colour + emblem. Optional: callers without the id fall back to seeding off the name. */
+  circleId?: string;
   circleName: string;
   venueName: string | null;
   whenLabel: string;
@@ -79,11 +82,15 @@ export function BoardCard(props: BoardCardProps) {
   }
 
   const slotsLabel = `${props.slotsOpen} ${props.slotsOpen === 1 ? "spot" : "spots"} open`;
+  const colourSeed = props.circleId ?? props.circleName;
 
   return (
     <>
-      <Card className="flex flex-col gap-2">
+      <Card padded={false} className="overflow-hidden flex items-stretch">
+        <span aria-hidden className="w-1.5 shrink-0" style={{ background: circleColour(colourSeed) }} />
+        <div className="flex flex-col gap-2 flex-1 min-w-0 px-3.5 py-3">
         <div className="flex items-start gap-3">
+          <CircleEmblem seed={colourSeed} name={props.circleName} px={20} />
           <div className="flex-1 min-w-0">
             <p className="text-cu-card-title text-[15px] truncate">{props.circleName}</p>
             <p className="text-cu-secondary text-ink-muted mt-0.5 truncate">
@@ -94,6 +101,12 @@ export function BoardCard(props: BoardCardProps) {
           <Fact size="meta" tone="muted" className="shrink-0 whitespace-nowrap">
             {props.distanceLabel}
           </Fact>
+        </div>
+        {/* One dashed-coral circle per open spot — the canonical "space waiting for a person". */}
+        <div className="flex items-center gap-1.5">
+          {Array.from({ length: Math.min(props.slotsOpen, 4) }, (_, i) => (
+            <DashedSlot key={`open-${i}`} size="xs" label="" />
+          ))}
         </div>
         <div className="flex items-center justify-between gap-3">
           <Meta as="p" className="min-w-0 truncate">
@@ -115,6 +128,7 @@ export function BoardCard(props: BoardCardProps) {
           )}
         </div>
         {error && <p className="text-cu-secondary text-loss">{error}</p>}
+        </div>
       </Card>
 
       <Sheet open={open} onClose={() => (busy ? undefined : setOpen(false))} title="Ask to join">
