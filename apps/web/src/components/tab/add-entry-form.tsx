@@ -23,6 +23,7 @@ export function AddEntryForm({
 }) {
   const router = useRouter();
   const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +53,13 @@ export function AddEntryForm({
       const res = await fetch("/api/tab/entries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ circleId, totalAmountMinor, currency: defaultCurrency, debtorUserIds: selected }),
+        body: JSON.stringify({
+          circleId,
+          totalAmountMinor,
+          currency: defaultCurrency,
+          debtorUserIds: selected,
+          description: description.trim() || undefined,
+        }),
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
@@ -60,6 +67,7 @@ export function AddEntryForm({
         return;
       }
       setAmount("");
+      setDescription("");
       setSelected([]);
       router.refresh();
     } catch {
@@ -81,6 +89,17 @@ export function AddEntryForm({
           placeholder="32.00"
           value={amount}
           onChange={(event) => setAmount(event.target.value)}
+        />
+      </label>
+
+      <label className="tab-add-entry-form__description-field flex flex-col gap-1">
+        <Meta>What for (optional)</Meta>
+        <input
+          className="tab-add-entry-form__description rounded-button px-3 py-2 text-cu-body bg-ground border border-ink-hairline-2 text-ink"
+          type="text"
+          placeholder="court + balls"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
         />
       </label>
 

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
 
-  const { circleId, totalAmountMinor, debtorUserIds, currency, sessionId } = body;
+  const { circleId, totalAmountMinor, debtorUserIds, currency, sessionId, description } = body;
   if (
     typeof circleId !== "string" ||
     typeof totalAmountMinor !== "number" ||
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     totalAmountMinor,
     currency: typeof currency === "string" ? currency : undefined,
     sessionId: typeof sessionId === "string" ? sessionId : null,
+    description: typeof description === "string" ? description : null,
   });
 
   if (!result.ok) {

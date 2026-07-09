@@ -12,14 +12,21 @@ export interface ResultPostPlayer {
   avatarUrl: string | null;
 }
 
+export interface ResultPostTeamData {
+  players: ResultPostPlayer[];
+  avgDelta: number | null;
+  /** One named teammate's own delta + post-match rating (server/feed.ts's ResultPostTeam.namedDelta) — null falls back to the team-average line below. */
+  namedDelta: { displayName: string; delta: number; ratingAfter: number } | null;
+}
+
 export interface ResultPostData {
   matchId: string;
   playedAt: string; // ISO
   sets: { a: number; b: number }[];
   outcome: "completed" | "retired" | "walkover";
   winner: "A" | "B";
-  teamA: { players: ResultPostPlayer[]; avgDelta: number | null };
-  teamB: { players: ResultPostPlayer[]; avgDelta: number | null };
+  teamA: ResultPostTeamData;
+  teamB: ResultPostTeamData;
   respectCount: number;
   viewerRespected: boolean;
   commentCount: number;
@@ -48,6 +55,18 @@ function relativeDayLabel(iso: string): string {
   return played.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+/** "Kav +0.04 → 4.91" when a team has a named representative (server/feed.ts's ResultPostTeam.namedDelta), else "Kav & Tom +0.02" using the team average — the same tone-by-sign either way. */
+function teamDeltaDisplay(team: ResultPostTeamData): { text: string; delta: number } | null {
+  if (team.namedDelta) {
+    const firstName = team.namedDelta.displayName.split(" ")[0];
+    return { text: `${firstName} ${formatDelta(team.namedDelta.delta)} → ${team.namedDelta.ratingAfter.toFixed(2)}`, delta: team.namedDelta.delta };
+  }
+  if (team.avgDelta != null) {
+    return { text: `${teamNames(team)} ${formatDelta(team.avgDelta)}`, delta: team.avgDelta };
+  }
+  return null;
+}
+
 /**
  * A Feed result post (prototype screen 4): a header line naming both teams,
  * a big centered score, a centered mono Glass-delta line, and a 👏/💬
@@ -55,12 +74,11 @@ function relativeDayLabel(iso: string): string {
  * in a Sheet, see comment-sheet.tsx). "rematch?" links into the circle's
  * Standing Game instead of creating anything.
  *
- * The prototype's delta line names one representative player per team
- * ("Kav +0.04 → 4.91"); this circle's feed only carries each team's
- * *average* delta (server/feed.ts's ResultPostTeam — no per-player
- * post-match rating), so it labels the average with both team members'
- * names instead of guessing which one to single out, and drops the "→
- * newRating" clause that data doesn't have.
+ * The delta line names one representative player per team ("Kav +0.04 →
+ * 4.91" — server/feed.ts's ResultPostTeam.namedDelta, first-listed teammate
+ * whose Glass rating isn't Placement-hidden) and falls back to the
+ * team-average line ("Kav & Tom +0.02") when neither teammate's rating is
+ * visible yet — see teamDeltaDisplay.
  */
 export function ResultPost({ data }: { data: ResultPostData }) {
   const { respected, count, pending, toggle: toggleRespect } = useRespectToggle(data.matchId, data.viewerRespected, data.respectCount);
@@ -70,6 +88,8 @@ export function ResultPost({ data }: { data: ResultPostData }) {
   const winningTeam = data.winner === "A" ? data.teamA : data.teamB;
   const losingTeam = data.winner === "A" ? data.teamB : data.teamA;
   const heroPlayer = winningTeam.players[0];
+  const winningDelta = teamDeltaDisplay(winningTeam);
+  const losingDelta = teamDeltaDisplay(losingTeam);
 
   return (
     <Card className="flex flex-col gap-3">
@@ -101,16 +121,16 @@ export function ResultPost({ data }: { data: ResultPostData }) {
         ))}
       </div>
 
-      {(winningTeam.avgDelta != null || losingTeam.avgDelta != null) && (
+      {(winningDelta || losingDelta) && (
         <div className="flex items-center justify-center gap-3 -mt-1">
-          {winningTeam.avgDelta != null && (
-            <Fact size="sm" weight="semibold" tone={winningTeam.avgDelta >= 0 ? "win" : "loss"}>
-              {teamNames(winningTeam)} {formatDelta(winningTeam.avgDelta)}
+          {winningDelta && (
+            <Fact size="sm" weight="semibold" tone={winningDelta.delta >= 0 ? "win" : "loss"}>
+              {winningDelta.text}
             </Fact>
           )}
-          {losingTeam.avgDelta != null && (
-            <Fact size="sm" weight="semibold" tone={losingTeam.avgDelta >= 0 ? "win" : "loss"}>
-              {teamNames(losingTeam)} {formatDelta(losingTeam.avgDelta)}
+          {losingDelta && (
+            <Fact size="sm" weight="semibold" tone={losingDelta.delta >= 0 ? "win" : "loss"}>
+              {losingDelta.text}
             </Fact>
           )}
         </div>

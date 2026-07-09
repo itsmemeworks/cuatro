@@ -75,6 +75,11 @@ describe("server/feed — circle Feed read model", () => {
     expect(post.teamB.avgDelta).not.toBeNull();
     expect(post.teamA.avgDelta!).toBeGreaterThan(0); // winners gain
     expect(post.teamB.avgDelta!).toBeLessThan(0); // losers lose
+    // Fresh players' very first match is Placement match 1 of 3 for
+    // everyone — both teams' representative is still hidden, so this falls
+    // back to the average-delta rendering rather than naming anyone.
+    expect(post.teamA.namedDelta).toBeNull();
+    expect(post.teamB.namedDelta).toBeNull();
     expect(post.respectCount).toBe(0);
     expect(post.viewerRespected).toBe(false);
     expect(post.commentCount).toBe(0);
@@ -143,6 +148,100 @@ describe("server/feed — circle Feed read model", () => {
     const { posts } = listRecentResultsForCircle(db, circle.id, organiser.id, 2);
     expect(posts).toHaveLength(2);
     expect(posts.map((p) => p.matchId)).toEqual([matchIds[2], matchIds[1]]); // newest first
+  });
+
+  describe("ResultPostTeam.namedDelta — the placement-hidden rule", () => {
+    it("names the first-listed teammate once both teams' Placement Trios are complete", async () => {
+      const p1 = insertUser(db, "nd1@example.com", "Nadia Diaz");
+      const p2 = insertUser(db, "nd2@example.com", "Owen Park");
+      const p3 = insertUser(db, "nd3@example.com", "Priya Roy");
+      const p4 = insertUser(db, "nd4@example.com", "Quinn Fox");
+      const circle = insertCircle(db, p1.id);
+      for (const u of [p1, p2, p3, p4]) addMember(db, circle.id, u.id, u.id === p1.id ? "organiser" : "member");
+
+      // Same four players, four matches: the first three complete
+      // everyone's Placement Trio (PLACEMENT_TRIO_SIZE = 3); the fourth is
+      // an ordinary post-placement match whose delta line should name
+      // p1 (teamA's first-listed) and p3 (teamB's first-listed).
+      let fourthMatchId = "";
+      for (let i = 0; i < 4; i++) {
+        const session = insertSession(db, circle.id, new Date(Date.now() - (4 - i) * DAY_MS));
+        const { matchId } = await store.recordMatch({
+          sessionId: session.id,
+          reporterId: p1.id,
+          teamA: [p1.id, p2.id],
+          teamB: [p3.id, p4.id],
+          sets: [{ a: 6, b: 2 }],
+        });
+        await store.confirmMatch(matchId, p3.id);
+        fourthMatchId = matchId;
+      }
+
+      const { posts } = listRecentResultsForCircle(db, circle.id, p1.id, 1);
+      expect(posts).toHaveLength(1);
+      const post = posts[0];
+      expect(post.matchId).toBe(fourthMatchId);
+      // The named delta/rating are whatever the Glass engine produced for
+      // that match (by the 4th meeting of the same four players, repeat-
+      // fixture Echo Damping can shrink a rounded delta all the way to
+      // 0 — see @cuatro/glass's README — so this only checks who gets
+      // named, not the sign of their number; the engine's own maths is
+      // @cuatro/glass's test suite's job, not this read model's).
+      expect(post.teamA.namedDelta).not.toBeNull();
+      expect(post.teamA.namedDelta!.displayName).toBe("Nadia Diaz"); // first-listed teammate
+      expect(Number.isFinite(post.teamA.namedDelta!.delta)).toBe(true);
+      expect(typeof post.teamA.namedDelta!.ratingAfter).toBe("number");
+      expect(post.teamB.namedDelta).not.toBeNull();
+      expect(post.teamB.namedDelta!.displayName).toBe("Priya Roy"); // first-listed teammate
+      expect(Number.isFinite(post.teamB.namedDelta!.delta)).toBe(true);
+    });
+
+    it("falls back to the second teammate when the first-listed player is still Placement-hidden", async () => {
+      const veteran1 = insertUser(db, "vet1@example.com", "Vera One");
+      const veteran2 = insertUser(db, "vet2@example.com", "Vic Two");
+      const opp1 = insertUser(db, "opp1@example.com", "Opal Opponent");
+      const opp2 = insertUser(db, "opp2@example.com", "Ora Opponent");
+      const circle = insertCircle(db, veteran1.id);
+      for (const u of [veteran1, veteran2, opp1, opp2]) addMember(db, circle.id, u.id, u.id === veteran1.id ? "organiser" : "member");
+
+      // All four complete their Placement Trio against each other first, so every one of them is rated going into the match under test.
+      for (let i = 0; i < 3; i++) {
+        const session = insertSession(db, circle.id, new Date(Date.now() - (10 - i) * DAY_MS));
+        const { matchId } = await store.recordMatch({
+          sessionId: session.id,
+          reporterId: veteran1.id,
+          teamA: [veteran1.id, veteran2.id],
+          teamB: [opp1.id, opp2.id],
+          sets: [{ a: 6, b: 2 }],
+        });
+        await store.confirmMatch(matchId, opp1.id);
+      }
+
+      // A brand-new player joins the circle and partners with veteran1,
+      // listed FIRST on teamA — still Placement-hidden, so the selection
+      // should fall through to veteran1 (second-listed, already rated)
+      // rather than leaving the whole team unnamed.
+      const rookie = insertUser(db, "rookie@example.com", "Rex Rookie");
+      addMember(db, circle.id, rookie.id);
+      const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+      const { matchId } = await store.recordMatch({
+        sessionId: session.id,
+        reporterId: veteran1.id,
+        teamA: [rookie.id, veteran1.id],
+        teamB: [opp1.id, opp2.id],
+        sets: [{ a: 6, b: 3 }],
+      });
+      await store.confirmMatch(matchId, opp1.id);
+
+      const { posts } = listRecentResultsForCircle(db, circle.id, veteran1.id, 1);
+      const post = posts[0];
+      expect(post.matchId).toBe(matchId);
+      expect(post.teamA.namedDelta).not.toBeNull();
+      expect(post.teamA.namedDelta!.displayName).toBe("Vera One");
+      // teamB is fully rated too — its first-listed player names normally.
+      expect(post.teamB.namedDelta).not.toBeNull();
+      expect(post.teamB.namedDelta!.displayName).toBe("Opal Opponent");
+    });
   });
 
   describe("toggleRespect", () => {

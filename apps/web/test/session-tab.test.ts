@@ -55,6 +55,21 @@ describe("createTabSplitForSession", () => {
     expect(result.payerShareMinor).toBe(800);
   });
 
+  it("writes a 'court split · {session date}' description on every entry it creates", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00", slots: 2 } });
+    withCost(fixture, 2000);
+    const [d1] = fixture.memberIds;
+    const session = playedSession(fixture.db, fixture, [fixture.organiserId, d1]);
+
+    const result = createTabSplitForSession(fixture.db, session.id, fixture.organiserId);
+    if (!result.ok) throw new Error("unreachable");
+
+    const expectedDateLabel = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(session.startsAt);
+    for (const e of result.entries) {
+      expect(e.description).toBe(`court split · ${expectedDateLabel}`);
+    }
+  });
+
   it("is idempotent — a second call returns the existing split rather than creating a duplicate", () => {
     fixture = seedCircle({ memberCount: 2, standingGame: { weekday: 2, startTime: "20:00", slots: 3 } });
     withCost(fixture, 3200); // £32 across 2 debtors + payer -> 1066/1066, payer keeps 1068

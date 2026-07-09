@@ -47,8 +47,22 @@ export interface FeedPlayerRef {
 
 export interface ResultPostTeam {
   players: FeedPlayerRef[];
-  /** Average of both players' Ledger delta for this match; null when the match was skipped by the Glass engine (walkover, or a retired match with no games — see matches-db.ts's applyGlassAndPersist). */
+  /** Average of both players' Ledger delta for this match; null when the match was skipped by the Glass engine (walkover, or a retired match with no games — see matches-db.ts's applyGlassAndPersist). Kept as-is (including any Placement-hidden player's delta folded into the average) purely as the legacy fallback shape for a team with no `namedDelta` — see that field's note. */
   avgDelta: number | null;
+  /**
+   * One representative player's own delta + post-match rating, for the
+   * prototype's per-player delta line ("Kav +0.04 → 4.91" —
+   * design/HANDOFF.md screen 4). Picked deterministically: the first-listed
+   * teammate if their Glass rating is visible post-match, else the second
+   * teammate if theirs is, else null when both are still Placement-hidden
+   * (or neither has a Ledger row — a skipped walkover/retired match).
+   * "Visible" mirrors components/matches/match-confirm-flow.tsx's
+   * `ratingStillHidden` rule exactly (an explanation starting with
+   * "Placement match") — duplicated locally rather than imported since that
+   * component is a "use client" module and this is a server-only read
+   * model. Null is the fallback signal: render `avgDelta` instead.
+   */
+  namedDelta: { displayName: string; delta: number; ratingAfter: number } | null;
 }
 
 export interface ResultPostView {
@@ -164,6 +178,34 @@ export function computeRivalryCallout(
   return best;
 }
 
+/**
+ * Same rule as components/matches/match-confirm-flow.tsx's
+ * `ratingStillHidden` (kept in sync manually — see that file's own
+ * doc comment on why the literal marker is "Placement match", not
+ * "Placement Trio complete"): a player whose Trio is mid-way still has this
+ * prefix on their rating_events row, so their number stays unnamed in the
+ * Feed exactly as it stays unnamed on the confirmation seal.
+ */
+function ratingStillHidden(explanation: string): boolean {
+  return explanation.startsWith("Placement match");
+}
+
+/** See ResultPostTeam.namedDelta's doc comment for the selection rule this implements. */
+function pickNamedDelta(
+  events: Map<string, { delta: number; ratingAfter: number; explanation: string }> | undefined,
+  playerIds: readonly [string, string],
+  refOf: (userId: string) => FeedPlayerRef,
+): { displayName: string; delta: number; ratingAfter: number } | null {
+  if (!events) return null;
+  for (const id of playerIds) {
+    const ev = events.get(id);
+    if (ev && !ratingStillHidden(ev.explanation)) {
+      return { displayName: refOf(id).displayName, delta: ev.delta, ratingAfter: ev.ratingAfter };
+    }
+  }
+  return null;
+}
+
 function isMember(db: CuatroDb, circleId: string, userId: string): boolean {
   return !!db
     .select({ userId: circleMembers.userId })
@@ -217,13 +259,23 @@ export function listRecentResultsForCircle(
     return { userId, displayName: u?.displayName ?? "Unknown", avatarUrl: u?.avatarUrl ?? null };
   };
 
-  const deltaRows = matchIds.length
-    ? db.select({ matchId: ratingEvents.matchId, userId: ratingEvents.userId, delta: ratingEvents.delta }).from(ratingEvents).where(inArray(ratingEvents.matchId, matchIds)).all()
+  const eventRows = matchIds.length
+    ? db
+        .select({
+          matchId: ratingEvents.matchId,
+          userId: ratingEvents.userId,
+          delta: ratingEvents.delta,
+          ratingAfter: ratingEvents.ratingAfter,
+          explanation: ratingEvents.explanation,
+        })
+        .from(ratingEvents)
+        .where(inArray(ratingEvents.matchId, matchIds))
+        .all()
     : [];
-  const deltaByMatch = new Map<string, Map<string, number>>();
-  for (const row of deltaRows) {
-    if (!deltaByMatch.has(row.matchId)) deltaByMatch.set(row.matchId, new Map());
-    deltaByMatch.get(row.matchId)!.set(row.userId, row.delta);
+  const eventsByMatch = new Map<string, Map<string, { delta: number; ratingAfter: number; explanation: string }>>();
+  for (const row of eventRows) {
+    if (!eventsByMatch.has(row.matchId)) eventsByMatch.set(row.matchId, new Map());
+    eventsByMatch.get(row.matchId)!.set(row.userId, { delta: row.delta, ratingAfter: row.ratingAfter, explanation: row.explanation });
   }
 
   const reactionRows = matchIds.length
@@ -241,16 +293,18 @@ export function listRecentResultsForCircle(
 
   const commentCounts = getCommentCounts(db, matchIds);
 
-  function teamDelta(deltas: Map<string, number> | undefined, playerIds: readonly [string, string]): number | null {
-    if (!deltas) return null;
-    const values = playerIds.map((id) => deltas.get(id)).filter((v): v is number => v != null);
+  function teamDelta(events: Map<string, { delta: number }> | undefined, playerIds: readonly [string, string]): number | null {
+    if (!events) return null;
+    const values = playerIds.map((id) => events.get(id)?.delta).filter((v): v is number => v != null);
     if (values.length === 0) return null;
     return values.reduce((a, b) => a + b, 0) / values.length;
   }
 
   const posts: ResultPostView[] = displayMatches.map((m) => {
-    const deltas = deltaByMatch.get(m.id);
+    const events = eventsByMatch.get(m.id);
     const reactorIds = reactionsByMatch.get(m.id) ?? [];
+    const teamAIds: readonly [string, string] = [m.teamAPlayer1Id, m.teamAPlayer2Id];
+    const teamBIds: readonly [string, string] = [m.teamBPlayer1Id, m.teamBPlayer2Id];
     return {
       matchId: m.id,
       sessionId: m.sessionId,
@@ -258,8 +312,8 @@ export function listRecentResultsForCircle(
       sets: m.score,
       outcome: m.outcome,
       winner: computeWinner(m.score),
-      teamA: { players: [refOf(m.teamAPlayer1Id), refOf(m.teamAPlayer2Id)], avgDelta: teamDelta(deltas, [m.teamAPlayer1Id, m.teamAPlayer2Id]) },
-      teamB: { players: [refOf(m.teamBPlayer1Id), refOf(m.teamBPlayer2Id)], avgDelta: teamDelta(deltas, [m.teamBPlayer1Id, m.teamBPlayer2Id]) },
+      teamA: { players: [refOf(m.teamAPlayer1Id), refOf(m.teamAPlayer2Id)], avgDelta: teamDelta(events, teamAIds), namedDelta: pickNamedDelta(events, teamAIds, refOf) },
+      teamB: { players: [refOf(m.teamBPlayer1Id), refOf(m.teamBPlayer2Id)], avgDelta: teamDelta(events, teamBIds), namedDelta: pickNamedDelta(events, teamBIds, refOf) },
       respectCount: reactorIds.length,
       viewerRespected: reactorIds.includes(viewerUserId),
       commentCount: commentCounts.get(m.id) ?? 0,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { notifications } from "@cuatro/db";
+import { notifications, sessions } from "@cuatro/db";
 import { seedCircle, type Fixture } from "./support/games-fixtures";
 import {
   addSplitEntry,
@@ -10,6 +10,7 @@ import {
   computeNetPosition,
   ensureTabForCircle,
   getTabView,
+  MAX_TAB_ENTRY_DESCRIPTION_LENGTH,
   nudgeEntry,
   proposeOrConfirmSettle,
   type TabEntryLike,
@@ -126,6 +127,48 @@ describe("addSplitEntry", () => {
       totalAmountMinor: 1000,
     });
     expect(result).toEqual({ ok: false, error: "not_a_circle_member" });
+  });
+
+  it("persists a trimmed, length-capped description on every created entry", () => {
+    fixture = seedCircle({ memberCount: 2 });
+    const [d1, d2] = fixture.memberIds;
+    const overlong = "x".repeat(MAX_TAB_ENTRY_DESCRIPTION_LENGTH + 50);
+    const result = addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [d1, d2],
+      totalAmountMinor: 1000,
+      description: `  ${overlong}  `,
+    });
+    if (!result.ok) throw new Error("unreachable");
+    for (const e of result.entries) {
+      expect(e.description).toBe(overlong.slice(0, MAX_TAB_ENTRY_DESCRIPTION_LENGTH));
+      expect(e.description!.length).toBe(MAX_TAB_ENTRY_DESCRIPTION_LENGTH);
+    }
+  });
+
+  it("stores null when no description is given, or when it's blank/whitespace-only", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const [d1] = fixture.memberIds;
+
+    const noDescription = addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [d1],
+      totalAmountMinor: 1000,
+    });
+    if (!noDescription.ok) throw new Error("unreachable");
+    expect(noDescription.entries[0]!.description).toBeNull();
+
+    const blankDescription = addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [d1],
+      totalAmountMinor: 1000,
+      description: "   ",
+    });
+    if (!blankDescription.ok) throw new Error("unreachable");
+    expect(blankDescription.entries[0]!.description).toBeNull();
   });
 
   it("rejects a zero or negative amount", () => {
@@ -383,6 +426,63 @@ describe("ensureTabForCircle / getTabView", () => {
     expect(after.balances).toEqual([]);
     expect(after.activity).toHaveLength(1);
     expect(after.activity[0]!.status).toBe("settled");
+  });
+});
+
+describe("TabEntryView.descriptionLabel — description with a session-date fallback", () => {
+  it("uses the entry's own description when set, even for a session-linked entry", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const [debtor] = fixture.memberIds;
+    const session = fixture.db.insert(sessions).values({ circleId: fixture.circleId, startsAt: new Date(), status: "played" }).returning().get();
+
+    addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [debtor],
+      totalAmountMinor: 1000,
+      sessionId: session.id,
+      description: "court + new balls",
+    });
+
+    const view = getTabView(fixture.db, fixture.circleId, fixture.organiserId)!;
+    expect(view.activity[0]!.description).toBe("court + new balls");
+    expect(view.activity[0]!.descriptionLabel).toBe("court + new balls");
+  });
+
+  it("falls back to a weekday-derived label for a session-linked entry with no description", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const [debtor] = fixture.memberIds;
+    const session = fixture.db.insert(sessions).values({ circleId: fixture.circleId, startsAt: new Date(), status: "played" }).returning().get();
+
+    addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [debtor],
+      totalAmountMinor: 1000,
+      sessionId: session.id,
+    });
+
+    const view = getTabView(fixture.db, fixture.circleId, fixture.organiserId)!;
+    const entry = view.activity[0]!;
+    expect(entry.description).toBeNull();
+    const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(entry.createdAt);
+    expect(entry.descriptionLabel).toBe(`${weekday}'s court split`);
+  });
+
+  it("is null for a manually-added entry with no session and no description", () => {
+    fixture = seedCircle({ memberCount: 1 });
+    const [debtor] = fixture.memberIds;
+
+    addSplitEntry(fixture.db, {
+      circleId: fixture.circleId,
+      payerUserId: fixture.organiserId,
+      debtorUserIds: [debtor],
+      totalAmountMinor: 1000,
+    });
+
+    const view = getTabView(fixture.db, fixture.circleId, fixture.organiserId)!;
+    expect(view.activity[0]!.description).toBeNull();
+    expect(view.activity[0]!.descriptionLabel).toBeNull();
   });
 });
 

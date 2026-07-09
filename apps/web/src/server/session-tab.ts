@@ -16,6 +16,11 @@ import { addSplitEntry } from "./tab";
 /** Mirrors server/tab.ts's addSplitEntry error union (see that file's AddSplitEntryOutcome) — spelled out rather than derived, since a non-generic conditional type over an already-substituted union doesn't distribute the way it looks like it would. */
 type AddSplitEntryError = "not_a_circle_member" | "no_debtors" | "duplicate_debtor" | "payer_is_debtor" | "invalid_amount";
 
+/** "court split · Tue 8 Jul" — every entry a session split creates gets the same description, so a debtor scrolling the Tab's activity feed weeks later still knows which court booking it was for (server/tab.ts's TabEntryView.descriptionLabel falls back to a plainer date-only label when this is ever absent, e.g. for entries created before this field existed). */
+function formatSessionDateLabel(playedAt: Date): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(playedAt);
+}
+
 export type CreateTabSplitOutcome =
   | { ok: true; entries: TabEntry[]; payerShareMinor: number; alreadyExisted: boolean }
   | { ok: false; error: "session_not_found" | "not_played" | "no_cost_set" | AddSplitEntryError };
@@ -73,6 +78,7 @@ export function createTabSplitForSession(db: CuatroDb, sessionId: string, reques
     totalAmountMinor: summary.costMinor,
     currency: summary.costCurrency,
     sessionId,
+    description: `court split · ${formatSessionDateLabel(summary.session.startsAt)}`,
   });
   if (!result.ok) return { ok: false, error: result.error };
 

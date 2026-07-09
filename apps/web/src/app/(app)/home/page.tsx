@@ -108,7 +108,22 @@ function ConfirmedGameRow({ session }: { session: SessionCardData }) {
 }
 
 /** One row per circle where the viewer owes money — "the Tab never charges fees, it just keeps score" (design/HANDOFF.md screen 10). Aggregated here (getTabView is per-circle) since Home is the one place that summarises across every Circle the viewer is in. */
-function TabRow({ circleId, circleName, name, amountMinor, currency }: { circleId: string; circleName: string; name: string; amountMinor: number; currency: string }) {
+function TabRow({
+  circleId,
+  circleName,
+  name,
+  amountMinor,
+  currency,
+  description,
+}: {
+  circleId: string;
+  circleName: string;
+  name: string;
+  amountMinor: number;
+  currency: string;
+  /** The most recent unsettled entry's "what for" (server/tab.ts's TabEntryView.descriptionLabel) — null when there's nothing to say beyond who and how much. */
+  description: string | null;
+}) {
   return (
     <Card className="flex items-center gap-3">
       <div className="flex-1 min-w-0">
@@ -116,6 +131,7 @@ function TabRow({ circleId, circleName, name, amountMinor, currency }: { circleI
           The Tab · you owe {name} <Fact as="span" size="sm" tone="loss">{formatMoney(amountMinor, currency)}</Fact>
         </p>
         <p className="text-cu-secondary text-ink-muted mt-0.5">{circleName}</p>
+        {description && <p className="text-cu-secondary text-ink-muted mt-0.5">from {description}</p>}
       </div>
       <Link
         href={`/circles/${circleId}/tab`}
@@ -256,19 +272,33 @@ export default async function HomePage() {
   // Tab settle preview: aggregated across every Circle the viewer is in
   // (getTabView is scoped per-circle — see server/tab.ts) since Home is the
   // one surface summarising the whole week, not just one Circle's Tab.
-  const owedRows: { circleId: string; circleName: string; name: string; amountMinor: number; currency: string }[] = [];
+  const owedRows: { circleId: string; circleName: string; name: string; amountMinor: number; currency: string; description: string | null }[] = [];
   for (const circle of circles) {
     const view = getTabView(gamesClient.db, circle.id, user.id);
     if (!view) continue;
     for (const balance of view.balances) {
       if (balance.netMinor >= 0) continue; // only "you owe" rows get a Settle prompt on Home
       const counterparty = view.members.find((m) => m.userId === balance.counterpartyUserId);
+      // getTabView's balances are netted across every unsettled entry with
+      // this counterparty (see server/tab.ts) — there's no single entry
+      // "the" balance came from, so the most recent unsettled one between
+      // this pair stands in for "what for" (same spirit as the netted
+      // balance itself: the freshest fact wins).
+      const mostRecentEntry = view.activity
+        .filter(
+          (e) =>
+            e.status !== "settled" &&
+            ((e.payerUserId === user.id && e.debtorUserId === balance.counterpartyUserId) ||
+              (e.debtorUserId === user.id && e.payerUserId === balance.counterpartyUserId)),
+        )
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
       owedRows.push({
         circleId: circle.id,
         circleName: circle.name,
         name: counterparty?.displayName ?? "someone",
         amountMinor: -balance.netMinor,
         currency: balance.currency,
+        description: mostRecentEntry?.descriptionLabel ?? null,
       });
     }
   }

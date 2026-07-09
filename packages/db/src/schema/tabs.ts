@@ -40,6 +40,12 @@ export const tabEntries = sqliteTable(
       .references(() => users.id),
     amountMinor: integer('amount_minor').notNull(),
     currency: text('currency').notNull().default('GBP'),
+    // "court + new balls" / "from Tuesday's court + balls" (design's Tab
+    // screens) — what the money was for, in the payer's own words. Null for
+    // an entry with no description yet; callers derive a session-date
+    // fallback label themselves rather than inventing one here (see
+    // server/tab.ts's descriptionLabel).
+    description: text('description'),
     status: text('status', { enum: ['open', 'nudged', 'settled'] })
       .notNull()
       .default('open'),

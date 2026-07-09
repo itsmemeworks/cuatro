@@ -11,12 +11,6 @@ import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { CircleSwitcher } from "@/components/circles/circle-switcher";
 import { Card, Meta } from "@/components/ui";
 
-/** "Tuesday's court split" — the only description a session-linked entry has, derived from the day it was created (the split is made right after the session). Manually-added entries (no session) get no subtitle rather than an invented one. */
-function weekdaySubtitle(createdAt: Date): string {
-  const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(createdAt);
-  return `${weekday}'s court split`;
-}
-
 function activityDateLabel(d: Date): string {
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric" }).format(d);
 }
@@ -44,7 +38,7 @@ function ActivityRow({ entry, viewerUserId }: { entry: TabEntryView; viewerUserI
 
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5 font-mono tabular-nums text-[11px] text-ink-muted">
-      <span>{dateLabel} · court split</span>
+      <span>{dateLabel} · {entry.descriptionLabel ?? "court split"}</span>
       <span>{formatMoney(entry.amountMinor, entry.currency)} each</span>
     </div>
   );
@@ -148,7 +142,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
                   currency: e.currency,
                   status: e.status,
                   pendingSettleBy: e.pendingSettleBy,
-                  subtitle: e.sessionId ? weekdaySubtitle(e.createdAt) : null,
+                  subtitle: e.descriptionLabel,
                 }}
                 viewerUserId={user.id}
                 counterpartyAvatarUrl={avatarByUserId.get(e.payerUserId === user.id ? e.debtorUserId : e.payerUserId)}
