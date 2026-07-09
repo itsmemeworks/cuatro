@@ -13,6 +13,7 @@ primary_region = "lhr"
     NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpYWVldXlxcWJ0bWJ1cWZrZnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjA2NDMsImV4cCI6MjA5OTA5NjY0M30.0O7OQbRVV6TbqStsGhOb5_c4tVd9_88UIieRyOgoN2E"
 
 [env]
+  AVATAR_DIR = "/data/avatars"
   PORT = "3000"
   DATABASE_PATH = "/data/cuatro.db"
   # Dedicated cuatro Supabase project (prod). Local dev always points at the
