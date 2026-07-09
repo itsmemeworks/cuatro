@@ -87,8 +87,14 @@ export function TabEntryRow({
     }
   }
 
-  const awaitingCounterparty = entry.pendingSettleBy != null;
+  // "Settle" is the debtor's action (they're the one paying); the payer
+  // (creditor) only ever gets Nudge plus a "Confirm settled" pill once the
+  // debtor has proposed — proposeOrConfirmSettle's two-step flow (see
+  // server/tab.ts) means `pendingSettleBy` set to anyone other than the
+  // viewer is, in this UI, always the debtor (the payer has no button here
+  // that calls propose in the first place).
   const viewerAlreadyProposed = entry.pendingSettleBy === viewerUserId;
+  const counterpartyProposed = entry.pendingSettleBy != null && !viewerAlreadyProposed;
 
   return (
     <div className="flex flex-col gap-1.5 px-4 py-3">
@@ -103,22 +109,30 @@ export function TabEntryRow({
         <Fact size="md" weight="bold" tone={viewerIsPayer ? "win" : "loss"}>
           {formatMoney(entry.amountMinor, entry.currency)}
         </Fact>
-        {viewerIsPayer && entry.status === "open" && (
-          <RowPill disabled={pending} onClick={() => post("nudge")}>
-            Nudge 👋
+        {viewerIsPayer ? (
+          <>
+            <RowPill disabled={pending || entry.status !== "open"} onClick={() => post("nudge")}>
+              {entry.status === "open" ? "Nudge 👋" : "Nudged ✓"}
+            </RowPill>
+            {counterpartyProposed && (
+              <RowPill disabled={pending} onClick={() => post("settle")}>
+                Confirm settled
+              </RowPill>
+            )}
+          </>
+        ) : (
+          <RowPill
+            tone={entry.pendingSettleBy == null || counterpartyProposed ? "action" : "quiet"}
+            disabled={pending || viewerAlreadyProposed}
+            onClick={() => post("settle")}
+          >
+            {entry.pendingSettleBy == null
+              ? `Settle ${formatMoney(entry.amountMinor, entry.currency)}`
+              : viewerAlreadyProposed
+                ? "Waiting…"
+                : "Confirm ✓"}
           </RowPill>
         )}
-        <RowPill
-          tone={awaitingCounterparty ? "quiet" : "action"}
-          disabled={pending || viewerAlreadyProposed}
-          onClick={() => post("settle")}
-        >
-          {awaitingCounterparty
-            ? viewerAlreadyProposed
-              ? "Waiting…"
-              : "Confirm ✓"
-            : `Settle ${formatMoney(entry.amountMinor, entry.currency)}`}
-        </RowPill>
       </div>
       {error && <Fact size="sm" tone="loss">{error}</Fact>}
     </div>

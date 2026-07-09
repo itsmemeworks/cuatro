@@ -145,7 +145,8 @@ export function StandingGameWeekCard({
 
           {Array.from({ length: openSlots }, (_, i) => (
             <div key={`open-${i}`} className="flex items-center gap-2.5 py-2.5 last:pb-3">
-              <DashedSlot size="sm" pulse={i === 0} label="4" />
+              {/* Row order is: your own row (1), each confirmed `other` (2..1+others.length), then the open slots — so this one's own number is 2 + others.length + i, not a hardcoded "4" (the prototype's only mockup happens to show exactly one open slot, the 4th, which is why "4" looked right for every case). */}
+              <DashedSlot size="sm" pulse={i === 0} label={String(2 + others.length + i)} />
               {i === 0 && canSendFourthCall ? (
                 <>
                   <span className="flex-1 text-cu-body font-bold text-action-strong">Open — send a Fourth Call</span>
