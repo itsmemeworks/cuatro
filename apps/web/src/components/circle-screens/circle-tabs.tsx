@@ -5,7 +5,7 @@ import Link from "next/link";
 import { SegmentedControl, DashedSlot, Meta } from "@/components/ui";
 import { CircleChat, type ChatMessage } from "@/components/circles/circle-chat";
 import { MemberList, type MemberListItem } from "@/components/circles/member-list";
-import { InviteShareButton } from "@/components/circles/invite-share-button";
+import { InviteShareButton, InviteLinkText } from "@/components/circles/invite-share-button";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { useCircleLive } from "@/lib/realtime/hooks";
 import { PinnedGameBar } from "./pinned-game-bar";
@@ -73,6 +73,9 @@ export function CircleTabs({
   // than one upcoming session only pins the soonest; Home already lists
   // every upcoming game across circles.
   const primary = sessionCards[0] ?? null;
+  // A one-member Circle's most urgent action is inviting, not reading an empty
+  // Feed — surface it right at the top of the landing tab.
+  const soloCircle = members.length <= 1;
 
   const refreshUnread = useCallback(async () => {
     try {
@@ -123,6 +126,21 @@ export function CircleTabs({
 
       {tab === "feed" && (
         <div className="flex flex-col gap-3">
+          {soloCircle && (
+            <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
+              <div className="flex items-center gap-3">
+                <DashedSlot label="+" size="md" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-cu-body font-bold text-action-strong">Invite your group</p>
+                  <Meta as="p" className="mt-0.5">
+                    it&apos;s just you so far — share the link and your four fills up
+                  </Meta>
+                </div>
+                <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
+              </div>
+              <InviteLinkText inviteCode={inviteCode} />
+            </div>
+          )}
           {pinnedBar}
           {rivalry && (
             <RivalryCallout
@@ -173,15 +191,18 @@ export function CircleTabs({
       {tab === "members" && (
         <div className="flex flex-col gap-3">
           <MemberList members={members} currentUserId={currentUserId} />
-          <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex items-center gap-3">
-            <DashedSlot label="+" size="md" />
-            <div className="flex-1 min-w-0">
-              <p className="text-cu-body font-bold text-action-strong">Invite a mate</p>
-              <Meta as="p" className="mt-0.5">
-                share the Circle link — they&apos;re in before their first game
-              </Meta>
+          <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
+            <div className="flex items-center gap-3">
+              <DashedSlot label="+" size="md" />
+              <div className="flex-1 min-w-0">
+                <p className="text-cu-body font-bold text-action-strong">Invite a mate</p>
+                <Meta as="p" className="mt-0.5">
+                  share the Circle link — they&apos;re in before their first game
+                </Meta>
+              </div>
+              <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
             </div>
-            <InviteShareButton inviteCode={inviteCode} circleName={circleName} />
+            <InviteLinkText inviteCode={inviteCode} />
           </div>
           <Meta as="p" className="text-center">
             ratings are everyone&apos;s business here — that&apos;s the point

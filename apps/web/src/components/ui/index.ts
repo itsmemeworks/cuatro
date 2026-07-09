@@ -17,4 +17,7 @@ export { ToastProvider, useToast } from "./toast";
 
 export { Sheet } from "./sheet";
 
+export { InfoTerm, GLOSSARY } from "./info-term";
+export type { GlossaryEntry, GlossaryKey } from "./info-term";
+
 export { Meta, Fact } from "./typography";

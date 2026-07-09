@@ -48,11 +48,22 @@ export default async function NewMatchPage({
   if (players.length !== 4) {
     return (
       <main className="px-4 pt-6 pb-6 flex flex-col gap-4">
-        <h1 className="text-cu-title text-ink">How did it go?</h1>
-        <Card>
+        <Link href={`/games/${sessionId}`} className="text-cu-secondary font-bold text-action">
+          ‹ Game
+        </Link>
+        <h1 className="text-cu-title text-ink">Almost — who played?</h1>
+        <Card className="flex flex-col gap-3">
           <p className="text-cu-body text-ink-muted">
-            This session needs exactly four confirmed players before a result can be recorded (currently {players.length}).
+            A result needs the four who played marked as in — right now there {players.length === 1 ? "is" : "are"}{" "}
+            {players.length}. Open the game to confirm the four (or send a Fourth Call to fill the last spot), then come
+            back to log it.
           </p>
+          <Link
+            href={`/games/${sessionId}`}
+            className="rounded-button min-h-11 flex items-center justify-center text-[14px] font-extrabold bg-strong-bg text-strong-fg"
+          >
+            Go to the game
+          </Link>
         </Card>
       </main>
     );

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSessionLive } from "@/lib/realtime/hooks";
 import { Avatar, Button, Card, Chip, DashedSlot, Fact, Meta } from "@/components/ui";
+import { errorCopy } from "@/lib/error-copy";
 
 export type SessionCardPlayer = {
   userId: string;
@@ -229,7 +230,7 @@ export function SessionCard({
         </div>
       )}
 
-      {error && <Meta tone="action">Couldn&apos;t update your RSVP ({error}). Try again.</Meta>}
+      {error && <Meta tone="action">{errorCopy(error)}</Meta>}
 
       {!sessionStarted && windowOpen && (
         <div className="flex gap-2">

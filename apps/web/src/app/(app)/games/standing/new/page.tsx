@@ -2,7 +2,17 @@ import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { listCirclesForUser } from "@/server/standing-games-service";
 import { createStandingGameAction } from "@/server/games-actions";
+import { errorCopy } from "@/lib/error-copy";
 import { Button, Meta } from "@/components/ui";
+
+// Organiser-facing copy for the validation codes createStandingGameAction can
+// bounce back; anything unlisted falls through to the shared errorCopy() so no
+// raw slug is ever shown.
+const CREATE_ERROR_COPY: Record<string, string> = {
+  not_an_organiser: "Only a Circle's organiser can set up its Standing Game.",
+  invalid_weekday: "Pick a day of the week and try again.",
+  invalid_start_time: "That start time didn't read right — pick it again.",
+};
 
 const WEEKDAYS = [
   { value: 0, label: "Sunday" },
@@ -20,18 +30,29 @@ const fieldClass =
 export default async function NewStandingGamePage({
   searchParams,
 }: {
-  searchParams: Promise<{ circleId?: string }>;
+  searchParams: Promise<{ circleId?: string; error?: string }>;
 }) {
   const user = await getSessionUser();
   if (!user) return null;
 
-  const { circleId: preselectedCircleId } = await searchParams;
+  const { circleId: preselectedCircleId, error } = await searchParams;
   const { db } = await getGamesClient();
   const organiserCircles = listCirclesForUser(db, user.id).filter((c) => c.role === "organiser");
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
-      <h1 className="text-cu-title text-ink">New Standing Game</h1>
+      <div>
+        <h1 className="text-cu-title text-ink">New Standing Game</h1>
+        <Meta as="p" className="mt-1.5">
+          A Standing Game is your weekly fixture — it opens the RSVP on its own so nobody has to chase.
+        </Meta>
+      </div>
+
+      {error && (
+        <Meta as="p" tone="loss">
+          {CREATE_ERROR_COPY[error] ?? errorCopy(error)}
+        </Meta>
+      )}
 
       {organiserCircles.length === 0 ? (
         <Meta as="p">You need to be an organiser of a Circle to create its Standing Game.</Meta>
@@ -81,16 +102,19 @@ export default async function NewStandingGamePage({
 
           <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
             Duration (minutes)
+            <Meta as="span" className="font-normal">how long you&apos;ve booked the court for</Meta>
             <input type="number" name="durationMinutes" defaultValue={90} min={30} step={15} className={fieldClass} />
           </label>
 
           <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
             Slots
+            <Meta as="span" className="font-normal">how many players each game holds (4 for doubles)</Meta>
             <input type="number" name="slots" defaultValue={4} min={2} max={8} className={fieldClass} />
           </label>
 
           <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
             RSVP window (days out)
+            <Meta as="span" className="font-normal">how far ahead members can RSVP each week</Meta>
             <input type="number" name="rsvpWindowDays" defaultValue={6} min={1} max={21} className={fieldClass} />
           </label>
 

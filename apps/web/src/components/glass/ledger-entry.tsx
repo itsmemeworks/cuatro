@@ -1,5 +1,5 @@
 import type { LedgerEntryView } from "@/server/matches-db";
-import { Fact, Meta } from "@/components/ui";
+import { Fact, InfoTerm, Meta } from "@/components/ui";
 import { LedgerRow } from "@/components/glass-screens/ledger-row";
 
 function formatDate(d: Date): string {
@@ -48,17 +48,17 @@ export function LedgerEntryRow({
       balance={{ label: "balance", value: entry.ratingAfter.toFixed(2) }}
       details={
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-1">
-          <dt className="text-cu-meta text-ink-muted">Win expectancy</dt>
+          <dt className="text-cu-meta text-ink-muted"><InfoTerm term="winExpectancy" label="Win expectancy" /></dt>
           <dd className="text-right"><Fact size="sm">{Math.round(entry.factors.expectedWin * 100)}%</Fact></dd>
-          <dt className="text-cu-meta text-ink-muted">Margin weight</dt>
+          <dt className="text-cu-meta text-ink-muted"><InfoTerm term="marginWeight" label="Margin weight" /></dt>
           <dd className="text-right"><Fact size="sm">×{entry.factors.marginMultiplier.toFixed(2)}</Fact></dd>
-          <dt className="text-cu-meta text-ink-muted">Echo Damping</dt>
+          <dt className="text-cu-meta text-ink-muted"><InfoTerm term="echoDamping" label="Echo Damping" /></dt>
           <dd className="text-right">
             <Fact size="sm">
               {entry.factors.isFirstMeeting ? "none (first meeting)" : `${Math.round(entry.factors.echoDampingMultiplier * 100)}% weight`}
             </Fact>
           </dd>
-          <dt className="text-cu-meta text-ink-muted">K-factor</dt>
+          <dt className="text-cu-meta text-ink-muted"><InfoTerm term="ratingStep" label="Rating step" /></dt>
           <dd className="text-right"><Fact size="sm">{entry.factors.kFactor.toFixed(2)}</Fact></dd>
           <dt className="text-cu-meta text-ink-muted">Confidence</dt>
           <dd className="text-right">

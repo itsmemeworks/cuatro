@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Avatar, Chip, Fact } from "@/components/ui";
+import { Avatar, Chip, Fact, Meta } from "@/components/ui";
+import { errorCopy } from "@/lib/error-copy";
 import { formatMoney } from "./money";
 
 export interface TabEntryRowData {
@@ -127,14 +128,35 @@ export function TabEntryRow({
             onClick={() => post("settle")}
           >
             {entry.pendingSettleBy == null
-              ? `Settle ${formatMoney(entry.amountMinor, entry.currency)}`
+              ? `Mark as paid ${formatMoney(entry.amountMinor, entry.currency)}`
               : viewerAlreadyProposed
                 ? "Waiting…"
                 : "Confirm ✓"}
           </RowPill>
         )}
       </div>
-      {error && <Fact size="sm" tone="loss">{error}</Fact>}
+      {/* Narrate the two-step settle so neither side reads "Waiting…"/"Confirm"
+          as a silent no-op, and state once that CUATRO never moves the money. */}
+      {!viewerIsPayer && entry.pendingSettleBy == null && (
+        <Meta as="p" className="mt-0.5">
+          Pay {counterpartyName} however you normally do — CUATRO never touches the money.
+        </Meta>
+      )}
+      {!viewerIsPayer && viewerAlreadyProposed && (
+        <Meta as="p" className="mt-0.5">
+          We&apos;ll mark it settled once {counterpartyName} confirms.
+        </Meta>
+      )}
+      {viewerIsPayer && counterpartyProposed && (
+        <Meta as="p" className="mt-0.5">
+          {counterpartyName} says they&apos;ve paid you back — confirm to settle it.
+        </Meta>
+      )}
+      {error && (
+        <Meta as="p" tone="loss" className="mt-0.5">
+          {errorCopy(error)}
+        </Meta>
+      )}
     </div>
   );
 }

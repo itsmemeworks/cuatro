@@ -59,6 +59,12 @@ export function CircleSwitcher({
       >
         +
       </Link>
+      <Link
+        href="/circles"
+        className="shrink-0 rounded-chip border border-ink-hairline-3 text-ink-muted font-bold text-[11px] px-3 py-1.5 whitespace-nowrap transition-cu-state active:opacity-80"
+      >
+        All circles
+      </Link>
     </div>
   );
 }

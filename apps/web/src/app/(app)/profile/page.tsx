@@ -72,7 +72,7 @@ export default async function ProfilePage() {
             <Meta className="mt-0.5 block">streak</Meta>
           </Card>
           <Card className="flex-1 text-center">
-            <p className="text-cu-card-title text-ink">{bestWin != null ? bestWin.toFixed(2) : "—"}</p>
+            <p className="text-cu-card-title text-ink">{bestWin != null ? `vs ${bestWin.toFixed(2)}` : "—"}</p>
             <Meta className="mt-0.5 block">best win</Meta>
           </Card>
         </div>
@@ -90,7 +90,7 @@ export default async function ProfilePage() {
 
       {lastThree.some(Boolean) && (
         <div>
-          <p className="text-cu-secondary font-extrabold tracking-[0.12em] text-ink-muted px-0.5">LAST THREE</p>
+          <p className="text-cu-secondary font-extrabold text-ink-muted px-0.5">Last three</p>
           <div className="flex gap-2 mt-2">
             {lastThree.map(
               (r) =>

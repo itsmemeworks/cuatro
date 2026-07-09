@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useUserLive } from "@/lib/realtime/hooks";
 
 /**
- * The 4-tab nav — Games / Circle / Tab / You — matching
+ * The 4-tab nav — Games / Circles / Tab / You — matching
  * design/CUATRO-Prototype-LATEST.dc.html's nav block exactly: stacked
  * 21px stroke icon + 9.5px letter-spaced label, an 18×3px coral bar above
  * the active item, ink-muted for inactive. Icon paths are copied verbatim
@@ -180,7 +180,7 @@ export function BottomNav({
         </NavIcon>
       </NavItem>
 
-      <NavItem href="/feed" active={active === "circle"} label="Circle">
+      <NavItem href="/feed" active={active === "circle"} label="Circles">
         <div className="relative">
           <NavIcon active={active === "circle"}>
             <path d="M20 11.5a8 8 0 1 0-3.2 6.4L20.5 19l-.9-3.4A7.96 7.96 0 0 0 20 11.5z" />

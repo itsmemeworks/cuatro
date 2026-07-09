@@ -17,11 +17,15 @@ function parseCostField(raw: FormDataEntryValue | null): number | null | undefin
 
 export async function createStandingGameAction(formData: FormData): Promise<void> {
   const user = await getSessionUser();
-  if (!user) return;
+  if (!user) redirect("/login");
 
   const circleId = String(formData.get("circleId") ?? "");
   const startTime = String(formData.get("startTime") ?? "");
-  if (!circleId || !startTime) return;
+  // Bounce back to the form with a code (rendered via errorCopy) rather than
+  // silently re-rendering an unchanged page — see games/standing/new/page.tsx.
+  const backToForm = (error: string) =>
+    `/games/standing/new?error=${error}${circleId ? `&circleId=${circleId}` : ""}`;
+  if (!circleId || !startTime) redirect(backToForm("bad_request"));
 
   const { db } = await getGamesClient();
   const result = createStandingGame(db, user.id, {
@@ -37,7 +41,10 @@ export async function createStandingGameAction(formData: FormData): Promise<void
   });
 
   revalidatePath("/games/standing");
-  if (result.ok) redirect(`/games/standing/${result.value.id}`);
+  if (!result.ok) redirect(backToForm(result.error));
+  // ?created=1 turns the edit page's top into a success moment (next session
+  // + invite pointer) instead of dropping the organiser onto a silent form.
+  redirect(`/games/standing/${result.value.id}?created=1`);
 }
 
 export async function updateStandingGameAction(id: string, formData: FormData): Promise<void> {

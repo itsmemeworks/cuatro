@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Card, AvatarStack, Meta } from "@/components/ui";
+import { Avatar, Button, Card, Meta } from "@/components/ui";
+import { errorCopy } from "@/lib/error-copy";
 
 export type NeedsAnswerSession = {
   sessionId: string;
@@ -13,6 +14,8 @@ export type NeedsAnswerSession = {
   slots: number;
   confirmed: { userId: string; displayName: string; avatarUrl: string | null }[];
 };
+
+type Viewer = { userId: string; displayName: string; avatarUrl: string | null };
 
 /** "Kav & Mags are in" / "Kav is in" / "Kav, Mags & Tom are in" — the prototype's naming convention (design/CUATRO-Prototype-LATEST.dc.html's Home screen), first names only. */
 function namesLine(confirmed: { displayName: string }[]): string {
@@ -30,15 +33,23 @@ function namesLine(confirmed: { displayName: string }[]): string {
  * card (slot grid, countdown, reserves) meant for the games list; this is
  * the terser "answer this now" hero moment the prototype's Home screen
  * leads with. Both call the same RSVP endpoint.
+ *
+ * Tapping "I'm in" mirrors SessionCard's signature arrival treatment
+ * (audit-design #6): the viewer's avatar springs into the confirmed stack
+ * (animate-cu-arrive) with one pulse ring (animate-cu-pulse-once) and the
+ * button flips to "You're in ✓ · game on" — optimistically, before the
+ * server round-trip and router.refresh() reconcile it.
  */
-export function NeedsAnswerCard({ session }: { session: NeedsAnswerSession }) {
+export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSession; viewer: Viewer }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [optimisticIn, setOptimisticIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function respond(action: "in" | "out") {
     setPending(true);
     setError(null);
+    setOptimisticIn(action === "in");
     try {
       const res = await fetch(`/api/games/sessions/${session.sessionId}/rsvp`, {
         method: "POST",
@@ -47,11 +58,13 @@ export function NeedsAnswerCard({ session }: { session: NeedsAnswerSession }) {
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
+        setOptimisticIn(false);
         setError(body.error ?? "something_went_wrong");
         return;
       }
       router.refresh();
     } catch {
+      setOptimisticIn(false);
       setError("network_error");
     } finally {
       setPending(false);
@@ -60,7 +73,13 @@ export function NeedsAnswerCard({ session }: { session: NeedsAnswerSession }) {
 
   const when = session.startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
   const place = session.venueName ? ` · ${session.venueName}` : "";
-  const spotsToFill = Math.max(session.slots - session.confirmed.length, 0);
+
+  // The card only renders when the viewer hasn't answered yet, so they're
+  // never already in `confirmed` — appending them is a safe optimistic fill.
+  const displayConfirmed = optimisticIn ? [...session.confirmed, viewer] : session.confirmed;
+  const shown = displayConfirmed.slice(0, 3);
+  const overflow = Math.max(0, displayConfirmed.length - 3);
+  const spotsToFill = Math.max(session.slots - displayConfirmed.length, 0);
 
   return (
     <Card variant="feature">
@@ -78,17 +97,39 @@ export function NeedsAnswerCard({ session }: { session: NeedsAnswerSession }) {
         {when}
         {place}
       </p>
-      {session.confirmed.length > 0 && (
-        <div className="flex items-center gap-2.5 mt-3">
-          <AvatarStack people={session.confirmed.map((p) => ({ src: p.avatarUrl, name: p.displayName }))} size="sm" ring="surface-feature" max={3} />
+      {displayConfirmed.length > 0 && (
+        <div className={`flex items-center gap-2.5 mt-3 ${optimisticIn ? "animate-cu-pulse-once" : ""}`}>
+          <div className="flex items-center">
+            {shown.map((p, i) => (
+              <Avatar
+                key={p.userId}
+                src={p.avatarUrl}
+                name={p.displayName}
+                size="sm"
+                ring="surface-feature"
+                overlap={i > 0}
+                className={optimisticIn && p.userId === viewer.userId ? "animate-cu-arrive" : ""}
+              />
+            ))}
+            {overflow > 0 && (
+              <div
+                className="rounded-full flex-none flex items-center justify-center bg-ink-hairline-2 text-ink font-bold ring-2 ring-[var(--color-surface-feature)]"
+                style={{ width: 26, height: 26, marginLeft: -10, fontSize: 8 }}
+              >
+                +{overflow}
+              </div>
+            )}
+          </div>
           <span className="text-[11.5px] font-medium text-ink-on-feature-muted">
-            {namesLine(session.confirmed)} — {spotsToFill} spot{spotsToFill === 1 ? "" : "s"} to fill
+            {optimisticIn
+              ? "You're in ✓ · game on"
+              : `${namesLine(session.confirmed)} — ${spotsToFill} spot${spotsToFill === 1 ? "" : "s"} to fill`}
           </span>
         </div>
       )}
       {error && (
         <Meta as="p" tone="loss" onFeature className="mt-2">
-          Couldn&apos;t update your RSVP — try again.
+          {errorCopy(error)}
         </Meta>
       )}
       {/*
@@ -101,12 +142,28 @@ export function NeedsAnswerCard({ session }: { session: NeedsAnswerSession }) {
         `onFeature` is a no-op for it.
       */}
       <div className="flex gap-2 mt-3.5">
-        <Button variant="primary" size="lg" onFeature disabled={pending} onClick={() => respond("in")} className="flex-[2]">
-          I&apos;m in
-        </Button>
-        <Button variant="destructiveQuiet" size="lg" onFeature disabled={pending} onClick={() => respond("out")} className="flex-1">
-          Can&apos;t
-        </Button>
+        {optimisticIn ? (
+          <Button
+            variant="strong"
+            size="lg"
+            onFeature
+            disabled={pending}
+            onClick={() => respond("out")}
+            style={{ background: "var(--color-win)", color: "var(--color-action-contrast)" }}
+            className="flex-1"
+          >
+            You&apos;re in ✓ · game on
+          </Button>
+        ) : (
+          <>
+            <Button variant="primary" size="lg" onFeature disabled={pending} onClick={() => respond("in")} className="flex-[2]">
+              I&apos;m in
+            </Button>
+            <Button variant="destructiveQuiet" size="lg" onFeature disabled={pending} onClick={() => respond("out")} className="flex-1">
+              Can&apos;t
+            </Button>
+          </>
+        )}
       </div>
     </Card>
   );

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, Meta } from "@/components/ui";
+import { errorCopy } from "@/lib/error-copy";
 import { parseAmountToMinor } from "./money";
 
 export interface AddEntryFormMember {
@@ -63,7 +64,7 @@ export function AddEntryForm({
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
-        setError(body.error ?? "something_went_wrong");
+        setError(errorCopy(body.error));
         return;
       }
       setAmount("");
@@ -71,7 +72,7 @@ export function AddEntryForm({
       setSelected([]);
       router.refresh();
     } catch {
-      setError("network_error");
+      setError(errorCopy("network_error"));
     } finally {
       setPending(false);
     }

@@ -161,11 +161,34 @@ export default async function SessionDetailPage({
     : summary.session.startsAt.toLocaleString("en-GB", { weekday: "long", hour: "numeric", minute: "2-digit" });
   const rsvpWindowDays = Math.max(1, Math.round((summary.session.startsAt.getTime() - summary.rsvpWindowOpensAt.getTime()) / (24 * 60 * 60 * 1000)));
 
+  // Plain one-line state confirmation at the top — the pattern every
+  // Playtomic-fluent user already reads for free ("You are enrolled…").
+  // Upcoming games only; the "Played" card below owns the past state.
+  const whenShort = summary.session.startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const rsvpWindowOpen = upcoming && Date.now() >= summary.rsvpWindowOpensAt.getTime();
+  let viewerStatusLine: string | null = null;
+  if (upcoming) {
+    if (summary.viewerStatus === "in") viewerStatusLine = `You're in ✓ · ${whenShort}`;
+    else if (summary.viewerStatus === "reserve") viewerStatusLine = `You're on the reserve list · ${whenShort}`;
+    else if (summary.viewerStatus === "out") viewerStatusLine = "You said you can't make this one";
+    else if (rsvpWindowOpen) viewerStatusLine = "You haven't answered yet";
+  }
+
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-4">
       <Link href="/home" className="text-cu-secondary font-bold text-action">
         ‹ Back
       </Link>
+
+      {viewerStatusLine && (
+        <div
+          className={`rounded-button px-4 py-2.5 text-cu-body font-bold ${
+            summary.viewerStatus === "in" ? "bg-win-tint text-win" : "bg-surface border border-ink-hairline-1 text-ink"
+          }`}
+        >
+          {viewerStatusLine}
+        </div>
+      )}
 
       <div>
         <Meta as="p" className="uppercase tracking-[0.12em]">
@@ -233,29 +256,53 @@ export default async function SessionDetailPage({
           </div>
         )
       ) : (
-        <Link
-          href={`/circles/${summary.circleId}/tab`}
-          className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3"
-        >
-          <span className="text-cu-body text-ink flex-1">Court split goes on the Tab</span>
-          <Meta tone="action">The Tab →</Meta>
-        </Link>
+        <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex flex-col gap-2">
+          <Link href={`/circles/${summary.circleId}/tab`} className="flex items-center gap-3">
+            <span className="text-cu-body text-ink flex-1">Court split goes on the Tab</span>
+            <Meta tone="action">The Tab →</Meta>
+          </Link>
+          {viewerIsOrganiser && summary.standingGame && (
+            <Meta as="p">
+              Set a court cost on the{" "}
+              <Link href={`/games/standing/${summary.standingGame.id}`} className="font-bold text-action-strong">
+                Standing Game
+              </Link>{" "}
+              and it splits in one tap here.
+            </Meta>
+          )}
+        </div>
       )}
 
       {summary.venue && (
         <VenueMapCard venueName={summary.venue.name} venueAddress={summary.venue.address ?? null} pinLocationAction={boundPinLocation} />
       )}
 
-      {isPast && (
-        <Link
-          href={existingMatch ? `/matches/${existingMatch.id}` : `/matches/new?session=${sessionId}`}
-          className={`rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold transition-cu-state active:opacity-80 ${
-            existingMatch ? "bg-transparent text-ink border border-ink-hairline-4" : "bg-strong-bg text-strong-fg"
-          }`}
-        >
-          {existingMatch ? "View result" : "Log last night's result"}
-        </Link>
-      )}
+      {isPast &&
+        (existingMatch ? (
+          <Link
+            href={`/matches/${existingMatch.id}`}
+            className="rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold transition-cu-state active:opacity-80 bg-transparent text-ink border border-ink-hairline-4"
+          >
+            View result
+          </Link>
+        ) : (
+          <div className="rounded-card bg-surface border border-ink-hairline-1 px-4 py-4 flex flex-col gap-2.5">
+            <div>
+              <Meta as="p" className="uppercase tracking-[0.12em] font-extrabold">
+                Played
+              </Meta>
+              <p className="text-cu-body text-ink mt-1">
+                Log the result so everyone&apos;s Glass moves — the other team just confirms it.
+              </p>
+            </div>
+            <Link
+              href={`/matches/new?session=${sessionId}`}
+              className="rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state active:opacity-80"
+            >
+              Log last night&apos;s result
+            </Link>
+          </div>
+        ))}
     </main>
   );
 }

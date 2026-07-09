@@ -14,9 +14,9 @@ export type GuestFlowInitial =
   | { step: "done"; status: "in" | "reserve"; displayName: string; avatarUrl?: string | null };
 
 // Button always renders a real <button> (see components/ui/button.tsx), but
-// "Enter CUATRO" needs to be a same-tap <Link> — this mirrors its
-// variant="strong" size="lg" fullWidth class recipe exactly (same approach
-// app/page.tsx's "Get started" link already uses).
+// the done-step conversion CTA needs to be a same-tap <Link> — this mirrors
+// its variant="strong" size="lg" fullWidth class recipe exactly (same
+// approach app/page.tsx's "Get started" link already uses).
 const STRONG_LG_LINK_CLASS =
   "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 w-full min-h-12 px-5 text-[15px] font-extrabold bg-strong-bg text-strong-fg";
 
@@ -347,16 +347,14 @@ export function GuestClaimFlow({
         )}
       </div>
 
-      <Link href={`/fc/${token}`} className={`${STRONG_LG_LINK_CLASS} mt-5`}>
-        Enter CUATRO →
+      <Link href={`/login?next=${encodeURIComponent("/home")}`} className={`${STRONG_LG_LINK_CLASS} mt-5`}>
+        Save your games — send me a magic link
       </Link>
 
-      <Link
-        href={`/login?next=${encodeURIComponent(`/fc/${token}`)}`}
-        className="block text-cu-meta text-ink-muted underline underline-offset-[3px] mt-4"
-      >
-        Make it yours — save your games with a magic link
-      </Link>
+      <Meta as="p" className="mt-3.5 leading-[1.7]">
+        no password needed to play — the link just keeps your games, so you can pick up where you left
+        off next week
+      </Meta>
     </div>
   );
 }

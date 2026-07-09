@@ -69,19 +69,25 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
         <Meta>a spot&apos;s open for you</Meta>
       </div>
 
-      <div className="w-full max-w-xs">
+      <div className="w-full max-w-xs flex flex-col items-center gap-2.5">
         {user ? (
-          <form action={joinCircleAction}>
-            <input type="hidden" name="code" value={code} />
-            <JoinButton label={`Join ${circle.name}`} />
-          </form>
+          <>
+            <form action={joinCircleAction} className="w-full">
+              <input type="hidden" name="code" value={code} />
+              <JoinButton label={`Join ${circle.name}`} />
+            </form>
+            <Meta>last step — one tap and you&apos;re in</Meta>
+          </>
         ) : (
-          <Link
-            href={`/login?next=${encodeURIComponent(`/join/${code}`)}`}
-            className="rounded-button inline-flex items-center justify-center w-full min-h-12 px-5 text-[15px] font-extrabold bg-action text-action-contrast transition-cu-state active:opacity-80"
-          >
-            Sign in to join
-          </Link>
+          <>
+            <Link
+              href={`/login?next=${encodeURIComponent(`/join/${code}`)}`}
+              className="rounded-button inline-flex items-center justify-center w-full min-h-12 px-5 text-[15px] font-extrabold bg-action text-action-contrast transition-cu-state active:opacity-80"
+            >
+              Continue — takes about 10 seconds
+            </Link>
+            <Meta>we&apos;ll send a one-tap link, then you&apos;re back here to join</Meta>
+          </>
         )}
       </div>
     </main>

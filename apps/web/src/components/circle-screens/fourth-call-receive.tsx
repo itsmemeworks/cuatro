@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AvatarStack, Button, Fact, Meta } from "@/components/ui";
+import { errorCopy } from "@/lib/error-copy";
 import { PresenceTracker } from "@/components/realtime/PresenceTracker";
 import type { SessionCardPlayer } from "@/components/games/SessionCard";
 
@@ -117,7 +118,7 @@ export function FourthCallReceive({
       </div>
       {levelMatchLabel && <Fact tone="muted">{levelMatchLabel}</Fact>}
 
-      {error && <Meta tone="action">Couldn&apos;t claim the slot ({error}). Try again.</Meta>}
+      {error && <Meta tone="action">{errorCopy(error)}</Meta>}
 
       <div className="flex flex-col gap-3 w-full max-w-xs">
         <Button size="lg" fullWidth disabled={pending !== null || expired} onClick={claim}>

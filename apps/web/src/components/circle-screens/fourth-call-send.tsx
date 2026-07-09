@@ -106,19 +106,22 @@ export function FourthCallSend({
     }
   }
 
-  // One evolving CTA (prototype's fcAction/fcActLabel), driven by whichever
-  // ring is actually live right now.
-  const cta = claimed
-    ? { label: "Done — back to the game →", tone: "done" as const }
-    : ring2State === "done"
-      ? { label: ring2Label, tone: "quiet" as const }
+  // Before the automatic rings can do anything (ring 1 fires within 48h of
+  // kickoff, ring 2 escalates off the back of it) the one lever an organiser
+  // always has is the ring-3 share link — so promote it to the primary CTA
+  // instead of leaving a grey "opens automatically" box as the only button.
+  const promoteRing3 = !claimed && ring3Available && !canEscalate && ring2State !== "sent";
+
+  // The quiet status label shown when neither escalate nor the ring-3 share is
+  // the live action (game full/started, or the network call is already out).
+  const fallbackLabel =
+    ring2State === "done"
+      ? ring2Label
       : ring2State === "sent"
-        ? { label: "Live — first tap wins…", tone: "quiet" as const }
-        : canEscalate
-          ? { label: "Escalate to the network →", tone: "primary" as const }
-          : ring1State === "sent"
-            ? { label: "Sent — the Circle sees it first…", tone: "quiet" as const }
-            : { label: "Opens automatically closer to kickoff", tone: "quiet" as const };
+        ? "Live — first tap wins…"
+        : ring1State === "sent"
+          ? "Sent — the Circle sees it first…"
+          : "Opens automatically closer to kickoff";
 
   return (
     <div className="flex flex-col gap-3">
@@ -195,20 +198,24 @@ export function FourthCallSend({
         </div>
       </div>
 
-      {cta.tone === "done" ? (
+      {claimed ? (
         <Link
           href={`/games/${sessionId}`}
           className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state active:opacity-80"
         >
-          {cta.label}
+          Done — back to the game →
         </Link>
-      ) : cta.tone === "primary" ? (
+      ) : promoteRing3 ? (
+        <Button variant="primary" size="lg" fullWidth disabled={ring3Pending} onClick={copyRing3Link}>
+          {ring3Copied ? "Link copied ✓" : ring3Pending ? "…" : "Share a link — anyone with it can claim the spot"}
+        </Button>
+      ) : canEscalate ? (
         <Button variant="primary" size="lg" fullWidth disabled={escalating} onClick={escalate}>
-          {escalating ? "…" : cta.label}
+          {escalating ? "…" : "Escalate to the network →"}
         </Button>
       ) : (
         <div className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-ink-hairline-2 text-ink-muted">
-          {cta.label}
+          {fallbackLabel}
         </div>
       )}
 

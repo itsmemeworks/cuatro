@@ -141,11 +141,13 @@ export function ResultPost({ data }: { data: ResultPostData }) {
           type="button"
           onClick={toggleRespect}
           disabled={pending}
+          aria-label="Respect"
+          aria-pressed={respected}
           className={`rounded-chip px-3 py-1.5 text-[12px] font-bold flex items-center gap-1.5 transition-cu-state active:opacity-80 disabled:opacity-60 ${
             respected ? "bg-win-tint text-win" : "bg-ink-hairline-2 text-ink"
           }`}
         >
-          <span aria-hidden>👏</span> {count}
+          <span aria-hidden>👏</span> Respect <span className="tabular-nums">{count}</span>
         </button>
         <button
           type="button"

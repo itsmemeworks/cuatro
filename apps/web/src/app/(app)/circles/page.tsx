@@ -3,11 +3,17 @@ import { getSessionUser } from "@/lib/session";
 import { getCirclesStore } from "@/server/circles";
 import { Card, Meta } from "@/components/ui";
 import { circleColorFor } from "@/lib/design";
+import { errorCopy } from "@/lib/error-copy";
 
-export default async function CirclesPage() {
+export default async function CirclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const user = await getSessionUser();
   const store = await getCirclesStore();
   const myCircles = user ? await store.listCirclesForUser(user.id) : [];
+  const { error } = await searchParams;
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
@@ -21,11 +27,17 @@ export default async function CirclesPage() {
         </Link>
       </div>
 
+      {error && (
+        <Card className="bg-loss-tint">
+          <p className="text-cu-body text-loss">{errorCopy(error)}</p>
+        </Card>
+      )}
+
       {myCircles.length === 0 ? (
         <Card className="flex flex-col gap-1">
           <p className="text-cu-card-title text-ink">No Circles yet</p>
           <p className="text-cu-body text-ink-muted">
-            Join one with a link or QR code, or create your own — this is where your padel group&apos;s chat, history
+            Join one with a link, or create your own — this is where your padel group&apos;s chat, history
             and Standing Games live.
           </p>
         </Card>

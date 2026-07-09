@@ -55,17 +55,23 @@ function PairingSelect({
   muted?: boolean;
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`bg-transparent border-none p-0 appearance-none font-bold text-cu-body ${muted ? "text-ink-muted" : "text-ink"}`}
-    >
-      {players.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.id === viewerId ? "You" : p.displayName}
-        </option>
-      ))}
-    </select>
+    // Dotted underline + a small ▾ so it reads as an editable picker, not
+    // static text — users who need to fix an auto-assigned pairing have to
+    // realise it's tappable (design/DESIGN-AUDIT.md R1).
+    <span className="inline-flex items-center gap-0.5">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`bg-transparent border-none p-0 appearance-none font-bold text-cu-body underline decoration-dotted decoration-ink-hairline-4 underline-offset-[3px] ${muted ? "text-ink-muted" : "text-ink"}`}
+      >
+        {players.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.id === viewerId ? "You" : p.displayName}
+          </option>
+        ))}
+      </select>
+      <span aria-hidden className="text-[9px] text-ink-muted leading-none">▾</span>
+    </span>
   );
 }
 
@@ -249,9 +255,15 @@ export function ResultEntryForm({
         </label>
       </Card>
 
-      <Button type="submit" variant="strong" size="lg" fullWidth>
+      {/* Guard the empty submit: recordMatchAction silently no-ops with no
+          sets and no retired flag, so keep the button disabled until there's
+          something real to send. */}
+      <Button type="submit" variant="strong" size="lg" fullWidth disabled={filledSets.length === 0 && !retired}>
         Send to both teams
       </Button>
+      {filledSets.length === 0 && !retired && (
+        <p className="text-cu-meta text-ink-muted text-center">Enter at least one set, or mark it retired.</p>
+      )}
     </form>
   );
 }

@@ -170,7 +170,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
         </Card>
       )}
 
-      <p className="text-cu-meta text-ink-muted text-center">the Tab never charges fees — it just keeps score</p>
+      <p className="text-cu-meta text-ink-muted text-center">the Tab just keeps score — money moves in your own bank app, never through CUATRO</p>
     </main>
   );
 }

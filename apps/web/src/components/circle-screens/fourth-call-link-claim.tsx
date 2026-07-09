@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Meta } from "@/components/ui";
+import { errorCopy } from "@/lib/error-copy";
 
+// Context-specific overrides for the ring-3 claim path; anything not listed
+// here falls through to the shared errorCopy() map so no raw code can leak.
 const ERROR_COPY: Record<string, string> = {
   already_full: "someone beat you to it — the four's already set",
   session_started: "this game's already kicked off",
@@ -46,7 +49,7 @@ export function FourthCallLinkClaim({ sessionId, token }: { sessionId: string; t
 
   return (
     <div className="flex flex-col gap-2.5">
-      {error && <Meta tone="action">{ERROR_COPY[error] ?? "couldn't claim the spot — try again"}</Meta>}
+      {error && <Meta tone="action">{ERROR_COPY[error] ?? errorCopy(error)}</Meta>}
       <Button size="lg" fullWidth disabled={pending} onClick={claim}>
         {pending ? "…" : "I can play"}
       </Button>

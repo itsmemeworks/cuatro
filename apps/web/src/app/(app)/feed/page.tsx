@@ -21,12 +21,12 @@ export default async function FeedTabPage() {
   if (circles.length === 0) {
     return (
       <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
-        <h1 className="text-cu-title text-ink">Circle</h1>
+        <h1 className="text-cu-title text-ink">Circles</h1>
         <Card className="flex flex-col gap-3">
           <div>
             <p className="text-cu-card-title text-ink">You&apos;re not in a Circle yet</p>
             <p className="text-cu-body text-ink-muted mt-1">
-              Join one with a link or QR code from a friend, or create your own to bring your padel group over from
+              Join one with a link from a friend, or create your own to bring your padel group over from
               WhatsApp.
             </p>
           </div>

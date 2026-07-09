@@ -3,6 +3,7 @@ import { getGamesClient } from "@/server/games-db";
 import { listNotificationsForUser } from "@/server/notifications";
 import { NotificationRow } from "@/components/notifications/NotificationRow";
 import { MarkAllReadButton } from "@/components/notifications/MarkAllReadButton";
+import { Card } from "@/components/ui";
 
 export default async function NotificationsPage() {
   const user = await getSessionUser();
@@ -20,9 +21,12 @@ export default async function NotificationsPage() {
       </div>
 
       {groups.length === 0 ? (
-        <p className="text-cu-body text-ink-muted">
-          Nothing yet — this is where RSVP openings, Fourth Calls, and Glass movement show up.
-        </p>
+        <Card className="flex flex-col gap-1">
+          <p className="text-cu-card-title">Nothing here yet</p>
+          <p className="text-cu-body text-ink-muted">
+            This is where RSVP openings, Fourth Calls, and Glass movement show up.
+          </p>
+        </Card>
       ) : (
         groups.map((group) => (
           <section key={group.label} className="flex flex-col gap-2">

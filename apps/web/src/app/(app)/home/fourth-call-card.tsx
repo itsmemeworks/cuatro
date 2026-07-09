@@ -24,7 +24,14 @@ export type FourthCallHomeSession = {
  * SessionCard and NeedsAnswerCard already call, so accepting or passing
  * here is indistinguishable server-side from answering any other RSVP.
  */
-export function FourthCallCard({ session }: { session: FourthCallHomeSession }) {
+export function FourthCallCard({
+  session,
+  demote = false,
+}: {
+  session: FourthCallHomeSession;
+  /** When Home already has its one coral action elsewhere, the "I can play" button drops to `strong` so coral stays singular (audit-design #5). */
+  demote?: boolean;
+}) {
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
   const [pending, setPending] = useState(false);
@@ -67,7 +74,7 @@ export function FourthCallCard({ session }: { session: FourthCallHomeSession }) 
         </div>
       </div>
       <div className="flex items-center gap-2.5 mt-2.5">
-        <Button variant="primary" size="default" disabled={pending} onClick={() => respond("in")} className="flex-1">
+        <Button variant={demote ? "strong" : "primary"} size="default" disabled={pending} onClick={() => respond("in")} className="flex-1">
           I can play
         </Button>
         <button

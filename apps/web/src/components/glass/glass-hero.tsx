@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, DashedSlot, Fact, Meta } from "@/components/ui";
+import { Card, Fact, InfoTerm, Meta } from "@/components/ui";
 import { RatingReveal, hasSeenRatingReveal } from "@/components/glass-screens/rating-reveal";
 import type { ProfileGlassView } from "@/server/matches-db";
 import { Sparkline } from "./sparkline";
+import { PlacementTrioProgress } from "./placement-trio-progress";
 
 /**
  * The Glass hero (design/HANDOFF.md screen 8): 56px 2dp number, confidence
@@ -39,7 +40,7 @@ export function GlassHero({
     return (
       <Card className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <DashedSlot size="lg" label={`${played}/3`} />
+          <PlacementTrioProgress verifiedMatchCount={played} size="lg" />
           <div>
             <p className="text-cu-card-title text-ink">Glass: Unrated</p>
             <p className="text-cu-secondary text-ink-muted mt-0.5">
@@ -74,7 +75,9 @@ export function GlassHero({
   return (
     <Card className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
-        <p className="text-cu-secondary font-extrabold tracking-[0.12em] text-ink-muted">GLASS</p>
+        <p className="text-cu-secondary font-extrabold tracking-[0.12em] text-ink-muted">
+          <InfoTerm term="glass" label="GLASS" />
+        </p>
         {deltaSinceFirst != null && (
           <Fact size="sm" weight="semibold" tone={deltaSinceFirst >= 0 ? "win" : "loss"}>
             {deltaSinceFirst >= 0 ? "▲" : "▼"} {deltaSinceFirst >= 0 ? "+" : ""}
@@ -88,9 +91,10 @@ export function GlassHero({
           <Sparkline values={sparklineValues} />
         </div>
       </div>
+      <Meta className="block">on the 1.00–7.00 Glass scale</Meta>
       <div className="mt-1.5">
         <div className="flex justify-between text-cu-meta text-ink-muted">
-          <span>confidence</span>
+          <InfoTerm term="confidence" label="conf" />
           <Fact size="meta" weight="semibold">{glass.confidencePct}%</Fact>
         </div>
         <div className="h-1.5 rounded-chip bg-ink-hairline-2 mt-1 overflow-hidden">

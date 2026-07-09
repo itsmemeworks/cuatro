@@ -148,7 +148,11 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           size="sm"
           ring="ground"
         />
-        <InviteShareButton inviteCode={detail.inviteCode} circleName={detail.name} />
+        <InviteShareButton
+          inviteCode={detail.inviteCode}
+          circleName={detail.name}
+          label={detail.members.length <= 1 ? "Invite" : "Copy ↗"}
+        />
       </header>
 
       <ToastBoundary>

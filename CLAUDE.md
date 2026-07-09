@@ -23,8 +23,11 @@ npm-workspaces monorepo:
 4. **Money = `amount_minor` INTEGER + `currency`** everywhere; splits use floor-per-debtor, payer absorbs remainder (see `tab.ts`); currencies never net against each other. CUATRO never holds funds.
 5. **World-ready**: country/timezone as data, UTC epoch-ms timestamps, i18n-able strings, no UK hardcoding.
 6. **The Ledger (`rating_events`) is append-only** — never update/delete; users.rating stays NULL until 3 verified matches (hidden internal rating lives in rating_events.ratingAfter).
-7. Design system: tokens in `globals.css` + `components/ui/` only; **one coral action per screen**; facts/metadata in IBM Plex Mono (`Meta`/`Fact`); dashed coral circle = "a space waiting for a person".
+7. Design system: tokens in `globals.css` + `components/ui/` only; **one coral action per screen**; facts/metadata in IBM Plex Mono (`Meta`/`Fact`); dashed coral circle = "a space waiting for a person" (ONLY that — not progress).
 8. Guests are first-class `users` rows (nullable email, `is_guest`); conversion happens at auth callback via the guest cookie.
+9. **Raw error codes never reach the UI** — pass server errors through `lib/error-copy.ts` `errorCopy()` (or a page-local map for context-specific codes).
+10. **Branded-mechanic explanations live in one place**: `components/ui/info-term.tsx` `GLOSSARY` (+ `<InfoTerm>` dotted-underline → bottom-sheet). Add new mechanic copy there, not inline. NB: "Reliability" = attendance, "confidence" = rating certainty — Playtomic users conflate these; keep the disambiguation.
+11. New sign-ups with an email-derived display name route through `/welcome/name` once (cookie `cuatro_named`); OAuth buttons render only when `NEXT_PUBLIC_OAUTH_APPLE/GOOGLE=1` (fly.toml build args) — enable when the parked provider credentials go live.
 
 ## Dev environment
 - Local Supabase stack on **544xx ports** (543xx is held by apex's stack): API 54421, Studio 54423, **Mailpit 54424** (captures ALL auth emails — magic links are E2E-testable). `supabase start` from repo root.

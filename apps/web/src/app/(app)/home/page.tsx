@@ -7,7 +7,7 @@ import { getMatchesStore, type PendingConfirmationView } from "@/server/matches-
 import { getTabView } from "@/server/tab";
 import { getUnreadCount } from "@/server/notifications";
 import { formatMoney } from "@/components/tab/money";
-import { SessionCard, type SessionCardData } from "@/components/games/SessionCard";
+import { type SessionCardData } from "@/components/games/SessionCard";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { Card, Avatar, Meta, Fact } from "@/components/ui";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -34,7 +34,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <h2 className="text-cu-secondary uppercase tracking-wide text-ink-muted">{title}</h2>
+      <h2 className="text-cu-secondary font-bold text-ink-muted">{title}</h2>
       {seeAllHref && (
         <Link
           href={seeAllHref}
@@ -47,11 +47,16 @@ function SectionHeader({
   );
 }
 
-function EmptyCard({ title, body }: { title: string; body: string }) {
+function EmptyCard({ title, body, action }: { title: string; body: string; action?: { href: string; label: string } }) {
   return (
     <Card className="flex flex-col gap-1">
       <p className="text-cu-card-title">{title}</p>
       <p className="text-cu-body text-ink-muted">{body}</p>
+      {action && (
+        <Link href={action.href} className="text-cu-secondary font-bold text-action mt-1 self-start">
+          {action.label}
+        </Link>
+      )}
     </Card>
   );
 }
@@ -76,7 +81,14 @@ function AttentionRow({ href, emoji, title, subtitle }: { href: string; emoji: s
   );
 }
 
-function ConfirmedGameRow({ session }: { session: SessionCardData }) {
+/**
+ * A tap-through row for a game in "Your games this week". Secondary upcoming
+ * games render here rather than as full coral SessionCards so Home keeps a
+ * single coral action (the NeedsAnswerCard); tapping opens the session detail
+ * where the RSVP lives (audit-design #5). Shows the "you're in" chip only once
+ * the viewer holds a slot.
+ */
+function GameRow({ session }: { session: SessionCardData }) {
   const dayLabel = session.startsAt.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase();
   const timeLabel = session.startsAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const full = session.confirmed.length >= session.slots;
@@ -210,7 +222,10 @@ export default async function HomePage() {
     : null;
 
   const hasNoCircles = circles.length === 0;
-  const showPlacementNudge = glass !== null && glass.status === "unrated";
+  // The placement nudge tells the user to "log a result to keep going" — but a
+  // user with no Circles can't log anything yet, so it's noise until they've
+  // joined or created one (audit-onboarding LOW note / audit-design #1).
+  const showPlacementNudge = glass !== null && glass.status === "unrated" && !hasNoCircles;
 
   const attentionItems: { key: string; href: string; emoji: string; title: string; subtitle: string }[] = [
     ...pendingConfirmations.map((m: PendingConfirmationView) => ({
@@ -327,7 +342,12 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {featuredCard && <NeedsAnswerCard session={featuredCard} />}
+      {featuredCard && (
+        <NeedsAnswerCard
+          session={featuredCard}
+          viewer={{ userId: user.id, displayName: user.displayName || name, avatarUrl: user.avatarUrl }}
+        />
+      )}
 
       {attentionItems.length > 0 && (
         <section className="flex flex-col gap-3">
@@ -340,35 +360,52 @@ export default async function HomePage() {
         </section>
       )}
 
-      <section className="flex flex-col gap-3">
-        {/* "Manage" (Standing Games) used to be the standalone /games list page's header link — that page now redirects here (see (app)/games/page.tsx), so its one bit of chrome that isn't already on Home moves onto this section instead. */}
-        <SectionHeader title="Your games this week" seeAllHref="/games/standing" linkLabel="Manage" linkTone="quiet" />
-        {restSessionCards.length === 0 && !featuredCard ? (
-          <EmptyCard
-            title="No games yet"
-            body={
-              hasNoCircles
-                ? "Once you're in a Circle with a Standing Game, it'll show up here — RSVP without leaving the app."
-                : "None of your Circles has an active Standing Game yet — set one up so your weekly four organises itself."
-            }
-          />
-        ) : (
-          <div className="flex flex-col gap-3">
-            {restSessionCards.map((c) =>
-              c.viewerStatus === "in" ? (
-                <ConfirmedGameRow key={c.sessionId} session={c} />
-              ) : (
-                <SessionCard key={c.sessionId} data={c} viewerUserId={user.id} />
-              ),
-            )}
+      {hasNoCircles ? (
+        // The one coral action a brand-new, circle-less user's Home should
+        // spend its budget on: getting them into a Circle (audit-onboarding
+        // F4 / audit-design #1). Same recipe as the Feed/Tab empty states.
+        <Card className="flex flex-col gap-3">
+          <div>
+            <p className="text-cu-card-title text-ink">Start with a Circle</p>
+            <p className="text-cu-body text-ink-muted mt-1">
+              A Circle is your padel group — create one and your weekly four organises itself.
+            </p>
           </div>
-        )}
-      </section>
+          <Link
+            href="/circles/new"
+            className="rounded-button min-h-11 flex items-center justify-center text-[14px] font-extrabold bg-action text-action-contrast"
+          >
+            Create your first Circle
+          </Link>
+          <p className="text-cu-secondary text-ink-muted text-center">Got an invite link? Just open it.</p>
+        </Card>
+      ) : (
+        <section className="flex flex-col gap-3">
+          {/* "Manage" (Standing Games) used to be the standalone /games list page's header link — that page now redirects here (see (app)/games/page.tsx), so its one bit of chrome that isn't already on Home moves onto this section instead. */}
+          <SectionHeader title="Your games this week" seeAllHref="/games/standing" linkLabel="Manage" linkTone="quiet" />
+          {restSessionCards.length === 0 && !featuredCard ? (
+            <EmptyCard
+              title="No games yet"
+              body="None of your Circles has an active Standing Game yet — set one up so your weekly four organises itself."
+              action={{ href: "/games/standing/new", label: "Set one up →" }}
+            />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {restSessionCards.map((c) => (
+                <GameRow key={c.sessionId} session={c} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {fourthCallCards.length > 0 && (
         <div className="flex flex-col gap-3">
-          {fourthCallCards.map((fc) => (
-            <FourthCallCard key={fc.sessionId} session={fc} />
+          {fourthCallCards.map((fc, i) => (
+            // One coral action per screen: the coral belongs to the
+            // NeedsAnswerCard when present, otherwise to the first Fourth Call.
+            // Everything else downgrades to `strong` (audit-design #5).
+            <FourthCallCard key={fc.sessionId} session={fc} demote={!!featuredCard || i > 0} />
           ))}
         </div>
       )}

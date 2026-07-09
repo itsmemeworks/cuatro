@@ -42,7 +42,18 @@ export function LedgerRow({ headline, value, meta, why, details, balance, quiet 
     <>
       <div className="flex items-baseline justify-between gap-3">
         <div className="text-cu-body text-ink font-bold">{headline}</div>
-        {value}
+        <div className="flex items-baseline gap-1.5 shrink-0">
+          {value}
+          {expandable && (
+            <span
+              aria-hidden
+              className="text-ink-muted transition-transform duration-[250ms]"
+              style={{ transform: open ? "rotate(90deg)" : "none" }}
+            >
+              &#8250;
+            </span>
+          )}
+        </div>
       </div>
       {meta && <Meta as="div" className="mt-1">{meta}</Meta>}
       {why && (
@@ -65,7 +76,7 @@ export function LedgerRow({ headline, value, meta, why, details, balance, quiet 
 
   return (
     <div className={`border-b border-ink-hairline-1 last:border-b-0 ${quiet ? "opacity-55" : ""}`}>
-      <button type="button" onClick={() => setOpen((v) => !v)} className="w-full text-left px-4 py-3">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="w-full text-left px-4 py-3">
         {body}
       </button>
       {open && <div className="px-4 pb-3 -mt-1">{details}</div>}

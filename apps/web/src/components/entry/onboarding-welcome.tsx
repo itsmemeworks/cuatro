@@ -38,6 +38,15 @@ const OAUTH_DISABLED_MESSAGE: Record<OAuthProvider, string> = {
   apple: "Apple sign-in isn't switched on yet — use email instead.",
 };
 
+// OAuth providers are Parked until credentials go live (cuatro/CLAUDE.md), so
+// their buttons — otherwise the top, highest-emphasis affordances — would only
+// ever error in prod. Gate each on a build-time NEXT_PUBLIC flag (baked via
+// fly.toml [build.args] like every other NEXT_PUBLIC_*); with no flag set the
+// button never renders, leaving the always-visible email magic-link as the one
+// primary way in. Flip a flag back on the moment that provider is enabled.
+const OAUTH_APPLE_ENABLED = process.env.NEXT_PUBLIC_OAUTH_APPLE === "1";
+const OAUTH_GOOGLE_ENABLED = process.env.NEXT_PUBLIC_OAUTH_GOOGLE === "1";
+
 const DARK_BUTTON_CLASS =
   "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none min-h-12 px-5 text-[15px] font-extrabold bg-[#1E1C19]/75 backdrop-blur-sm border border-[rgba(245,242,236,.18)] text-[#F5F2EC]";
 
@@ -50,10 +59,12 @@ const DARK_BUTTON_CLASS =
  * prototype's "Onboarding welcome" screen anatomy: wordmark lockup, the
  * three auth affordances, the "got a link" card, the no-fees footer.
  *
- * One layout departure from the prototype, called out explicitly in the
- * brief: tapping "Email me a magic link" reveals the email input inline
- * (`showEmailForm`) rather than there being a permanently-visible form —
- * the prototype's static mock had no room to show both states at once.
+ * Departure from the prototype's three-button mock (F3): the OAuth buttons
+ * are Parked in prod and only ever errored, so they're gated behind
+ * build-time flags (OAUTH_*_ENABLED) and the email magic-link is promoted to
+ * a permanently-visible primary form — the one method that actually works.
+ * The prototype's static mock couldn't show the email field open by default;
+ * with OAuth hidden there's room, and it's the only way in.
  */
 export function OnboardingWelcome({
   next,
@@ -67,7 +78,6 @@ export function OnboardingWelcome({
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(initialErrorMessage);
   const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
-  const [showEmailForm, setShowEmailForm] = useState(false);
 
   function callbackUrl(): string {
     const url = new URL("/auth/callback", window.location.origin);
@@ -158,19 +168,23 @@ export function OnboardingWelcome({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => handleOAuth("apple")}
-            disabled={oauthLoading !== null}
-            className="rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none min-h-12 px-5 text-[15px] font-extrabold bg-[#F5F2EC]/90 backdrop-blur-sm text-[#17150F]"
-          >
-            <AppleMark />
-            {oauthLoading === "apple" ? "Redirecting…" : "Continue with Apple"}
-          </button>
-          <button type="button" onClick={() => handleOAuth("google")} disabled={oauthLoading !== null} className={DARK_BUTTON_CLASS}>
-            <GoogleMark />
-            {oauthLoading === "google" ? "Redirecting…" : "Continue with Google"}
-          </button>
+          {OAUTH_APPLE_ENABLED && (
+            <button
+              type="button"
+              onClick={() => handleOAuth("apple")}
+              disabled={oauthLoading !== null}
+              className="rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none min-h-12 px-5 text-[15px] font-extrabold bg-[#F5F2EC]/90 backdrop-blur-sm text-[#17150F]"
+            >
+              <AppleMark />
+              {oauthLoading === "apple" ? "Redirecting…" : "Continue with Apple"}
+            </button>
+          )}
+          {OAUTH_GOOGLE_ENABLED && (
+            <button type="button" onClick={() => handleOAuth("google")} disabled={oauthLoading !== null} className={DARK_BUTTON_CLASS}>
+              <GoogleMark />
+              {oauthLoading === "google" ? "Redirecting…" : "Continue with Google"}
+            </button>
+          )}
 
           {status === "sent" ? (
             <div className="rounded-card p-4 mt-1" style={{ background: "#1E1C19", border: "1px solid rgba(245,242,236,.18)" }}>
@@ -181,50 +195,38 @@ export function OnboardingWelcome({
                 We sent a sign-in link to <strong style={{ color: "#F5F2EC", fontWeight: 600 }}>{email}</strong>.
               </p>
             </div>
-          ) : showEmailForm ? (
-            <form onSubmit={handleSubmit} className="flex flex-col gap-[9px] mt-1">
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-[9px]">
+              <label htmlFor="entry-email" className="text-[13px] leading-snug" style={{ color: "rgba(245,242,236,.78)" }}>
+                Enter your email — we&apos;ll send a one-tap link.
+              </label>
               <input
+                id="entry-email"
                 type="email"
                 required
                 autoComplete="email"
                 inputMode="email"
-                autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="w-full rounded-button px-4 py-3 text-[15px] outline-none min-h-11"
                 style={{ background: "#1E1C19", border: "1px solid rgba(245,242,236,.2)", color: "#F5F2EC" }}
               />
-              <div className="flex gap-[9px]">
-                <button
-                  type="button"
-                  onClick={() => setShowEmailForm(false)}
-                  className="rounded-button min-h-12 px-5 text-[15px] font-semibold"
-                  style={{ background: "transparent", color: "rgba(245,242,236,.65)" }}
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  disabled={status === "sending"}
-                  className="flex-1 rounded-button inline-flex items-center justify-center min-h-12 px-5 text-[15px] font-extrabold bg-action text-action-contrast disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  {status === "sending" ? "Sending…" : "Send magic link"}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={status === "sending"}
+                className="rounded-button inline-flex items-center justify-center min-h-12 px-5 text-[15px] font-extrabold bg-action text-action-contrast disabled:opacity-40 disabled:pointer-events-none"
+              >
+                {status === "sending" ? "Sending…" : "Send magic link"}
+              </button>
             </form>
-          ) : (
-            <button type="button" onClick={() => setShowEmailForm(true)} className={DARK_BUTTON_CLASS}>
-              ✉ <span>Email me a magic link</span>
-            </button>
           )}
         </div>
 
         <div className="mx-6 mt-[26px] rounded-card border border-[rgba(255,92,61,.5)] bg-[#221F1A]/75 backdrop-blur-sm p-4">
-          <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#FF8A73]">GOT A GAME LINK FROM A MATE?</p>
+          <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#FF8A73]">Got a game link from a mate?</p>
           <p className="text-[13px] leading-[1.45] mt-1.5" style={{ color: "#F5F2EC" }}>
-            Just open it — you&apos;ll be in the game in about 10 seconds. No forms, no setup.{" "}
-            <span className="text-[#FF7A5C] font-extrabold">Try it →</span>
+            Just open it — you&apos;ll be in the game in about 10 seconds. No forms, no setup.
           </p>
         </div>
 

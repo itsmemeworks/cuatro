@@ -6,7 +6,7 @@ import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
 import { getMatchesStore, gamesTotals } from "@/server/matches-db";
 import { LedgerEntryRow, GenesisRow } from "@/components/glass/ledger-entry";
-import { Card, Fact } from "@/components/ui";
+import { Card, Fact, InfoTerm } from "@/components/ui";
 
 function monthKey(d: Date): string {
   return `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
@@ -72,12 +72,12 @@ export default async function LedgerPage() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-cu-title text-ink">The Ledger</h1>
-          <p className="text-cu-secondary text-ink-muted mt-1">nothing hidden — every move explained</p>
+          <p className="text-cu-secondary text-ink-muted mt-1">nothing hidden — every move explained, not just a number that went up or down</p>
         </div>
         {glass?.status === "rated" && (
           <div className="text-right">
             <p className="text-cu-title text-ink">{glass.rating!.toFixed(2)}</p>
-            <Fact size="meta" tone="muted">conf {glass.confidencePct}%</Fact>
+            <Fact size="meta" tone="muted"><InfoTerm term="confidence" label="conf" /> {glass.confidencePct}%</Fact>
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSessionLive } from "@/lib/realtime/hooks";
 import { Avatar, Button, Card, Chip, DashedSlot, Meta } from "@/components/ui";
+import { errorCopy } from "@/lib/error-copy";
 import type { SessionCardPlayer } from "./SessionCard";
 
 function formatCountdown(msRemaining: number): string {
@@ -187,7 +188,7 @@ export function StandingGameWeekCard({
         )}
       </Card>
 
-      {error && <Meta tone="action">Couldn&apos;t update your RSVP ({error}). Try again.</Meta>}
+      {error && <Meta tone="action">{errorCopy(error)}</Meta>}
 
       {!sessionStarted && windowOpen && (
         <div className="flex gap-2">
