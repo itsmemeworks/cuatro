@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { eq, count } from "drizzle-orm";
-import { circleMembers } from "@cuatro/db";
+import { eq, count, and, isNotNull, asc } from "drizzle-orm";
+import { circleMembers, users, venues } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
+import { resolvePatch } from "@/server/patch";
 import { getMatchesStore, gamesTotals } from "@/server/matches-db";
 import { GlassHero } from "@/components/glass/glass-hero";
 import { ReliabilityBadge } from "@/components/glass/reliability-badge";
 import { computeStreak, computeBestWin } from "@/components/glass/profile-stats";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
-import { SettingsSheet } from "@/components/profile/settings-sheet";
+import { SettingsSheet, type VenueOption } from "@/components/profile/settings-sheet";
 import { Card, Chip, Meta } from "@/components/ui";
 
 export default async function ProfilePage() {
@@ -25,6 +26,33 @@ export default async function ProfilePage() {
   const { db } = await getDb();
   const [circlesRow] = await db.select({ n: count() }).from(circleMembers).where(eq(circleMembers.userId, user.id));
   const circlesCount = circlesRow?.n ?? 0;
+
+  // Discovery settings + patch status. Venue options for the home-venue picker
+  // are every pinned venue the app knows (an unpinned venue can't anchor a
+  // patch — see server/patch.ts), name-sorted.
+  const [discoveryRow] = await db
+    .select({ findable: users.findable, homeVenueId: users.homeVenueId })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+  const venueOptions: VenueOption[] = await db
+    .select({ id: venues.id, name: venues.name })
+    .from(venues)
+    .where(and(isNotNull(venues.lat), isNotNull(venues.lng)))
+    .orderBy(asc(venues.name));
+  const patch = await resolvePatch(db, user.id);
+  const homeVenueName = discoveryRow?.homeVenueId
+    ? (venueOptions.find((v) => v.id === discoveryRow.homeVenueId)?.name ?? null)
+    : null;
+  const patchStatusLine = !discoveryRow?.findable
+    ? "Not findable — nearby games can't see you."
+    : patch
+      ? patch.source === "home_venue" && homeVenueName
+        ? `On The Board · home venue ${homeVenueName}`
+        : patch.source === "inferred"
+          ? "On The Board · placed by where you play"
+          : "On The Board · placed by your chosen area"
+      : "Set a home venue to appear on The Board.";
 
   const sparklineValues = [...entries].reverse().map((e) => e.ratingAfter);
   const deltaSinceFirst = entries.length > 0 ? entries.reduce((sum, e) => sum + e.delta, 0) : null;
@@ -104,7 +132,17 @@ export default async function ProfilePage() {
         </div>
       )}
 
-      <SettingsSheet displayName={user.displayName} email={user.email} />
+      <Meta as="p" className="text-center">
+        {patchStatusLine}
+      </Meta>
+
+      <SettingsSheet
+        displayName={user.displayName}
+        email={user.email}
+        findable={discoveryRow?.findable ?? true}
+        homeVenueId={discoveryRow?.homeVenueId ?? null}
+        venueOptions={venueOptions}
+      />
     </main>
   );
 }

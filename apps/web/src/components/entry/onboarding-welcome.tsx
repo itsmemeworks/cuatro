@@ -57,7 +57,9 @@ const DARK_BUTTON_CLASS =
  * (same signInWithOtp / signInWithOAuth preflight logic — see handleOAuth's
  * comment below for why the preflight fetch exists), restructured to the
  * prototype's "Onboarding welcome" screen anatomy: wordmark lockup, the
- * three auth affordances, the "got a link" card, the no-fees footer.
+ * three auth affordances, the no-fees footer. (The old "got a game link?"
+ * card was cut: anyone who HAS a link opens it directly — to everyone else
+ * it was noise. Invite-holders never needed this screen to tell them so.)
  *
  * Departure from the prototype's three-button mock (F3): the OAuth buttons
  * are Parked in prod and only ever errored, so they're gated behind
@@ -156,7 +158,7 @@ export function OnboardingWelcome({
           <div className="inline-block rounded-2xl bg-[#131210]/45 backdrop-blur-[3px] px-4 py-3 -mx-4">
             <Wordmark />
             <p className="text-[15px] leading-snug mt-2.5 max-w-xs" style={{ color: "rgba(245,242,236,.78)" }}>
-              The app your padel four runs on.
+              The app your padel four runs on. And when you&apos;re one short, the game finds the player.
             </p>
           </div>
         </div>
@@ -187,7 +189,7 @@ export function OnboardingWelcome({
           )}
 
           {status === "sent" ? (
-            <div className="rounded-card p-4 mt-1" style={{ background: "#1E1C19", border: "1px solid rgba(245,242,236,.18)" }}>
+            <div className="rounded-card p-4 mt-1 backdrop-blur-sm" style={{ background: "rgba(30,28,25,.85)", border: "1px solid rgba(245,242,236,.18)" }}>
               <p className="text-cu-card-title" style={{ color: "#F5F2EC" }}>
                 Check your email
               </p>
@@ -196,7 +198,14 @@ export function OnboardingWelcome({
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="flex flex-col gap-[9px]">
+            // The whole email affordance lives in one grounded panel — label,
+            // input, and submit read as a single unit instead of copy floating
+            // on the court art (Pete: the bare label felt "lost").
+            <form
+              onSubmit={handleSubmit}
+              className="rounded-card p-4 mt-1 flex flex-col gap-[9px] backdrop-blur-sm"
+              style={{ background: "rgba(30,28,25,.85)", border: "1px solid rgba(245,242,236,.18)" }}
+            >
               <label htmlFor="entry-email" className="text-[13px] leading-snug" style={{ color: "rgba(245,242,236,.78)" }}>
                 Enter your email — we&apos;ll send a one-tap link.
               </label>
@@ -210,7 +219,7 @@ export function OnboardingWelcome({
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="w-full rounded-button px-4 py-3 text-[15px] outline-none min-h-11"
-                style={{ background: "#1E1C19", border: "1px solid rgba(245,242,236,.2)", color: "#F5F2EC" }}
+                style={{ background: "#131210", border: "1px solid rgba(245,242,236,.2)", color: "#F5F2EC" }}
               />
               <button
                 type="submit"
@@ -221,13 +230,6 @@ export function OnboardingWelcome({
               </button>
             </form>
           )}
-        </div>
-
-        <div className="mx-6 mt-[26px] rounded-card border border-[rgba(255,92,61,.5)] bg-[#221F1A]/75 backdrop-blur-sm p-4">
-          <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#FF8A73]">Got a game link from a mate?</p>
-          <p className="text-[13px] leading-[1.45] mt-1.5" style={{ color: "#F5F2EC" }}>
-            Just open it — you&apos;ll be in the game in about 10 seconds. No forms, no setup.
-          </p>
         </div>
 
         <Meta as="p" className="text-center mt-6">

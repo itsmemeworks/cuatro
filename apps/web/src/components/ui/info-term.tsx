@@ -26,6 +26,21 @@ export interface GlossaryEntry {
 }
 
 export const GLOSSARY = {
+  localRing: {
+    term: "Local Ring",
+    plain: "When your Circle can't fill a game, the Fourth Call reaches nearby players at your level who've said they're up for games.",
+    why: "The game finds the player, not the other way round — level-matched, venue-based, and only people who opted to be findable.",
+  },
+  board: {
+    term: "The Board",
+    plain: "Open slots in games near you — like a club notice board.",
+    why: "Distances are rough on purpose and it only shows games from Circles that chose to post — no strangers scraping your schedule.",
+  },
+  openDoor: {
+    term: "Open Door",
+    plain: "Circles near you that welcome new players — knock, and the organiser decides.",
+    why: "No stranger DMs, no auto-adds: you ask once, they answer, and nothing else is shared until you're in.",
+  },
   glass: {
     term: "Glass",
     plain: "Your padel rating, on a 1.00–7.00 scale — like a Playtomic level, but every point of it is explained.",

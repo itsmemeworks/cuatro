@@ -52,7 +52,10 @@ export type NotificationInput =
   | {
       type: "tab_nudge";
       payload: { circleId: string; tabEntryId: string; amountMinor: number; currency: string };
-    };
+    }
+  | { type: "knock_received"; payload: { knockId: string; kind: "circle" | "session"; targetId: string; userId: string } }
+  | { type: "knock_accepted"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } }
+  | { type: "knock_declined"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } };
 
 export type NotificationType = NotificationInput["type"];
 export type PayloadFor<T extends NotificationType> = Extract<NotificationInput, { type: T }>["payload"];
@@ -173,6 +176,51 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
         body: `${input.payload.currency} ${amount} outstanding on the Tab. Settle when you can.`,
       };
     }
+    case "knock_received": {
+      const knocker = tx
+        .select({ displayName: users.displayName })
+        .from(users)
+        .where(eq(users.id, input.payload.userId))
+        .get();
+      const who = knocker?.displayName ?? "Someone";
+      if (input.payload.kind === "circle") {
+        const circle = tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.targetId)).get();
+        return {
+          title: "Someone wants to join your Circle",
+          body: `${who} asked to join ${circle?.name ?? "your Circle"}. Tap to decide.`,
+        };
+      }
+      const ctx = sessionContext(tx, input.payload.targetId);
+      return {
+        title: "Someone wants in on your game",
+        body: ctx ? `${who} asked to join ${ctx.circleName}, ${ctx.when}. Tap to decide.` : `${who} asked to join your game. Tap to decide.`,
+      };
+    }
+    case "knock_accepted": {
+      if (input.payload.kind === "circle") {
+        const circle = tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.targetId)).get();
+        return {
+          title: "You're in",
+          body: `${circle?.name ?? "The Circle"} said yes — welcome in.`,
+        };
+      }
+      const ctx = sessionContext(tx, input.payload.targetId);
+      return {
+        title: "You're in",
+        body: ctx ? `You're playing with ${ctx.circleName}, ${ctx.when}. See you on court.` : "Your ask was accepted. See you on court.",
+      };
+    }
+    case "knock_declined": {
+      return input.payload.kind === "circle"
+        ? {
+            title: "No room this time",
+            body: "That Circle can't take new players right now. Other Circles near you are open.",
+          }
+        : {
+            title: "That game filled up",
+            body: "The slot went another way this time. The Board will have more games near you.",
+          };
+    }
     case "match_comment": {
       const commenter = tx
         .select({ displayName: users.displayName })
@@ -205,6 +253,11 @@ export function deepLinkFor(input: NotificationInput): string {
       return `/matches/${input.payload.matchId}`;
     case "tab_nudge":
       return `/circles/${input.payload.circleId}`;
+    case "knock_received":
+    case "knock_accepted":
+      return input.payload.kind === "circle" ? `/circles/${input.payload.targetId}` : `/games/${input.payload.targetId}`;
+    case "knock_declined":
+      return input.payload.kind === "circle" ? "/circles" : "/home";
   }
 }
 

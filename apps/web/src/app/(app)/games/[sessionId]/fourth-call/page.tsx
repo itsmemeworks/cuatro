@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
-import { getSessionSummary, checkFourthCallLevel1 } from "@/server/games-service";
-import { checkFourthCallLevel2, findFourthCallClaimant } from "@/server/fourth-call";
+import { getSessionSummary, checkFourthCallLevel1, checkFourthCallLocalRing } from "@/server/games-service";
+import { findFourthCallClaimant } from "@/server/fourth-call";
 import { isOrganiser } from "@/server/standing-games-service";
 import { getMatchesStore } from "@/server/matches-db";
 import { FourthCallSend, type RingState } from "@/components/circle-screens/fourth-call-send";
@@ -22,7 +22,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
   if (!isOrganiser(db, summary.circleId, user.id)) redirect(`/games/${sessionId}`);
 
   const result1 = checkFourthCallLevel1(db, sessionId);
-  const result2 = checkFourthCallLevel2(db, sessionId);
+  const result2 = await checkFourthCallLocalRing(db, sessionId);
 
   const gameFull = summary.confirmed.length >= summary.slots;
   const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt.getTime();
@@ -38,19 +38,19 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
   const ring1State: RingState = gameFull || !upcoming || ring1Sent ? "sent" : "pending";
 
   let ring2State: RingState = "pending";
-  let ring2Label = "starts automatically 20 min after the Circle's first refusal";
+  let ring2Label = "reaches nearby players at this game's level";
   if (result2.fired) {
     ring2State = "sent";
-    ring2Label = `sent to ${result2.notifiedUserIds.length} nearby player${result2.notifiedUserIds.length === 1 ? "" : "s"}`;
+    ring2Label = `sent to ${result2.notifiedUserIds.length} nearby player${result2.notifiedUserIds.length === 1 ? "" : "s"} — first to tap in gets it`;
   } else if (result2.reason === "already_notified") {
     ring2State = "sent";
-    ring2Label = "sent — waiting to hear back";
+    ring2Label = "sent to nearby players — first to tap in gets it";
   } else if (result2.reason === "already_full") {
     ring2State = "done";
     ring2Label = "not needed — the four's full";
   } else if (result2.reason === "no_candidates") {
     ring2State = "done";
-    ring2Label = "no nearby players matched this time";
+    ring2Label = "no nearby players matched this time — try the link";
   } else if (result2.reason === "session_not_upcoming") {
     ring2State = "done";
     ring2Label = "this game has already started or been played";

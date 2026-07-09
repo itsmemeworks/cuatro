@@ -4,14 +4,15 @@ import { sessions } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { isOrganiser } from "@/server/standing-games-service";
-import { checkFourthCallLevel2, getRing3ClaimLink } from "@/server/fourth-call";
+import { checkFourthCallLocalRing } from "@/server/games-service";
+import { getRing3ClaimLink } from "@/server/fourth-call";
 
 /**
- * Organiser-triggered escalation. Default (no body, or `{ level: 2 }`) is
- * Fourth Call level 2 — skips the 20-minutes-after-level-1 wait, unchanged
- * from before. `{ level: 3 }` mints/re-derives the ring-3 public claim link
- * instead (see getRing3ClaimLink — pure function of sessionId+kickoff time,
- * so there's nothing to "fire" or mark as already-sent).
+ * Organiser-triggered escalation. Default (no body, or `{ level: 2 }`) opens
+ * the Local Ring — reaches nearby, level-matched players — skipping the
+ * 20-minutes-after-ring-1 wait. `{ level: 3 }` mints/re-derives the ring-3
+ * public claim link instead (see getRing3ClaimLink — pure function of
+ * sessionId+kickoff time, so there's nothing to "fire" or mark as already-sent).
  */
 export async function POST(request: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const user = await getSessionUser();
@@ -43,6 +44,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
     return NextResponse.json({ ok: true, level: 3, path: linkResult.value.path, expiresAt: linkResult.value.expiresAt.toISOString() });
   }
 
-  const result = checkFourthCallLevel2(db, sessionId, new Date(), { forceEscalate: true });
+  const result = await checkFourthCallLocalRing(db, sessionId, new Date(), { forceEscalate: true });
   return NextResponse.json({ ok: true, level: 2, result });
 }

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/session";
 import { getCirclesStore } from "@/server/circles";
+import { getDb } from "@/server/db";
+import { nearbyCircles } from "@/server/open-door";
+import { resolvePatch } from "@/server/patch";
 import { Card, Meta } from "@/components/ui";
+import { InfoTerm } from "@/components/ui/info-term";
+import { NearbyCircleCard } from "@/components/circles/nearby-circle-card";
 import { circleColorFor } from "@/lib/design";
 import { errorCopy } from "@/lib/error-copy";
 
@@ -14,6 +19,12 @@ export default async function CirclesPage({
   const store = await getCirclesStore();
   const myCircles = user ? await store.listCirclesForUser(user.id) : [];
   const { error } = await searchParams;
+
+  // "Circles near you" (Open Door): venue-anchored discovery of Circles that
+  // welcome knocks. Only active once the viewer has a resolved patch.
+  const { db } = await getDb();
+  const patch = user ? await resolvePatch(db, user.id) : null;
+  const nearby = user && patch ? await nearbyCircles(db, user.id) : [];
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
@@ -69,6 +80,38 @@ export default async function CirclesPage({
             );
           })}
         </div>
+      )}
+
+      {user && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-cu-card-title text-ink">
+            Circles near you{" "}
+            <InfoTerm term="openDoor" label="Open Door" className="text-cu-meta font-normal align-middle" />
+          </h2>
+          {!patch ? (
+            <Card>
+              <p className="text-cu-body text-ink-muted">
+                Set a home club or patch in{" "}
+                <Link href="/profile" className="font-bold text-action-strong">
+                  profile settings
+                </Link>{" "}
+                and we&apos;ll show Circles near you that welcome new players.
+              </p>
+            </Card>
+          ) : nearby.length === 0 ? (
+            <Card>
+              <p className="text-cu-body text-ink-muted">
+                No open Circles near your patch yet — the ones nearby may have their door closed for now.
+              </p>
+            </Card>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {nearby.map((c) => (
+                <NearbyCircleCard key={c.circleId} data={c} />
+              ))}
+            </div>
+          )}
+        </section>
       )}
     </main>
   );

@@ -13,6 +13,10 @@ import { Card, Avatar, Meta, Fact } from "@/components/ui";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { NeedsAnswerCard, type NeedsAnswerSession } from "./needs-answer-card";
 import { FourthCallCard, type FourthCallHomeSession } from "./fourth-call-card";
+import { BoardSection } from "@/components/games/board-section";
+import { boardGames } from "@/server/discovery";
+import { resolvePatch } from "@/server/patch";
+import type { BoardCardProps } from "@/components/games/board-card";
 
 /**
  * `quiet` (design/DESIGN-AUDIT.md H4's "'Manage' quiet") is ink-muted, not
@@ -322,6 +326,31 @@ export default async function HomePage() {
   const gamesThisWeek = sessionSummaries.length;
   const needAnswerCount = sessionSummaries.filter((s) => needsRsvp(s, now)).length;
 
+  // The Board — open slots in games near the viewer's patch. Discovery only
+  // becomes active once a patch resolves (server/patch.ts), so we check that
+  // separately from the games list to tell "no home venue set" apart from
+  // "placed, but nothing nearby" (see BoardSection's states).
+  const [patch, board] = await Promise.all([
+    resolvePatch(gamesClient.db, user.id),
+    boardGames(gamesClient.db, user.id),
+  ]);
+  const boardCards: BoardCardProps[] = board.map((g) => ({
+    sessionId: g.sessionId,
+    circleName: g.circleName,
+    venueName: g.venueName,
+    whenLabel: g.startsAt.toLocaleString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    distanceLabel: g.distanceLabel,
+    levelLine: g.levelLine,
+    slotsOpen: g.slotsOpen,
+    initialPending: g.viewerHasPendingKnock,
+  }));
+
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
       <LiveRefresh userId={user.id} />
@@ -420,6 +449,8 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      <BoardSection hasPatch={patch !== null} games={boardCards} />
     </main>
   );
 }

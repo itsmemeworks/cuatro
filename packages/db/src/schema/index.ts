@@ -1,5 +1,6 @@
 export * from './auth.js'
 export * from './circles.js'
+export * from './knocks.js'
 export * from './matches.js'
 export * from './notifications.js'
 export * from './rating-events.js'

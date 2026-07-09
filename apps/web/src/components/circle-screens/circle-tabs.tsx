@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { SegmentedControl, DashedSlot, Meta, QrShareSheet } from "@/components/ui";
 import { CircleChat, type ChatMessage } from "@/components/circles/circle-chat";
 import { MemberList, type MemberListItem } from "@/components/circles/member-list";
 import { InviteShareButton, InviteLinkText } from "@/components/circles/invite-share-button";
+import { KnockPanel, type KnockPanelItem } from "@/components/circles/knock-panel";
+import { DoorControls } from "@/components/circles/door-controls";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { useCircleLive } from "@/lib/realtime/hooks";
 import { PinnedGameBar } from "./pinned-game-bar";
@@ -48,6 +51,9 @@ export function CircleTabs({
   inviteCode,
   circleName,
   isOrganiser,
+  openDoor,
+  vibeLine,
+  pendingKnocks,
   feedItems,
   rivalry,
 }: {
@@ -61,9 +67,13 @@ export function CircleTabs({
   inviteCode: string;
   circleName: string;
   isOrganiser: boolean;
+  openDoor: boolean;
+  vibeLine: string | null;
+  pendingKnocks: KnockPanelItem[];
   feedItems: FeedItemData[];
   rivalry: { opponentName: string; opponentAvatarUrl: string | null; count: number; direction: "beaten" | "lost_to" } | null;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("feed");
   const [unread, setUnread] = useState(unreadChatBadge);
   // The invite QR (shared by the solo-circle and Members invite blocks). The
@@ -101,6 +111,10 @@ export function CircleTabs({
   // sitting on Feed/Members still sees "Chat ·N" tick up/down live.
   useCircleLive(tab === "chat" ? null : circleId, (event) => {
     if (event.type === "message" || event.type === "reconnect") refreshUnread();
+    // A knock arriving/withdrawing/being decided broadcasts a "notification"
+    // ping on the circle channel — reload so an organiser's pending-knocks
+    // panel stays live without a manual refresh.
+    if (isOrganiser && event.type === "notification") router.refresh();
   });
 
   useEffect(() => {
@@ -207,7 +221,11 @@ export function CircleTabs({
 
       {tab === "members" && (
         <div className="flex flex-col gap-3">
+          {isOrganiser && <KnockPanel knocks={pendingKnocks} />}
           <MemberList members={members} currentUserId={currentUserId} />
+          {isOrganiser && (
+            <DoorControls circleId={circleId} initialOpenDoor={openDoor} initialVibeLine={vibeLine} />
+          )}
           <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
             <div className="flex items-center gap-3">
               <DashedSlot label="+" size="md" />

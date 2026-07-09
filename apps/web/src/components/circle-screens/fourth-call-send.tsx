@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, Meta, QrShareSheet } from "@/components/ui";
+import { Button, InfoTerm, Meta, QrShareSheet } from "@/components/ui";
 import { usePresenceCount } from "@/lib/realtime/presence";
 
 export type RingState = "pending" | "sent" | "done";
@@ -22,8 +22,8 @@ export type RingState = "pending" | "sent" | "done";
  * no such tap for ring 1 (it fires automatically within 48h of kickoff —
  * see games-service.ts's checkFourthCallLevel1, called just by viewing this
  * page/the session page) — so the CTA below is state-only for that ring,
- * and only becomes a real action once ring 2's "Escalate to the network"
- * is actually available (the one manual override the backend has).
+ * and only becomes a real action once ring 2's "Reach nearby players" (the
+ * Local Ring) is actually available (the one manual override the backend has).
  */
 export function FourthCallSend({
   sessionId,
@@ -179,7 +179,7 @@ export function FourthCallSend({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-cu-body font-bold text-ink">
-              Extended network{" "}
+              <InfoTerm term="localRing" label="Players near you" />{" "}
               {ring2State === "sent" && <span className="text-action-strong font-extrabold">· live</span>}
             </p>
             <Meta as="p" className="mt-0.5">
@@ -248,7 +248,7 @@ export function FourthCallSend({
         </Button>
       ) : canEscalate ? (
         <Button variant="primary" size="lg" fullWidth disabled={escalating} onClick={escalate}>
-          {escalating ? "…" : "Escalate to the network →"}
+          {escalating ? "…" : "Reach nearby players →"}
         </Button>
       ) : (
         <div className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-ink-hairline-2 text-ink-muted">
@@ -257,7 +257,7 @@ export function FourthCallSend({
       )}
 
       <Meta as="p" className="text-center">
-        opens automatically within 48h of kickoff · escalates to the network 20 min later if the Circle&apos;s quiet
+        opens automatically within 48h of kickoff · reaches nearby players 20 min later if the Circle&apos;s quiet
       </Meta>
 
       {qrUrl && (

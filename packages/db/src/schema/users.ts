@@ -1,5 +1,6 @@
 import { index, real, sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 import { booleanColumn, createdAtColumn, idColumn, timestampColumn } from './_columns.js'
+import { venues } from './venues.js'
 
 // A player's auth identity, GLASS rating state, and reliability counters.
 // GLASS fields start empty — `rating` is null until the Placement Trio (first
@@ -41,6 +42,20 @@ export const users = sqliteTable(
     // World-ready plumbing: country is data, not code.
     countryCode: text('country_code').notNull().default('GB'),
     locale: text('locale').notNull().default('en-GB'),
+
+    // Geo discovery (venue-anchored, NEVER device GPS). `findable` is
+    // on-by-default — but discovery only becomes *active* once a patch
+    // resolves (see server/patch.ts): a home-venue pin, else an explicit
+    // chosen area (patchLat/patchLng), else an inferred pin from where they
+    // actually play. A findable user with no resolvable patch is simply not
+    // placed on the map yet. Guests (is_guest) are excluded from discovery in
+    // QUERIES, not here. `homeVenueId` is the player's anchor club; its
+    // lat/lng (once geocoded) is the pin. patchLat/patchLng is the fallback
+    // "I play around here" point when there's no single home venue.
+    findable: booleanColumn('findable').notNull().default(true),
+    homeVenueId: text('home_venue_id').references(() => venues.id),
+    patchLat: real('patch_lat'),
+    patchLng: real('patch_lng'),
 
     // GLASS rating state
     // `rating` is null while Unrated (before the Placement Trio completes).

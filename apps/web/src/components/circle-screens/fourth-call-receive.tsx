@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AvatarStack, Button, Fact, Meta } from "@/components/ui";
+import { AvatarStack, Button, Fact, InfoTerm, Meta } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
 import { PresenceTracker } from "@/components/realtime/PresenceTracker";
 import type { SessionCardPlayer } from "@/components/games/SessionCard";
@@ -22,6 +22,11 @@ function formatCountdown(msRemaining: number): string {
  * "Pass". Restyles the old plain ClaimFourthCallButton with the fuller
  * treatment the brief calls for, reusing the same claim endpoint.
  *
+ * Serves two audiences off the same screen: a Circle member reached by ring 1,
+ * and a nearby player reached by ring 2 (the Local Ring). `nearby` picks the
+ * framing — when set, the invite reads as "near you" and names the Local Ring
+ * mechanic, since a ring-2 recipient may not know this Circle at all.
+ *
  * "Expires in" uses the session's kick-off time — claimFourthCallSlot()
  * already rejects a claim once the session has started, so that's the real
  * expiry, not a fabricated countdown.
@@ -36,6 +41,7 @@ export function FourthCallReceive({
   expiresAt,
   passNotificationId,
   viewerId,
+  nearby = false,
 }: {
   sessionId: string;
   circleName: string;
@@ -49,6 +55,8 @@ export function FourthCallReceive({
   passNotificationId: string | null;
   /** The signed-in viewer's user id, so the organiser's live "N viewing…" count (fourth-call-send.tsx) can exclude a specific id — see lib/realtime/presence.ts. */
   viewerId?: string | null;
+  /** True when the viewer was reached by ring 2 (the Local Ring — a nearby, level-matched player) rather than as a Circle member. Switches on the "near you" framing. */
+  nearby?: boolean;
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
@@ -110,12 +118,19 @@ export function FourthCallReceive({
       <Meta className="uppercase tracking-[0.12em] text-action-strong font-extrabold">Fourth Call</Meta>
       <AvatarStack people={confirmed.map((p) => ({ src: p.avatarUrl, name: p.displayName }))} size="lg" ring="ground" />
       <div>
-        <p className="text-cu-title text-ink">{circleName} need a fourth</p>
+        <p className="text-cu-title text-ink">
+          {circleName} need a fourth{nearby ? " near you" : ""}
+        </p>
         <p className="text-cu-body text-ink-muted mt-1">
           {whenLabel}
           {venueLabel ? ` · ${venueLabel}` : ""}
         </p>
       </div>
+      {nearby && (
+        <Meta as="p">
+          Reached through the <InfoTerm term="localRing" label="Local Ring" /> — a level match near you
+        </Meta>
+      )}
       {levelMatchLabel && <Fact tone="muted">{levelMatchLabel}</Fact>}
 
       {error && <Meta tone="action">{errorCopy(error)}</Meta>}

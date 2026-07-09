@@ -15,6 +15,7 @@ npm-workspaces monorepo:
 - `packages/db` — drizzle + better-sqlite3. **SQLite on the Fly volume is the system of record** (`DATABASE_PATH`, prod `/data/cuatro.db`). Migrations run at boot via `createClient()` **with foreign_keys OFF + foreign_key_check after** (SQLite table-recreates fail otherwise on data-bearing DBs — this once 500'd all of prod).
 - `apps/web` — Next.js 16 PWA. **Webpack builds, NOT Turbopack** (`next build --webpack`): `extensionAlias` is needed for @cuatro/db's NodeNext imports and is webpack-only. 448px centered phone-frame column is enforced at the root layout — the design is a phone experience.
 - **Supabase = auth + realtime ONLY** (project `piaeeuyqqbtmbuqfkfun`, Stockholm). Data never lives there. `supabase/config.toml` is the source of truth for auth config — edit it and run `supabase config push` (never the dashboard).
+- **Geo discovery is venue-anchored, NEVER device GPS**: shared layer is `lib/geo.ts` (pure math + `GLASS_BAND`/`DEFAULT_RADIUS_KM`), `server/geocode.ts` (postcodes.io, cache lat/lng on the venue row; backfill = `npx tsx src/server/geocode.ts`), `server/patch.ts` (`resolvePatch`: home venue → explicit patch → inferred). Discovery is on-by-default (`users.findable`) but only active once a patch resolves; queries must exclude guests + unpinned venues themselves.
 
 ## Hard conventions (violations have bitten us — don't)
 1. **better-sqlite3 transactions are SYNCHRONOUS**: no `await` inside `db.transaction()` callbacks — an async callback commits before awaited writes run.

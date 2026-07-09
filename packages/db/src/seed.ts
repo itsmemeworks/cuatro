@@ -26,19 +26,36 @@ const uuid = () => crypto.randomUUID()
 export async function seed(db: CuatroDb) {
   const now = Date.now()
 
+  // ---- Venue ids (declared first so users can anchor a home venue) ----
+  // Real London coords + postcodes so geo discovery has something to resolve
+  // against without a network round-trip at seed time. Spread across ~16 km
+  // so radius filtering is genuinely exercised: Shoreditch↔Stratford ≈ 5 km
+  // (inside the 10 km default), Shoreditch↔Wandsworth ≈ 11 km (just OUTSIDE
+  // it — a deliberate boundary case), Stratford↔Wandsworth ≈ 16 km.
+  const shoreditchVenueId = uuid()
+  const wandsworthVenueId = uuid()
+  const stratfordVenueId = uuid()
+
+  // `home`/`patch`/`findable` seed the geo-discovery branches:
+  //  - home venue pin: most players anchor to their circle's club.
+  //  - explicit patch: Ben & Lucia (Lucia unrated) pick an area near Stratford.
+  //  - inferred: Tom has neither, but plays at Shoreditch, so resolvePatch
+  //    infers it from his sessions.
+  //  - opted out: Marcus is findable=false — discovery queries must skip him.
+  const STRATFORD = { lat: 51.5432, lng: -0.0125 }
   const userSeeds = [
-    { displayName: 'Alex Kane', email: 'alex.kane@example.com', rating: 4.1, confidence: 0.72, verifiedMatchCount: 18 },
-    { displayName: 'Priya Shah', email: 'priya.shah@example.com', rating: 3.7, confidence: 0.64, verifiedMatchCount: 14 },
-    { displayName: 'Jordan Ma', email: 'jordan.ma@example.com', rating: 3.95, confidence: 0.8, verifiedMatchCount: 22 },
-    { displayName: 'Kwame Osei', email: 'kwame.osei@example.com', rating: 3.65, confidence: 0.56, verifiedMatchCount: 11 },
-    { displayName: 'Sofia Reyes', email: 'sofia.reyes@example.com', rating: 3.4, confidence: 0.48, verifiedMatchCount: 9 },
-    { displayName: 'Ben Whitfield', email: 'ben.whitfield@example.com', rating: 2.9, confidence: 0.32, verifiedMatchCount: 5, lateCancelCount: 1 },
-    { displayName: 'Lucia Fernandez', email: 'lucia.fernandez@example.com', rating: null, confidence: 0.08, verifiedMatchCount: 1, placementPriorRating: 3.4 },
+    { displayName: 'Alex Kane', email: 'alex.kane@example.com', rating: 4.1, confidence: 0.72, verifiedMatchCount: 18, home: shoreditchVenueId },
+    { displayName: 'Priya Shah', email: 'priya.shah@example.com', rating: 3.7, confidence: 0.64, verifiedMatchCount: 14, home: shoreditchVenueId },
+    { displayName: 'Jordan Ma', email: 'jordan.ma@example.com', rating: 3.95, confidence: 0.8, verifiedMatchCount: 22, home: shoreditchVenueId },
+    { displayName: 'Kwame Osei', email: 'kwame.osei@example.com', rating: 3.65, confidence: 0.56, verifiedMatchCount: 11, home: shoreditchVenueId },
+    { displayName: 'Sofia Reyes', email: 'sofia.reyes@example.com', rating: 3.4, confidence: 0.48, verifiedMatchCount: 9, home: shoreditchVenueId },
+    { displayName: 'Ben Whitfield', email: 'ben.whitfield@example.com', rating: 2.9, confidence: 0.32, verifiedMatchCount: 5, lateCancelCount: 1, patchLat: STRATFORD.lat, patchLng: STRATFORD.lng },
+    { displayName: 'Lucia Fernandez', email: 'lucia.fernandez@example.com', rating: null, confidence: 0.08, verifiedMatchCount: 1, placementPriorRating: 3.4, patchLat: STRATFORD.lat, patchLng: STRATFORD.lng },
     { displayName: 'Tom Harker', email: 'tom.harker@example.com', rating: 3.25, confidence: 0.24, verifiedMatchCount: 3 },
-    { displayName: 'Nadia Petrov', email: 'nadia.petrov@example.com', rating: 4.35, confidence: 0.88, verifiedMatchCount: 31 },
-    { displayName: 'Owen Blackwood', email: 'owen.blackwood@example.com', rating: 3.1, confidence: 0.4, verifiedMatchCount: 7 },
-    { displayName: 'Freya Lindqvist', email: 'freya.lindqvist@example.com', rating: 3.8, confidence: 0.68, verifiedMatchCount: 16 },
-    { displayName: 'Marcus Chen', email: 'marcus.chen@example.com', rating: null, confidence: 0.08, verifiedMatchCount: 1, lateCancelCount: 1 },
+    { displayName: 'Nadia Petrov', email: 'nadia.petrov@example.com', rating: 4.35, confidence: 0.88, verifiedMatchCount: 31, home: wandsworthVenueId },
+    { displayName: 'Owen Blackwood', email: 'owen.blackwood@example.com', rating: 3.1, confidence: 0.4, verifiedMatchCount: 7, home: wandsworthVenueId },
+    { displayName: 'Freya Lindqvist', email: 'freya.lindqvist@example.com', rating: 3.8, confidence: 0.68, verifiedMatchCount: 16, home: wandsworthVenueId },
+    { displayName: 'Marcus Chen', email: 'marcus.chen@example.com', rating: null, confidence: 0.08, verifiedMatchCount: 1, lateCancelCount: 1, findable: false },
   ] as const
 
   const userRows = userSeeds.map((u) => ({
@@ -54,7 +71,44 @@ export async function seed(db: CuatroDb) {
     rsvpInCount: u.verifiedMatchCount + 4,
     showUpCount: u.verifiedMatchCount + 3,
     lateCancelCount: 'lateCancelCount' in u ? u.lateCancelCount : 0,
+    findable: 'findable' in u ? u.findable : true,
+    homeVenueId: 'home' in u ? u.home : null,
+    patchLat: 'patchLat' in u ? u.patchLat : null,
+    patchLng: 'patchLng' in u ? u.patchLng : null,
   }))
+
+  // Venues must exist before users: a user's homeVenueId is a real FK.
+  // (lat/lng hardcoded to real London points — see the id block at the top of
+  // seed(). Addresses carry a real postcode too, so the postcodes.io backfill
+  // would resolve the same pin if lat/lng were cleared.)
+  const shoreditchVenue = {
+    id: shoreditchVenueId,
+    name: 'Powerleague Shoreditch',
+    address: 'Bethnal Green Rd, London EC2A 3AR',
+    lat: 51.5265,
+    lng: -0.0805,
+    countryCode: 'GB',
+    timezone: 'Europe/London',
+  }
+  const wandsworthVenue = {
+    id: wandsworthVenueId,
+    name: 'Rocket Padel Wandsworth',
+    address: 'Buckhold Rd, London SW18 1UJ',
+    lat: 51.4571,
+    lng: -0.1931,
+    countryCode: 'GB',
+    timezone: 'Europe/London',
+  }
+  const stratfordVenue = {
+    id: stratfordVenueId,
+    name: 'Padel Social Club Stratford',
+    address: 'Queen Elizabeth Olympic Park, London E20 1EJ',
+    lat: 51.5432,
+    lng: -0.0125,
+    countryCode: 'GB',
+    timezone: 'Europe/London',
+  }
+  await db.insert(venues).values([shoreditchVenue, wandsworthVenue, stratfordVenue])
 
   await db.insert(users).values(userRows)
 
@@ -77,23 +131,6 @@ export async function seed(db: CuatroDb) {
   const freya = byName('Freya Lindqvist')
   const marcus = byName('Marcus Chen')
 
-  // ---- Venues ----
-  const shoreditchVenue = {
-    id: uuid(),
-    name: 'Powerleague Shoreditch',
-    address: 'Bethnal Green Rd, London',
-    countryCode: 'GB',
-    timezone: 'Europe/London',
-  }
-  const wandsworthVenue = {
-    id: uuid(),
-    name: 'Rocket Padel Wandsworth',
-    address: 'Buckhold Rd, London',
-    countryCode: 'GB',
-    timezone: 'Europe/London',
-  }
-  await db.insert(venues).values([shoreditchVenue, wandsworthVenue])
-
   // ---- Circles ----
   const tuesdayCircle = {
     id: uuid(),
@@ -103,6 +140,7 @@ export async function seed(db: CuatroDb) {
     countryCode: 'GB',
     timezone: 'Europe/London',
     inviteCode: 'SHOREDITCH4',
+    vibeLine: 'Chilled Tuesday-night doubles in Shoreditch — all levels welcome.',
     createdBy: alex.id,
   }
   const weekendCircle = {
@@ -113,6 +151,7 @@ export async function seed(db: CuatroDb) {
     countryCode: 'GB',
     timezone: 'Europe/London',
     inviteCode: 'WANDSWORTH4',
+    vibeLine: 'Saturday-morning weekend four in Wandsworth — competitive but friendly.',
     createdBy: nadia.id,
   }
   await db.insert(circles).values([tuesdayCircle, weekendCircle])

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { and, eq, sql } from "drizzle-orm";
+import { notifications } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { checkFourthCallLevel1, getSessionSummary, DEFAULT_SESSION_DURATION_MINUTES } from "@/server/games-service";
@@ -13,6 +15,8 @@ import { createTabSplitForSessionAction } from "@/server/session-tab-actions";
 import { pinVenueLocationAction } from "@/server/pin-location-actions";
 import { StandingGameWeekCard } from "@/components/games/StandingGameWeekCard";
 import { VenueMapCard } from "@/components/games/venue-map-card";
+import { KnockPanel, type KnockRow } from "@/components/games/knock-panel";
+import { sessionKnocks } from "@/server/discovery";
 import { FourthCallReceive } from "@/components/circle-screens/fourth-call-receive";
 import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
 import { Button, Meta } from "@/components/ui";
@@ -122,6 +126,21 @@ export default async function SessionDetailPage({
         .flatMap((g) => g.notifications)
         .find((n) => n.type === "fourth_call" && n.href === `/games/${sessionId}`)?.id ?? null;
 
+    // A level-2 (extended-network / Local Ring) fourth_call invite switches the
+    // takeover to the "near you" framing; level 1 is the viewer's own Circle.
+    const nearby = !!db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, user.id),
+          eq(notifications.type, "fourth_call"),
+          sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+          sql`json_extract(${notifications.payload}, '$.level') = 2`,
+        ),
+      )
+      .get();
+
     return (
       <main className="px-5 pt-8 pb-6">
         <ToastBoundary>
@@ -139,6 +158,7 @@ export default async function SessionDetailPage({
             expiresAt={summary.session.startsAt}
             passNotificationId={passNotificationId}
             viewerId={user.id}
+            nearby={nearby}
           />
         </ToastBoundary>
       </main>
@@ -148,6 +168,20 @@ export default async function SessionDetailPage({
   const gameFull = summary.confirmed.length >= summary.slots;
   const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt.getTime();
   const viewerIsOrganiser = isOrganiser(db, summary.circleId, user.id);
+
+  // Pending asks-to-join (Board knocks) — only the organiser decides them.
+  const knockRows: KnockRow[] = viewerIsOrganiser
+    ? (await sessionKnocks(db, sessionId)).map((k) => ({
+        knockId: k.knockId,
+        displayName: k.displayName,
+        avatarUrl: k.avatarUrl,
+        message: k.message,
+        levelLabel: k.rating != null ? `Glass ${k.rating.toFixed(2)}` : "Unrated",
+        reliabilityLabel: k.reliabilityPct != null ? `Shows up ${k.reliabilityPct}%` : null,
+        lateCancelCount: k.lateCancelCount,
+        distanceLabel: k.distanceLabel,
+      }))
+    : [];
 
   const durationMinutes = summary.standingGame?.durationMinutes ?? DEFAULT_SESSION_DURATION_MINUTES;
   const alreadySplit = isPast && summary.costMinor != null ? hasTabSplitForSession(db, sessionId) : false;
@@ -225,6 +259,8 @@ export default async function SessionDetailPage({
           fourthCallHref={`/games/${sessionId}/fourth-call`}
         />
       </ToastBoundary>
+
+      {viewerIsOrganiser && knockRows.length > 0 && <KnockPanel knocks={knockRows} />}
 
       {summary.costMinor != null ? (
         !isPast ? (

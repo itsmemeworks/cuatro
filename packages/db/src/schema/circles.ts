@@ -1,5 +1,5 @@
 import { index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
+import { booleanColumn, createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { users } from './users.js'
 
 // A Circle is the persistent group: members, chat, history, the Tab, its
@@ -17,6 +17,17 @@ export const circles = sqliteTable(
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id),
+
+    // Geo discovery controls (both on-by-default, per the greenlit design).
+    // `boardEnabled`: this Circle surfaces on The Board (the nearby-groups
+    // discovery surface). `openDoor`: the Circle accepts knocks from players
+    // who found it — the "open door" affordance in the directory. `vibeLine`
+    // is one warm sentence shown on the directory card (e.g. "Chilled
+    // Tuesday doubles, all levels welcome"); null until an organiser writes it.
+    boardEnabled: booleanColumn('board_enabled').notNull().default(true),
+    openDoor: booleanColumn('open_door').notNull().default(true),
+    vibeLine: text('vibe_line'),
+
     createdAt: createdAtColumn(),
   },
   (table) => ({

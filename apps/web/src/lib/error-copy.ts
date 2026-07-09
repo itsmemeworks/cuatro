@@ -18,6 +18,14 @@ const ERROR_COPY: Record<string, string> = {
   invalid_start_time: "That start time doesn't look right — use HH:MM.",
   session_started: "That game has already started.",
   no_fourth_call_invite: "This link isn't live any more — the spot may have been filled.",
+  // Knocks (The Board — ask-to-join a game near you).
+  already_knocked: "You've already asked to join this game — the organiser will get back to you.",
+  already_member: "You're already in this Circle, so just RSVP to the game.",
+  already_in: "You're already in for this game.",
+  window_not_open: "RSVPs for this game haven't opened yet — try again closer to the date.",
+  no_open_knock: "There's no open ask to withdraw.",
+  knock_not_found: "That ask isn't around any more.",
+  not_pending: "That ask has already been answered.",
 };
 
 const FALLBACK = "Something didn't go through. Give it another tap.";

@@ -113,6 +113,10 @@ export interface CircleDetail {
   timezone: string;
   inviteCode: string;
   createdBy: string;
+  /** Open Door: does this Circle accept knocks from players who found it? */
+  openDoor: boolean;
+  /** One warm directory sentence; null until an organiser writes it. */
+  vibeLine: string | null;
   myRole: "organiser" | "member";
   members: CircleMemberView[];
 }
@@ -140,7 +144,14 @@ export interface UpdateCircleSettingsInput {
   emblem?: string | null;
   colour?: string | null;
   timezone?: string;
+  /** Open Door toggle — whether the Circle accepts knocks. */
+  openDoor?: boolean;
+  /** One warm directory sentence; trimmed, and an empty string clears it back to null. */
+  vibeLine?: string | null;
 }
+
+/** One warm directory sentence has a hard ceiling so a card stays a card. */
+export const MAX_VIBE_LINE_LENGTH = 120;
 
 export interface JoinCircleResult {
   circleId: string;
@@ -179,6 +190,31 @@ function defaultGenerateInviteCode(): string {
 
 function isUniqueConstraintError(err: unknown): boolean {
   return err instanceof Error && /UNIQUE constraint failed/i.test(err.message);
+}
+
+/**
+ * The single insert path for "this user is now a real member of this Circle".
+ * `onConflictDoNothing().returning().get()` makes it atomic and idempotent in
+ * one round trip — a returned row means this call created the membership, an
+ * empty result means it already existed. Uses the synchronous `.get()` form
+ * so it is equally callable on the plain db (joinCircle) and inside a
+ * better-sqlite3 `db.transaction((tx) => …)` callback (Open Door's knock
+ * accept, which must add the membership and write its notification in one
+ * synchronous transaction). Returns whether a NEW membership was created.
+ */
+export function insertCircleMembership(
+  db: CuatroDb,
+  circleId: string,
+  userId: string,
+  role: "organiser" | "member" = "member",
+): boolean {
+  const inserted = db
+    .insert(circleMembers)
+    .values({ circleId, userId, role })
+    .onConflictDoNothing()
+    .returning()
+    .get();
+  return Boolean(inserted);
 }
 
 function toCircleSummary(circle: Circle, memberCount: number, myRole: "organiser" | "member"): CircleSummary {
@@ -266,16 +302,8 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       const [circle] = await db.select().from(circles).where(eq(circles.inviteCode, inviteCode));
       if (!circle) return null;
 
-      // onConflictDoNothing().returning() makes this atomic and idempotent
-      // in one round trip: a returned row means this call created the
-      // membership, an empty result means it already existed.
-      const [inserted] = await db
-        .insert(circleMembers)
-        .values({ circleId: circle.id, userId, role: "member" })
-        .onConflictDoNothing()
-        .returning();
-
-      return { circleId: circle.id, circleName: circle.name, alreadyMember: !inserted };
+      const created = insertCircleMembership(db, circle.id, userId);
+      return { circleId: circle.id, circleName: circle.name, alreadyMember: !created };
     },
 
     async listCirclesForUser(userId) {
@@ -338,6 +366,8 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         timezone: circle.timezone,
         inviteCode: circle.inviteCode,
         createdBy: circle.createdBy,
+        openDoor: circle.openDoor,
+        vibeLine: circle.vibeLine,
         myRole: myMembership.role,
         members,
       };
@@ -352,6 +382,13 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       if (updates.emblem !== undefined) patch.emblem = updates.emblem;
       if (updates.colour !== undefined) patch.colour = updates.colour;
       if (updates.timezone !== undefined) patch.timezone = updates.timezone;
+      if (updates.openDoor !== undefined) patch.openDoor = updates.openDoor;
+      if (updates.vibeLine !== undefined) {
+        // An empty (or whitespace-only) vibe line clears it back to null so the
+        // directory card falls back to its default line rather than a blank.
+        const trimmed = updates.vibeLine?.trim() ?? "";
+        patch.vibeLine = trimmed.length === 0 ? null : trimmed.slice(0, MAX_VIBE_LINE_LENGTH);
+      }
       if (Object.keys(patch).length === 0) return;
 
       await db.update(circles).set(patch).where(eq(circles.id, circleId));

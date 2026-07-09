@@ -5,6 +5,8 @@ import { getSessionUser } from "@/lib/session";
 import { NotMemberError, getCirclesStore, type CircleMessageView } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForCircle, isFourthCallActive } from "@/server/games-service";
+import { circleKnocks } from "@/server/open-door";
+import type { KnockPanelItem } from "@/components/circles/knock-panel";
 import { listCircleFeed } from "@/server/feed";
 import { getUnreadCountForCircle } from "@/server/circle-unread";
 import { CircleTabs, type FeedItemData } from "@/components/circle-screens/circle-tabs";
@@ -114,6 +116,21 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
 
   const unreadChatBadge = getUnreadCountForCircle(db, id, user.id);
   const gamesCount = countVerifiedMatches(db, id);
+
+  // Open Door: an organiser sees pending knocks + the door controls. circleKnocks
+  // itself re-checks the organiser role, so this is safe even if myRole drifted.
+  const pendingKnocks: KnockPanelItem[] =
+    detail.myRole === "organiser"
+      ? (await circleKnocks(db, id, user.id)).map((k) => ({
+          knockId: k.knockId,
+          displayName: k.displayName,
+          avatarUrl: k.avatarUrl,
+          rating: k.rating,
+          reliability: k.reliability,
+          distanceLabel: k.distanceLabel,
+          message: k.message,
+        }))
+      : [];
   // CircleDetail itself carries no createdAt (see server/circles.ts) — the
   // summary list this page already fetches for the switcher does, so "est.
   // YYYY" reuses that instead of adding a second circles-table lookup.
@@ -167,6 +184,9 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           inviteCode={detail.inviteCode}
           circleName={detail.name}
           isOrganiser={detail.myRole === "organiser"}
+          openDoor={detail.openDoor}
+          vibeLine={detail.vibeLine}
+          pendingKnocks={pendingKnocks}
           feedItems={feedItems}
           rivalry={
             rivalry

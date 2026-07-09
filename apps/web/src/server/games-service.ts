@@ -36,6 +36,7 @@ import { computeNextOccurrence } from "./tz";
 import { resolveVenue, isOrganiser } from "./standing-games-service";
 import { insertNotification } from "./notify";
 import { computeEqualSplit } from "./tab";
+import { localRingCandidates, LOCAL_RING_FANOUT_CAP } from "./local-ring";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -58,6 +59,11 @@ export const DEFAULT_SESSION_DURATION_MINUTES = 90;
 
 export const FOURTH_CALL_WINDOW_MS = 48 * 60 * 60 * 1000;
 const LATE_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Ring 2 (the Local Ring) opens this long after ring 1's first-refusal window
+// went out, unless the organiser escalates by hand — the same 20-minute grace
+// the Circle got before the call widens to nearby players.
+export const FOURTH_CALL_LOCAL_RING_DELAY_MS = 20 * 60 * 1000;
 
 export function slotsForSession(standingGame: StandingGame | null): number {
   return standingGame?.slots ?? DEFAULT_SESSION_SLOTS;
@@ -478,6 +484,170 @@ export function checkFourthCallLevel1(
   if (result.fired && circleId) {
     emitSessionEvent(sessionId, "fourth_call", { circleId, level: 1 });
     emitCircleEvent(circleId, "fourth_call", { sessionId, level: 1 });
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Fourth Call — level 2 (THE LOCAL RING): nearby, level-matched, findable
+// players. Ring 1 reached the Circle; ring 2 reaches out to the map. The
+// "who's nearby" query is server/local-ring.ts; this is the escalation around
+// it — the same lazy-on-view + notification-as-invite + never-nag-twice shape
+// as checkFourthCallLevel1 above. A level-2 invitee need not be a circle
+// member, so they claim through fourth-call.ts's claimFourthCallSlot (gated on
+// holding a fourth_call notification), not rsvpIn.
+// ---------------------------------------------------------------------------
+
+export type FourthCallLocalRingResult =
+  | {
+      fired: false;
+      reason: "not_yet" | "already_full" | "already_notified" | "session_not_upcoming" | "no_candidates";
+    }
+  | { fired: true; notifiedUserIds: string[] };
+
+export interface FourthCallLocalRingOptions {
+  /** Organiser tapped "Reach nearby players" — skips the 20-minutes-after-ring-1 wait. */
+  forceEscalate?: boolean;
+}
+
+/** When did ring 1's first fourth_call notification for this session go out? Null if it never has. */
+function fourthCallLevel1FiredAt(db: CuatroDb, sessionId: string): Date | null {
+  const row = db
+    .select({ createdAt: notifications.createdAt })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.type, "fourth_call"),
+        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+        sql`json_extract(${notifications.payload}, '$.level') = 1`,
+      ),
+    )
+    .orderBy(asc(notifications.createdAt))
+    .limit(1)
+    .get();
+  return row?.createdAt ?? null;
+}
+
+/** Has ring 2 (level 2) already fired for this session? Its notification is the idempotency marker. */
+function fourthCallLevel2AlreadyFired(db: CuatroDb, sessionId: string): boolean {
+  return !!db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.type, "fourth_call"),
+        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+        sql`json_extract(${notifications.payload}, '$.level') = 2`,
+      ),
+    )
+    .get();
+}
+
+/** Everyone already sent a fourth_call notification (any level) for this session — the never-nag-twice set. */
+function fourthCallNotifiedUserIds(db: CuatroDb, sessionId: string): Set<string> {
+  const rows = db
+    .select({ userId: notifications.userId })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.type, "fourth_call"),
+        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+      ),
+    )
+    .all();
+  return new Set(rows.map((r) => r.userId));
+}
+
+/**
+ * Escalate a short game to the Local Ring — nearby, level-matched, findable
+ * players get a level-2 fourth_call notification (which is both the nudge and
+ * the claim grant — see fourth-call.ts's hasFourthCallInvite/claimFourthCallSlot).
+ *
+ * Fires lazily on view (no cron in v0) once ring 1's 20-minute first-refusal
+ * window has elapsed, or immediately when the organiser taps escalate
+ * (`forceEscalate`). Idempotent per session: a level-2 notification already
+ * existing is the fired marker, so repeat views / a second tap are no-ops, and
+ * anyone already invited (any level) is filtered out — nobody is nagged twice.
+ *
+ * ASYNC, unlike checkFourthCallLevel1: the candidate query (server/local-ring.ts)
+ * resolves patches and does geo maths, which better-sqlite3 can't do inside a
+ * synchronous transaction. So this computes the candidate list first (outside
+ * any transaction), then mirrors ring 1's shape exactly for the write — one
+ * synchronous transaction re-validates and inserts, and realtime emits only
+ * after it commits.
+ */
+export async function checkFourthCallLocalRing(
+  db: CuatroDb,
+  sessionId: string,
+  now: Date = new Date(),
+  options: FourthCallLocalRingOptions = {},
+): Promise<FourthCallLocalRingResult> {
+  // --- Phase A: async gates + candidate computation (no transaction) --------
+  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+  if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+    return { fired: false, reason: "session_not_upcoming" };
+  }
+
+  const standingGame = session.standingGameId
+    ? (db.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+    : null;
+  if (countConfirmed(db, sessionId) >= slotsForSession(standingGame)) {
+    return { fired: false, reason: "already_full" };
+  }
+
+  if (fourthCallLevel2AlreadyFired(db, sessionId)) {
+    return { fired: false, reason: "already_notified" };
+  }
+
+  if (!options.forceEscalate) {
+    const firedAt = fourthCallLevel1FiredAt(db, sessionId);
+    if (!firedAt || now.getTime() - firedAt.getTime() < FOURTH_CALL_LOCAL_RING_DELAY_MS) {
+      return { fired: false, reason: "not_yet" };
+    }
+  }
+
+  const alreadyNotified = fourthCallNotifiedUserIds(db, sessionId);
+  const candidates = await localRingCandidates(db, sessionId, {
+    limit: LOCAL_RING_FANOUT_CAP,
+    excludeUserIds: [...alreadyNotified],
+  });
+  if (candidates.length === 0) return { fired: false, reason: "no_candidates" };
+
+  // --- Phase B: synchronous transaction — re-validate + write invites -------
+  let circleId: string | undefined;
+  const result = db.transaction((tx): FourthCallLocalRingResult => {
+    const s = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    if (!s || s.status !== "upcoming" || now.getTime() >= s.startsAt.getTime()) {
+      return { fired: false, reason: "session_not_upcoming" };
+    }
+    circleId = s.circleId;
+
+    const sg = s.standingGameId
+      ? (tx.select().from(standingGames).where(eq(standingGames.id, s.standingGameId)).get() ?? null)
+      : null;
+    if (countConfirmed(tx, sessionId) >= slotsForSession(sg)) {
+      return { fired: false, reason: "already_full" };
+    }
+    if (fourthCallLevel2AlreadyFired(tx, sessionId)) {
+      return { fired: false, reason: "already_notified" };
+    }
+
+    // Re-read the notified set inside the transaction so a concurrent
+    // escalation can't cause a double-invite (never nag twice).
+    const notifiedNow = fourthCallNotifiedUserIds(tx, sessionId);
+    const chosen = candidates.filter((c) => !notifiedNow.has(c.userId));
+    if (chosen.length === 0) return { fired: false, reason: "no_candidates" };
+
+    for (const c of chosen) {
+      insertNotification(tx, { userId: c.userId, type: "fourth_call", payload: { sessionId, level: 2 } });
+    }
+    return { fired: true, notifiedUserIds: chosen.map((c) => c.userId) };
+  });
+
+  // --- Phase C: realtime AFTER commit (never inside the transaction) --------
+  if (result.fired && circleId) {
+    emitSessionEvent(sessionId, "fourth_call", { circleId, level: 2 });
+    emitCircleEvent(circleId, "fourth_call", { sessionId, level: 2 });
   }
   return result;
 }
