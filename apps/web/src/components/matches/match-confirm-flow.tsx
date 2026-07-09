@@ -41,8 +41,8 @@ export function ratingStillHidden(explanation: string): boolean {
  */
 export function glassSkipNote(outcome: MatchOutcome, ledgerEventCount: number): string | null {
   if (ledgerEventCount > 0) return null;
-  if (outcome === "walkover") return "Recorded as a walkover — no one's Glass rating moved.";
-  return "No games were played — no one's Glass rating moved.";
+  if (outcome === "walkover") return "Recorded as a walkover. Legs, weather, or life, no one's Glass rating moved and no story needed.";
+  return "No games were played, so no one's Glass rating moved.";
 }
 
 /**
@@ -145,14 +145,14 @@ export function MatchConfirmFlow({
     const teamBEvents = ledgerEvents.filter((e) => teamBPlayerIds.includes(e.playerId));
     return (
       <div className="animate-cu-seal rounded-button bg-win-tint border border-win/40 p-4 text-center flex flex-col gap-2.5">
-        <p className="text-cu-body font-extrabold text-win">Result sealed — written to both Ledgers</p>
+        <p className="text-cu-body font-extrabold text-win">Result sealed, written to both Ledgers</p>
         <div className="flex justify-center gap-6">
           {[teamAEvents, teamBEvents].map((events, i) => (
             <div key={i} className="flex flex-col gap-1">
               {events.map((ev) => (
                 <Fact key={ev.playerId} size="sm" weight="semibold" tone={ratingStillHidden(ev.explanation) ? "muted" : ev.delta >= 0 ? "win" : "loss"}>
                   {ratingStillHidden(ev.explanation)
-                    ? `${players[ev.playerId] ?? "Player"} — Glass still building`
+                    ? `${players[ev.playerId] ?? "Player"}, Glass still building`
                     : `${players[ev.playerId] ?? "Player"} ${fmtDelta(ev.delta)} → ${ev.ratingAfter.toFixed(2)}`}
                 </Fact>
               ))}
@@ -179,7 +179,7 @@ export function MatchConfirmFlow({
           <div key={team} className="flex items-center gap-2.5">
             <span className="text-cu-body font-semibold text-ink flex-1">
               {name}
-              {isViewerRow && confirmed && " — you confirmed"}
+              {isViewerRow && confirmed && ", you confirmed"}
             </span>
             {confirmed ? (
               <span className={`text-cu-card-title font-bold text-win ${arriving ? "animate-cu-arrive" : ""}`}>✓</span>

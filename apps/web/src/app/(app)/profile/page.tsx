@@ -45,7 +45,7 @@ export default async function ProfilePage() {
     ? (venueOptions.find((v) => v.id === discoveryRow.homeVenueId)?.name ?? null)
     : null;
   const patchStatusLine = !discoveryRow?.findable
-    ? "Not findable — nearby games can't see you."
+    ? "Not findable, nearby games can't see you."
     : patch
       ? patch.source === "home_venue" && homeVenueName
         ? `On The Board · home venue ${homeVenueName}`

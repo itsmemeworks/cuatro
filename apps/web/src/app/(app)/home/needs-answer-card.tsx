@@ -123,7 +123,7 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
           <span className="text-[11.5px] font-medium text-ink-on-feature-muted">
             {optimisticIn
               ? "You're in ✓ · game on"
-              : `${namesLine(session.confirmed)} — ${spotsToFill} spot${spotsToFill === 1 ? "" : "s"} to fill`}
+              : `${namesLine(session.confirmed)}, ${spotsToFill} spot${spotsToFill === 1 ? "" : "s"} to fill`}
           </span>
         </div>
       )}

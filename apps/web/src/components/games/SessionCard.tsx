@@ -174,7 +174,7 @@ export function SessionCard({
     <Card className="flex flex-col gap-4">
       {data.fourthCallActive && (
         <Chip tone="streak" className="self-start">
-          🔔 Fourth Call — slots still open
+          🔔 Fourth Call, slots still open
         </Chip>
       )}
 
@@ -226,7 +226,7 @@ export function SessionCard({
               </p>
             ))}
           </div>
-          <Meta as="p">if anyone drops, they&apos;re in automatically — everyone gets told</Meta>
+          <Meta as="p">if anyone drops, they&apos;re in automatically, everyone gets told</Meta>
         </div>
       )}
 

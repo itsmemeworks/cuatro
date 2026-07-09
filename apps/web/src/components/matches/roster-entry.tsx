@@ -72,7 +72,7 @@ export function RosterEntry({
       <Card className="flex flex-col gap-3">
         <div>
           <h2 className="text-cu-card-title text-ink">Who played?</h2>
-          <Meta className="mt-1 block">The four who were on court — swap anyone who didn&apos;t make it.</Meta>
+          <Meta className="mt-1 block">The four who were on court, swap anyone who didn&apos;t make it.</Meta>
         </div>
 
         <ul className="flex flex-col gap-2.5">
@@ -136,7 +136,7 @@ export function RosterEntry({
         />
       ) : (
         <p className="text-cu-meta text-ink-muted text-center px-6">
-          {full ? "Add yourself to the four to log the score." : `Set all four players to log the score — ${4 - roster.length} to go.`}
+          {full ? "Add yourself to the four to log the score." : `Set all four players to log the score, ${4 - roster.length} to go.`}
         </p>
       )}
 
@@ -186,7 +186,7 @@ export function RosterEntry({
                 Add
               </Button>
             </div>
-            <Meta>They&apos;ll play as a guest — a rating starts building for them, no account needed.</Meta>
+            <Meta>They&apos;ll play as a guest, a rating starts building for them, no account needed.</Meta>
           </div>
         </div>
       </Sheet>

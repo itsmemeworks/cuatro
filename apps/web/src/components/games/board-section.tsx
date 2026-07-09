@@ -33,7 +33,7 @@ export function BoardSection({ hasPatch, games }: { hasPatch: boolean; games: Bo
         </Card>
       ) : games.length === 0 ? (
         <Card>
-          <p className="text-cu-body text-ink-muted">No open games near you this week — check back soon.</p>
+          <p className="text-cu-body text-ink-muted">No open games near you this week. When one lands, the Board shows the level honestly, so you can turn up as you are.</p>
         </Card>
       ) : (
         <div className="flex flex-col gap-3">

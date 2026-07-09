@@ -273,8 +273,8 @@ export function ResultEntryForm({
 
       {oppNeedsAccount && (
         <p className="text-cu-meta text-ink-muted text-center px-4">
-          No one on the other team has a Cuatro account yet, so they can&apos;t confirm this. You can still send it — it
-          waits until someone on their side joins — or swap one of them for a regular player above.
+          No one on the other team has a Cuatro account yet, so they can&apos;t confirm this. You can still send it, it
+          waits until someone on their side joins, or swap one of them for a regular player above.
         </p>
       )}
 

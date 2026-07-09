@@ -45,10 +45,10 @@ export function GlassHero({
             <p className="text-cu-card-title text-ink">Glass: Unrated</p>
             <p className="text-cu-secondary text-ink-muted mt-0.5">
               {remaining === 0
-                ? "Your Placement Trio is complete — your number appears the moment this match verifies."
+                ? "Your Placement Trio is complete. Your number appears the moment this match verifies."
                 : remaining === 1
-                  ? "One more verified match and your Glass number appears."
-                  : `${remaining} of 3 placement matches to go.`}
+                  ? "One more verified match and your Glass number appears. No rush, no rounding."
+                  : `${remaining} of 3 placement matches to go. Nobody's a number yet.`}
             </p>
           </div>
         </div>

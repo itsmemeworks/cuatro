@@ -248,8 +248,8 @@ export default async function HomePage() {
             title: "Your Glass number is still hidden",
             subtitle:
               glass!.matchesUntilPlacement === 0
-                ? "Placement Trio complete — your number appears once your latest match verifies."
-                : `${glass!.matchesUntilPlacement} of 3 placement matches to go — log a result to keep going.`,
+                ? "Placement Trio complete. Your number appears once your latest match verifies."
+                : `${glass!.matchesUntilPlacement} of 3 placement matches to go. Log a result to keep going, nobody's a number yet.`,
           },
         ]
       : []),
@@ -397,7 +397,7 @@ export default async function HomePage() {
           <div>
             <p className="text-cu-card-title text-ink">Start with a Circle</p>
             <p className="text-cu-body text-ink-muted mt-1">
-              A Circle is your padel group — create one and your weekly four organises itself.
+              A Circle is your padel group, basically a group chat that occasionally plays padel. Create one and your weekly four organises itself.
             </p>
           </div>
           <Link
@@ -415,7 +415,7 @@ export default async function HomePage() {
           {restSessionCards.length === 0 && !featuredCard ? (
             <EmptyCard
               title="No games yet"
-              body="None of your Circles has an active Standing Game yet — set one up so your weekly four organises itself."
+              body="None of your Circles has a Standing Game yet. Set one up so nobody has to be the one who says 'anyone free Thursday'."
               action={{ href: "/games/standing/new", label: "Set one up →" }}
             />
           ) : (

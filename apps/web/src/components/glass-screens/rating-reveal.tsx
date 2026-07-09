@@ -105,7 +105,7 @@ export function RatingReveal({
   if (!visible) return null;
 
   async function share() {
-    const shareText = `My Glass just poured: ${formatGlass(rating)} — join me on CUATRO.`;
+    const shareText = `My Glass just poured: ${formatGlass(rating)}. No rounding up, no "I'm basically a 4". Join me on CUATRO.`;
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({ text: shareText });
@@ -116,7 +116,7 @@ export function RatingReveal({
     }
     try {
       await navigator.clipboard.writeText(shareText);
-      show("Copied — paste it anywhere");
+      show("Copied, paste it anywhere");
     } catch {
       show(shareText);
     }

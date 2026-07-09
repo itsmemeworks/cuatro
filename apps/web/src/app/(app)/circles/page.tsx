@@ -48,8 +48,8 @@ export default async function CirclesPage({
         <Card className="flex flex-col gap-1">
           <p className="text-cu-card-title text-ink">No Circles yet</p>
           <p className="text-cu-body text-ink-muted">
-            Join one with a link or QR code, or create your own — this is where your padel group&apos;s chat,
-            history and Standing Games live.
+            Every good four started with two people and a maybe. Join one with a link or QR code, or create your own.
+            This is where your padel group&apos;s chat, history and Standing Games live.
           </p>
         </Card>
       ) : (
@@ -101,7 +101,7 @@ export default async function CirclesPage({
           ) : nearby.length === 0 ? (
             <Card>
               <p className="text-cu-body text-ink-muted">
-                No open Circles near your patch yet — the ones nearby may have their door closed for now.
+                No open Circles near your patch yet. The ones nearby may have their door shut for now.
               </p>
             </Card>
           ) : (

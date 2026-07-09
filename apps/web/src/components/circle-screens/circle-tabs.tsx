@@ -155,7 +155,7 @@ export function CircleTabs({
                 <div className="flex-1 min-w-0">
                   <p className="text-cu-body font-bold text-action-strong">Invite your group</p>
                   <Meta as="p" className="mt-0.5">
-                    it&apos;s just you so far — share the link and your four fills up
+                    it&apos;s just you so far, share the link and your four fills up
                   </Meta>
                 </div>
                 <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
@@ -186,7 +186,7 @@ export function CircleTabs({
               No Standing Game yet
               {isOrganiser && (
                 <>
-                  {" — "}
+                  {", "}
                   <Link href={`/games/standing/new?circleId=${circleId}`} className="font-bold text-action-strong">
                     set one up →
                   </Link>
@@ -232,7 +232,7 @@ export function CircleTabs({
               <div className="flex-1 min-w-0">
                 <p className="text-cu-body font-bold text-action-strong">Invite a mate</p>
                 <Meta as="p" className="mt-0.5">
-                  share the Circle link — they&apos;re in before their first game
+                  share the Circle link, they&apos;re in before their first game
                 </Meta>
               </div>
               <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
@@ -249,7 +249,7 @@ export function CircleTabs({
             </div>
           </div>
           <Meta as="p" className="text-center">
-            ratings are everyone&apos;s business here — that&apos;s the point
+            ratings are everyone&apos;s business here, that&apos;s the point
           </Meta>
         </div>
       )}
@@ -260,7 +260,7 @@ export function CircleTabs({
         title={circleName}
         url={inviteUrl}
         readableLink={inviteLinkReadable}
-        caption="scan to join the Circle — no account needed to see what it is"
+        caption="scan to join the Circle, no account needed to see what it is"
       />
     </div>
   );

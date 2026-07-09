@@ -87,13 +87,13 @@ export function SelfieCamera({ onClose, onSaved }: { onClose: () => void; onSave
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
-        setError("couldn't save that photo — try again");
+        setError("couldn't save that photo, try again");
         setPhase("shot");
         return;
       }
       onSaved(body.avatarUrl);
     } catch {
-      setError("network error — try again");
+      setError("network error, try again");
       setPhase("shot");
     }
   }
@@ -123,13 +123,13 @@ export function SelfieCamera({ onClose, onSaved }: { onClose: () => void; onSave
           )}
           {phase === "denied" && (
             <div className="absolute inset-0 flex items-center justify-center text-center px-6">
-              <p className="text-cu-meta text-ink-muted">camera access denied — you can still add a photo later</p>
+              <p className="text-cu-meta text-ink-muted">camera access denied, you can still add a photo later</p>
             </div>
           )}
         </div>
         <p className="text-cu-meta text-ink-muted text-center max-w-[220px]">
           {phase === "denied"
-            ? "no camera, no problem — your initials work fine for now"
+            ? "no camera, no problem, your initials work fine for now"
             : phase === "shot" || phase === "saving"
               ? "looking good"
               : "centre your face in the circle"}

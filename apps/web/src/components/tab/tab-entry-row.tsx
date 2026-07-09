@@ -139,7 +139,7 @@ export function TabEntryRow({
           as a silent no-op, and state once that CUATRO never moves the money. */}
       {!viewerIsPayer && entry.pendingSettleBy == null && (
         <Meta as="p" className="mt-0.5">
-          Pay {counterpartyName} however you normally do — CUATRO never touches the money.
+          Pay {counterpartyName} however you normally do. CUATRO never touches the money.
         </Meta>
       )}
       {!viewerIsPayer && viewerAlreadyProposed && (
@@ -149,7 +149,7 @@ export function TabEntryRow({
       )}
       {viewerIsPayer && counterpartyProposed && (
         <Meta as="p" className="mt-0.5">
-          {counterpartyName} says they&apos;ve paid you back — confirm to settle it.
+          {counterpartyName} says they&apos;ve paid you back. Confirm to settle it.
         </Meta>
       )}
       {error && (

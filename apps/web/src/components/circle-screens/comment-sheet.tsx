@@ -81,7 +81,7 @@ export function CommentSheet({
         return next;
       });
     } catch {
-      setError("Network error — try again.");
+      setError("Network error, try again.");
     } finally {
       setSending(false);
     }

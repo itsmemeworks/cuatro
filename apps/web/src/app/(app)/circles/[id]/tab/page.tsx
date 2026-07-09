@@ -126,7 +126,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
 
       <Card padded={false} className="overflow-hidden divide-y divide-ink-hairline-1">
         {activeRows.length === 0 && allSquare.length === 0 ? (
-          <p className="text-cu-body text-ink-muted px-4 py-3">All square — nobody owes anybody right now.</p>
+          <p className="text-cu-body text-ink-muted px-4 py-3">All square. Nobody owes anybody, and the friendship survives another booking.</p>
         ) : (
           <>
             {activeRows.map((e) => (
@@ -157,7 +157,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
 
       <div className="rounded-button bg-streak-tint p-3">
         <p className="text-cu-body text-ink">
-          Nudges are one tap, once: <em>&ldquo;Oi. £8 for Tuesday&apos;s court 🎾&rdquo;</em> — no interest, no drama, no red exclamation
+          Nudges are one tap, once: <em>&ldquo;Oi. £8 for Tuesday&apos;s court 🎾&rdquo;</em>. No interest, no drama, no red exclamation
           marks.
         </p>
       </div>
@@ -170,7 +170,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
         </Card>
       )}
 
-      <p className="text-cu-meta text-ink-muted text-center">the Tab just keeps score — money moves in your own bank app, never through CUATRO</p>
+      <p className="text-cu-meta text-ink-muted text-center">the Tab just keeps score, money moves in your own bank app, never through CUATRO. No chasing, no spreadsheets</p>
     </main>
   );
 }

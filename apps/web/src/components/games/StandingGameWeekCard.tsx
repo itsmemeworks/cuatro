@@ -150,7 +150,7 @@ export function StandingGameWeekCard({
               <DashedSlot size="sm" pulse={i === 0} label={String(2 + others.length + i)} />
               {i === 0 && canSendFourthCall ? (
                 <>
-                  <span className="flex-1 text-cu-body font-bold text-action-strong">Open — send a Fourth Call</span>
+                  <span className="flex-1 text-cu-body font-bold text-action-strong">Open, send a Fourth Call</span>
                   <Link
                     href={fourthCallHref}
                     className="shrink-0 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 whitespace-nowrap"
@@ -182,7 +182,7 @@ export function StandingGameWeekCard({
               ))}
             </div>
             <Meta as="p" className="mt-2 leading-relaxed">
-              if anyone drops, {reserves[0]!.displayName} is in automatically — everyone gets told
+              if anyone drops, {reserves[0]!.displayName} is in automatically, everyone gets told
             </Meta>
           </div>
         )}

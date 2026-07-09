@@ -33,7 +33,7 @@ import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 // module load in production if the real secret was never set, rather than
 // only surfacing it the first time a ring-3 link happens to be minted.
 if (process.env.NODE_ENV === "production" && !process.env.FOURTH_CALL_LINK_SECRET) {
-  console.error("[fourth-call] FOURTH_CALL_LINK_SECRET is not set — ring-3 claim links will be signed with an insecure fallback secret. Set FOURTH_CALL_LINK_SECRET in production.");
+  console.error("[fourth-call] FOURTH_CALL_LINK_SECRET is not set. Ring-3 claim links will be signed with an insecure fallback secret. Set FOURTH_CALL_LINK_SECRET in production.");
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ function ring3Secret(): string {
   if (secret) return secret;
   if (process.env.NODE_ENV === "production") {
     console.warn(
-      "[fourth-call] FOURTH_CALL_LINK_SECRET is not set — ring-3 claim links are being signed with an insecure fallback secret. Set FOURTH_CALL_LINK_SECRET in production.",
+      "[fourth-call] FOURTH_CALL_LINK_SECRET is not set. Ring-3 claim links are being signed with an insecure fallback secret. Set FOURTH_CALL_LINK_SECRET in production.",
     );
   }
   // Stable across a dev/test process so a minted link keeps verifying for

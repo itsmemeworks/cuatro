@@ -72,7 +72,7 @@ export default async function LedgerPage() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-cu-title text-ink">The Ledger</h1>
-          <p className="text-cu-secondary text-ink-muted mt-1">nothing hidden — every move explained, not just a number that went up or down</p>
+          <p className="text-cu-secondary text-ink-muted mt-1">nothing hidden, every move explained, not just a number that went up or down</p>
         </div>
         {glass?.status === "rated" && (
           <div className="text-right">
@@ -85,7 +85,7 @@ export default async function LedgerPage() {
       {entries.length === 0 ? (
         <Card>
           <p className="text-cu-body text-ink-muted">
-            No verified matches yet — the Ledger fills in the moment your first result is confirmed by both teams.
+            No verified matches yet. Your Glass is waiting patiently, like a lob hanging at the back. The Ledger fills in the moment your first result is confirmed by both teams.
           </p>
         </Card>
       ) : (
@@ -106,7 +106,7 @@ export default async function LedgerPage() {
           ))}
 
           <p className="text-cu-meta text-ink-muted text-center leading-relaxed">
-            append-only · nothing can be edited or deleted — by anyone
+            append-only · nothing can be edited or deleted, by anyone
           </p>
         </>
       )}

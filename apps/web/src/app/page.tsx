@@ -17,9 +17,9 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
   const next = isSafeRelativePath(rawNext) ? rawNext : null;
   const initialErrorMessage =
     urlError === "auth_failed"
-      ? "That sign-in link didn't work — try again."
+      ? "That sign-in link didn't work. Try again."
       : urlError === "missing_code"
-        ? "That sign-in link looked broken — try again."
+        ? "That sign-in link looked broken. Try again."
         : null;
 
   return <OnboardingWelcome next={next} initialErrorMessage={initialErrorMessage} />;

@@ -35,7 +35,7 @@ export function PlacementRevealPost({ data }: { data: PlacementRevealPostData })
       <Avatar src={data.avatarUrl} name={data.displayName} size="md" />
       <div className="flex-1 min-w-0">
         <p className="text-cu-body text-ink leading-snug">
-          <span className="font-bold">{data.displayName}</span> finished their Placement Trio —{" "}
+          <span className="font-bold">{data.displayName}</span> finished their Placement Trio,{" "}
           <Fact as="span" weight="bold" tone="action">
             Glass revealed: {data.rating.toFixed(2)}
           </Fact>

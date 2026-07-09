@@ -43,7 +43,7 @@ export function PinnedGameBar({
   const openSpots = Math.max(0, slots - confirmedCount);
   const statusLabel =
     openSpots === 0
-      ? `${slots} of ${slots} — game on`
+      ? `${slots} of ${slots}, game on`
       : `${confirmedCount} of ${slots} in · ${openSpots} spot${openSpots === 1 ? "" : "s"} left`;
 
   async function toggleRsvp() {
@@ -63,7 +63,7 @@ export function PinnedGameBar({
           setJustArrived(true);
           setTimeout(() => setJustArrived(false), 500);
         }
-        if (body.promotedUserId) show("A reserve just got promoted — the four's back to full.");
+        if (body.promotedUserId) show("A reserve just got promoted, the four's back to full.");
         router.refresh();
       }
     } finally {
@@ -80,7 +80,7 @@ export function PinnedGameBar({
         <p className="text-cu-body font-bold text-ink truncate">
           📌 {whenLabel} · {venueLabel}
         </p>
-        <p className="text-cu-meta text-ink-muted mt-0.5">{justArrived ? `${slots} of ${slots} — game on` : statusLabel}</p>
+        <p className="text-cu-meta text-ink-muted mt-0.5">{justArrived ? `${slots} of ${slots}, game on` : statusLabel}</p>
       </div>
       <button
         type="button"

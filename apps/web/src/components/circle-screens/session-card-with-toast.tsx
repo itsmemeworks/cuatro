@@ -25,7 +25,7 @@ export function SessionCardWithToast({
     <SessionCard
       data={data}
       viewerUserId={viewerUserId}
-      onPromoted={() => show("A reserve just got promoted — the four's back to full.")}
+      onPromoted={() => show("A reserve just got promoted, the four's back to full.")}
     />
   );
   return linkToSession ? (

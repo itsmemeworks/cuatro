@@ -21,7 +21,7 @@ export async function pinVenueLocationAction(
   if (!user) return;
 
   const mapsUrl = googleMapsUrl(venueAddress || venueName);
-  const body = venueAddress ? `📍 ${venueName} — ${venueAddress} ${mapsUrl}` : `📍 ${venueName} ${mapsUrl}`;
+  const body = venueAddress ? `📍 ${venueName}, ${venueAddress} ${mapsUrl}` : `📍 ${venueName} ${mapsUrl}`;
 
   const store = await getCirclesStore();
   try {

@@ -34,8 +34,8 @@ type Status = "idle" | "sending" | "sent" | "error";
 type OAuthProvider = "google" | "apple";
 
 const OAUTH_DISABLED_MESSAGE: Record<OAuthProvider, string> = {
-  google: "Google sign-in isn't switched on yet — use email instead.",
-  apple: "Apple sign-in isn't switched on yet — use email instead.",
+  google: "Google sign-in isn't switched on yet. Use email instead.",
+  apple: "Apple sign-in isn't switched on yet. Use email instead.",
 };
 
 // OAuth providers are Parked until credentials go live (cuatro/CLAUDE.md), so
@@ -154,11 +154,11 @@ export function OnboardingWelcome({
       <AmbientCourtLoop className="absolute inset-0" />
 
       <div className="relative pb-10 pt-safe pb-safe">
-        <div className="px-7 pt-16">
-          <div className="inline-block rounded-2xl bg-[#131210]/45 backdrop-blur-[3px] px-4 py-3 -mx-4">
+        <div className="px-6 pt-16">
+          <div className="inline-block rounded-2xl bg-[#131210]/45 backdrop-blur-[3px] px-4 py-3">
             <Wordmark />
             <p className="text-[15px] leading-snug mt-2.5 max-w-xs" style={{ color: "rgba(245,242,236,.78)" }}>
-              The app your padel four runs on. And when you&apos;re one short, the game finds the player.
+              The app your padel four runs on. When you&apos;re one short, it finds your fourth.
             </p>
           </div>
         </div>
@@ -207,7 +207,7 @@ export function OnboardingWelcome({
               style={{ background: "rgba(30,28,25,.85)", border: "1px solid rgba(245,242,236,.18)" }}
             >
               <label htmlFor="entry-email" className="text-[13px] leading-snug" style={{ color: "rgba(245,242,236,.78)" }}>
-                Enter your email — we&apos;ll send a one-tap link.
+                Enter your email. We&apos;ll send a one-tap link.
               </label>
               <input
                 id="entry-email"

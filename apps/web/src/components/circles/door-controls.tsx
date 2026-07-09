@@ -62,7 +62,7 @@ export function DoorControls({
             <InfoTerm term="openDoor" label="Open Door" />
           </p>
           <Meta as="p" className="mt-0.5">
-            {openDoor ? "players near your patch can knock to join" : "closed — your Circle won't show in the directory"}
+            {openDoor ? "players near your patch can knock to join" : "closed, your Circle won't show in the directory"}
           </Meta>
         </div>
         <button
@@ -84,7 +84,7 @@ export function DoorControls({
       {openDoor && (
         <div className="flex flex-col gap-2">
           <label htmlFor="vibe-line" className="text-cu-meta text-ink-muted">
-            Vibe line — one warm sentence on your directory card
+            Vibe line, one warm sentence on your directory card
           </label>
           <input
             id="vibe-line"

@@ -20,7 +20,7 @@ export default async function NewMatchPage({
         <h1 className="text-cu-title text-ink">How did it go?</h1>
         <Card>
           <p className="text-cu-body text-ink-muted">
-            Start this from a played session — open it from Home and tap &ldquo;Log last night&apos;s result&rdquo;.
+            Start this from a played session, open it from Home and tap &ldquo;Log last night&apos;s result&rdquo;.
           </p>
         </Card>
       </main>
@@ -63,7 +63,7 @@ export default async function NewMatchPage({
       />
 
       <p className="text-cu-meta text-ink-muted text-center px-6">
-        Glass moves only when both teams confirm — no referee, no disputes desk
+        Glass moves only when both teams confirm, no referee, no disputes desk
       </p>
     </main>
   );

@@ -11,25 +11,25 @@ describe("glassSkipNote", () => {
   });
 
   it("flags a walkover as skipped even if it somehow carried ledger events (defensive)", () => {
-    expect(glassSkipNote("walkover", 0)).toBe("Recorded as a walkover — no one's Glass rating moved.");
+    expect(glassSkipNote("walkover", 0)).toBe("Recorded as a walkover. Legs, weather, or life, no one's Glass rating moved and no story needed.");
   });
 
   it("flags a retired match with zero games played as skipped", () => {
-    expect(glassSkipNote("retired", 0)).toBe("No games were played — no one's Glass rating moved.");
+    expect(glassSkipNote("retired", 0)).toBe("No games were played, so no one's Glass rating moved.");
   });
 
   it("falls back to the generic no-games note for a completed match with zero events (shouldn't happen, but stays neutral)", () => {
-    expect(glassSkipNote("completed", 0)).toBe("No games were played — no one's Glass rating moved.");
+    expect(glassSkipNote("completed", 0)).toBe("No games were played, so no one's Glass rating moved.");
   });
 });
 
 describe("ratingStillHidden", () => {
   it("hides the number for a mid-Placement-Trio explanation", () => {
-    expect(ratingStillHidden("Placement match 2 of 3 — your Glass number stays hidden until the Trio completes")).toBe(true);
+    expect(ratingStillHidden("Placement match 2 of 3, your Glass number stays hidden until the Trio completes")).toBe(true);
   });
 
   it("reveals the number once the Trio completes or for a normal post-placement match", () => {
-    expect(ratingStillHidden("Placement Trio complete — welcome to the table")).toBe(false);
+    expect(ratingStillHidden("Placement Trio complete, welcome to the table")).toBe(false);
     expect(ratingStillHidden("You won comfortably against a higher-rated pair.")).toBe(false);
   });
 });

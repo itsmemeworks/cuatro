@@ -118,7 +118,7 @@ export function CreateCircleForm() {
           ))}
         </div>
         <Meta as="p" className="mt-1">
-          marks stay geometric — this is a flag, not a mascot
+          marks stay geometric, this is a flag, not a mascot
         </Meta>
       </div>
 
@@ -138,9 +138,9 @@ export function CreateCircleForm() {
       <Button type="submit" size="lg" fullWidth disabled={status === "saving" || !name.trim()}>
         {status === "saving" ? "Creating…" : "Create Circle"}
       </Button>
-      {status === "error" && <Meta tone="action">Something went wrong — try again.</Meta>}
+      {status === "error" && <Meta tone="action">Something went wrong, try again.</Meta>}
       <Meta as="p" className="text-center">
-        coral stays the app&apos;s action colour — your colour identifies, it never asks
+        coral stays the app&apos;s action colour, your colour identifies, it never asks
       </Meta>
     </form>
   );

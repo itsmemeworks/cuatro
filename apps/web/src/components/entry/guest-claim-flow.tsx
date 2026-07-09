@@ -29,7 +29,7 @@ const CLAIM_ERROR_COPY: Record<string, string> = {
 const NAME_ERROR_COPY: Record<string, string> = {
   invalid_name: "give us at least one letter",
   slot_lost: "your hold ran out and someone else took it",
-  no_guest_session: "that took too long — try claiming again",
+  no_guest_session: "that took too long, try claiming again",
 };
 
 function namesLine(names: string[]): string {
@@ -94,14 +94,14 @@ export function GuestClaimFlow({
         if (body.error === "already_full") {
           setStep("beaten");
         } else {
-          setError(CLAIM_ERROR_COPY[body.error] ?? "couldn't claim the spot — try again");
+          setError(CLAIM_ERROR_COPY[body.error] ?? "couldn't claim the spot, try again");
         }
         return;
       }
       setStatus("in");
       setStep("name");
     } catch {
-      setError("network error — try again");
+      setError("network error, try again");
     } finally {
       setPending(false);
     }
@@ -118,13 +118,13 @@ export function GuestClaimFlow({
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
-        setError(CLAIM_ERROR_COPY[body.error] ?? "couldn't join the queue — try again");
+        setError(CLAIM_ERROR_COPY[body.error] ?? "couldn't join the queue, try again");
         return;
       }
       setStatus("reserve");
       setStep("name");
     } catch {
-      setError("network error — try again");
+      setError("network error, try again");
     } finally {
       setPending(false);
     }
@@ -149,7 +149,7 @@ export function GuestClaimFlow({
         if (body.error === "slot_lost") {
           setStep("beaten");
         } else {
-          setError(NAME_ERROR_COPY[body.error] ?? "couldn't lock that in — try again");
+          setError(NAME_ERROR_COPY[body.error] ?? "couldn't lock that in, try again");
         }
         return;
       }
@@ -157,7 +157,7 @@ export function GuestClaimFlow({
       setJustArrived(true);
       setStep("done");
     } catch {
-      setError("network error — try again");
+      setError("network error, try again");
     } finally {
       setPending(false);
     }
@@ -187,7 +187,7 @@ export function GuestClaimFlow({
               </p>
             </div>
             <Button size="lg" fullWidth disabled={pending} onClick={claim} className="mt-3.5">
-              {pending ? "…" : "I can play — claim it"}
+              {pending ? "…" : "I can play, claim it"}
             </Button>
             <Meta as="p" className="text-center mt-2.5">
               no account · no app download · ~10 seconds
@@ -214,7 +214,7 @@ export function GuestClaimFlow({
           {pending ? "…" : "Join the reserve queue"}
         </Button>
         <Meta as="p" className="mt-2.5">
-          reserves auto-promote — if a slot opens, you&apos;re told
+          reserves auto-promote, if a slot opens, you&apos;re told
         </Meta>
         {error && (
           <Meta tone="action" as="p" className="mt-2">
@@ -250,7 +250,7 @@ export function GuestClaimFlow({
           onKeyDown={(e) => {
             if (e.key === "Enter") lockName();
           }}
-          placeholder="First name — e.g. Alex"
+          placeholder="First name, e.g. Alex"
           autoFocus
           className="w-full box-border mt-4.5 bg-surface border border-ink-hairline-3 rounded-button px-4 py-3.5 text-[15px] font-semibold text-ink outline-none"
         />
@@ -258,7 +258,7 @@ export function GuestClaimFlow({
           {pending ? "…" : "Lock it in"}
         </Button>
         <Meta as="p" className="mt-3.5 leading-[1.7]">
-          that&apos;s it — no password, no email. a magic link can save your games later, after you&apos;ve played.
+          that&apos;s it, no password, no email. a magic link can save your games later, after you&apos;ve played.
         </Meta>
         {error && (
           <Meta tone="action" as="p" className="mt-2">
@@ -348,11 +348,11 @@ export function GuestClaimFlow({
       </div>
 
       <Link href={`/login?next=${encodeURIComponent("/home")}`} className={`${STRONG_LG_LINK_CLASS} mt-5`}>
-        Save your games — send me a magic link
+        Save your games, send me a magic link
       </Link>
 
       <Meta as="p" className="mt-3.5 leading-[1.7]">
-        no password needed to play — the link just keeps your games, so you can pick up where you left
+        no password needed to play, the link just keeps your games, so you can pick up where you left
         off next week
       </Meta>
     </div>

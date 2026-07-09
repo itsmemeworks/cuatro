@@ -14,15 +14,20 @@ export function ReliabilityBadge({ pct, lateCancelCount }: { pct: number | null;
   const tone: ChipTone = pct >= 90 ? "positive" : pct >= 70 ? "streak" : "negative";
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <Chip tone={tone}>✓ Shows up · {pct}%</Chip>
-      <Meta>
-        <InfoTerm term="reliability" label="Reliability" />
-      </Meta>
-      {lateCancelCount > 0 && (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Chip tone={tone}>✓ Shows up · {pct}%</Chip>
         <Meta>
-          {lateCancelCount} late cancel{lateCancelCount === 1 ? "" : "s"}
+          <InfoTerm term="reliability" label="Reliability" />
         </Meta>
+        {lateCancelCount > 0 && (
+          <Meta>
+            {lateCancelCount} late cancel{lateCancelCount === 1 ? "" : "s"}
+          </Meta>
+        )}
+      </div>
+      {pct >= 90 && lateCancelCount === 0 && (
+        <Meta>The four notices, even when it doesn&apos;t say so.</Meta>
       )}
     </div>
   );

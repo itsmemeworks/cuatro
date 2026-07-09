@@ -136,7 +136,7 @@ export function CircleChat({
   return (
     <div className="flex flex-col gap-3">
       <div ref={listRef} className="flex flex-col gap-2.5 overflow-y-auto px-1" style={{ maxHeight: "55vh" }}>
-        {messages.length === 0 && <p className="text-cu-body text-ink-muted">No messages yet — say hi to the Circle.</p>}
+        {messages.length === 0 && <p className="text-cu-body text-ink-muted">No messages yet. Say hi to the Circle.</p>}
         {messages.map((m, i) => {
           const mine = m.userId === currentUserId;
           const showDivider = i === 0 || dayKey(m.createdAt) !== dayKey(messages[i - 1].createdAt);

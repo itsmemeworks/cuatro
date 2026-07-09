@@ -35,7 +35,7 @@ export function GlassIntroCard({ userId }: { userId: string }) {
     <Card className="flex flex-col gap-2">
       <p className="text-cu-card-title text-ink">What's a Glass number?</p>
       <p className="text-cu-secondary text-ink-muted">
-        It's everyone's padel rating, on a 1.00–7.00 scale — like a Playtomic level, but every point of it is explained
+        It's everyone's padel rating, on a 1.00–7.00 scale, like a Playtomic level, but every point of it is explained
         and nothing's ever a guess. Yours appears once you've played your first three games.
       </p>
       <div className="flex items-center justify-between mt-1">

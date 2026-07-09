@@ -39,7 +39,7 @@ const JOIN_ERROR_COPY: Record<string, string> = {
 const RSVP_ERROR_COPY: Record<string, string> = {
   window_not_open: "RSVPs for this one aren't open yet",
   session_started: "this game's already kicked off",
-  not_a_circle_member: "something went wrong — try re-opening the link",
+  not_a_circle_member: "something went wrong, try re-opening the link",
 };
 
 /**
@@ -90,14 +90,14 @@ export function GuestCircleJoinFlow({
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
-        setError(JOIN_ERROR_COPY[body.error] ?? "couldn't join — try again");
+        setError(JOIN_ERROR_COPY[body.error] ?? "couldn't join, try again");
         return;
       }
       // The cookie is now set; the server will recognise this device as a
       // member and re-render into the done step with the circle's next game.
       router.refresh();
     } catch {
-      setError("network error — try again");
+      setError("network error, try again");
     } finally {
       setPending(false);
     }
@@ -114,13 +114,13 @@ export function GuestCircleJoinFlow({
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
-        setError(RSVP_ERROR_COPY[body.error] ?? "couldn't RSVP — try again");
+        setError(RSVP_ERROR_COPY[body.error] ?? "couldn't RSVP, try again");
         return;
       }
       setRsvpStatus(body.status);
       router.refresh();
     } catch {
-      setError("network error — try again");
+      setError("network error, try again");
     } finally {
       setPending(false);
     }
@@ -146,7 +146,7 @@ export function GuestCircleJoinFlow({
             <h1 className="text-cu-title mt-1.5">{circleName}</h1>
           </div>
           <p className="text-cu-body text-ink-muted max-w-xs">
-            Its chat, history and Standing Games — join to see what your mates have been up to.
+            Its chat, history and Standing Games, join to see what your mates have been up to.
           </p>
         </div>
 
@@ -162,7 +162,7 @@ export function GuestCircleJoinFlow({
             onKeyDown={(e) => {
               if (e.key === "Enter") join();
             }}
-            placeholder="First name — e.g. Alex"
+            placeholder="First name, e.g. Alex"
             autoFocus
             className="w-full box-border bg-surface border border-ink-hairline-3 rounded-button px-4 py-3.5 text-[15px] font-semibold text-ink outline-none"
           />
@@ -218,10 +218,10 @@ export function GuestCircleJoinFlow({
               )}
 
               {rsvpStatus === "in" ? (
-                <p className="text-cu-body text-win font-bold">You&apos;re in — see you on court</p>
+                <p className="text-cu-body text-win font-bold">You&apos;re in, see you on court</p>
               ) : rsvpStatus === "reserve" ? (
                 <p className="text-cu-body text-ink-on-feature font-bold">
-                  You&apos;re on the reserve list — you&apos;ll hear the moment a slot opens
+                  You&apos;re on the reserve list, you&apos;ll hear the moment a slot opens
                 </p>
               ) : nextGame.rsvpOpen ? (
                 <Button size="lg" fullWidth disabled={pending} onClick={() => rsvp(nextGame.sessionId)}>
@@ -252,10 +252,10 @@ export function GuestCircleJoinFlow({
 
       <div className="w-full max-w-xs flex flex-col gap-3.5">
         <Link href={`/login?next=${encodeURIComponent(`/join/${code}`)}`} className={STRONG_LG_LINK_CLASS}>
-          Save your spot — send me a magic link
+          Save your spot, send me a magic link
         </Link>
         <Meta as="p" className="leading-[1.7]">
-          no password needed to play — the link just keeps your circle and games, so you can pick up where you left off
+          no password needed to play, the link just keeps your circle and games, so you can pick up where you left off
         </Meta>
       </div>
     </div>

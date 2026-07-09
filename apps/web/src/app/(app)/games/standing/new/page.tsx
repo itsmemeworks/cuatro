@@ -11,7 +11,7 @@ import { Button, Meta } from "@/components/ui";
 const CREATE_ERROR_COPY: Record<string, string> = {
   not_an_organiser: "Only a Circle's organiser can set up its Standing Game.",
   invalid_weekday: "Pick a day of the week and try again.",
-  invalid_start_time: "That start time didn't read right — pick it again.",
+  invalid_start_time: "That start time didn't read right, pick it again.",
 };
 
 const WEEKDAYS = [
@@ -44,7 +44,7 @@ export default async function NewStandingGamePage({
       <div>
         <h1 className="text-cu-title text-ink">New Standing Game</h1>
         <Meta as="p" className="mt-1.5">
-          A Standing Game is your weekly fixture — it opens the RSVP on its own so nobody has to chase.
+          A Standing Game is your weekly fixture, it opens the RSVP on its own so nobody has to chase.
         </Meta>
       </div>
 
@@ -96,7 +96,7 @@ export default async function NewStandingGamePage({
           </label>
 
           <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
-            Court cost (optional — splits on the Tab)
+            Court cost (optional, splits on the Tab)
             <input type="text" name="costAmount" inputMode="decimal" placeholder="32.00" className={fieldClass} />
           </label>
 

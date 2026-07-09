@@ -24,7 +24,7 @@ export default async function NotificationsPage() {
         <Card className="flex flex-col gap-1">
           <p className="text-cu-card-title">Nothing here yet</p>
           <p className="text-cu-body text-ink-muted">
-            This is where RSVP openings, Fourth Calls, and Glass movement show up.
+            No games to fill, no scores to settle. This is where RSVP openings, Fourth Calls, and Glass movement show up.
           </p>
         </Card>
       ) : (

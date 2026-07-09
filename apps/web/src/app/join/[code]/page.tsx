@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
 
   const title = circle ? `Join ${circle.name} on CUATRO` : "CUATRO invite";
   const description = circle
-    ? `You've been invited to ${circle.name} — its chat, history and Standing Games. No account needed to see what it is.`
+    ? `You've been invited to ${circle.name}, its chat, history and Standing Games. No account needed to see what it is.`
     : "This invite link is invalid or has expired.";
   const image = circleOgImageUrl(code);
 
@@ -131,7 +131,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
           <h1 className="text-cu-title mt-1.5">{circle.name}</h1>
         </div>
         <p className="text-cu-body text-ink-muted max-w-xs">
-          Its chat, history and Standing Games — join to see what your mates have been up to.
+          Its chat, history and Standing Games, join to see what your mates have been up to.
         </p>
       </div>
 
@@ -145,7 +145,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
           <input type="hidden" name="code" value={code} />
           <JoinButton label={`Join ${circle.name}`} />
         </form>
-        <Meta>last step — one tap and you&apos;re in</Meta>
+        <Meta>last step, one tap and you&apos;re in</Meta>
       </div>
     </main>
   );

@@ -99,7 +99,7 @@ export function FourthCallSend({
 
       if (navigator.share) {
         try {
-          await navigator.share({ title: "Fourth Call — anyone free?", url });
+          await navigator.share({ title: "Fourth Call, anyone free?", url });
           return;
         } catch {
           // Cancelled share sheet — fall through to copy.
@@ -145,9 +145,9 @@ export function FourthCallSend({
     ring2State === "done"
       ? ring2Label
       : ring2State === "sent"
-        ? "Live — first tap wins…"
+        ? "Live, first tap wins…"
         : ring1State === "sent"
-          ? "Sent — the Circle sees it first…"
+          ? "Sent, the Circle sees it first…"
           : "Opens automatically closer to kickoff";
 
   return (
@@ -205,12 +205,12 @@ export function FourthCallSend({
             <p className={`text-cu-body font-bold ${ring3Available ? "text-ink" : "text-ink-muted"}`}>Anyone with the link</p>
             <Meta as="p" className="mt-0.5">
               {ring3Available
-                ? "share it anywhere — no account needed to see it, signing in is only for claiming"
-                : "not needed — the four's full, or this game's already started"}
+                ? "share it anywhere, no account needed to see it, signing in is only for claiming"
+                : "not needed, the four's full, or this game's already started"}
             </Meta>
             {ring3Error && (
               <Meta tone="action" as="p" className="mt-0.5">
-                couldn&apos;t generate the link — try again
+                couldn&apos;t generate the link, try again
               </Meta>
             )}
           </div>
@@ -240,11 +240,11 @@ export function FourthCallSend({
           href={`/games/${sessionId}`}
           className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state active:opacity-80"
         >
-          Done — back to the game →
+          Done, back to the game →
         </Link>
       ) : promoteRing3 ? (
         <Button variant="primary" size="lg" fullWidth disabled={ring3Pending} onClick={copyRing3Link}>
-          {ring3Copied ? "Link copied ✓" : ring3Pending ? "…" : "Share a link — anyone with it can claim the spot"}
+          {ring3Copied ? "Link copied ✓" : ring3Pending ? "…" : "Share a link, anyone with it can claim the spot"}
         </Button>
       ) : canEscalate ? (
         <Button variant="primary" size="lg" fullWidth disabled={escalating} onClick={escalate}>
@@ -267,7 +267,7 @@ export function FourthCallSend({
           title="Fourth Call"
           url={qrUrl}
           readableLink={qrUrl.replace(/^https?:\/\//, "")}
-          caption="scan to grab the open spot — no account needed to see it, signing in is only for claiming"
+          caption="scan to grab the open spot, no account needed to see it, signing in is only for claiming"
         />
       )}
     </div>

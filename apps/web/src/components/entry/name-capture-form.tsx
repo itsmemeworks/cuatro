@@ -18,7 +18,7 @@ export function NameCaptureForm({ guess, next }: { guess: string; next: string }
     <main className="min-h-dvh flex flex-col justify-center px-7 py-12 bg-ground text-ink">
       <h1 className="text-cu-title">What should your Circles call you?</h1>
       <Meta as="p" className="mt-2.5 leading-[1.6]">
-        this is the name your four sees on games, results and the feed — you can change it later in
+        this is the name your four sees on games, results and the feed, you can change it later in
         Settings
       </Meta>
 
@@ -32,7 +32,7 @@ export function NameCaptureForm({ guess, next }: { guess: string; next: string }
           name="displayName"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="First name — e.g. Alex"
+          placeholder="First name, e.g. Alex"
           autoFocus
           autoComplete="name"
           className="w-full box-border rounded-button px-4 py-3.5 text-[15px] font-semibold outline-none bg-surface border border-ink-hairline-3 text-ink"

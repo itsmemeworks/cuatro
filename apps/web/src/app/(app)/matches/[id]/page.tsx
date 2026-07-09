@@ -77,7 +77,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 
       {match.status === "pending_confirmation" && (
         <p className="text-cu-meta text-ink-muted text-center px-6">
-          Glass moves only when both teams confirm — no referee, no disputes desk
+          Glass moves only when both teams confirm, no referee, no disputes desk
         </p>
       )}
     </main>

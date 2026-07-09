@@ -68,7 +68,7 @@ export function FourthCallCard({
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-extrabold tracking-[0.1em] text-action">FOURTH CALL</p>
           <p className="text-cu-card-title text-[13px] leading-[1.3] mt-0.5">
-            {session.circleName} need a 4th — {whenLabel}
+            {session.circleName} need a 4th, {whenLabel}
             {session.venueName ? `, ${session.venueName}` : ""}
           </p>
         </div>

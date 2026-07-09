@@ -69,7 +69,7 @@ export default async function EditStandingGamePage({
       whenLabel: `${weekdayLabel} ${formatStartTime(standingGame.startTime)}`,
       rsvpLabel:
         daysUntilOpen <= 0
-          ? "RSVPs are open now — tap in on the game."
+          ? "RSVPs are open now, tap in on the game."
           : `RSVPs open in ${daysUntilOpen} ${daysUntilOpen === 1 ? "day" : "days"}.`,
     };
   }
@@ -79,7 +79,7 @@ export default async function EditStandingGamePage({
       <div>
         <h1 className="text-cu-title text-ink">Standing Game</h1>
         <Meta as="p" className="mt-1.5">
-          Your weekly fixture — it opens the RSVP on its own so nobody has to chase.
+          Your weekly fixture, it opens the RSVP on its own so nobody has to chase.
         </Meta>
       </div>
 
@@ -170,7 +170,7 @@ export default async function EditStandingGamePage({
             </label>
 
             <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
-              Court cost (optional — splits on the Tab)
+              Court cost (optional, splits on the Tab)
               <input type="text" name="costAmount" inputMode="decimal" placeholder="32.00" defaultValue={currentCostLabel} className={fieldClass} />
             </label>
 

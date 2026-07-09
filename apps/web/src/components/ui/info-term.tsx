@@ -29,37 +29,37 @@ export const GLOSSARY = {
   localRing: {
     term: "Local Ring",
     plain: "When your Circle can't fill a game, the Fourth Call reaches nearby players at your level who've said they're up for games.",
-    why: "The game finds the player, not the other way round — level-matched, venue-based, and only people who opted to be findable.",
+    why: "The game finds the player, not the other way round. Level-matched, venue-based, and only people who opted to be findable.",
   },
   board: {
     term: "The Board",
-    plain: "Open slots in games near you — like a club notice board.",
-    why: "Distances are rough on purpose and it only shows games from Circles that chose to post — no strangers scraping your schedule.",
+    plain: "Open slots in games near you, like a club notice board.",
+    why: "Distances are rough on purpose and it only shows games from Circles that chose to post. No strangers scraping your schedule.",
   },
   openDoor: {
     term: "Open Door",
-    plain: "Circles near you that welcome new players — knock, and the organiser decides.",
+    plain: "Circles near you that welcome new players. Knock, and the organiser decides.",
     why: "No stranger DMs, no auto-adds: you ask once, they answer, and nothing else is shared until you're in.",
   },
   glass: {
     term: "Glass",
-    plain: "Your padel rating, on a 1.00–7.00 scale — like a Playtomic level, but every point of it is explained.",
-    why: "Nothing's ever a guess: tap any result in the Ledger to see exactly why your number moved — not just that it went up or down.",
+    plain: "Your padel rating, on a 1.00–7.00 scale, like a Playtomic level, but every point of it is explained.",
+    why: "Nothing's ever a guess: tap any result in the Ledger to see exactly why your number moved, not just that it went up or down.",
   },
   confidence: {
     term: "Confidence",
     plain: "How sure Glass is about your number.",
-    why: "It climbs as you play different opponents, not just more games — variety tells us more than volume.",
+    why: "It climbs as you play different opponents, not just more games. Variety tells us more than volume.",
   },
   reliability: {
     term: "Reliability",
-    plain: "How often you turn up after saying you're in — it's about showing up, not your rating; how sure Glass is about your number is called 'confidence'.",
-    why: "Cancelling inside 24h dents it; cancelling early is free — it's social proof, not surveillance.",
+    plain: "How often you turn up after saying you're in. It's about showing up, not your rating; how sure Glass is about your number is called 'confidence'.",
+    why: "Cancelling inside 24h dents it; cancelling early is free. It's social proof, not surveillance.",
   },
   placementTrio: {
     term: "Placement Trio",
     plain: "Your first 3 confirmed games.",
-    why: "Play them and your Glass number appears — no sign-up quiz, no guessing.",
+    why: "Play them and your Glass number appears. No sign-up quiz, no guessing.",
   },
   echoDamping: {
     term: "Echo Damping",
@@ -74,7 +74,7 @@ export const GLOSSARY = {
   marginWeight: {
     term: "Margin weight",
     plain: "Winning big moves your Glass a little more than scraping through.",
-    why: "The scoreline counts, but only a little — a win is a win first.",
+    why: "The scoreline counts, but only a little. A win is a win first.",
   },
   ratingStep: {
     term: "Rating step",

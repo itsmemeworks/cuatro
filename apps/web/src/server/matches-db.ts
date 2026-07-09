@@ -373,9 +373,9 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
 
     const explanation =
       wasUnrated && nowRated
-        ? `${PLACEMENT_REVEAL_EXPLANATION_PREFIX} — your Glass number is live: ${ev.ratingAfter.toFixed(2)}`
+        ? `${PLACEMENT_REVEAL_EXPLANATION_PREFIX}. Your Glass number is live: ${ev.ratingAfter.toFixed(2)}`
         : wasUnrated
-          ? `Placement match ${updated.matchesPlayed} of ${PLACEMENT_TRIO_SIZE} — your Glass number stays hidden until the Trio completes`
+          ? `Placement match ${updated.matchesPlayed} of ${PLACEMENT_TRIO_SIZE}, your Glass number stays hidden until the Trio completes`
           : ev.explanation;
 
     tx.insert(ratingEvents)

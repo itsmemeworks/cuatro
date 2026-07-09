@@ -79,7 +79,7 @@ export function SettingsSheet({
                 <span className="text-cu-body text-ink flex-1">Let nearby games find me</span>
               </label>
               <Meta as="p">
-                Only Circles you don&apos;t belong to see you, and only as a rough distance — never your exact location.
+                Only Circles you don&apos;t belong to see you, and only as a rough distance, never your exact location.
               </Meta>
 
               <label htmlFor="homeVenueId" className="text-cu-secondary font-semibold text-ink-muted mt-1">
@@ -99,7 +99,7 @@ export function SettingsSheet({
                   </option>
                 ))}
               </select>
-              <Meta as="p">This is what places you on The Board — pick where you usually play.</Meta>
+              <Meta as="p">This is what places you on The Board, pick where you usually play.</Meta>
 
               <Button type="submit" variant="strong" size="lg" fullWidth>
                 Save

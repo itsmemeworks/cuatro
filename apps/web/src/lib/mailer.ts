@@ -18,7 +18,7 @@ class ConsoleMailer implements Mailer {
 // its API key from env. Keep the Mailer interface so callers don't change.
 class ProductionMailer implements Mailer {
   async sendMagicLink(_email: string, _url: string): Promise<void> {
-    throw new Error("ProductionMailer not implemented yet — set MAILER=console or add a provider");
+    throw new Error("ProductionMailer not implemented yet. Set MAILER=console or add a provider");
   }
 }
 

@@ -107,7 +107,7 @@ export function FourthCallReceive({
     return (
       <div className="flex flex-col items-center gap-2 py-10 text-center">
         <p className="text-cu-card-title text-ink">Passed</p>
-        <Meta as="p">No hard feelings — you&apos;ll hear about the next one.</Meta>
+        <Meta as="p">No hard feelings, you&apos;ll hear about the next one.</Meta>
       </div>
     );
   }
@@ -128,7 +128,7 @@ export function FourthCallReceive({
       </div>
       {nearby && (
         <Meta as="p">
-          Reached through the <InfoTerm term="localRing" label="Local Ring" /> — a level match near you
+          Reached through the <InfoTerm term="localRing" label="Local Ring" />, a level match near you
         </Meta>
       )}
       {levelMatchLabel && <Fact tone="muted">{levelMatchLabel}</Fact>}

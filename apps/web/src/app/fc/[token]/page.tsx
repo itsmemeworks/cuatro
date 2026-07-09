@@ -155,7 +155,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
 
           <div className="w-full max-w-xs">
             {alreadyIn ? (
-              <p className="text-cu-body text-win font-bold">You&apos;re in — see you on court</p>
+              <p className="text-cu-body text-win font-bold">You&apos;re in, see you on court</p>
             ) : (
               <FourthCallLinkClaim sessionId={parsed.sessionId} token={token} />
             )}

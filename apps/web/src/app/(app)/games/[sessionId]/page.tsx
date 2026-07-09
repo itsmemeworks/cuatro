@@ -59,7 +59,7 @@ export async function generateMetadata({ params }: { params: Promise<{ sessionId
   const openSlots = summary.slots - summary.confirmed.length;
   const description =
     openSlots > 0
-      ? `${summary.confirmed.length} of ${summary.slots} in — one spot left. Tap to join.`
+      ? `${summary.confirmed.length} of ${summary.slots} in, one spot left. Tap to join.`
       : `${summary.circleName}'s four is set for ${when}.`;
   const image = sessionOgImageUrl(sessionId);
 
@@ -328,7 +328,7 @@ export default async function SessionDetailPage({
                 Played
               </Meta>
               <p className="text-cu-body text-ink mt-1">
-                Log the result so everyone&apos;s Glass moves — the other team just confirms it.
+                Log the result so everyone&apos;s Glass moves, the other team just confirms it.
               </p>
             </div>
             <Link

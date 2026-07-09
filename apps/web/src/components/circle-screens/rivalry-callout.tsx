@@ -19,8 +19,8 @@ export function RivalryCallout({
 }) {
   const text =
     direction === "lost_to"
-      ? `${opponentName} has beaten you ${count} straight — the Circle's longest active streak`
-      : `You've beaten ${opponentName} ${count} straight — the Circle's longest active streak`;
+      ? `${opponentName} has beaten you ${count} straight, the Circle's longest active streak`
+      : `You've beaten ${opponentName} ${count} straight, the Circle's longest active streak`;
 
   return (
     <div className="rounded-button px-3.5 py-2.5 flex items-center gap-2.5 bg-streak-tint border border-streak/30">

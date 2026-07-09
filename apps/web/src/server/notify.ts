@@ -108,7 +108,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       return {
         title: "You're in",
         body: ctx
-          ? `A slot opened up for ${ctx.circleName}, ${ctx.when} — you've been promoted from reserve.`
+          ? `A slot opened up for ${ctx.circleName}, ${ctx.when}. You've been promoted from reserve.`
           : "A slot opened up and you've been promoted from reserve.",
       };
     }
@@ -118,7 +118,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       return {
         title: "A slot just opened",
         body: ctx
-          ? `${dropped?.displayName ?? "Someone"} dropped out of ${ctx.circleName}, ${ctx.when}. No reserve to promote yet — consider a Fourth Call.`
+          ? `${dropped?.displayName ?? "Someone"} dropped out of ${ctx.circleName}, ${ctx.when}. No reserve to promote yet, so consider a Fourth Call.`
           : "Someone dropped out and there's no reserve to promote yet.",
       };
     }
@@ -144,7 +144,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
         title: "Your Glass number is live",
         body:
           rating != null
-            ? `Placement Trio complete — you're rated ${rating.toFixed(2)}. Tap to see your Ledger.`
+            ? `Placement Trio complete. You're rated ${rating.toFixed(2)}. Tap to see your Ledger.`
             : "Placement Trio complete. Tap to see your Ledger.",
       };
     }
@@ -201,7 +201,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
         const circle = tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.targetId)).get();
         return {
           title: "You're in",
-          body: `${circle?.name ?? "The Circle"} said yes — welcome in.`,
+          body: `${circle?.name ?? "The Circle"} said yes. Welcome in.`,
         };
       }
       const ctx = sessionContext(tx, input.payload.targetId);

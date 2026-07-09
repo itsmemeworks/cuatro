@@ -29,11 +29,11 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
 
   const ring1Sent = result1.fired || result1.reason === "already_notified";
   const ring1Label = gameFull
-    ? "not needed — the four's full"
+    ? "not needed, the four's full"
     : !upcoming
       ? "this game has already started or been played"
       : ring1Sent
-        ? "sent ✓ — 20 min first-refusal window"
+        ? "sent ✓, 20 min first-refusal window"
         : "opens automatically within 48h of kickoff";
   const ring1State: RingState = gameFull || !upcoming || ring1Sent ? "sent" : "pending";
 
@@ -41,16 +41,16 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
   let ring2Label = "reaches nearby players at this game's level";
   if (result2.fired) {
     ring2State = "sent";
-    ring2Label = `sent to ${result2.notifiedUserIds.length} nearby player${result2.notifiedUserIds.length === 1 ? "" : "s"} — first to tap in gets it`;
+    ring2Label = `sent to ${result2.notifiedUserIds.length} nearby player${result2.notifiedUserIds.length === 1 ? "" : "s"}, first to tap in gets it`;
   } else if (result2.reason === "already_notified") {
     ring2State = "sent";
-    ring2Label = "sent to nearby players — first to tap in gets it";
+    ring2Label = "sent to nearby players, first to tap in gets it";
   } else if (result2.reason === "already_full") {
     ring2State = "done";
-    ring2Label = "not needed — the four's full";
+    ring2Label = "not needed, the four's full";
   } else if (result2.reason === "no_candidates") {
     ring2State = "done";
-    ring2Label = "no nearby players matched this time — try the link";
+    ring2Label = "no nearby players matched this time, try the link instead";
   } else if (result2.reason === "session_not_upcoming") {
     ring2State = "done";
     ring2Label = "this game has already started or been played";
@@ -93,7 +93,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
           for {whenLabel}
         </h1>
         <Meta as="p" className="mt-1.5">
-          widening rings — closest people first, strangers never
+          widening rings, closest people first, strangers never
         </Meta>
       </div>
 
@@ -113,7 +113,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
         <div className="rounded-card bg-win-tint border border-win px-4 py-3.5 flex items-center gap-3">
           <Avatar src={claimant.avatarUrl} name={claimant.displayName} size="md" />
           <div className="min-w-0">
-            <p className="text-cu-body font-extrabold text-win">{claimant.displayName} claimed it — game on</p>
+            <p className="text-cu-body font-extrabold text-win">{claimant.displayName} claimed it. That&apos;s four, no &ldquo;let me check and get back to you&rdquo;</p>
             <Meta as="p" className="mt-0.5">
               Glass {formatGlass(claimant.rating)} · the Circle&apos;s been told
             </Meta>

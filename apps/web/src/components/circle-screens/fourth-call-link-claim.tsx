@@ -8,7 +8,7 @@ import { errorCopy } from "@/lib/error-copy";
 // Context-specific overrides for the ring-3 claim path; anything not listed
 // here falls through to the shared errorCopy() map so no raw code can leak.
 const ERROR_COPY: Record<string, string> = {
-  already_full: "someone beat you to it — the four's already set",
+  already_full: "someone beat you to it, the four's already set",
   session_started: "this game's already kicked off",
   no_fourth_call_invite: "this link isn't valid for this game",
 };

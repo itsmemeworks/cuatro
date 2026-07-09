@@ -24,12 +24,12 @@ export interface NearbyCircleData {
 // Human copy for the knock-specific error codes — kept local (a page-local map,
 // per the repo's error-copy rule) rather than in the shared lib/error-copy.ts.
 const KNOCK_ERROR_COPY: Record<string, string> = {
-  door_closed: "This Circle just closed its door — try another one near you.",
+  door_closed: "This Circle just closed its door, try another one near you.",
   already_member: "You're already in this Circle.",
-  already_knocked: "You've already knocked here — the organiser will get back to you.",
+  already_knocked: "You've already knocked here, the organiser will get back to you.",
   is_guest: "Claim your account first, then you can knock.",
   circle_not_found: "That Circle isn't around any more.",
-  network_error: "Couldn't reach the server — check your connection and try again.",
+  network_error: "Couldn't reach the server, check your connection and try again.",
   something_went_wrong: "That didn't go through. Give it another tap.",
 };
 
@@ -125,7 +125,7 @@ export function NearbyCircleCard({ data }: { data: NearbyCircleData }) {
 
       {pending ? (
         <div className="flex items-center justify-between gap-3">
-          <Meta>knocked — waiting on the organiser</Meta>
+          <Meta>knocked, waiting on the organiser</Meta>
           <Button variant="quiet" onClick={withdraw} disabled={busy}>
             Withdraw
           </Button>
@@ -172,7 +172,7 @@ export function NearbyCircleCard({ data }: { data: NearbyCircleData }) {
           </div>
         </dl>
         <p className="text-cu-meta text-ink-muted mt-4">
-          Only the organiser sees your knock — nothing about this Circle is shared until you&apos;re in.
+          Only the organiser sees your knock, nothing about this Circle is shared until you&apos;re in.
         </p>
         <div className="mt-4">
           {pending ? (

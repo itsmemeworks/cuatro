@@ -21,6 +21,7 @@ npm-workspaces monorepo:
 1. **better-sqlite3 transactions are SYNCHRONOUS**: no `await` inside `db.transaction()` callbacks — an async callback commits before awaited writes run.
 2. **Realtime emits fire AFTER the transaction commits**, never inside. Server-side emits use the **REST broadcast endpoint** (`/realtime/v1/api/broadcast`, apikey+bearer) — the websocket join dance times out against cold Supabase tenants. Client-side subscriptions stay websocket (`lib/realtime/hooks.ts`). Payloads are minimal signals ({type, ids, ts}) — clients refetch via authed API; never put entity data on the wire.
 3. **Notifications go through `server/notify.ts` only** — typed inputs, copy rules: title=what, body=why, NO exclamation marks, never nag twice.
+3b. **Copy style (Pete, 2026-07-09): NO em dashes in user-facing copy** (use a comma, a period, or restructure), no exclamation marks anywhere, lightly humorous with real padel lingo where it fits (see `../research/padel-humour-kit` when it lands; never joke at a specific user, their level, or money owed).
 4. **Money = `amount_minor` INTEGER + `currency`** everywhere; splits use floor-per-debtor, payer absorbs remainder (see `tab.ts`); currencies never net against each other. CUATRO never holds funds.
 5. **World-ready**: country/timezone as data, UTC epoch-ms timestamps, i18n-able strings, no UK hardcoding.
 6. **The Ledger (`rating_events`) is append-only** — never update/delete; users.rating stays NULL until 3 verified matches (hidden internal rating lives in rating_events.ratingAfter).

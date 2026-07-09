@@ -76,7 +76,7 @@ export function GenesisRow({ entry, placementSize }: { entry: LedgerEntryView; p
     <div className="flex items-center gap-2.5 px-4 py-3 border-b border-ink-hairline-1 last:border-b-0">
       <span className="text-cu-secondary font-bold text-action-strong">◆</span>
       <div className="flex-1">
-        <p className="text-cu-body text-ink font-bold">Glass poured — Placement Trio complete</p>
+        <p className="text-cu-body text-ink font-bold">Glass poured, Placement Trio complete</p>
         <Meta className="mt-0.5 block">
           {placementSize} verified games · opening balance {entry.ratingBefore != null ? entry.ratingBefore.toFixed(2) : "—"} · conf{" "}
           {entry.confidenceBeforePct}%
