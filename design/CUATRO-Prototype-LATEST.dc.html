@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#211E1A;font-family:'Archivo',sans-serif}
+a{color:#F5F2EC}a:hover{color:#fff}
+@keyframes cu-pulse{0%{box-shadow:0 0 0 0 rgba(255,92,61,.55)}100%{box-shadow:0 0 0 24px rgba(255,92,61,0)}}
+@keyframes cu-pop{0%{transform:scale(.3)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes cu-kb{0%{transform:perspective(420px) rotateX(56deg) scale(1)}100%{transform:perspective(420px) rotateX(56deg) scale(1.07)}}
+@keyframes cu-sweep{0%{transform:translateX(-130%) rotate(18deg)}100%{transform:translateX(430%) rotate(18deg)}}
+@keyframes cu-flick{0%,100%{opacity:.85}42%{opacity:1}44%{opacity:.7}46%{opacity:.95}80%{opacity:.9}}
+</style>
+</helmet>
+
+<div style="min-height:100vh; display:flex; justify-content:center; align-items:flex-start; padding:26px 12px;">
+  <div style="width:392px; background:#131210; border:1px solid rgba(245,242,236,.15); border-radius:42px; overflow:hidden; position:relative; display:flex; flex-direction:column; min-height:824px;">
+    <!-- status bar -->
+    <div style="display:flex; justify-content:space-between; padding:16px 26px 4px; font:600 12.5px 'Archivo',sans-serif; color:#F5F2EC;"><span>20:47</span><span style="color:rgba(245,242,236,.55);">◦◦◦</span></div>
+
+    <div style="flex:1;">
+
+      <!-- ================= HOME ================= -->
+      <div data-screen-label="Home" style="display:{{showHome}};">
+        <div style="padding:14px 20px 0; display:flex; align-items:center; justify-content:space-between;">
+          <div>
+            <div style="font:800 25px/1 'Archivo',sans-serif; letter-spacing:-.01em; color:#F5F2EC;">Your week</div>
+            <div style="font:400 11.5px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:5px;">{{homeSub}}</div>
+          </div>
+          <img onClick="{{goYou}}" src="{{avatarUrl}}" alt="You" style="cursor:pointer; width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid rgba(245,242,236,.2);">
+        </div>
+        <!-- needs answer -->
+        <div style="margin:16px 16px 0; background:#221F1A; border:1px solid rgba(245,242,236,.12); border-radius:22px; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:{{ansDot}}; transition:background 250ms;"></span>
+            <span style="font:800 10.5px 'Archivo',sans-serif; letter-spacing:.1em; color:{{ansLabelC}}; transition:color 250ms;">{{ansLabel}}</span>
+            <span style="flex:1;"></span>
+            <span onClick="{{openGame}}" style="cursor:pointer; font:700 11px 'Archivo',sans-serif; color:#FF7A5C;">View game →</span>
+          </div>
+          <div style="font:800 19px/1.15 'Archivo',sans-serif; color:#F5F2EC; margin-top:10px;">Tuesday Night Lot<br>Tue 8pm · Powerleague</div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:12px;">
+            <div style="display:flex;">
+              <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #221F1A;">
+              <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Mags" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #221F1A;margin-left:-10px;">
+              <img src="{{avatarUrl}}" alt="You" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #221F1A;margin-left:-10px; opacity:{{youAvOp}}; transition:opacity 300ms;">
+            </div>
+            <span style="font:500 11.5px 'Archivo',sans-serif; color:{{countC}}; transition:color 300ms;">{{countLabel}}</span>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:14px;">
+            <div onClick="{{toggleRsvp}}" style="cursor:pointer; flex:2; background:{{rsvpBg}}; color:{{rsvpFg}}; border-radius:14px; text-align:center; padding:14px 0; font:800 14px 'Archivo',sans-serif; transition:background 250ms, color 250ms; animation:{{rsvpRing}}; user-select:none;">{{rsvpLabel}}</div>
+            <div onClick="{{rsvpOut}}" style="cursor:pointer; flex:1; border:1px solid rgba(245,242,236,.3); color:rgba(245,242,236,.85); border-radius:14px; text-align:center; padding:14px 0; font:600 13px 'Archivo',sans-serif; user-select:none;">Can't</div>
+          </div>
+        </div>
+        <!-- thu game -->
+        <div style="margin:12px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; padding:14px; display:flex; align-items:center; gap:12px;">
+          <div style="width:44px; text-align:center; flex:none;">
+            <div style="font:800 16px/1 'Archivo',sans-serif; color:#F5F2EC;">THU</div>
+            <div style="font:400 11px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5);">19:00</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC;">Work Lot · Rocket Padel</div>
+            <div style="font:400 11px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:2px;">4 of 4 · court booked</div>
+          </div>
+          <div style="background:rgba(75,201,139,.13); color:#4BC98B; border-radius:999px; padding:6px 11px; font:700 11px 'Archivo',sans-serif;">You're in ✓</div>
+        </div>
+        <!-- fourth call incoming -->
+        <div style="display:{{fcDisplay}}; margin:12px 16px 0;">
+          <div style="background:#1E1C19; border:1.5px solid {{fcBorder}}; border-radius:20px; padding:14px; transition:border 300ms;">
+            <div style="display:flex; align-items:center; gap:9px;">
+              <img src="https://randomuser.me/api/portraits/women/65.jpg" alt="Ana" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+              <div style="flex:1;">
+                <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.1em; color:#FF7A5C;">FOURTH CALL</div>
+                <div style="font:700 13px/1.3 'Archivo',sans-serif; color:#F5F2EC;">Padel Misfits need a 4th — tonight 7pm, Stratford</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; margin-top:11px;">
+              <div onClick="{{acceptFc}}" style="cursor:pointer; flex:1; background:{{fcBtnBg}}; color:{{fcBtnFg}}; border-radius:12px; text-align:center; padding:11px 0; font:800 13px 'Archivo',sans-serif; transition:background 250ms, color 250ms; user-select:none;">{{fcBtnLabel}}</div>
+              <div style="font:600 12px 'Archivo',sans-serif; color:rgba(245,242,236,.5); padding:0 8px;">Pass</div>
+            </div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); margin-top:9px;">their level 4.2–4.9 · yours 4.62 · expires in 2h</div>
+          </div>
+        </div>
+        <!-- tab preview -->
+        <div style="display:{{tabRowDisplay}}; margin:12px 16px 0;">
+          <div style="background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; padding:13px 14px; display:flex; align-items:center; gap:10px;">
+            <div style="flex:1;">
+              <div style="font:700 12.5px 'Archivo',sans-serif; color:#F5F2EC;">The Tab · you owe Mags £12</div>
+              <div style="font:400 10.5px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:2px;">from Tuesday's court + balls</div>
+            </div>
+            <div onClick="{{goTab}}" style="cursor:pointer; background:#F5F2EC; color:#17150F; border-radius:999px; padding:8px 14px; font:700 11.5px 'Archivo',sans-serif; user-select:none;">Settle</div>
+          </div>
+        </div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= FEED ================= -->
+      <div data-screen-label="Feed" style="display:{{showFeed}};">
+        <div style="padding:14px 20px 0; display:flex; align-items:center; gap:12px;">
+          <div style="width:42px;height:42px;border-radius:13px;background:#3E7BFA;color:#fff;font:800 14px/42px 'Archivo',sans-serif;text-align:center;flex:none;">TN</div>
+          <div style="flex:1;">
+            <div style="font:800 19px/1 'Archivo',sans-serif; color:#F5F2EC;">Tuesday Night Lot</div>
+            <div style="font:400 11px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:3px;">6 members · 41 games · est. 2024</div>
+          </div>
+          <div style="display:flex;">
+            <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid #131210;">
+            <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Mags" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid #131210;margin-left:-9px;">
+            <img src="https://randomuser.me/api/portraits/women/68.jpg" alt="Priya" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid #131210;margin-left:-9px;">
+          </div>
+        </div>
+        <div style="margin:13px 16px 0; display:flex; gap:6px;">
+          <div style="background:#F5F2EC; color:#17150F; border-radius:999px; padding:7px 15px; font:700 11.5px 'Archivo',sans-serif;">Feed</div>
+          <div onClick="{{viewChat}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:7px 15px; font:600 11.5px 'Archivo',sans-serif; user-select:none;">Chat <span style="display:{{chatBadgeDisplay}}; color:#FF7A5C; font-weight:800;">·2</span></div>
+          <div onClick="{{viewMembers}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:7px 15px; font:600 11.5px 'Archivo',sans-serif; user-select:none;">Members</div>
+        </div>
+        <!-- pinned -->
+        <div style="margin:14px 16px 0; background:rgba(62,123,250,.13); border:1px solid #3E7BFA; border-radius:14px; padding:10px 13px; display:flex; align-items:center; gap:10px;">
+          <div style="flex:1;">
+            <div style="font:700 12.5px 'Archivo',sans-serif; color:#F5F2EC;">📌 Tue 8pm · Powerleague</div>
+            <div style="font:400 10.5px 'Archivo',sans-serif; color:rgba(245,242,236,.6); margin-top:2px;">{{pinnedSub}}</div>
+          </div>
+          <div onClick="{{toggleRsvp}}" style="cursor:pointer; background:{{rsvpBg}}; color:{{rsvpFg}}; border-radius:11px; padding:10px 16px; font:800 12px 'Archivo',sans-serif; transition:background 250ms, color 250ms; user-select:none;">{{pinnedBtn}}</div>
+        </div>
+        <!-- rivalry -->
+        <div style="margin:12px 16px 0; background:rgba(242,179,61,.12); border-radius:16px; padding:11px 13px; display:flex; align-items:center; gap:10px;">
+          <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+          <span style="font:500 12px/1.4 'Archivo',sans-serif; color:#F5F2EC; flex:1;">Kav has beaten you <strong>6 straight</strong> — the Lot's longest active streak</span>
+          <span style="font:800 11px 'Archivo',sans-serif; color:#F2B33D;">W6 🔥</span>
+        </div>
+        <!-- result post -->
+        <div style="margin:12px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; padding:14px;">
+          <div style="display:flex; align-items:center; gap:9px;">
+            <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:30px;height:30px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="font:700 12.5px 'Archivo',sans-serif; color:#F5F2EC;">Kav &amp; Tom <span style="font-weight:400; color:rgba(245,242,236,.55);">beat</span> Sam &amp; Mags</div>
+              <div style="font:400 10.5px 'Archivo',sans-serif; color:rgba(245,242,236,.5);">last Tuesday · confirmed ✓</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:center; gap:16px; margin:13px 0 2px;">
+            <span style="font:800 32px/1 'Archivo',sans-serif; color:#F5F2EC;">6–3</span>
+            <span style="font:800 32px/1 'Archivo',sans-serif; color:#F5F2EC;">6–4</span>
+          </div>
+          <div style="display:flex; justify-content:center; gap:12px; margin-top:7px; font:600 10.5px 'IBM Plex Mono',monospace;">
+            <span style="color:#4BC98B;">Kav +0.04 → 4.91</span><span style="color:#E56B4F;">Sam −0.03 → 4.62</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:11px; border-top:1px solid rgba(245,242,236,.08); padding-top:10px;">
+            <div onClick="{{giveRespect}}" style="cursor:pointer; background:{{respBg}}; border:1px solid {{respBorder}}; border-radius:999px; padding:6px 13px; font:700 11.5px 'Archivo',sans-serif; color:{{respFg}}; transition:background 200ms, border 200ms; user-select:none;">👏 {{respect}}</div>
+            <div style="border:1px solid rgba(245,242,236,.18); border-radius:999px; padding:6px 13px; font:700 11.5px 'Archivo',sans-serif; color:#F5F2EC;">💬 4</div>
+            <div style="flex:1;"></div>
+            <div style="font:600 11px 'Archivo',sans-serif; color:#FF7A5C;">rematch?</div>
+          </div>
+        </div>
+        <!-- reveal post -->
+        <div style="margin:12px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; padding:13px 14px; display:flex; align-items:center; gap:11px;">
+          <img src="https://randomuser.me/api/portraits/women/68.jpg" alt="Priya" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+          <div style="flex:1;">
+            <div style="font:600 12.5px/1.35 'Archivo',sans-serif; color:#F5F2EC;">Priya finished her Placement Trio — <strong style="color:#FF7A5C;">Glass revealed: 4.15</strong></div>
+            <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:2px;">3 verified games · confidence 41%</div>
+          </div>
+          <div style="border:1px solid rgba(245,242,236,.18); border-radius:999px; padding:6px 11px; font:700 11px 'Archivo',sans-serif; color:#F5F2EC;">👏 8</div>
+        </div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= CHAT ================= -->
+      <div data-screen-label="Circle chat" style="display:{{showChat}};">
+        <div style="padding:14px 20px 0; display:flex; align-items:center; gap:12px;">
+          <div style="width:42px;height:42px;border-radius:13px;background:#3E7BFA;color:#fff;font:800 14px/42px 'Archivo',sans-serif;text-align:center;flex:none;">TN</div>
+          <div style="flex:1;">
+            <div style="font:800 19px/1 'Archivo',sans-serif; color:#F5F2EC;">Tuesday Night Lot</div>
+            <div style="font:400 11px 'Archivo',sans-serif; color:{{typingC}}; margin-top:3px; transition:color 200ms;">{{typingSub}}</div>
+          </div>
+        </div>
+        <div style="margin:13px 16px 0; display:flex; gap:6px;">
+          <div onClick="{{viewFeed}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:7px 15px; font:600 11.5px 'Archivo',sans-serif; user-select:none;">Feed</div>
+          <div style="background:#F5F2EC; color:#17150F; border-radius:999px; padding:7px 15px; font:700 11.5px 'Archivo',sans-serif;">Chat</div>
+          <div onClick="{{viewMembers}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:7px 15px; font:600 11.5px 'Archivo',sans-serif; user-select:none;">Members</div>
+        </div>
+        <!-- pinned game (shared state) -->
+        <div style="margin:12px 16px 0; background:rgba(62,123,250,.13); border:1px solid #3E7BFA; border-radius:14px; padding:9px 13px; display:flex; align-items:center; gap:10px;">
+          <div style="flex:1;">
+            <div style="font:700 12px 'Archivo',sans-serif; color:#F5F2EC;">📌 Tue 8pm · Powerleague</div>
+            <div style="font:400 10px 'Archivo',sans-serif; color:rgba(245,242,236,.6); margin-top:2px;">{{pinnedSub}}</div>
+          </div>
+          <div onClick="{{toggleRsvp}}" style="cursor:pointer; background:{{rsvpBg}}; color:{{rsvpFg}}; border-radius:10px; padding:9px 14px; font:800 11.5px 'Archivo',sans-serif; transition:background 250ms, color 250ms; user-select:none;">{{pinnedBtn}}</div>
+        </div>
+        <!-- thread -->
+        <div style="padding:6px 14px 0;">
+          <div style="text-align:center; font:500 9.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.35); margin-top:8px;">TODAY</div>
+          <sc-for list="{{msgs}}" as="m" hint-placeholder-count="4">
+            <div style="display:flex; gap:8px; align-items:flex-end; flex-direction:{{m.dir}}; margin-top:10px;">
+              <div style="display:{{m.avDisplay}}; width:26px; height:26px; border-radius:50%; background-image:url('{{m.av}}'); background-size:cover; background-position:center; flex:none;"></div>
+              <div style="background:{{m.bg}}; border:{{m.border}}; border-radius:{{m.rad}}; padding:9px 12px; font:400 12.5px/1.45 'Archivo',sans-serif; color:{{m.fg}}; max-width:242px;">{{m.text}}</div>
+            </div>
+          </sc-for>
+          <div style="display:{{typingDisplay}}; margin-top:10px;">
+            <div style="display:flex; gap:8px; align-items:flex-end;">
+              <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none;">
+              <div style="background:#1E1C19; border:1px solid rgba(245,242,236,.12); border-radius:16px 16px 16px 4px; padding:11px 14px; font:700 13px/1 'Archivo',sans-serif; color:rgba(245,242,236,.5); letter-spacing:2px;">···</div>
+            </div>
+          </div>
+        </div>
+        <!-- composer -->
+        <div style="display:flex; gap:8px; align-items:center; margin:14px 14px 0;">
+          <input value="{{draft}}" onInput="{{draftInput}}" onKeyDown="{{draftKey}}" placeholder="Message the Lot…" style="flex:1; box-sizing:border-box; background:#1E1C19; border:1px solid rgba(245,242,236,.15); border-radius:999px; padding:13px 17px; color:#F5F2EC; font:400 13px 'Archivo',sans-serif; outline:none;">
+          <div onClick="{{sendMsg}}" style="cursor:pointer; width:46px; height:46px; border-radius:50%; background:#FF5C3D; color:#fff; font:800 19px/46px 'Archivo',sans-serif; text-align:center; flex:none; user-select:none;">↑</div>
+        </div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= MEMBERS ================= -->
+      <div data-screen-label="Members" style="display:{{showMembers}};">
+        <div style="padding:14px 20px 0; display:flex; align-items:center; gap:12px;">
+          <div style="width:42px;height:42px;border-radius:13px;background:#3E7BFA;color:#fff;font:800 14px/42px 'Archivo',sans-serif;text-align:center;flex:none;">TN</div>
+          <div style="flex:1;">
+            <div style="font:800 19px/1 'Archivo',sans-serif; color:#F5F2EC;">Tuesday Night Lot</div>
+            <div style="font:400 11px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:3px;">6 members · est. 2024</div>
+          </div>
+        </div>
+        <div style="margin:13px 16px 0; display:flex; gap:6px;">
+          <div onClick="{{viewFeed}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:7px 15px; font:600 11.5px 'Archivo',sans-serif; user-select:none;">Feed</div>
+          <div onClick="{{viewChat}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:7px 15px; font:600 11.5px 'Archivo',sans-serif; user-select:none;">Chat <span style="display:{{chatBadgeDisplay}}; color:#FF7A5C; font-weight:800;">·2</span></div>
+          <div style="background:#F5F2EC; color:#17150F; border-radius:999px; padding:7px 15px; font:700 11.5px 'Archivo',sans-serif;">Members</div>
+        </div>
+        <div style="margin:14px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:11px; padding:13px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="display:flex; align-items:center; gap:7px;">
+                <span style="font:700 13.5px 'Archivo',sans-serif; color:#F5F2EC;">Kav Patel</span>
+                <span style="background:rgba(245,242,236,.1); color:#F5F2EC; border-radius:999px; padding:3px 8px; font:700 9px 'Archivo',sans-serif; letter-spacing:.06em;">ORGANISER</span>
+              </div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">✓ shows up 100% · on a 6-game streak</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font:800 16px 'Archivo',sans-serif; color:#F5F2EC;">4.91</div>
+              <div style="font:400 9px 'IBM Plex Mono',monospace; color:#F2B33D;">W6 🔥</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:11px; padding:13px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <img src="{{avatarUrl}}" alt="Sam" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="display:flex; align-items:center; gap:7px;">
+                <span style="font:700 13.5px 'Archivo',sans-serif; color:#F5F2EC;">{{playerName}} Reid</span>
+                <span style="background:rgba(255,92,61,.16); color:#FF8A73; border-radius:999px; padding:3px 8px; font:700 9px 'Archivo',sans-serif; letter-spacing:.06em;">YOU</span>
+              </div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">✓ shows up 97% · W3 this month</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font:800 16px 'Archivo',sans-serif; color:#F5F2EC;">4.62</div>
+              <div style="font:400 9px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45);">conf 78%</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:11px; padding:13px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <img src="https://randomuser.me/api/portraits/men/11.jpg" alt="Tom" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="font:700 13.5px 'Archivo',sans-serif; color:#F5F2EC;">Tom Ellis</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">✓ shows up 89% · usually brings balls</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font:800 16px 'Archivo',sans-serif; color:#F5F2EC;">4.55</div>
+              <div style="font:400 9px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45);">conf 71%</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:11px; padding:13px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Mags" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="font:700 13.5px 'Archivo',sans-serif; color:#F5F2EC;">Mags O'Brien</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">✓ shows up 94% · best lob in the Lot</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font:800 16px 'Archivo',sans-serif; color:#F5F2EC;">4.38</div>
+              <div style="font:400 9px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45);">conf 82%</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:11px; padding:13px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <img src="https://randomuser.me/api/portraits/women/68.jpg" alt="Priya" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="display:flex; align-items:center; gap:7px;">
+                <span style="font:700 13.5px 'Archivo',sans-serif; color:#F5F2EC;">Priya Shah</span>
+                <span style="background:rgba(75,201,139,.14); color:#4BC98B; border-radius:999px; padding:3px 8px; font:700 9px 'Archivo',sans-serif; letter-spacing:.06em;">NEW</span>
+              </div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">✓ shows up 100% · Glass poured last week</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font:800 16px 'Archivo',sans-serif; color:#F5F2EC;">4.15</div>
+              <div style="font:400 9px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45);">conf 41%</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:11px; padding:13px 16px;">
+            <img src="https://randomuser.me/api/portraits/men/40.jpg" alt="Dev" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="font:700 13.5px 'Archivo',sans-serif; color:#F5F2EC;">Dev Kumar</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">Placement Trio · 1 of 3 played</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font:800 16px 'Archivo',sans-serif; color:rgba(245,242,236,.3);">?.??</div>
+              <div style="display:flex; gap:3px; justify-content:flex-end; margin-top:4px;">
+                <span style="width:12px; height:3px; border-radius:99px; background:#4BC98B;"></span>
+                <span style="width:12px; height:3px; border-radius:99px; background:rgba(245,242,236,.18);"></span>
+                <span style="width:12px; height:3px; border-radius:99px; background:rgba(245,242,236,.18);"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div onClick="{{inviteMate}}" style="cursor:pointer; margin:12px 16px 0; border:1.5px dashed rgba(255,92,61,.6); border-radius:16px; padding:13px 14px; display:flex; align-items:center; gap:11px; user-select:none;">
+          <div style="width:34px;height:34px;border-radius:50%;border:2px dashed rgba(255,92,61,.7);color:#FF7A5C;font:800 15px/30px 'Archivo',sans-serif;text-align:center;flex:none;">+</div>
+          <div style="flex:1;">
+            <div style="font:700 13px 'Archivo',sans-serif; color:#FF7A5C;">Invite a mate</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:2px;">share the Circle link — they're in before their first game</div>
+          </div>
+          <span style="font:700 11px 'Archivo',sans-serif; color:#F5F2EC;">Copy ↗</span>
+        </div>
+        <div style="margin:12px 0 0; text-align:center; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.4);">ratings are everyone's business here — that's the point</div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= TAB ================= -->
+      <div data-screen-label="The Tab" style="display:{{showTab}};">
+        <div style="padding:14px 20px 0; display:flex; align-items:center; justify-content:space-between;">
+          <div>
+            <div style="font:800 25px/1 'Archivo',sans-serif; color:#F5F2EC;">The Tab</div>
+            <div style="font:400 11px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:4px;">Tuesday Night Lot</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font:800 22px/1 'IBM Plex Mono',monospace; color:{{netC}}; transition:color 300ms;">{{netVal}}</div>
+            <div style="font:400 9.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5);">{{netSub}}</div>
+          </div>
+        </div>
+        <div style="margin:14px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:34px;height:34px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC;">Kav owes you</div>
+              <div style="font:400 10.5px 'Archivo',sans-serif; color:rgba(245,242,236,.5);">Tuesday's court split</div>
+            </div>
+            <span style="font:700 15px 'IBM Plex Mono',monospace; color:#4BC98B;">£8</span>
+            <div onClick="{{nudgeKav}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); border-radius:999px; padding:7px 13px; font:700 11px 'Archivo',sans-serif; color:#F5F2EC; opacity:{{nudgeOp}}; transition:opacity 250ms; user-select:none;">{{nudgeLabel}}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Mags" style="width:34px;height:34px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC;">{{magsTitle}}</div>
+              <div style="font:400 10.5px 'Archivo',sans-serif; color:rgba(245,242,236,.5);">{{magsSub}}</div>
+            </div>
+            <span style="display:{{magsAmtDisplay}}; font:700 15px 'IBM Plex Mono',monospace; color:#E56B4F;">£12</span>
+            <div onClick="{{settleMags}}" style="cursor:pointer; background:{{settleBg}}; color:{{settleFg}}; border:1px solid {{settleBorder}}; border-radius:999px; padding:7px 13px; font:700 11px 'Archivo',sans-serif; transition:background 250ms, color 250ms; animation:{{settleAnim}}; user-select:none;">{{settleLabel}}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:13px 16px;">
+            <img src="https://randomuser.me/api/portraits/men/11.jpg" alt="Tom" style="width:34px;height:34px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+              <div style="font:700 13px 'Archivo',sans-serif; color:rgba(245,242,236,.55);">Tom</div>
+            </div>
+            <span style="background:rgba(75,201,139,.13); color:#4BC98B; border-radius:999px; padding:5px 11px; font:700 10.5px 'Archivo',sans-serif;">All square ✓</span>
+          </div>
+        </div>
+        <div style="margin:12px 16px 0; background:rgba(242,179,61,.12); border-radius:14px; padding:11px 14px; font:400 11.5px/1.5 'Archivo',sans-serif; color:#F5F2EC;">Nudges are one tap, once: <em>"Oi. £8 for Tuesday's court 🎾"</em> — no interest, no drama, no red exclamation marks.</div>
+        <div style="margin:12px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:16px; padding:4px 14px;">
+          <div style="display:{{settledRowDisplay}};">
+            <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(245,242,236,.07); font:400 11px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.6);"><span>today · you settled Mags</span><span style="color:#4BC98B;">£12 ✓</span></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(245,242,236,.07); font:400 11px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.6);"><span>Tue 14 · court £32 · split 4 ways</span><span>£8 each</span></div>
+          <div style="display:flex; justify-content:space-between; padding:10px 0; font:400 11px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.6);"><span>Mon 7 · Tom settled up</span><span style="color:#4BC98B;">✓</span></div>
+        </div>
+        <div style="margin:12px 0 0; text-align:center; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.4);">the Tab never charges fees — it just keeps score</div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= YOU ================= -->
+      <div data-screen-label="Profile" style="display:{{showYou}};">
+        <div style="padding:16px 20px 0; display:flex; align-items:center; gap:13px;">
+          <div style="position:relative; flex:none;">
+            <img src="{{avatarUrl}}" alt="You" style="width:58px;height:58px;border-radius:50%;object-fit:cover;">
+            <div onClick="{{openCam}}" style="cursor:pointer; position:absolute; right:-3px; bottom:-3px; width:24px; height:24px; border-radius:50%; background:#FF5C3D; border:2.5px solid #131210; display:flex; align-items:center; justify-content:center; user-select:none;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
+            </div>
+          </div>
+          <div style="flex:1;">
+            <div style="font:800 21px/1 'Archivo',sans-serif; color:#F5F2EC;">{{playerName}} Reid</div>
+            <div style="display:flex; gap:6px; margin-top:7px;">
+              <span style="background:rgba(75,201,139,.13); color:#4BC98B; border-radius:999px; padding:4px 10px; font:700 10.5px 'Archivo',sans-serif;">✓ Shows up · 97%</span>
+              <span style="background:rgba(245,242,236,.08); color:#F5F2EC; border-radius:999px; padding:4px 10px; font:600 10.5px 'Archivo',sans-serif;">2 Circles</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin:16px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:22px; padding:18px 16px;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <span style="font:800 10.5px 'Archivo',sans-serif; letter-spacing:.12em; color:rgba(245,242,236,.5);">GLASS</span>
+            <span style="font:600 10.5px 'IBM Plex Mono',monospace; color:#4BC98B;">▲ +0.11 this season</span>
+          </div>
+          <div style="display:flex; align-items:baseline; gap:12px; margin-top:8px;">
+            <span style="font:800 56px/1 'Archivo',sans-serif; letter-spacing:-.02em; color:#F5F2EC;">4.62</span>
+            <div style="display:flex; align-items:flex-end; gap:3px; height:34px; flex:1; padding-bottom:2px;">
+              <div style="width:9px; height:12px; background:rgba(245,242,236,.12); border-radius:3px;"></div>
+              <div style="width:9px; height:16px; background:rgba(245,242,236,.12); border-radius:3px;"></div>
+              <div style="width:9px; height:14px; background:rgba(245,242,236,.12); border-radius:3px;"></div>
+              <div style="width:9px; height:20px; background:rgba(245,242,236,.12); border-radius:3px;"></div>
+              <div style="width:9px; height:18px; background:rgba(245,242,236,.12); border-radius:3px;"></div>
+              <div style="width:9px; height:24px; background:rgba(245,242,236,.2); border-radius:3px;"></div>
+              <div style="width:9px; height:22px; background:rgba(245,242,236,.2); border-radius:3px;"></div>
+              <div style="width:9px; height:28px; background:#FF5C3D; border-radius:3px;"></div>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <div style="display:flex; justify-content:space-between; font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.55);"><span>confidence</span><span style="color:#F5F2EC; font-weight:600;">78%</span></div>
+            <div style="height:5px; background:rgba(245,242,236,.08); border-radius:99px; margin-top:5px; position:relative;"><div style="position:absolute; inset:0 22% 0 0; background:#F5F2EC; border-radius:99px;"></div></div>
+            <div style="font:400 10px/1.5 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); margin-top:6px;">based on 41 verified games · sharpens every time you play</div>
+          </div>
+        </div>
+        <div style="margin:12px 16px 0; display:flex; gap:8px;">
+          <div style="flex:1; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:16px; padding:12px; text-align:center;">
+            <div style="font:800 18px 'Archivo',sans-serif; color:#F5F2EC;">26–15</div>
+            <div style="font:400 9.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">W–L</div>
+          </div>
+          <div style="flex:1; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:16px; padding:12px; text-align:center;">
+            <div style="font:800 18px 'Archivo',sans-serif; color:#F5F2EC;">W3</div>
+            <div style="font:400 9.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">streak</div>
+          </div>
+          <div style="flex:1; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:16px; padding:12px; text-align:center;">
+            <div style="font:800 18px 'Archivo',sans-serif; color:#F5F2EC;">4.91</div>
+            <div style="font:400 9.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">best win</div>
+          </div>
+        </div>
+        <div onClick="{{openLedger}}" style="cursor:pointer; margin:12px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:16px; padding:13px 14px; display:flex; align-items:center; gap:10px; user-select:none;">
+          <div style="flex:1;">
+            <div style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC;">The Ledger</div>
+            <div style="font:400 10.5px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:2px;">every movement of your Glass, explained</div>
+          </div>
+          <span style="font:700 14px 'Archivo',sans-serif; color:#FF7A5C;">→</span>
+        </div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= SUB: STANDING GAME ================= -->
+      <div data-screen-label="Standing Game" style="display:{{showGame}};">
+        <div onClick="{{goBack}}" style="cursor:pointer; padding:14px 20px 0; font:700 13px 'Archivo',sans-serif; color:#FF7A5C; user-select:none;">‹ Back</div>
+        <div style="padding:10px 20px 0;">
+          <div style="font:800 10.5px 'Archivo',sans-serif; letter-spacing:.12em; color:rgba(245,242,236,.5);">STANDING GAME · TUESDAY NIGHT LOT</div>
+          <div style="font:800 22px/1.1 'Archivo',sans-serif; color:#F5F2EC; margin-top:7px;">Tuesdays, 8pm<br>Powerleague Shoreditch</div>
+          <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:6px;">repeats weekly · slots lock 24h before · court 2</div>
+        </div>
+        <div style="margin:14px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; overflow:hidden;">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:rgba(245,242,236,.05);">
+            <span style="font:800 13px 'Archivo',sans-serif; color:#F5F2EC;">This week · Tue 14 Jul</span>
+            <span style="font:700 10.5px 'IBM Plex Mono',monospace; color:{{spotC}}; transition:color 300ms;">{{spotLabel}}</span>
+          </div>
+          <div style="padding:6px 16px 0;">
+            <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid rgba(245,242,236,.07);">
+              <img src="{{avatarUrl}}" alt="You" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+              <span style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC; flex:1;">{{playerName}} <span style="font-weight:400; color:rgba(245,242,236,.5);">(you)</span></span>
+              <span style="background:{{youChipBg}}; color:{{youChipFg}}; border:1px solid {{youChipBorder}}; border-radius:999px; padding:5px 11px; font:700 10.5px 'Archivo',sans-serif; transition:background 250ms, color 250ms;">{{youChip}}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid rgba(245,242,236,.07);">
+              <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+              <span style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC; flex:1;">Kav</span>
+              <span style="background:rgba(75,201,139,.13); color:#4BC98B; border-radius:999px; padding:5px 11px; font:700 10.5px 'Archivo',sans-serif;">In ✓</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid rgba(245,242,236,.07);">
+              <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Mags" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+              <span style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC; flex:1;">Mags</span>
+              <span style="background:rgba(75,201,139,.13); color:#4BC98B; border-radius:999px; padding:5px 11px; font:700 10.5px 'Archivo',sans-serif;">In ✓</span>
+            </div>
+            <div onClick="{{openFc}}" style="display:{{openRowDisplay}}; cursor:pointer; user-select:none;">
+              <div style="display:flex; align-items:center; gap:10px; padding:9px 0 12px;">
+                <div style="width:32px;height:32px;border-radius:50%;border:2px dashed #FF5C3D;color:#FF7A5C;font:800 13px/28px 'Archivo',sans-serif;text-align:center;flex:none;">4</div>
+                <span style="font:700 13px 'Archivo',sans-serif; color:#FF7A5C; flex:1;">Open — send a Fourth Call</span>
+                <span style="border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:5px 11px; font:700 10.5px 'Archivo',sans-serif;">Find a 4th →</span>
+              </div>
+            </div>
+            <div style="display:{{anaRowDisplay}};">
+              <div style="display:flex; align-items:center; gap:10px; padding:9px 0 12px;">
+                <img src="https://randomuser.me/api/portraits/women/65.jpg" alt="Ana" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+                <span style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC; flex:1;">Ana <span style="font-weight:400; color:rgba(245,242,236,.5);">· via Fourth Call</span></span>
+                <span style="background:rgba(75,201,139,.13); color:#4BC98B; border-radius:999px; padding:5px 11px; font:700 10.5px 'Archivo',sans-serif;">In ✓</span>
+              </div>
+            </div>
+          </div>
+          <div style="background:rgba(245,242,236,.05); padding:11px 16px;">
+            <div style="font:800 9.5px 'Archivo',sans-serif; letter-spacing:.12em; color:rgba(245,242,236,.5);">RESERVE QUEUE</div>
+            <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+              <span style="font:700 11px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5);">1</span>
+              <img src="https://randomuser.me/api/portraits/women/68.jpg" alt="Priya" style="width:26px;height:26px;border-radius:50%;object-fit:cover;">
+              <span style="font:600 12px 'Archivo',sans-serif; color:#F5F2EC; flex:1;">Priya</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace; color:#4BC98B;">auto-promotes ✓</span>
+            </div>
+            <div style="font:400 10px/1.5 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); margin-top:9px;">if anyone drops, Priya is in automatically — everyone gets told</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; margin:12px 16px 0;">
+          <div onClick="{{toggleRsvp}}" style="cursor:pointer; flex:2; background:{{rsvpBg}}; color:{{rsvpFg}}; border-radius:14px; text-align:center; padding:14px 0; font:800 14px 'Archivo',sans-serif; transition:background 250ms, color 250ms; user-select:none;">{{rsvpLabel}}</div>
+          <div onClick="{{rsvpOut}}" style="cursor:pointer; flex:1; border:1px solid rgba(245,242,236,.3); color:rgba(245,242,236,.85); border-radius:14px; text-align:center; padding:14px 0; font:600 13px 'Archivo',sans-serif; user-select:none;">Can't</div>
+        </div>
+        <div style="margin:12px 16px 0; display:flex; align-items:center; gap:10px; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:16px; padding:12px 14px;">
+          <span style="font:500 12px 'Archivo',sans-serif; color:#F5F2EC; flex:1;">£32 court · <strong>£8 each</strong> · goes on the Tab</span>
+          <span style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45);">60 min</span>
+        </div>
+        <!-- where -->
+        <div style="margin:12px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; overflow:hidden;">
+          <a href="https://maps.google.com/?q=Powerleague+Shoreditch,+London" target="_blank" rel="noopener" style="display:block; text-decoration:none;">
+            <div style="height:118px; position:relative; background:#171A20; overflow:hidden;">
+              <!-- stylised map tile -->
+              <div style="position:absolute; left:-20px; right:-20px; top:34px; height:13px; background:#242933; transform:rotate(-7deg);"></div>
+              <div style="position:absolute; left:-20px; right:-20px; top:76px; height:8px; background:#20242D; transform:rotate(-7deg);"></div>
+              <div style="position:absolute; top:-20px; bottom:-20px; left:84px; width:9px; background:#20242D; transform:rotate(12deg);"></div>
+              <div style="position:absolute; top:-20px; bottom:-20px; left:224px; width:12px; background:#242933; transform:rotate(12deg);"></div>
+              <div style="position:absolute; left:250px; top:8px; width:78px; height:44px; background:rgba(75,201,139,.12); border-radius:8px; transform:rotate(-7deg);"></div>
+              <div style="position:absolute; left:26px; top:82px; width:52px; height:30px; background:rgba(62,123,250,.14); border-radius:6px; transform:rotate(-7deg);"></div>
+              <!-- pin -->
+              <div style="position:absolute; left:50%; top:38px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center;">
+                <div style="width:34px; height:34px; border-radius:50% 50% 50% 4px; transform:rotate(-45deg); background:#FF5C3D; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(255,92,61,.4);">
+                  <span style="transform:rotate(45deg); font:800 13px 'Archivo',sans-serif; color:#fff;">P</span>
+                </div>
+                <div style="width:10px; height:4px; border-radius:50%; background:rgba(0,0,0,.45); margin-top:3px;"></div>
+              </div>
+              <div style="position:absolute; right:10px; bottom:8px; font:400 8.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.35);">map preview</div>
+            </div>
+          </a>
+          <div style="padding:12px 14px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="flex:1;">
+                <div style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC;">Powerleague Shoreditch</div>
+                <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">Braithwaite St, E1 6GJ · court 2, upstairs</div>
+              </div>
+              <div onClick="{{copyAddr}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:7px 12px; font:700 10.5px 'Archivo',sans-serif; user-select:none;">{{copyAddrLabel}}</div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:11px;">
+              <a href="https://maps.google.com/?q=Powerleague+Shoreditch,+London" target="_blank" rel="noopener" style="flex:1; text-decoration:none; background:rgba(245,242,236,.07); border:1px solid rgba(245,242,236,.14); border-radius:12px; text-align:center; padding:11px 0; font:700 11.5px 'Archivo',sans-serif; color:#F5F2EC;">
+                <svg width="11" height="11" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:5px;"><path fill="#4285F4" d="M12 2a8 8 0 0 0-8 8c0 5.4 7 11.5 7.3 11.8a1 1 0 0 0 1.4 0C13 21.5 20 15.4 20 10a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3" fill="#fff"></circle></svg>Google Maps</a>
+              <a href="https://maps.apple.com/?q=Powerleague+Shoreditch+London" target="_blank" rel="noopener" style="flex:1; text-decoration:none; background:rgba(245,242,236,.07); border:1px solid rgba(245,242,236,.14); border-radius:12px; text-align:center; padding:11px 0; font:700 11.5px 'Archivo',sans-serif; color:#F5F2EC;">
+                <svg width="11" height="11" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:5px;"><path fill="#F5F2EC" d="M12 2a8 8 0 0 0-8 8c0 5.4 7 11.5 7.3 11.8a1 1 0 0 0 1.4 0C13 21.5 20 15.4 20 10a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3" fill="#17150F"></circle></svg> Apple Maps</a>
+            </div>
+            <div onClick="{{shareLoc}}" style="cursor:pointer; margin-top:8px; border:1px dashed rgba(255,92,61,.5); color:#FF7A5C; border-radius:12px; text-align:center; padding:10px 0; font:700 11.5px 'Archivo',sans-serif; user-select:none;">{{shareLocLabel}}</div>
+          </div>
+        </div>
+        <div onClick="{{openResult}}" style="cursor:pointer; margin:12px 16px 0; background:#F5F2EC; color:#17150F; border-radius:14px; text-align:center; padding:14px 0; font:800 14px 'Archivo',sans-serif; user-select:none;">Log last night's result</div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= SUB: LEDGER ================= -->
+      <div data-screen-label="Ledger" style="display:{{showLedger}};">
+        <div onClick="{{goBackYou}}" style="cursor:pointer; padding:14px 20px 0; font:700 13px 'Archivo',sans-serif; color:#FF7A5C; user-select:none;">‹ Profile</div>
+        <div style="padding:10px 20px 0; display:flex; align-items:flex-end; justify-content:space-between;">
+          <div>
+            <div style="font:800 24px/1 'Archivo',sans-serif; color:#F5F2EC;">The Ledger</div>
+            <div style="font:400 11px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:4px;">nothing hidden — every move explained</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font:800 26px/1 'Archivo',sans-serif; color:#F5F2EC;">4.62</div>
+            <div style="font:400 9.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5);">conf 78%</div>
+          </div>
+        </div>
+        <div style="margin:14px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; overflow:hidden;">
+          <div style="padding:10px 16px; background:rgba(245,242,236,.05); font:800 10px 'Archivo',sans-serif; letter-spacing:.14em; color:rgba(245,242,236,.55);">JULY 2026</div>
+          <div style="padding:13px 16px; border-bottom:1px solid rgba(245,242,236,.07); background:#28231C;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <span style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC;">L 3–6 4–6 <span style="font-weight:400; color:rgba(245,242,236,.55);">vs Kav &amp; Tom</span></span>
+              <span style="font:700 13px 'IBM Plex Mono',monospace; color:#E56B4F;">−0.03</span>
+            </div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;">Tue 1 Jul · Powerleague Shoreditch</div>
+            <div style="margin-top:9px; border-left:2px solid #FF5C3D; padding:2px 0 2px 10px;">
+              <div style="font:400 11.5px/1.5 'Archivo',sans-serif; color:#F5F2EC;">Lost to a stronger pair (avg 4.87) by a fair margin. Small dip — this result was half-expected.</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:5px;">expected win: 38% · margin weight ×0.8 · confidence 76→78%</div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); margin-top:9px;"><span>balance</span><span style="color:#F5F2EC; font-weight:600;">4.62</span></div>
+          </div>
+          <div style="padding:12px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <span style="font:700 12.5px 'Archivo',sans-serif; color:#F5F2EC;">W 6–2 6–3 <span style="font-weight:400; color:rgba(245,242,236,.55);">vs Priya &amp; Dev</span></span>
+              <span style="font:700 12.5px 'IBM Plex Mono',monospace; color:#4BC98B;">+0.02</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;"><span>expected win, comfortable margin</span><span>4.65</span></div>
+          </div>
+          <div style="padding:12px 16px; border-bottom:1px solid rgba(245,242,236,.07);">
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <span style="font:700 12.5px 'Archivo',sans-serif; color:#F5F2EC;">W 7–5 7–6 <span style="font-weight:400; color:rgba(245,242,236,.55);">vs Kav &amp; Mags</span></span>
+              <span style="font:700 12.5px 'IBM Plex Mono',monospace; color:#4BC98B;">+0.05</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:3px;"><span>beat a stronger pair, tight margin</span><span>4.63</span></div>
+          </div>
+          <div style="padding:12px 16px; display:flex; align-items:center; gap:9px;">
+            <span style="font:700 11px 'Archivo',sans-serif; color:#FF7A5C;">◆</span>
+            <div style="flex:1;">
+              <div style="font:700 12px 'Archivo',sans-serif; color:#F5F2EC;">Glass poured — Placement Trio complete</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:2px;">3 verified games · opening balance 4.31 · conf 34%</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin:12px 0 0; text-align:center; font:400 10px/1.6 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45);">append-only · nothing can be edited or deleted — by anyone</div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= SUB: RESULT ================= -->
+      <div data-screen-label="Result entry" style="display:{{showResult}};">
+        <div onClick="{{backToGame}}" style="cursor:pointer; padding:14px 20px 0; font:700 13px 'Archivo',sans-serif; color:#FF7A5C; user-select:none;">‹ Game</div>
+        <div style="padding:10px 20px 0;">
+          <div style="font:800 24px/1 'Archivo',sans-serif; color:#F5F2EC;">How did it go?</div>
+          <div style="font:400 11.5px 'Archivo',sans-serif; color:rgba(245,242,236,.55); margin-top:4px;">Tue 14 Jul · Tuesday Night Lot</div>
+        </div>
+        <div style="margin:14px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:20px; padding:16px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex;">
+              <img src="{{avatarUrl}}" alt="You" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #1E1C19;">
+              <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Mags" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #1E1C19;margin-left:-10px;">
+            </div>
+            <span style="font:700 13px 'Archivo',sans-serif; color:#F5F2EC; flex:1;">You &amp; Mags</span>
+            <span style="font:800 22px 'Archivo',sans-serif; color:#F5F2EC;">7–5 · 6–4</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+            <div style="display:flex;">
+              <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #1E1C19;">
+              <img src="https://randomuser.me/api/portraits/men/11.jpg" alt="Tom" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #1E1C19;margin-left:-10px;">
+            </div>
+            <span style="font:700 13px 'Archivo',sans-serif; color:rgba(245,242,236,.6); flex:1;">Kav &amp; Tom</span>
+            <span style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5);">avg 4.87</span>
+          </div>
+          <div style="margin-top:14px; background:rgba(75,201,139,.13); border-radius:12px; padding:10px 12px; font:600 12px 'Archivo',sans-serif; color:#4BC98B; text-align:center;">You beat a stronger pair — streak broken 🎉</div>
+        </div>
+        <div onClick="{{sendResult}}" style="cursor:pointer; margin:12px 16px 0; background:{{sendBg}}; color:{{sendFg}}; border-radius:16px; text-align:center; padding:15px 0; font:800 14px 'Archivo',sans-serif; transition:background 250ms, color 250ms; user-select:none;">{{sendLabel}}</div>
+        <div style="display:{{confCardDisplay}}; margin:12px 16px 0;">
+          <div style="background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:16px; padding:13px 14px;">
+            <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.12em; color:rgba(245,242,236,.5);">CONFIRMATION</div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:9px;">
+              <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:26px;height:26px;border-radius:50%;object-fit:cover;">
+              <span style="font:600 12px 'Archivo',sans-serif; color:#F5F2EC; flex:1;">Kav confirmed</span>
+              <span style="font:700 12px 'Archivo',sans-serif; color:#4BC98B;">✓</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:7px;">
+              <img src="https://randomuser.me/api/portraits/men/11.jpg" alt="Tom" style="width:26px;height:26px;border-radius:50%;object-fit:cover;">
+              <span style="font:600 12px 'Archivo',sans-serif; color:{{tomRowC}}; flex:1; transition:color 250ms;">{{tomRowLabel}}</span>
+              <span style="font:700 12px 'Archivo',sans-serif; color:#4BC98B; opacity:{{tomTickOp}}; transition:opacity 250ms; animation:{{tomTickAnim}};">✓</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:{{sealDisplay}}; margin:12px 16px 0;">
+          <div style="background:rgba(75,201,139,.13); border:1px solid rgba(75,201,139,.4); border-radius:16px; padding:12px 14px; text-align:center; animation:cu-pop 450ms cubic-bezier(.34,1.56,.64,1);">
+            <div style="font:800 13px 'Archivo',sans-serif; color:#4BC98B;">Result sealed — written to both Ledgers</div>
+            <div style="display:flex; justify-content:center; gap:14px; margin-top:7px; font:600 11px 'IBM Plex Mono',monospace;">
+              <span style="color:#4BC98B;">{{playerName}} +0.05 → 4.67</span>
+              <span style="color:#E56B4F;">Kav −0.04 → 4.87</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin:12px 0 0; text-align:center; font:400 10px/1.5 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); padding:0 30px;">Glass moves only when both teams confirm — no referee, no disputes desk</div>
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- ================= SUB: FOURTH CALL SEND ================= -->
+      <div data-screen-label="Fourth Call send" style="display:{{showFc}};">
+        <div onClick="{{backToGame}}" style="cursor:pointer; padding:14px 20px 0; font:700 13px 'Archivo',sans-serif; color:#FF7A5C; user-select:none;">‹ Game</div>
+        <div style="padding:10px 20px 0;">
+          <div style="font:800 10.5px 'Archivo',sans-serif; letter-spacing:.12em; color:#FF8A73;">FOURTH CALL · ORGANISER</div>
+          <div style="font:800 22px/1.15 'Archivo',sans-serif; color:#F5F2EC; margin-top:7px;">Find a fourth<br>for Tue 8pm</div>
+          <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:6px;">widening rings — closest people first, strangers never</div>
+        </div>
+        <div style="margin:14px 16px 0; background:#1E1C19; border:1px solid rgba(245,242,236,.09); border-radius:18px; padding:4px 14px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid rgba(245,242,236,.07);">
+            <span style="width:24px;height:24px;border-radius:50%;background:{{r1Bg}};color:{{r1Fg}};font:700 11px/24px 'Archivo',sans-serif;text-align:center;flex:none;transition:background 250ms;">{{r1Icon}}</span>
+            <div style="flex:1;">
+              <div style="font:700 12.5px 'Archivo',sans-serif; color:#F5F2EC;">The Circle first</div>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:2px;">{{r1Sub}}</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid rgba(245,242,236,.07);">
+            <span style="width:24px;height:24px;border-radius:50%;background:{{r2Bg}};color:{{r2Fg}};font:700 11px/24px 'Archivo',sans-serif;text-align:center;flex:none;transition:background 250ms;">{{r2Icon}}</span>
+            <div style="flex:1;">
+              <div style="font:700 12.5px 'Archivo',sans-serif; color:#F5F2EC;">Extended network <span style="display:{{r2LiveDisplay}}; color:#FF7A5C; font-weight:800;">· live</span></div>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:{{r2SubC}}; margin-top:2px; transition:color 250ms;">{{r2Sub}}</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 0;">
+            <span style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(245,242,236,.25);color:rgba(245,242,236,.5);font:700 11px/22px 'Archivo',sans-serif;text-align:center;flex:none;">3</span>
+            <div style="flex:1;">
+              <div style="font:700 12.5px 'Archivo',sans-serif; color:rgba(245,242,236,.7);">Anyone with the link</div>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); margin-top:2px;">looks good in WhatsApp — faces + one dashed slot</div>
+            </div>
+            <span onClick="{{inviteMate}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:999px; padding:5px 11px; font:700 10.5px 'Archivo',sans-serif; user-select:none;">Copy ↗</span>
+          </div>
+        </div>
+        <div style="display:{{fcClaimedDisplay}}; margin:12px 16px 0;">
+          <div style="background:rgba(75,201,139,.13); border:1px solid rgba(75,201,139,.4); border-radius:16px; padding:13px 14px; display:flex; align-items:center; gap:11px; animation:cu-pop 450ms cubic-bezier(.34,1.56,.64,1);">
+            <img src="https://randomuser.me/api/portraits/women/65.jpg" alt="Ana" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #4BC98B;">
+            <div style="flex:1;">
+              <div style="font:800 13px 'Archivo',sans-serif; color:#4BC98B;">Ana claimed it — game on</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.55); margin-top:2px;">Glass 4.41 · plays Tuesdays · the Lot's been told</div>
+            </div>
+          </div>
+        </div>
+        <div onClick="{{fcAction}}" style="cursor:pointer; margin:12px 16px 0; background:{{fcActBg}}; color:{{fcActFg}}; border-radius:15px; text-align:center; padding:15px 0; font:800 14px 'Archivo',sans-serif; transition:background 250ms, color 250ms; user-select:none;">{{fcActLabel}}</div>
+        <div style="margin:11px 0 0; text-align:center; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.4);">{{fcFootnote}}</div>
+        <div style="height:20px;"></div>
+      </div>
+
+    </div>
+
+    <!-- ================= ONBOARDING OVERLAY ================= -->
+    <div style="display:{{obOverlay}}; position:absolute; inset:0; background:#131210; z-index:6; border-radius:42px; overflow:hidden;">
+
+      <!-- welcome -->
+      <div data-screen-label="Onboarding welcome" style="display:{{obShowWelcome}};">
+        <div style="position:relative; min-height:824px; overflow:hidden;">
+        <!-- ambient court loop (stand-in for real footage) -->
+        <div style="position:absolute; inset:0; pointer-events:none;">
+          <div style="position:absolute; inset:0; background:linear-gradient(180deg, #10141B, #131210);"></div>
+          <div style="position:absolute; left:50%; top:30%; width:330px; height:250px; margin-left:-165px; transform-origin:50% 20%; animation:cu-kb 9s ease-in-out infinite alternate;">
+            <div style="position:absolute; inset:0; border:2px solid rgba(120,170,255,.5);"></div>
+            <div style="position:absolute; left:0; right:0; top:50%; height:2px; background:rgba(120,170,255,.5);"></div>
+            <div style="position:absolute; left:50%; top:50%; bottom:0; width:2px; background:rgba(120,170,255,.5);"></div>
+            <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(46,84,150,.28), rgba(46,84,150,.08));"></div>
+          </div>
+          <div style="position:absolute; left:0; right:0; top:-50px; height:220px; background:radial-gradient(ellipse at 50% 0%, rgba(235,245,255,.35), transparent 65%); animation:cu-flick 6s linear infinite;"></div>
+          <div style="position:absolute; top:0; bottom:0; left:0; width:90px; background:linear-gradient(90deg, transparent, rgba(235,245,255,.12), transparent); animation:cu-sweep 7s ease-in-out infinite;"></div>
+          <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(19,18,16,.3) 0%, rgba(19,18,16,.42) 34%, rgba(19,18,16,.97) 66%);"></div>
+        </div>
+        <div style="position:absolute; top:16px; right:16px; font:400 8.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.4); border:1px dashed rgba(245,242,236,.25); border-radius:6px; padding:3px 7px;">▶ swap for real footage</div>
+        <div style="position:relative;">
+        <div style="padding:64px 28px 0;">
+          <div style="font:800 13px 'Archivo',sans-serif; color:#FF5C3D;">◆</div>
+          <div style="font:900 44px/1 'Archivo',sans-serif; letter-spacing:-.02em; color:#F5F2EC; margin-top:12px; text-shadow:0 2px 24px rgba(0,0,0,.6);">CUATRO</div>
+          <div style="font:400 15px/1.45 'Archivo',sans-serif; color:rgba(245,242,236,.65); margin-top:10px;">The app your padel four runs on.</div>
+        </div>
+        <div style="padding:38px 24px 0; display:flex; flex-direction:column; gap:9px;">
+          <div onClick="{{obSignIn}}" style="cursor:pointer; background:#F5F2EC; color:#17150F; border-radius:14px; display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 0; font:700 13.5px 'Archivo',sans-serif; user-select:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" style="display:block; margin-top:-2px;"><path fill="#17150F" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.56-1.702z"></path></svg>
+            <span>Continue with Apple</span>
+          </div>
+          <div onClick="{{obSignIn}}" style="cursor:pointer; background:#1E1C19; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:14px; display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 0; font:700 13.5px 'Archivo',sans-serif; user-select:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" style="display:block;"><path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"></path><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"></path><path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"></path><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"></path></svg>
+            <span>Continue with Google</span>
+          </div>
+          <div onClick="{{obSignIn}}" style="cursor:pointer; background:#1E1C19; border:1px solid rgba(245,242,236,.18); color:#F5F2EC; border-radius:14px; display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 0; font:700 13.5px 'Archivo',sans-serif; user-select:none;">✉ <span>Email me a magic link</span></div>
+        </div>
+        <div onClick="{{obToClaim}}" style="cursor:pointer; margin:26px 24px 0; background:#221F1A; border:1px solid rgba(255,92,61,.5); border-radius:18px; padding:15px 16px; user-select:none;">
+          <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.12em; color:#FF8A73;">GOT A GAME LINK FROM A MATE?</div>
+          <div style="font:600 13px/1.45 'Archivo',sans-serif; color:#F5F2EC; margin-top:6px;">Just open it — you'll be in the game in about 10 seconds. No forms, no setup. <span style="color:#FF7A5C; font-weight:800;">Try it →</span></div>
+        </div>
+        <div style="margin:24px 0 0; text-align:center; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.4);">no fees · no ads · no dark patterns</div>
+        </div>
+        </div>
+      </div>
+
+      <!-- claim -->
+      <div data-screen-label="Onboarding claim" style="display:{{obShowClaim}};">
+        <div onClick="{{obBackWelcome}}" style="cursor:pointer; padding:18px 22px 0; font:700 13px 'Archivo',sans-serif; color:#FF7A5C; user-select:none;">‹ Back</div>
+        <div style="margin:12px 18px 0; display:flex; align-items:center; gap:8px; background:#1E1C19; border-radius:999px; padding:8px 14px;">
+          <span style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.55); white-space:nowrap;">🔒 cuatro.app/g/tnl-tue</span>
+        </div>
+        <div style="margin:14px 18px 0; background:#221F1A; border:1px solid rgba(245,242,236,.12); border-radius:20px; overflow:hidden;">
+          <div style="padding:16px 16px 14px; border-bottom:1px solid rgba(245,242,236,.1);">
+            <div style="font:800 9.5px 'Archivo',sans-serif; letter-spacing:.14em; color:#FF8A73;">YOU'RE INVITED · TUESDAY NIGHT LOT</div>
+            <div style="font:800 21px/1.2 'Archivo',sans-serif; color:#F5F2EC; margin-top:8px;">Tuesday 8pm<br>Powerleague Shoreditch</div>
+            <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:6px;">court 2 · 60 min · £8 split on the Tab</div>
+          </div>
+          <div style="padding:14px 16px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="display:flex;">
+                <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #221F1A;">
+                <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Mags" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #221F1A;margin-left:-10px;">
+                <img src="{{avatarUrl}}" alt="Sam" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #221F1A;margin-left:-10px;">
+              </div>
+              <span style="font:500 11px/1.4 'Archivo',sans-serif; color:rgba(245,242,236,.75);">Kav, Mags &amp; Sam are waiting on a fourth</span>
+            </div>
+            <div onClick="{{obClaim}}" style="cursor:pointer; background:#FF5C3D; color:#fff; border-radius:14px; text-align:center; padding:15px 0; font:800 15px 'Archivo',sans-serif; margin-top:14px; user-select:none;">I can play — claim it</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); margin-top:10px; text-align:center;">no account · no app download · ~10 seconds</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- name -->
+      <div data-screen-label="Onboarding name" style="display:{{obShowName}};">
+        <div style="padding:56px 28px 0;">
+          <div style="font:800 24px/1.15 'Archivo',sans-serif; color:#F5F2EC;">Spot held.<br>Who should we say is coming?</div>
+          <div style="font:400 11px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:10px;">held for you for 5:00 while you type</div>
+          <input value="{{obDraft}}" onInput="{{obNameInput}}" placeholder="First name — e.g. Alex" style="width:100%; box-sizing:border-box; margin-top:18px; background:#1E1C19; border:1px solid rgba(245,242,236,.2); border-radius:14px; padding:15px 16px; font:600 15px 'Archivo',sans-serif; color:#F5F2EC; outline:none;">
+          <div onClick="{{obLock}}" style="cursor:pointer; background:#FF5C3D; color:#fff; border-radius:14px; text-align:center; padding:15px 0; font:800 15px 'Archivo',sans-serif; margin-top:12px; user-select:none;">Lock it in</div>
+          <div style="font:400 10px/1.7 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); margin-top:14px;">that's it — no password, no email. a magic link can save your games later, after you've played.</div>
+        </div>
+      </div>
+
+      <!-- done -->
+      <div data-screen-label="Onboarding done" style="display:{{obShowDone}}; text-align:center;">
+        <div style="margin:64px auto 0; width:64px; height:64px; border-radius:50%; background:#FF5C3D; display:flex; align-items:center; justify-content:center; animation:cu-pop 450ms cubic-bezier(.34,1.56,.64,1);">
+          <span style="font:800 26px 'Archivo',sans-serif; color:#fff;">{{obInitial}}</span>
+        </div>
+        <div style="font:800 26px/1.1 'Archivo',sans-serif; color:#F5F2EC; margin-top:14px;">You're in, {{obDisplayName}}.</div>
+        <div style="display:flex; justify-content:center; gap:7px; margin-top:16px;">
+          <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Kav" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+          <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Mags" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+          <img src="{{avatarUrl}}" alt="Sam" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">
+          <div style="width:38px;height:38px;border-radius:50%;background:#FF5C3D;color:#fff;font:800 15px/38px 'Archivo',sans-serif;text-align:center;">{{obInitial}}</div>
+        </div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.5); margin-top:12px;">Tue 8pm · Powerleague Shoreditch · £8 on the Tab</div>
+        <div style="display:flex; justify-content:center; gap:8px; margin-top:14px;">
+          <span style="border:1px solid rgba(245,242,236,.25); color:#F5F2EC; border-radius:999px; padding:8px 14px; font:700 11px 'Archivo',sans-serif;">Add to calendar</span>
+          <span style="border:1px solid rgba(245,242,236,.25); color:#F5F2EC; border-radius:999px; padding:8px 14px; font:700 11px 'Archivo',sans-serif;">Directions</span>
+        </div>
+        <div onClick="{{obEnter}}" style="cursor:pointer; margin:22px 26px 0; background:#F5F2EC; color:#17150F; border-radius:14px; text-align:center; padding:15px 0; font:800 14px 'Archivo',sans-serif; user-select:none;">Enter CUATRO →</div>
+      </div>
+    </div>
+
+    <!-- selfie camera -->
+    <div data-screen-label="Selfie camera" style="display:{{camDisplay}}; position:absolute; inset:0; z-index:60; background:#131210; flex-direction:column;">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:20px 20px 0;">
+        <span onClick="{{closeCam}}" style="cursor:pointer; font:700 13px 'Archivo',sans-serif; color:rgba(245,242,236,.7); user-select:none;">✕ Cancel</span>
+        <span style="font:800 10.5px 'Archivo',sans-serif; letter-spacing:.12em; color:rgba(245,242,236,.5);">NEW AVATAR</span>
+        <span style="width:58px;"></span>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;">
+        <div style="width:280px; height:280px; border-radius:50%; overflow:hidden; background:#1E1C19; border:2px dashed rgba(255,92,61,.55); position:relative;">
+          <video ref="{{camRef}}" style="display:{{liveDisplay}}; width:100%; height:100%; object-fit:cover; transform:scaleX(-1);"></video>
+          <div style="display:{{shotDisplay}}; position:absolute; inset:0; background-image:url('{{camShotUrl}}'); background-size:cover; background-position:center;"></div>
+        </div>
+        <div style="font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.45); text-align:center; padding:0 30px;">{{camHint}}</div>
+      </div>
+      <div style="padding:0 20px 36px;">
+        <div style="display:{{snapBtnDisplay}}; justify-content:center;">
+          <div onClick="{{snap}}" style="cursor:pointer; width:72px; height:72px; border-radius:50%; border:4px solid #F5F2EC; display:flex; align-items:center; justify-content:center; user-select:none;">
+            <div style="width:54px; height:54px; border-radius:50%; background:#FF5C3D;"></div>
+          </div>
+        </div>
+        <div style="display:{{shotBtnsDisplay}}; gap:10px;">
+          <div onClick="{{retakeShot}}" style="cursor:pointer; flex:1; border:1px solid rgba(245,242,236,.3); color:rgba(245,242,236,.85); border-radius:14px; text-align:center; padding:14px 0; font:600 13px 'Archivo',sans-serif; user-select:none;">Retake</div>
+          <div onClick="{{useShot}}" style="cursor:pointer; flex:2; background:#FF5C3D; color:#fff; border-radius:14px; text-align:center; padding:14px 0; font:800 14px 'Archivo',sans-serif; user-select:none;">Use it</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- toast -->
+    <div style="position:absolute; left:24px; right:24px; bottom:86px; pointer-events:none; opacity:{{toastOp}}; transform:{{toastT}}; transition:opacity 300ms ease, transform 300ms ease;">
+      <div style="background:#F5F2EC; color:#17150F; border-radius:14px; padding:12px 16px; font:700 12.5px 'Archivo',sans-serif; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.5);">{{toastMsg}}</div>
+    </div>
+
+    <!-- nav -->
+    <div style="display:flex; border-top:1px solid rgba(245,242,236,.1); padding:6px 8px 20px; background:#1E1C19;">
+      <div onClick="{{goGames}}" style="cursor:pointer; flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding-top:9px; position:relative; user-select:none; min-height:44px;">
+        <div style="position:absolute; top:0; width:18px; height:3px; border-radius:99px; background:#FF5C3D; opacity:{{navGamesBar}}; transition:opacity 200ms;"></div>
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="{{navGamesC}}" stroke-width="1.8" stroke-linecap="round" style="transition:stroke 200ms;"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><line x1="12" y1="5" x2="12" y2="19"></line><line x1="3.5" y1="12" x2="9" y2="12"></line><line x1="15" y1="12" x2="20.5" y2="12"></line></svg>
+        <span style="font:700 9.5px 'Archivo',sans-serif; letter-spacing:.04em; color:{{navGamesC}}; transition:color 200ms;">Games</span>
+      </div>
+      <div onClick="{{goFeed}}" style="cursor:pointer; flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding-top:9px; position:relative; user-select:none; min-height:44px;">
+        <div style="position:absolute; top:0; width:18px; height:3px; border-radius:99px; background:#FF5C3D; opacity:{{navFeedBar}}; transition:opacity 200ms;"></div>
+        <div style="position:relative;">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="{{navFeedC}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transition:stroke 200ms;"><path d="M20 11.5a8 8 0 1 0-3.2 6.4L20.5 19l-.9-3.4A7.96 7.96 0 0 0 20 11.5z"></path></svg>
+          <span style="display:{{chatBadgeDisplay}}; position:absolute; top:-2px; right:-4px; width:7px; height:7px; border-radius:50%; background:#FF5C3D; border:2px solid #1E1C19;"></span>
+        </div>
+        <span style="font:700 9.5px 'Archivo',sans-serif; letter-spacing:.04em; color:{{navFeedC}}; transition:color 200ms;">Circle</span>
+      </div>
+      <div onClick="{{goTab}}" style="cursor:pointer; flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding-top:9px; position:relative; user-select:none; min-height:44px;">
+        <div style="position:absolute; top:0; width:18px; height:3px; border-radius:99px; background:#FF5C3D; opacity:{{navTabBar}}; transition:opacity 200ms;"></div>
+        <div style="position:relative;">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="{{navTabC}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transition:stroke 200ms;"><path d="M6.5 3.5h11v17l-1.85-1.3-1.83 1.3-1.82-1.3-1.82 1.3-1.83-1.3-1.85 1.3z"></path><line x1="9.5" y1="8.5" x2="14.5" y2="8.5"></line><line x1="9.5" y1="12" x2="14.5" y2="12"></line></svg>
+          <span style="display:{{tabDotDisplay}}; position:absolute; top:-2px; right:-4px; width:7px; height:7px; border-radius:50%; background:#FF5C3D; border:2px solid #1E1C19;"></span>
+        </div>
+        <span style="font:700 9.5px 'Archivo',sans-serif; letter-spacing:.04em; color:{{navTabC}}; transition:color 200ms;">Tab</span>
+      </div>
+      <div onClick="{{goYou}}" style="cursor:pointer; flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding-top:9px; position:relative; user-select:none; min-height:44px;">
+        <div style="position:absolute; top:0; width:18px; height:3px; border-radius:99px; background:#FF5C3D; opacity:{{navYouBar}}; transition:opacity 200ms;"></div>
+        <img src="{{avatarUrl}}" alt="You" style="width:21px; height:21px; border-radius:50%; object-fit:cover; border:1.5px solid {{navYouC}}; transition:border 200ms;">
+        <span style="font:700 9.5px 'Archivo',sans-serif; letter-spacing:.04em; color:{{navYouC}}; transition:color 200ms;">You</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:440,&quot;height&quot;:900},&quot;showOnboarding&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;startTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;games&quot;,&quot;feed&quot;,&quot;tab&quot;,&quot;you&quot;],&quot;default&quot;:&quot;games&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;playerName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Sam&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;fourthCallLive&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = {
+    tab: null, sub: null, rsvpIn: false, respect: 12, respected: false, nudged: false, settled: false, fcIn: false, resStage: 0, toast: '',
+    feedView: 'feed', chatRead: false, draft: '', kavTyping: false, replyIdx: 0, fcs: 0, fcPassed: false, camOpen: false, camShot: '', avatar: '', addrCopied: false, locShared: false,
+    obStep: 'welcome', obDone: false, obName: '',
+    msgs: [
+      { mine: false, av: 'https://randomuser.me/api/portraits/men/75.jpg', text: "right, who's making it a four on tuesday" },
+      { mine: false, av: 'https://randomuser.me/api/portraits/women/44.jpg', text: 'in. bringing the good balls' },
+      { mine: false, av: 'https://randomuser.me/api/portraits/men/75.jpg', text: 'seven in a row tonight??' },
+      { mine: true, text: "book it. I've been training in secret" }
+    ]
+  };
+
+  componentWillUnmount() { clearTimeout(this._toastT); clearTimeout(this._tomT); clearTimeout(this._c1); clearTimeout(this._c2); clearTimeout(this._f1); clearTimeout(this._f2); this._stopStream(); }
+
+  _send() {
+    const text = this.state.draft.trim();
+    if (!text) return;
+    const REPLIES = [
+      'seven in a row tonight \ud83d\ude24',
+      'bold words from someone on a six-game losing streak',
+      'see you under the lights'
+    ];
+    this.setState(st => ({ msgs: [...st.msgs, { mine: true, text }], draft: '' }));
+    clearTimeout(this._c1); clearTimeout(this._c2);
+    this._c1 = setTimeout(() => this.setState({ kavTyping: true }), 900);
+    this._c2 = setTimeout(() => this.setState(st => ({
+      kavTyping: false,
+      msgs: [...st.msgs, { mine: false, av: 'https://randomuser.me/api/portraits/men/75.jpg', text: REPLIES[st.replyIdx % REPLIES.length] }],
+      replyIdx: st.replyIdx + 1
+    })), 2700);
+  }
+
+  _stopStream() {
+    if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+  }
+
+  _toast(msg) {
+    clearTimeout(this._toastT);
+    this.setState({ toast: msg });
+    this._toastT = setTimeout(() => this.setState({ toast: '' }), 2100);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const p = this.props;
+    const tab = s.tab || (p.startTab ?? 'games');
+    const sub = s.sub;
+    const playerName = p.playerName ?? 'Sam';
+    const on = '#F5F2EC', off = 'rgba(245,242,236,.4)';
+    const show = v => (v ? 'block' : 'none');
+    const navTab = sub === 'ledger' ? 'you' : (sub ? 'games' : tab);
+    const claimed = s.fcs === 3;
+    const inCount = 2 + (s.rsvpIn ? 1 : 0) + (claimed ? 1 : 0);
+    const openN = 4 - inCount;
+
+    const obActive = !s.obDone && (p.showOnboarding ?? true);
+    const obDisplayName = (s.obName || '').trim() || 'Alex';
+
+    return {
+      playerName,
+
+      // onboarding + join flow
+      obOverlay: show(obActive),
+      obShowWelcome: show(obActive && s.obStep === 'welcome'),
+      obShowClaim: show(obActive && s.obStep === 'claim'),
+      obShowName: show(obActive && s.obStep === 'name'),
+      obShowDone: show(obActive && s.obStep === 'done'),
+      obSignIn: () => { this.setState({ obDone: true }); this._toast('Signed in \u2014 welcome back, ' + playerName); },
+      obToClaim: () => this.setState({ obStep: 'claim' }),
+      obBackWelcome: () => this.setState({ obStep: 'welcome' }),
+      obClaim: () => this.setState({ obStep: 'name' }),
+      obNameInput: (e) => this.setState({ obName: e.target.value }),
+      obLock: () => this.setState({ obStep: 'done' }),
+      obEnter: () => { this.setState({ obDone: true }); this._toast('Tue 8pm is in your games, ' + obDisplayName); },
+      obDraft: s.obName,
+      obDisplayName,
+      obInitial: obDisplayName.charAt(0).toUpperCase(),
+
+      // navigation
+      goGames: () => this.setState({ tab: 'games', sub: null }),
+      goFeed: () => this.setState({ tab: 'feed', sub: null }),
+      goTab: () => this.setState({ tab: 'tab', sub: null }),
+      goYou: () => this.setState({ tab: 'you', sub: null }),
+      openGame: () => this.setState({ sub: 'game' }),
+      openLedger: () => this.setState({ sub: 'ledger' }),
+
+      // location share
+      copyAddr: () => {
+        const addr = 'Powerleague Shoreditch, Braithwaite St, London E1 6GJ';
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(addr).catch(() => {});
+        this.setState({ addrCopied: true });
+        this._toast('Address copied \u2014 paste it anywhere');
+      },
+      copyAddrLabel: s.addrCopied ? 'Copied \u2713' : 'Copy',
+      shareLoc: () => {
+        if (!this.state.locShared) { this.setState({ locShared: true }); this._toast('\ud83d\udccd Pinned to the Lot\u2019s chat \u2014 everyone can see it'); }
+      },
+      shareLocLabel: s.locShared ? '\ud83d\udccd Pinned to the Lot\u2019s chat \u2713' : '\ud83d\udccd Pin location to the Lot\u2019s chat',
+
+      // selfie avatar
+      avatarUrl: s.avatar || 'https://randomuser.me/api/portraits/men/32.jpg',
+      camRef: (el) => {
+        this._videoEl = el;
+        if (el) {
+          el.autoplay = true; el.muted = true; el.playsInline = true;
+          if (this._stream) { el.srcObject = this._stream; el.play().catch(() => {}); }
+        }
+      },
+      openCam: () => {
+        this.setState({ camOpen: true, camShot: '' });
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then(stream => {
+            this._stream = stream;
+            const el = this._videoEl;
+            if (el) { el.srcObject = stream; el.play().catch(() => {}); }
+          }).catch(() => {
+            this._stopStream();
+            this.setState({ camOpen: false });
+            this._toast('Camera unavailable \u2014 allow access and try again');
+          });
+        } else {
+          this.setState({ camOpen: false });
+          this._toast('No camera here \u2014 try it on your phone');
+        }
+      },
+      snap: () => {
+        const v = this._videoEl;
+        if (!v || !v.videoWidth) return;
+        const size = 480;
+        const c = document.createElement('canvas'); c.width = size; c.height = size;
+        const ctx = c.getContext('2d');
+        const side = Math.min(v.videoWidth, v.videoHeight);
+        const sx = (v.videoWidth - side) / 2, sy = (v.videoHeight - side) / 2;
+        ctx.translate(size, 0); ctx.scale(-1, 1);
+        ctx.drawImage(v, sx, sy, side, side, 0, 0, size, size);
+        this.setState({ camShot: c.toDataURL('image/jpeg', 0.85) });
+      },
+      retakeShot: () => this.setState({ camShot: '' }),
+      useShot: () => {
+        this._stopStream();
+        this.setState(st => ({ avatar: st.camShot, camOpen: false, camShot: '' }));
+        this._toast('New face saved \u2014 looking sharp');
+      },
+      closeCam: () => { this._stopStream(); this.setState({ camOpen: false, camShot: '' }); },
+      camDisplay: s.camOpen ? 'flex' : 'none',
+      liveDisplay: s.camShot ? 'none' : 'block',
+      shotDisplay: s.camShot ? 'block' : 'none',
+      camShotUrl: s.camShot || 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',
+      snapBtnDisplay: s.camShot ? 'none' : 'flex',
+      shotBtnsDisplay: s.camShot ? 'flex' : 'none',
+      camHint: s.camShot ? 'happy? it only changes here \u2014 nothing is uploaded in this prototype' : 'line your face up \u2014 tap the shutter',
+      openResult: () => this.setState({ sub: 'result' }),
+      goBack: () => this.setState({ sub: null, tab: 'games' }),
+      goBackYou: () => this.setState({ sub: null, tab: 'you' }),
+      backToGame: () => this.setState({ sub: 'game' }),
+      showHome: show(!sub && tab === 'games'),
+      showFeed: show(!sub && tab === 'feed' && s.feedView === 'feed'),
+      showChat: show(!sub && tab === 'feed' && s.feedView === 'chat'),
+      viewChat: () => this.setState({ feedView: 'chat', chatRead: true }),
+      viewFeed: () => this.setState({ feedView: 'feed' }),
+      showMembers: show(!sub && tab === 'feed' && s.feedView === 'members'),
+      viewMembers: () => this.setState({ feedView: 'members' }),
+      inviteMate: () => this._toast('Circle link copied \u2014 send it anywhere'),
+      chatBadgeDisplay: s.chatRead ? 'none' : 'inline',
+      typingSub: s.kavTyping ? 'Kav is typing\u2026' : '6 members \u00b7 4 on court this week',
+      typingC: s.kavTyping ? '#4BC98B' : 'rgba(245,242,236,.55)',
+      typingDisplay: s.kavTyping ? 'block' : 'none',
+      draft: s.draft,
+      draftInput: (e) => this.setState({ draft: e.target.value }),
+      draftKey: (e) => { if (e.key === 'Enter') this._send(); },
+      sendMsg: () => this._send(),
+      msgs: s.msgs.map(m => ({
+        text: m.text,
+        dir: m.mine ? 'row-reverse' : 'row',
+        av: m.av || 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',
+        avDisplay: m.mine ? 'none' : 'block',
+        bg: m.mine ? '#FF5C3D' : '#1E1C19',
+        fg: m.mine ? '#fff' : '#F5F2EC',
+        border: m.mine ? '1px solid transparent' : '1px solid rgba(245,242,236,.12)',
+        rad: m.mine ? '16px 16px 4px 16px' : '16px 16px 16px 4px'
+      })),
+      showTab: show(!sub && tab === 'tab'),
+      showYou: show(!sub && tab === 'you'),
+      showGame: show(sub === 'game'),
+      showLedger: show(sub === 'ledger'),
+      showResult: show(sub === 'result'),
+      navGamesC: navTab === 'games' ? on : off,
+      navFeedC: navTab === 'feed' ? on : off,
+      navTabC: navTab === 'tab' ? on : off,
+      navYouC: navTab === 'you' ? on : off,
+      navGamesBar: navTab === 'games' ? 1 : 0,
+      navFeedBar: navTab === 'feed' ? 1 : 0,
+      navTabBar: navTab === 'tab' ? 1 : 0,
+      navYouBar: navTab === 'you' ? 1 : 0,
+      tabDotDisplay: s.settled ? 'none' : 'inline-block',
+
+      // RSVP (shared across home / feed / game detail)
+      toggleRsvp: () => this.setState(st => {
+        const rsvpIn = !st.rsvpIn;
+        clearTimeout(this._toastT);
+        this._toastT = setTimeout(() => this.setState({ toast: '' }), 2100);
+        return { rsvpIn, toast: rsvpIn ? "You're in — the Lot's been told" : 'Dropped out — Priya auto-promoted' };
+      }),
+      rsvpOut: () => { if (this.state.rsvpIn) { this.setState({ rsvpIn: false }); this._toast('Dropped out — Priya auto-promoted'); } },
+      rsvpBg: s.rsvpIn ? '#4BC98B' : '#FF5C3D',
+      rsvpFg: s.rsvpIn ? '#10140F' : '#fff',
+      rsvpLabel: s.rsvpIn ? "You're in \u2713" : "I'm in",
+      rsvpRing: s.rsvpIn ? 'cu-pulse 650ms ease-out' : 'none',
+      pinnedBtn: s.rsvpIn ? 'In \u2713' : "I'm in",
+      pinnedSub: openN === 0 ? '4 of 4 \u2014 game on' : inCount + ' of 4 in \u00b7 ' + openN + ' spot' + (openN > 1 ? 's' : '') + ' left',
+      homeSub: s.rsvpIn ? '2 games \u00b7 all answered \u2713' : '2 games \u00b7 1 needs an answer',
+      ansDot: s.rsvpIn ? '#4BC98B' : '#FF5C3D',
+      ansLabel: s.rsvpIn ? 'YOU\u2019RE IN' : 'NEEDS YOUR ANSWER',
+      ansLabelC: s.rsvpIn ? '#4BC98B' : '#FF8A73',
+      youAvOp: s.rsvpIn ? 1 : 0.25,
+      countLabel: s.rsvpIn ? (openN === 0 ? '4 of 4 \u2014 game on' : '3 of 4 \u2014 one to find') : (inCount === 3 ? '3 in \u2014 you make it a four' : 'Kav & Mags are in \u2014 2 spots to fill'),
+      countC: s.rsvpIn ? '#4BC98B' : 'rgba(245,242,236,.7)',
+      spotLabel: openN === 0 ? 'FULL \u00b7 4 OF 4' : openN + ' SPOT' + (openN > 1 ? 'S' : '') + ' OPEN',
+      spotC: openN === 0 ? '#4BC98B' : '#FF7A5C',
+      openRowDisplay: claimed ? 'none' : 'block',
+      anaRowDisplay: claimed ? 'block' : 'none',
+
+      // fourth call — send flow
+      openFc: () => this.setState({ sub: 'fcsend' }),
+      showFc: show(sub === 'fcsend'),
+      fcAction: () => {
+        const f = this.state.fcs;
+        if (f === 0) {
+          this.setState({ fcs: 1 });
+          clearTimeout(this._f1);
+          this._f1 = setTimeout(() => this.setState({ fcPassed: true }), 1300);
+        } else if (f === 1 && this.state.fcPassed) {
+          this.setState({ fcs: 2 });
+          clearTimeout(this._f2);
+          this._f2 = setTimeout(() => { this.setState({ fcs: 3 }); this._toast('Ana claimed the spot \u2014 4 of 4'); }, 2300);
+        } else if (f === 3) {
+          this.setState({ sub: 'game' });
+        }
+      },
+      fcActLabel: s.fcs === 0 ? 'Send the call' : (s.fcs === 1 ? (s.fcPassed ? 'Escalate to the network \u2192' : 'Sent \u2014 the Circle sees it first\u2026') : (s.fcs === 2 ? 'Live \u2014 first tap wins\u2026' : 'Done \u2014 back to the game')),
+      fcActBg: s.fcs === 0 ? '#FF5C3D' : (s.fcs === 1 ? (s.fcPassed ? '#FF5C3D' : '#1E1C19') : (s.fcs === 2 ? '#1E1C19' : '#F5F2EC')),
+      fcActFg: s.fcs === 0 ? '#fff' : (s.fcs === 1 ? (s.fcPassed ? '#fff' : 'rgba(245,242,236,.6)') : (s.fcs === 2 ? 'rgba(245,242,236,.6)' : '#17150F')),
+      fcFootnote: s.fcs === 0 ? 'auto-escalates at 18:00 if the Circle is quiet' : (s.fcs === 1 ? 'the Circle gets first refusal \u2014 20 minutes' : (s.fcs === 2 ? 'closest people first, strangers never' : 'slot filled \u00b7 reserve queue unchanged')),
+      r1Icon: s.fcs >= 1 ? '\u2713' : '1',
+      r1Bg: s.fcs >= 1 ? 'rgba(75,201,139,.2)' : 'rgba(245,242,236,.1)',
+      r1Fg: s.fcs >= 1 ? '#4BC98B' : '#F5F2EC',
+      r1Sub: s.fcs === 0 ? '6 people \u00b7 ready to send' : (s.fcPassed ? 'sent \u00b7 Priya passed \u00b7 others quiet' : 'sent just now\u2026'),
+      r2Icon: s.fcs === 3 ? '\u2713' : '2',
+      r2Bg: s.fcs === 2 ? '#FF5C3D' : (s.fcs === 3 ? 'rgba(75,201,139,.2)' : 'rgba(245,242,236,.1)'),
+      r2Fg: s.fcs === 2 ? '#fff' : (s.fcs === 3 ? '#4BC98B' : '#F5F2EC'),
+      r2LiveDisplay: s.fcs === 2 ? 'inline' : 'none',
+      r2Sub: s.fcs < 2 ? "23 people you've played with" : (s.fcs === 2 ? '2 viewing right now\u2026' : 'Ana claimed \u00b7 Glass 4.41 \u00b7 level match'),
+      r2SubC: s.fcs === 2 ? '#FF7A5C' : 'rgba(245,242,236,.5)',
+      fcClaimedDisplay: show(s.fcs === 3),
+      youChip: s.rsvpIn ? 'In \u2713' : 'Not answered',
+      youChipBg: s.rsvpIn ? 'rgba(75,201,139,.13)' : 'transparent',
+      youChipFg: s.rsvpIn ? '#4BC98B' : 'rgba(245,242,236,.6)',
+      youChipBorder: s.rsvpIn ? 'rgba(75,201,139,.4)' : 'rgba(245,242,236,.25)',
+
+      // fourth call incoming
+      fcDisplay: (p.fourthCallLive ?? true) ? 'block' : 'none',
+      acceptFc: () => { if (!this.state.fcIn) { this.setState({ fcIn: true }); this._toast("You're in for tonight \u2014 the Misfits know"); } },
+      fcBtnBg: s.fcIn ? 'rgba(75,201,139,.13)' : '#FF5C3D',
+      fcBtnFg: s.fcIn ? '#4BC98B' : '#fff',
+      fcBtnLabel: s.fcIn ? 'In for tonight \u2713' : 'I can play',
+      fcBorder: s.fcIn ? 'rgba(75,201,139,.5)' : '#FF5C3D',
+
+      // feed respect
+      giveRespect: () => this.setState(st => ({ respected: !st.respected, respect: st.respected ? st.respect - 1 : st.respect + 1 })),
+      respect: s.respect,
+      respBg: s.respected ? 'rgba(255,92,61,.15)' : 'transparent',
+      respBorder: s.respected ? '#FF5C3D' : 'rgba(245,242,236,.18)',
+      respFg: s.respected ? '#FF7A5C' : '#F5F2EC',
+
+      // the tab
+      nudgeKav: () => { if (!this.state.nudged) { this.setState({ nudged: true }); this._toast('Nudge sent: "Oi. \u00a38 for Tuesday\u2019s court \ud83c\udfbe"'); } },
+      nudgeLabel: s.nudged ? 'Nudged \u2713' : 'Nudge \ud83d\udc4b',
+      nudgeOp: s.nudged ? 0.5 : 1,
+      settleMags: () => { if (!this.state.settled) { this.setState({ settled: true }); this._toast('\u00a312 sent to Mags \u2014 the Tab is lighter'); } },
+      settleBg: s.settled ? 'rgba(75,201,139,.13)' : '#FF5C3D',
+      settleFg: s.settled ? '#4BC98B' : '#fff',
+      settleBorder: s.settled ? 'rgba(75,201,139,.4)' : '#FF5C3D',
+      settleLabel: s.settled ? 'All square \u2713' : 'Settle \u00a312',
+      settleAnim: s.settled ? 'cu-pop 400ms cubic-bezier(.34,1.56,.64,1)' : 'none',
+      magsTitle: s.settled ? 'Mags' : 'You owe Mags',
+      magsSub: s.settled ? 'settled just now' : 'court + new balls',
+      magsAmtDisplay: s.settled ? 'none' : 'inline',
+      netVal: s.settled ? '+\u00a38' : '\u2212\u00a34',
+      netC: s.settled ? '#4BC98B' : '#E56B4F',
+      netSub: s.settled ? "you're up, overall" : "you're down, overall",
+      settledRowDisplay: s.settled ? 'block' : 'none',
+      tabRowDisplay: s.settled ? 'none' : 'block',
+
+      // result confirm
+      sendResult: () => {
+        if (this.state.resStage === 2) { this.setState({ resStage: 0 }); return; }
+        if (this.state.resStage === 1) return;
+        this.setState({ resStage: 1 });
+        clearTimeout(this._tomT);
+        this._tomT = setTimeout(() => { this.setState({ resStage: 2 }); this._toast('Both teams confirmed \u2014 Glass updated'); }, 1400);
+      },
+      sendBg: s.resStage === 0 ? '#F5F2EC' : (s.resStage === 1 ? '#1E1C19' : 'rgba(75,201,139,.13)'),
+      sendFg: s.resStage === 0 ? '#17150F' : (s.resStage === 1 ? 'rgba(245,242,236,.6)' : '#4BC98B'),
+      sendLabel: s.resStage === 0 ? 'Send to both teams' : (s.resStage === 1 ? 'Sent \u2014 waiting on the other team\u2026' : 'Sealed \u2713 (tap to replay)'),
+      confCardDisplay: s.resStage >= 1 ? 'block' : 'none',
+      tomRowLabel: s.resStage === 2 ? 'Tom confirmed' : 'Waiting on Tom\u2026',
+      tomRowC: s.resStage === 2 ? '#F5F2EC' : 'rgba(245,242,236,.55)',
+      tomTickOp: s.resStage === 2 ? 1 : 0,
+      tomTickAnim: s.resStage === 2 ? 'cu-pop 400ms cubic-bezier(.34,1.56,.64,1)' : 'none',
+      sealDisplay: s.resStage === 2 ? 'block' : 'none',
+
+      // toast
+      toastMsg: s.toast,
+      toastOp: s.toast ? 1 : 0,
+      toastT: s.toast ? 'translateY(0)' : 'translateY(10px)'
+    };
+  }
+}
+</script>
+</body>
+</html>
