@@ -62,10 +62,21 @@ export function createClient(dbPath?: string): CuatroClient {
   const resolvedPath = dbPath ?? process.env.DATABASE_PATH ?? './dev.db'
   const sqlite = new Database(resolvedPath)
   sqlite.pragma('journal_mode = WAL')
-  sqlite.pragma('foreign_keys = ON')
 
   const db = drizzle(sqlite, { schema })
+  // Migrations must run with foreign keys OFF: SQLite column changes are
+  // table-recreates (e.g. 0005 rebuilds `users`), and DROP TABLE on a
+  // referenced table fails under foreign_keys=ON even inside a transaction.
+  sqlite.pragma('foreign_keys = OFF')
   migrate(db, { migrationsFolder })
+  const violations = sqlite.pragma('foreign_key_check') as unknown[]
+  if (violations.length > 0) {
+    sqlite.close()
+    throw new Error(
+      `migrations left ${violations.length} foreign key violation(s): ${JSON.stringify(violations.slice(0, 3))}`,
+    )
+  }
+  sqlite.pragma('foreign_keys = ON')
 
   return {
     db,

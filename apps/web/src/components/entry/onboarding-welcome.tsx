@@ -39,7 +39,7 @@ const OAUTH_DISABLED_MESSAGE: Record<OAuthProvider, string> = {
 };
 
 const DARK_BUTTON_CLASS =
-  "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none min-h-12 px-5 text-[15px] font-extrabold bg-[#1E1C19] border border-[rgba(245,242,236,.18)] text-[#F5F2EC]";
+  "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none min-h-12 px-5 text-[15px] font-extrabold bg-[#1E1C19]/75 backdrop-blur-sm border border-[rgba(245,242,236,.18)] text-[#F5F2EC]";
 
 /**
  * The onboarding welcome (design/DESIGN-AUDIT.md L1): / IS the auth screen
@@ -143,10 +143,12 @@ export function OnboardingWelcome({
 
       <div className="relative pb-10 pt-safe pb-safe">
         <div className="px-7 pt-16">
-          <Wordmark />
-          <p className="text-[15px] leading-snug mt-2.5 max-w-xs" style={{ color: "rgba(245,242,236,.65)" }}>
-            The app your padel four runs on.
-          </p>
+          <div className="inline-block rounded-2xl bg-[#131210]/45 backdrop-blur-[3px] px-4 py-3 -mx-4">
+            <Wordmark />
+            <p className="text-[15px] leading-snug mt-2.5 max-w-xs" style={{ color: "rgba(245,242,236,.78)" }}>
+              The app your padel four runs on.
+            </p>
+          </div>
         </div>
 
         <div className="px-6 pt-[38px] flex flex-col gap-[9px]">
@@ -160,7 +162,7 @@ export function OnboardingWelcome({
             type="button"
             onClick={() => handleOAuth("apple")}
             disabled={oauthLoading !== null}
-            className="rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none min-h-12 px-5 text-[15px] font-extrabold bg-[#F5F2EC] text-[#17150F]"
+            className="rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none min-h-12 px-5 text-[15px] font-extrabold bg-[#F5F2EC]/90 backdrop-blur-sm text-[#17150F]"
           >
             <AppleMark />
             {oauthLoading === "apple" ? "Redirecting…" : "Continue with Apple"}
@@ -218,7 +220,7 @@ export function OnboardingWelcome({
           )}
         </div>
 
-        <div className="px-6 mt-[26px] rounded-card border border-[rgba(255,92,61,.5)] bg-surface-feature p-4">
+        <div className="mx-6 mt-[26px] rounded-card border border-[rgba(255,92,61,.5)] bg-[#221F1A]/75 backdrop-blur-sm p-4">
           <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#FF8A73]">GOT A GAME LINK FROM A MATE?</p>
           <p className="text-[13px] leading-[1.45] mt-1.5" style={{ color: "#F5F2EC" }}>
             Just open it — you&apos;ll be in the game in about 10 seconds. No forms, no setup.{" "}
