@@ -40,6 +40,11 @@ export function PinnedGameBar({
   useSessionLive(sessionId);
 
   const viewerIn = localStatus === "in";
+  const openSpots = Math.max(0, slots - confirmedCount);
+  const statusLabel =
+    openSpots === 0
+      ? `${slots} of ${slots} — game on`
+      : `${confirmedCount} of ${slots} in · ${openSpots} spot${openSpots === 1 ? "" : "s"} left`;
 
   async function toggleRsvp() {
     if (pending || !rsvpOpen) return;
@@ -75,9 +80,7 @@ export function PinnedGameBar({
         <p className="text-cu-body font-bold text-ink truncate">
           📌 {whenLabel} · {venueLabel}
         </p>
-        <p className="text-cu-meta text-ink-muted mt-0.5">
-          {confirmedCount} of {slots} in{justArrived ? " · game on" : ""}
-        </p>
+        <p className="text-cu-meta text-ink-muted mt-0.5">{justArrived ? `${slots} of ${slots} — game on` : statusLabel}</p>
       </div>
       <button
         type="button"

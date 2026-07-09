@@ -26,44 +26,50 @@ export interface ResultPostData {
   rematchHref: string;
 }
 
-function formatDelta(delta: number | null): string | null {
-  if (delta == null) return null;
-  return `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
+/** First names, joined — "Kav & Tom" (prototype's header/delta-line convention). */
+function teamNames(team: ResultPostData["teamA"]): string {
+  return team.players.map((p) => p.displayName.split(" ")[0]).join(" & ");
 }
 
-function TeamColumn({ team, won }: { team: ResultPostData["teamA"]; won: boolean }) {
-  const deltaLabel = formatDelta(team.avgDelta);
-  return (
-    <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5 text-center">
-      <div className="flex items-center -space-x-2.5">
-        {team.players.map((p) => (
-          <Avatar key={p.userId} src={p.avatarUrl} name={p.displayName} size="sm" ring="surface" />
-        ))}
-      </div>
-      <p className={`text-cu-meta font-semibold truncate max-w-full ${won ? "text-ink" : "text-ink-muted"}`}>
-        {team.players.map((p) => p.displayName.split(" ")[0]).join(" & ")}
-      </p>
-      {deltaLabel && (
-        <Fact size="sm" weight="bold" tone={team.avgDelta! >= 0 ? "win" : "loss"}>
-          {deltaLabel}
-        </Fact>
-      )}
-    </div>
-  );
+function formatDelta(delta: number): string {
+  const abs = Math.abs(delta).toFixed(2);
+  return delta >= 0 ? `+${abs}` : `−${abs}`; // U+2212 minus, not a hyphen
+}
+
+/** "last Tuesday" for the last 2-6 days, else a plain "9 Jul" — mirrors how a person would actually say it, without inventing a real-time-relative library for one line. */
+function relativeDayLabel(iso: string): string {
+  const played = new Date(iso);
+  const now = new Date();
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOf(now) - startOf(played)) / 86_400_000);
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "yesterday";
+  if (diffDays >= 2 && diffDays <= 6) return `last ${played.toLocaleDateString("en-GB", { weekday: "long" })}`;
+  return played.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
 /**
- * A Feed result post (prototype screen 4): big score, both teams' Glass
- * deltas, 👏 Respect, 💬 comment count (server/comments.ts — tapping it
- * opens the thread in a Sheet, see comment-sheet.tsx). "rematch?" links
- * into the circle's Standing Game instead and creates nothing.
+ * A Feed result post (prototype screen 4): a header line naming both teams,
+ * a big centered score, a centered mono Glass-delta line, and a 👏/💬
+ * footer with "rematch?" (server/comments.ts — tapping 💬 opens the thread
+ * in a Sheet, see comment-sheet.tsx). "rematch?" links into the circle's
+ * Standing Game instead of creating anything.
+ *
+ * The prototype's delta line names one representative player per team
+ * ("Kav +0.04 → 4.91"); this circle's feed only carries each team's
+ * *average* delta (server/feed.ts's ResultPostTeam — no per-player
+ * post-match rating), so it labels the average with both team members'
+ * names instead of guessing which one to single out, and drops the "→
+ * newRating" clause that data doesn't have.
  */
 export function ResultPost({ data }: { data: ResultPostData }) {
   const { respected, count, pending, toggle: toggleRespect } = useRespectToggle(data.matchId, data.viewerRespected, data.respectCount);
   const [commentCount, setCommentCount] = useState(data.commentCount);
   const [commentsOpen, setCommentsOpen] = useState(false);
 
-  const scoreLabel = data.sets.map((s) => `${s.a}-${s.b}`).join(", ");
+  const winningTeam = data.winner === "A" ? data.teamA : data.teamB;
+  const losingTeam = data.winner === "A" ? data.teamB : data.teamA;
+  const heroPlayer = winningTeam.players[0];
 
   return (
     <Card className="flex flex-col gap-3">
@@ -73,15 +79,44 @@ export function ResultPost({ data }: { data: ResultPostData }) {
         </Chip>
       )}
 
-      <div className="flex items-center gap-3">
-        <TeamColumn team={data.teamA} won={data.winner === "A"} />
-        <Fact as="p" size="lg" weight="bold" tone="neutral" className="shrink-0">
-          {scoreLabel}
-        </Fact>
-        <TeamColumn team={data.teamB} won={data.winner === "B"} />
+      <div className="flex items-center gap-2.5">
+        <Avatar src={heroPlayer.avatarUrl} name={heroPlayer.displayName} size="sm" />
+        <div className="flex-1 min-w-0">
+          <p className="text-cu-body text-ink leading-snug">
+            <span className="font-bold">{teamNames(winningTeam)}</span>{" "}
+            <span className="text-ink-muted">beat</span>{" "}
+            <span className="font-bold">{teamNames(losingTeam)}</span>
+          </p>
+          <Meta as="p" className="mt-0.5">
+            {relativeDayLabel(data.playedAt)} · confirmed ✓
+          </Meta>
+        </div>
       </div>
 
-      <div className="flex items-center gap-4 pt-1 border-t border-ink-hairline-1 -mx-4 px-4 pt-3">
+      <div className="flex items-center justify-center gap-4">
+        {data.sets.map((s, i) => (
+          <Fact key={i} as="span" size="xl" weight="bold">
+            {s.a}–{s.b}
+          </Fact>
+        ))}
+      </div>
+
+      {(winningTeam.avgDelta != null || losingTeam.avgDelta != null) && (
+        <div className="flex items-center justify-center gap-3 -mt-1">
+          {winningTeam.avgDelta != null && (
+            <Fact size="sm" weight="semibold" tone={winningTeam.avgDelta >= 0 ? "win" : "loss"}>
+              {teamNames(winningTeam)} {formatDelta(winningTeam.avgDelta)}
+            </Fact>
+          )}
+          {losingTeam.avgDelta != null && (
+            <Fact size="sm" weight="semibold" tone={losingTeam.avgDelta >= 0 ? "win" : "loss"}>
+              {teamNames(losingTeam)} {formatDelta(losingTeam.avgDelta)}
+            </Fact>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 pt-1 border-t border-ink-hairline-1 -mx-4 px-4 pt-3">
         <button
           type="button"
           onClick={toggleRespect}
@@ -99,12 +134,9 @@ export function ResultPost({ data }: { data: ResultPostData }) {
         >
           <span aria-hidden>💬</span> {commentCount}
         </button>
-        <Link href={data.rematchHref} className="text-cu-body font-bold text-action-strong">
+        <Link href={data.rematchHref} className="ml-auto text-cu-body font-bold text-action-strong">
           rematch?
         </Link>
-        <Meta as="p" className="ml-auto whitespace-nowrap">
-          {new Date(data.playedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-        </Meta>
       </div>
 
       <CommentSheet

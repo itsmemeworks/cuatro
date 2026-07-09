@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button, Meta } from "@/components/ui";
 import { usePresenceCount } from "@/lib/realtime/presence";
 
@@ -15,6 +16,14 @@ export type RingState = "pending" | "sent" | "done";
  * getRing3ClaimLink) and copies/shares its full URL — no account or circle
  * membership needed to view it, signing in only gates actually claiming
  * the slot (app/fc/[token]/page.tsx).
+ *
+ * The prototype's bottom CTA walks one button through "Send the call" ->
+ * "Sent…" -> "Live…" -> "Done" as if a tap fires each ring. This app has
+ * no such tap for ring 1 (it fires automatically within 48h of kickoff —
+ * see games-service.ts's checkFourthCallLevel1, called just by viewing this
+ * page/the session page) — so the CTA below is state-only for that ring,
+ * and only becomes a real action once ring 2's "Escalate to the network"
+ * is actually available (the one manual override the backend has).
  */
 export function FourthCallSend({
   sessionId,
@@ -24,6 +33,7 @@ export function FourthCallSend({
   ring2Label,
   canEscalate,
   ring3Available,
+  claimed,
   organiserId,
 }: {
   sessionId: string;
@@ -34,6 +44,8 @@ export function FourthCallSend({
   canEscalate: boolean;
   /** Whether ring 3's link can be generated right now (the session hasn't started and the four isn't already full). */
   ring3Available: boolean;
+  /** Whether a Fourth Call claimant already holds the open slot — see findFourthCallClaimant. */
+  claimed: boolean;
   /** The organiser's own user id, excluded from the live "viewing" count below — see lib/realtime/presence.ts. */
   organiserId?: string | null;
 }) {
@@ -94,83 +106,115 @@ export function FourthCallSend({
     }
   }
 
+  // One evolving CTA (prototype's fcAction/fcActLabel), driven by whichever
+  // ring is actually live right now.
+  const cta = claimed
+    ? { label: "Done — back to the game →", tone: "done" as const }
+    : ring2State === "done"
+      ? { label: ring2Label, tone: "quiet" as const }
+      : ring2State === "sent"
+        ? { label: "Live — first tap wins…", tone: "quiet" as const }
+        : canEscalate
+          ? { label: "Escalate to the network →", tone: "primary" as const }
+          : ring1State === "sent"
+            ? { label: "Sent — the Circle sees it first…", tone: "quiet" as const }
+            : { label: "Opens automatically closer to kickoff", tone: "quiet" as const };
+
   return (
-    <div className="rounded-card bg-surface border border-ink-hairline-1 px-4 divide-y divide-ink-hairline-1">
-      <div className="flex items-center gap-3 py-3.5">
-        <span
-          className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${
-            ring1State === "pending" ? "border border-ink-hairline-4 text-ink-muted" : "bg-win text-action-contrast"
-          }`}
-        >
-          {ring1State === "pending" ? "1" : "✓"}
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-cu-body font-bold text-ink">The Circle first</p>
-          <Meta as="p" className="mt-0.5">
-            {ring1Label}
-          </Meta>
+    <div className="flex flex-col gap-3">
+      <div className="rounded-card bg-surface border border-ink-hairline-1 px-4 divide-y divide-ink-hairline-1">
+        <div className="flex items-center gap-3 py-3.5">
+          <span
+            className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${
+              ring1State === "pending" ? "border border-ink-hairline-4 text-ink-muted" : "bg-win text-action-contrast"
+            }`}
+          >
+            {ring1State === "pending" ? "1" : "✓"}
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-cu-body font-bold text-ink">The Circle first</p>
+            <Meta as="p" className="mt-0.5">
+              {ring1Label}
+            </Meta>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 py-3.5">
+          <span
+            className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${
+              ring2State === "pending" ? "border border-ink-hairline-4 text-ink-muted" : "bg-win text-action-contrast"
+            }`}
+          >
+            {ring2State === "pending" ? "2" : "✓"}
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-cu-body font-bold text-ink">
+              Extended network{" "}
+              {ring2State === "sent" && <span className="text-action-strong font-extrabold">· live</span>}
+            </p>
+            <Meta as="p" className="mt-0.5">
+              {ring2Label}
+            </Meta>
+            {ring3Available && viewingCount > 0 && (
+              <Meta as="p" tone="action" className="mt-0.5 font-extrabold">
+                {viewingCount} viewing right now…
+              </Meta>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 py-3.5">
+          <span
+            className={`w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] shrink-0 ${
+              ring3Available ? "border-ink-hairline-4 text-ink" : "border-ink-hairline-4 text-ink-muted"
+            }`}
+          >
+            3
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className={`text-cu-body font-bold ${ring3Available ? "text-ink" : "text-ink-muted"}`}>Anyone with the link</p>
+            <Meta as="p" className="mt-0.5">
+              {ring3Available
+                ? "share it anywhere — no account needed to see it, signing in is only for claiming"
+                : "not needed — the four's full, or this game's already started"}
+            </Meta>
+            {ring3Error && (
+              <Meta tone="action" as="p" className="mt-0.5">
+                couldn&apos;t generate the link — try again
+              </Meta>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={copyRing3Link}
+            disabled={!ring3Available || ring3Pending}
+            className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 shrink-0 transition-cu-state active:opacity-80 disabled:opacity-50"
+          >
+            {ring3Copied ? "Copied ✓" : ring3Pending ? "…" : "Copy ↗"}
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 py-3.5">
-        <span
-          className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${
-            ring2State === "pending" ? "border border-ink-hairline-4 text-ink-muted" : "bg-win text-action-contrast"
-          }`}
+      {cta.tone === "done" ? (
+        <Link
+          href={`/games/${sessionId}`}
+          className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state active:opacity-80"
         >
-          {ring2State === "pending" ? "2" : "✓"}
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-cu-body font-bold text-ink">
-            Extended network{" "}
-            {ring2State === "sent" && <span className="text-action-strong font-extrabold">· live</span>}
-          </p>
-          <Meta as="p" className="mt-0.5">
-            {ring2Label}
-          </Meta>
-          {ring3Available && viewingCount > 0 && (
-            <Meta as="p" tone="action" className="mt-0.5 font-extrabold">
-              {viewingCount} viewing right now…
-            </Meta>
-          )}
+          {cta.label}
+        </Link>
+      ) : cta.tone === "primary" ? (
+        <Button variant="primary" size="lg" fullWidth disabled={escalating} onClick={escalate}>
+          {escalating ? "…" : cta.label}
+        </Button>
+      ) : (
+        <div className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-ink-hairline-2 text-ink-muted">
+          {cta.label}
         </div>
-        {canEscalate && (
-          <Button variant="quiet" size="default" disabled={escalating} onClick={escalate}>
-            {escalating ? "…" : "Escalate now"}
-          </Button>
-        )}
-      </div>
+      )}
 
-      <div className="flex items-center gap-3 py-3.5">
-        <span
-          className={`w-6 h-6 rounded-full border flex items-center justify-center font-bold text-[11px] shrink-0 ${
-            ring3Available ? "border-ink-hairline-4 text-ink" : "border-ink-hairline-4 text-ink-muted"
-          }`}
-        >
-          3
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className={`text-cu-body font-bold ${ring3Available ? "text-ink" : "text-ink-muted"}`}>Anyone with the link</p>
-          <Meta as="p" className="mt-0.5">
-            {ring3Available
-              ? "share it anywhere — no account needed to see it, signing in is only for claiming"
-              : "not needed — the four's full, or this game's already started"}
-          </Meta>
-          {ring3Error && (
-            <Meta tone="action" as="p" className="mt-0.5">
-              couldn&apos;t generate the link — try again
-            </Meta>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={copyRing3Link}
-          disabled={!ring3Available || ring3Pending}
-          className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 shrink-0 transition-cu-state active:opacity-80 disabled:opacity-50"
-        >
-          {ring3Copied ? "Copied ✓" : ring3Pending ? "…" : "Copy ↗"}
-        </button>
-      </div>
+      <Meta as="p" className="text-center">
+        opens automatically within 48h of kickoff · escalates to the network 20 min later if the Circle&apos;s quiet
+      </Meta>
     </div>
   );
 }

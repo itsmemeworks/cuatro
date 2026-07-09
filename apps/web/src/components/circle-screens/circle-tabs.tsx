@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { SegmentedControl, Card, DashedSlot, Meta } from "@/components/ui";
+import { SegmentedControl, DashedSlot, Meta } from "@/components/ui";
 import { CircleChat, type ChatMessage } from "@/components/circles/circle-chat";
 import { MemberList, type MemberListItem } from "@/components/circles/member-list";
 import { InviteShareButton } from "@/components/circles/invite-share-button";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { useCircleLive } from "@/lib/realtime/hooks";
 import { PinnedGameBar } from "./pinned-game-bar";
-import { SessionCardWithToast } from "./session-card-with-toast";
 import { ResultPost, type ResultPostData } from "./result-post";
 import { PlacementRevealPost, type PlacementRevealPostData } from "./placement-reveal-post";
 import { RivalryCallout } from "./rivalry-callout";
@@ -63,12 +62,17 @@ export function CircleTabs({
   circleName: string;
   isOrganiser: boolean;
   feedItems: FeedItemData[];
-  rivalry: { opponentName: string; count: number; direction: "beaten" | "lost_to" } | null;
+  rivalry: { opponentName: string; opponentAvatarUrl: string | null; count: number; direction: "beaten" | "lost_to" } | null;
 }) {
   const [tab, setTab] = useState<Tab>("feed");
   const [unread, setUnread] = useState(unreadChatBadge);
+  // The Feed's pinned bar (prototype screen 4) is a compact one-liner for
+  // whichever Standing Game session is next — never the full SessionCard
+  // (dashed-slot grid, full-width "I'm in"), which stays on the session's
+  // own page (games/[sessionId]/page.tsx renders it). A circle with more
+  // than one upcoming session only pins the soonest; Home already lists
+  // every upcoming game across circles.
   const primary = sessionCards[0] ?? null;
-  const rest = sessionCards.slice(1);
 
   const refreshUnread = useCallback(async () => {
     try {
@@ -121,26 +125,25 @@ export function CircleTabs({
         <div className="flex flex-col gap-3">
           {pinnedBar}
           {rivalry && (
-            <RivalryCallout opponentName={rivalry.opponentName} count={rivalry.count} direction={rivalry.direction} />
-          )}
-          {rest.length > 0 && (
-            <div className="flex flex-col gap-3">
-              {rest.map((c) => (
-                <SessionCardWithToast key={c.sessionId} data={c} viewerUserId={currentUserId} linkToSession />
-              ))}
-            </div>
+            <RivalryCallout
+              opponentName={rivalry.opponentName}
+              opponentAvatarUrl={rivalry.opponentAvatarUrl}
+              count={rivalry.count}
+              direction={rivalry.direction}
+            />
           )}
           {!primary && (
-            <Card>
-              <p className="text-cu-body text-ink-muted">
-                No Standing Game yet — set one up so this Circle&apos;s weekly game runs itself.
-              </p>
+            <p className="text-cu-body text-ink-muted">
+              No Standing Game yet
               {isOrganiser && (
-                <Link href={`/games/standing/new?circleId=${circleId}`} className="text-cu-body font-bold text-action mt-2 inline-block">
-                  + Standing Game
-                </Link>
+                <>
+                  {" — "}
+                  <Link href={`/games/standing/new?circleId=${circleId}`} className="font-bold text-action-strong">
+                    set one up →
+                  </Link>
+                </>
               )}
-            </Card>
+            </p>
           )}
           {feedItems.length > 0 ? (
             <div className="flex flex-col gap-3">

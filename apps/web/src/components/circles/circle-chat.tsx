@@ -19,6 +19,22 @@ function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+/** Centered mono day divider above the thread (prototype's "TODAY") — generalised to yesterday/an actual date rather than hardcoding "today", since a thread can span more than one day. */
+function dayDividerLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOf(now) - startOf(d)) / 86_400_000);
+  if (diffDays === 0) return "TODAY";
+  if (diffDays === 1) return "YESTERDAY";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }).toUpperCase();
+}
+
 // Delivery: the circle's realtime broadcast channel carries only
 // {type: "message", messageId, ts} — never the body — so a "message" event
 // (or a synthesized "reconnect", see lib/realtime/hooks.ts) triggers a
@@ -121,25 +137,31 @@ export function CircleChat({
     <div className="flex flex-col gap-3">
       <div ref={listRef} className="flex flex-col gap-2.5 overflow-y-auto px-1" style={{ maxHeight: "55vh" }}>
         {messages.length === 0 && <p className="text-cu-body text-ink-muted">No messages yet — say hi to the Circle.</p>}
-        {messages.map((m) => {
+        {messages.map((m, i) => {
           const mine = m.userId === currentUserId;
+          const showDivider = i === 0 || dayKey(m.createdAt) !== dayKey(messages[i - 1].createdAt);
           return (
-            <div key={m.id} className={`flex flex-col gap-1 ${mine ? "items-end" : "items-start"}`}>
-              {!mine && (
-                <span className="text-cu-meta text-ink-muted px-1">{m.displayName}</span>
+            <div key={m.id} className="flex flex-col gap-2.5">
+              {showDivider && (
+                <Meta as="p" className="text-center tracking-[0.08em]">
+                  {dayDividerLabel(m.createdAt)}
+                </Meta>
               )}
-              <div
-                className={`max-w-[80%] rounded-card px-3.5 py-2.5 text-cu-body ${
-                  mine
-                    ? "bg-action text-action-contrast rounded-br-md"
-                    : "bg-surface border border-ink-hairline-2 text-ink rounded-bl-md"
-                }`}
-              >
-                <p className="whitespace-pre-wrap break-words">{m.body}</p>
+              <div className={`flex flex-col gap-1 ${mine ? "items-end" : "items-start"}`}>
+                {!mine && <span className="text-cu-meta text-ink-muted px-1">{m.displayName}</span>}
+                <div
+                  className={`max-w-[80%] rounded-card px-3.5 py-2.5 text-cu-body ${
+                    mine
+                      ? "bg-action text-action-contrast rounded-br-md"
+                      : "bg-surface border border-ink-hairline-2 text-ink rounded-bl-md"
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                </div>
+                <Meta as="span" className="px-1">
+                  {timeLabel(m.createdAt)}
+                </Meta>
               </div>
-              <Meta as="span" className="px-1">
-                {timeLabel(m.createdAt)}
-              </Meta>
             </div>
           );
         })}

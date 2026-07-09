@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { and, eq, sql } from "drizzle-orm";
+import { matches, sessions, type CuatroDb } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { NotMemberError, getCirclesStore, type CircleMessageView } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
@@ -10,9 +12,27 @@ import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
 import { InviteShareButton } from "@/components/circles/invite-share-button";
 import { CircleSwitcher } from "@/components/circles/circle-switcher";
 import { RememberLastCircle } from "@/components/circles/remember-last-circle";
+import { AvatarStack } from "@/components/ui";
 import type { ChatMessage } from "@/components/circles/circle-chat";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { circleColorFor } from "@/lib/design";
+
+/**
+ * "N games" for the circle header (design/DESIGN-AUDIT.md C3) — a cheap
+ * inline count alongside server/feed.ts's own `loadVerifiedMatches` join,
+ * not a new server export: the Feed read model only ever returns its
+ * most-recent `limit` items, never a circle-wide total.
+ */
+function countVerifiedMatches(db: CuatroDb, circleId: string): number {
+  return (
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(matches)
+      .innerJoin(sessions, eq(matches.sessionId, sessions.id))
+      .where(and(eq(sessions.circleId, circleId), eq(matches.status, "verified")))
+      .get()?.n ?? 0
+  );
+}
 
 function serializeMessages(messages: CircleMessageView[]): ChatMessage[] {
   return messages.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }));
@@ -82,6 +102,7 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
             matchId: item.reveal.matchId,
             playedAt: item.reveal.playedAt.toISOString(),
             displayName: item.reveal.displayName,
+            avatarUrl: item.reveal.avatarUrl,
             rating: item.reveal.rating,
             confidencePct: item.reveal.confidencePct,
             verifiedGamesRequired: item.reveal.verifiedGamesRequired,
@@ -92,6 +113,11 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
   );
 
   const unreadChatBadge = getUnreadCountForCircle(db, id, user.id);
+  const gamesCount = countVerifiedMatches(db, id);
+  // CircleDetail itself carries no createdAt (see server/circles.ts) — the
+  // summary list this page already fetches for the switcher does, so "est.
+  // YYYY" reuses that instead of adding a second circles-table lookup.
+  const foundedYear = allCircles.find((c) => c.id === id)?.createdAt.getFullYear();
 
   const colour = detail.colour ?? circleColorFor(detail.id);
 
@@ -113,9 +139,15 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
             {detail.name}
           </h1>
           <p className="text-cu-meta text-ink-muted mt-0.5">
-            {detail.members.length} member{detail.members.length === 1 ? "" : "s"}
+            {detail.members.length} member{detail.members.length === 1 ? "" : "s"} · {gamesCount} game{gamesCount === 1 ? "" : "s"}
+            {foundedYear != null && ` · est. ${foundedYear}`}
           </p>
         </div>
+        <AvatarStack
+          people={detail.members.slice(0, 3).map((m) => ({ src: m.avatarUrl, name: m.displayName }))}
+          size="sm"
+          ring="ground"
+        />
         <InviteShareButton inviteCode={detail.inviteCode} circleName={detail.name} />
       </header>
 
@@ -132,7 +164,18 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           circleName={detail.name}
           isOrganiser={detail.myRole === "organiser"}
           feedItems={feedItems}
-          rivalry={rivalry ? { opponentName: rivalry.opponentName, count: rivalry.count, direction: rivalry.direction } : null}
+          rivalry={
+            rivalry
+              ? {
+                  opponentName: rivalry.opponentName,
+                  // computeRivalryCallout only returns the opponent's id/name (server/feed.ts) —
+                  // their avatar is resolved here from the members list this page already loaded.
+                  opponentAvatarUrl: detail.members.find((m) => m.userId === rivalry.opponentUserId)?.avatarUrl ?? null,
+                  count: rivalry.count,
+                  direction: rivalry.direction,
+                }
+              : null
+          }
         />
       </ToastBoundary>
     </main>

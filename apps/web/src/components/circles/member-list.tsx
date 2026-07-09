@@ -47,7 +47,11 @@ export function MemberList({ members, currentUserId }: { members: MemberListItem
         const isNew =
           !isYou && m.role !== "organiser" && Date.now() - new Date(m.joinedAt).getTime() < NEW_MEMBER_WINDOW_MS;
         const reliabilityLabel =
-          m.reliability != null ? `✓ shows up ${Math.round(m.reliability * 100)}%` : "no RSVP history yet";
+          m.rating == null
+            ? `Placement Trio · ${Math.min(m.verifiedMatchCount, PLACEMENT_TRIO_SIZE)} of ${PLACEMENT_TRIO_SIZE} played`
+            : m.reliability != null
+              ? `✓ shows up ${Math.round(m.reliability * 100)}%`
+              : "no RSVP history yet";
 
         return (
           <div

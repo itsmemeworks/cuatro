@@ -64,6 +64,8 @@ const FACT_SIZE_CLASS = {
   sm: "text-[11px]",
   md: "text-[13px]",
   lg: "text-[15px]",
+  /** The one-per-screen hero score (Feed result posts) — bigger than `lg` on purpose, still mono/tabular. */
+  xl: "text-[28px]",
 } as const;
 
 export function Fact({
