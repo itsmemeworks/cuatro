@@ -38,6 +38,7 @@ export interface SessionUser {
   id: string;
   email: string;
   displayName: string | null;
+  avatarUrl: string | null;
 }
 
 export interface SupabaseProvisionParams {
@@ -83,8 +84,8 @@ function deriveDisplayName(email: string): string {
 // paths a guest row (email null, supabaseUserId null) can never match. The
 // cast documents that invariant rather than threading `| null` through
 // SessionUser for a case that can't actually occur here.
-function toSessionUser(row: { id: string; email: string | null; displayName: string }): SessionUser {
-  return { id: row.id, email: row.email as string, displayName: row.displayName };
+function toSessionUser(row: { id: string; email: string | null; displayName: string; avatarUrl?: string | null }): SessionUser {
+  return { id: row.id, email: row.email as string, displayName: row.displayName, avatarUrl: row.avatarUrl ?? null };
 }
 
 export function createDrizzleAuthStore(dbPath?: string): AuthStore {
@@ -151,6 +152,7 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
           id: users.id,
           email: users.email,
           displayName: users.displayName,
+          avatarUrl: users.avatarUrl,
           expiresAt: authSessions.expiresAt,
         })
         .from(authSessions)

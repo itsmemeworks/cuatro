@@ -35,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <BottomNav
         userId={user.id}
         displayName={user.displayName || user.email.split("@")[0] || "there"}
+        avatarUrl={user.avatarUrl}
         initialHasOpenTabEntries={initialHasOpenTabEntries}
       />
     </div>

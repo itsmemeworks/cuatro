@@ -17,12 +17,17 @@ import { useUserLive } from "@/lib/realtime/hooks";
  *    inset) instead of the prototype's flat 20px, which was only ever a
  *    stand-in for a phone frame in a design tool, not a real device's
  *    home-indicator inset.
- * 2. The You item falls back to an initials disc (bg-action, matching
- *    components/ui/avatar.tsx's `Avatar` treatment) instead of the
- *    prototype's `<img avatarUrl>` — SessionUser has no avatarUrl field
- *    yet (see (app)/home/page.tsx's identical fallback for the header
- *    avatar). The active/inactive ring colour still swaps exactly like
- *    the prototype's `navYouC`-bordered avatar.
+ * 2. `fixed` positioning escapes the root layout's centred phone-frame
+ *    column (see app/layout.tsx's G1 fix) — `inset-x-0 mx-auto max-w-[448px]`
+ *    re-centres the bar at the same width rather than letting it stretch
+ *    across a desktop viewport.
+ *
+ * The You item shows the real avatar photo (`avatarUrl`, now on
+ * SessionUser — see lib/auth-store.ts) when the viewer has one, matching
+ * the prototype's `<img avatarUrl>`; otherwise it falls back to the
+ * initials disc (bg-action, matching components/ui/avatar.tsx's `Avatar`
+ * treatment). Either way the ring/border colour still swaps exactly like
+ * the prototype's `navYouC`-bordered avatar.
  */
 
 type NavKey = "games" | "circle" | "tab" | "you";
@@ -115,10 +120,12 @@ function NavItem({
 export function BottomNav({
   userId,
   displayName,
+  avatarUrl = null,
   initialHasOpenTabEntries = false,
 }: {
   userId: string;
   displayName: string;
+  avatarUrl?: string | null;
   initialHasOpenTabEntries?: boolean;
 }) {
   const pathname = usePathname();
@@ -152,7 +159,7 @@ export function BottomNav({
   }, [refresh]);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 flex bg-surface border-t border-ink-hairline-2 pt-1.5 px-2 pb-safe">
+    <nav className="fixed bottom-0 inset-x-0 mx-auto max-w-[448px] flex bg-surface border-t border-ink-hairline-2 pt-1.5 px-2 pb-safe">
       <NavItem href="/home" active={active === "games"} label="Games">
         <NavIcon active={active === "games"}>
           <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
@@ -186,17 +193,31 @@ export function BottomNav({
       </NavItem>
 
       <NavItem href="/profile" active={active === "you"} label="You">
-        <div
-          className="rounded-full flex items-center justify-center bg-action text-action-contrast font-extrabold"
-          style={{
-            width: 21,
-            height: 21,
-            fontSize: 9,
-            border: `1.5px solid ${active === "you" ? "var(--color-ink)" : "var(--color-ink-muted)"}`,
-          }}
-        >
-          {initialOf(displayName)}
-        </div>
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- avatars are user-uploaded, served from /api/avatar/[userId]; next/image adds little here.
+          <img
+            src={avatarUrl}
+            alt="You"
+            className="rounded-full object-cover"
+            style={{
+              width: 21,
+              height: 21,
+              border: `1.5px solid ${active === "you" ? "var(--color-ink)" : "var(--color-ink-muted)"}`,
+            }}
+          />
+        ) : (
+          <div
+            className="rounded-full flex items-center justify-center bg-action text-action-contrast font-extrabold"
+            style={{
+              width: 21,
+              height: 21,
+              fontSize: 9,
+              border: `1.5px solid ${active === "you" ? "var(--color-ink)" : "var(--color-ink-muted)"}`,
+            }}
+          >
+            {initialOf(displayName)}
+          </div>
+        )}
       </NavItem>
     </nav>
   );

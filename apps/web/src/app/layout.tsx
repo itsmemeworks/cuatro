@@ -56,7 +56,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en-GB" className={`${archivo.variable} ${plexMono.variable}`}>
       <body>
-        <ToastProvider>{children}</ToastProvider>
+        {/*
+         * The global phone-frame constraint (design/DESIGN-AUDIT.md's G1):
+         * CUATRO is a phone experience, so every route — the (app) tab
+         * group, login/landing, /join/[code], /fc/[token] — renders inside
+         * this single centred column instead of stretching full-width on a
+         * desktop viewport. 448px (Tailwind's `max-w-md`) is the value the
+         * audit itself names, chosen to sit close to the prototype's 392px
+         * device art board plus its 16px inner gutters (392 + 2×16 = 424,
+         * rounded up to the nearest standard Tailwind step) while staying a
+         * named scale value rather than an arbitrary one-off. Below 448px —
+         * i.e. every real phone — this is a no-op: the column just equals
+         * the viewport. `min-h-dvh` on the column (not just the outer div)
+         * is what makes bg-ground reach the bottom on a short page; the
+         * outer div's own bg-ground is what shows in the gutters on a wide
+         * viewport.
+         */}
+        <div className="min-h-dvh bg-ground">
+          <div className="relative mx-auto min-h-dvh max-w-[448px] bg-ground text-ink">
+            <ToastProvider>{children}</ToastProvider>
+          </div>
+        </div>
         <RegisterServiceWorker />
       </body>
     </html>

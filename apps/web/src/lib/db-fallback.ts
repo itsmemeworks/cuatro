@@ -45,7 +45,10 @@ function openDb(path: string): Database.Database {
 }
 
 function toSessionUser(row: { id: string; email: string; display_name: string | null }): SessionUser {
-  return { id: row.id, email: row.email, displayName: row.display_name };
+  // This shadow schema has no avatar_url column — the legacy fallback
+  // predates avatars entirely and isn't wired into getAuthStore() (see the
+  // file header), so there's no photo to carry through.
+  return { id: row.id, email: row.email, displayName: row.display_name, avatarUrl: null };
 }
 
 export function createFallbackAuthStore(path: string): AuthStore {
@@ -63,7 +66,7 @@ export function createFallbackAuthStore(path: string): AuthStore {
       db.prepare(
         "INSERT INTO users (id, email, display_name, created_at) VALUES (?, ?, NULL, ?)"
       ).run(id, normalized, new Date().toISOString());
-      return { id, email: normalized, displayName: null };
+      return { id, email: normalized, displayName: null, avatarUrl: null };
     },
 
     async createMagicLinkToken(userId: string, email: string): Promise<string> {
@@ -156,7 +159,7 @@ export function createFallbackAuthStore(path: string): AuthStore {
       db.prepare(
         "INSERT INTO users (id, email, display_name, supabase_user_id, created_at) VALUES (?, ?, ?, ?, ?)"
       ).run(id, normalized, displayName, params.supabaseUserId, new Date().toISOString());
-      return { id, email: normalized, displayName };
+      return { id, email: normalized, displayName, avatarUrl: null };
     },
 
     async getUserBySupabaseId(supabaseUserId: string): Promise<SessionUser | null> {

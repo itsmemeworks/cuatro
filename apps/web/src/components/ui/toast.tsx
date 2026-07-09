@@ -37,8 +37,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
+      {/* `fixed` escapes the root layout's centred column (see app/layout.tsx),
+          so it re-centres itself the same way BottomNav does: inset-x-0 to
+          span the viewport, mx-auto + max-w to cap at the column width. */}
       <div
-        className="fixed left-6 right-6 z-50 flex justify-center pointer-events-none"
+        className="fixed inset-x-0 z-50 mx-auto max-w-[448px] px-6 flex justify-center pointer-events-none"
         style={{ bottom: "calc(var(--c4-nav-height) + var(--safe-bottom) + 12px)" }}
         aria-live="polite"
       >
