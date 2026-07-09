@@ -38,8 +38,8 @@ export const GLOSSARY = {
   },
   openDoor: {
     term: "Open Door",
-    plain: "Circles near you that welcome new players. Knock, and the organiser decides.",
-    why: "No stranger DMs, no auto-adds: you ask once, they answer, and nothing else is shared until you're in.",
+    plain: "How findable your Circle is near other players. Open means anyone nearby can find you and knock, Invite only means you still show up and your open games take asks but joining is by invite link, and Private means you're hidden from discovery.",
+    why: "You decide how far the door opens, and a Private Circle never appears at all. Nothing beyond a few public facts is shared until someone's actually in.",
   },
   glass: {
     term: "Glass",

@@ -9,6 +9,7 @@ import { MemberList, type MemberListItem } from "@/components/circles/member-lis
 import { InviteShareButton, InviteLinkText } from "@/components/circles/invite-share-button";
 import { KnockPanel, type KnockPanelItem } from "@/components/circles/knock-panel";
 import { DoorControls } from "@/components/circles/door-controls";
+import { EditCircleSheet, type EditAnchor } from "@/components/circles/edit-circle-sheet";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { useCircleLive } from "@/lib/realtime/hooks";
 import { PinnedGameBar } from "./pinned-game-bar";
@@ -43,6 +44,7 @@ function formatWhen(startsAt: Date): string {
 export function CircleTabs({
   circleId,
   circleColour,
+  circleEmblem,
   unreadChatBadge = 0,
   sessionCards,
   messages,
@@ -52,13 +54,16 @@ export function CircleTabs({
   circleName,
   isOrganiser,
   openDoor,
+  boardEnabled,
   vibeLine,
+  anchor,
   pendingKnocks,
   feedItems,
   rivalry,
 }: {
   circleId: string;
   circleColour: string;
+  circleEmblem: string | null;
   unreadChatBadge?: number;
   sessionCards: SessionCardData[];
   messages: ChatMessage[];
@@ -68,7 +73,9 @@ export function CircleTabs({
   circleName: string;
   isOrganiser: boolean;
   openDoor: boolean;
+  boardEnabled: boolean;
   vibeLine: string | null;
+  anchor: EditAnchor | null;
   pendingKnocks: KnockPanelItem[];
   feedItems: FeedItemData[];
   rivalry: { opponentName: string; opponentAvatarUrl: string | null; count: number; direction: "beaten" | "lost_to" } | null;
@@ -224,7 +231,21 @@ export function CircleTabs({
           {isOrganiser && <KnockPanel knocks={pendingKnocks} />}
           <MemberList members={members} currentUserId={currentUserId} />
           {isOrganiser && (
-            <DoorControls circleId={circleId} initialOpenDoor={openDoor} initialVibeLine={vibeLine} />
+            <>
+              <EditCircleSheet
+                circleId={circleId}
+                initialName={circleName}
+                initialColour={circleColour}
+                initialEmblem={circleEmblem}
+                anchor={anchor}
+              />
+              <DoorControls
+                circleId={circleId}
+                initialOpenDoor={openDoor}
+                initialBoardEnabled={boardEnabled}
+                initialVibeLine={vibeLine}
+              />
+            </>
           )}
           <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
             <div className="flex items-center gap-3">

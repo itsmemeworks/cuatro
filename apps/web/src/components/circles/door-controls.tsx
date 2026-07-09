@@ -7,21 +7,77 @@ import { saveDoorSettings } from "@/app/(app)/circles/[id]/door-actions";
 
 const MAX_VIBE_LINE_LENGTH = 120;
 
+type Tier = "open" | "invite_only" | "private";
+
 /**
- * Organiser-only Open Door controls: the door toggle + the one-line vibe
- * editor. Calm, not coral (the screen's coral action is elsewhere). Writes
- * through the saveDoorSettings server action.
+ * The plain-words state of the two flags, shown live as the organiser toggles
+ * (task copy is authoritative here). The door is the stronger signal: with it
+ * open the Circle is Open regardless of the Board flag; only once the door is
+ * shut does the Board flag decide between invite-only and fully private.
+ */
+const TIER_COPY: Record<Tier, { name: string; line: string }> = {
+  open: { name: "Open", line: "nearby players can find you and knock" },
+  invite_only: {
+    name: "Invite only",
+    line: "your circle is visible near you and your open games take asks, but joining is by invite link",
+  },
+  private: { name: "Private", line: "invisible to discovery" },
+};
+
+function tierFor(openDoor: boolean, boardEnabled: boolean): Tier {
+  if (openDoor) return "open";
+  return boardEnabled ? "invite_only" : "private";
+}
+
+function Toggle({
+  checked,
+  onToggle,
+  label,
+  disabled,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  label: string;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onToggle}
+      disabled={disabled}
+      className={`relative w-11 h-6 rounded-full shrink-0 transition-cu-state ${checked ? "bg-action" : "bg-ink-hairline-3"} disabled:opacity-50`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? "translate-x-5" : ""}`}
+        aria-hidden
+      />
+    </button>
+  );
+}
+
+/**
+ * Organiser visibility controls: the Open Door and Board toggles side by side
+ * (so both flags that set the Circle's tier live in one place) plus the
+ * one-line vibe editor. A live tier line spells out what the current flag
+ * combination means in plain words. Calm, not coral (the screen's coral action
+ * is elsewhere). Writes through the saveDoorSettings server action.
  */
 export function DoorControls({
   circleId,
   initialOpenDoor,
+  initialBoardEnabled,
   initialVibeLine,
 }: {
   circleId: string;
   initialOpenDoor: boolean;
+  initialBoardEnabled: boolean;
   initialVibeLine: string | null;
 }) {
   const [openDoor, setOpenDoor] = useState(initialOpenDoor);
+  const [boardEnabled, setBoardEnabled] = useState(initialBoardEnabled);
   const [vibeLine, setVibeLine] = useState(initialVibeLine ?? "");
   const [savedVibe, setSavedVibe] = useState(initialVibeLine ?? "");
   const [pending, startTransition] = useTransition();
@@ -40,6 +96,19 @@ export function DoorControls({
     });
   }
 
+  function toggleBoard() {
+    const next = !boardEnabled;
+    setBoardEnabled(next);
+    setError(false);
+    startTransition(async () => {
+      const res = await saveDoorSettings(circleId, { boardEnabled: next });
+      if (!res.ok) {
+        setBoardEnabled(!next); // revert
+        setError(true);
+      }
+    });
+  }
+
   function saveVibe() {
     setError(false);
     startTransition(async () => {
@@ -53,35 +122,39 @@ export function DoorControls({
   }
 
   const vibeDirty = vibeLine.trim() !== savedVibe.trim();
+  const tier = TIER_COPY[tierFor(openDoor, boardEnabled)];
+  // The vibe line rides on the directory card, which shows in both discoverable
+  // tiers, so keep the editor available whenever the Circle is visible at all.
+  const visible = openDoor || boardEnabled;
 
   return (
     <div className="rounded-button border border-ink-hairline-4 px-3.5 py-3 flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-cu-body font-bold text-ink">
-            <InfoTerm term="openDoor" label="Open Door" />
-          </p>
-          <Meta as="p" className="mt-0.5">
-            {openDoor ? "players near your patch can knock to join" : "closed, your Circle won't show in the directory"}
-          </Meta>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={openDoor}
-          aria-label="Open Door"
-          onClick={toggleDoor}
-          disabled={pending}
-          className={`relative w-11 h-6 rounded-full shrink-0 transition-cu-state ${openDoor ? "bg-action" : "bg-ink-hairline-3"} disabled:opacity-50`}
-        >
-          <span
-            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${openDoor ? "translate-x-5" : ""}`}
-            aria-hidden
-          />
-        </button>
+      <div>
+        <p className="text-cu-body font-bold text-ink">
+          <InfoTerm term="openDoor" label="Discovery" />
+        </p>
+        <p className="text-cu-secondary text-ink mt-0.5">
+          {tier.name}, <span className="text-ink-muted">{tier.line}</span>
+        </p>
       </div>
 
-      {openDoor && (
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-cu-body text-ink">Open Door</p>
+          <Meta as="p" className="mt-0.5">nearby players can knock to join</Meta>
+        </div>
+        <Toggle checked={openDoor} onToggle={toggleDoor} label="Open Door" disabled={pending} />
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-cu-body text-ink">Show on the Board</p>
+          <Meta as="p" className="mt-0.5">your open games appear to players near you</Meta>
+        </div>
+        <Toggle checked={boardEnabled} onToggle={toggleBoard} label="Show on the Board" disabled={pending} />
+      </div>
+
+      {visible && (
         <div className="flex flex-col gap-2">
           <label htmlFor="vibe-line" className="text-cu-meta text-ink-muted">
             Vibe line, one warm sentence on your directory card

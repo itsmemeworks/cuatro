@@ -31,7 +31,7 @@
  * here, delivering the knock_received / knock_accepted / knock_declined
  * notification to the affected user's channel.
  */
-import { and, eq, gte, inArray, isNotNull, lte, ne } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lte, or } from "drizzle-orm";
 import {
   circleMembers,
   circles,
@@ -44,6 +44,7 @@ import {
 } from "@cuatro/db";
 import { boundingBox, coarseDistanceLabel, DEFAULT_RADIUS_KM, haversineKm, withinRadius } from "@/lib/geo";
 import { resolvePatch } from "@/server/patch";
+import { boardGames } from "@/server/discovery";
 import { insertNotification } from "@/server/notify";
 import { NotMemberError, NotOrganiserError, insertCircleMembership } from "@/server/circles";
 import { emitCircleEvent } from "@/lib/realtime/broadcast";
@@ -56,6 +57,32 @@ export interface CircleAnchor {
   lng: number;
 }
 
+/**
+ * A Circle's visibility tier in the directory (see file header + the three-tier
+ * model). "open" = takes circle-knocks; "invite_only" = listed but joining is by
+ * invite link, its open games still take session-asks. A private Circle (door
+ * shut AND Board off) has no tier because it never surfaces here.
+ */
+export type CircleTier = "open" | "invite_only";
+
+/**
+ * One of an invite-only Circle's open games, ready to render with the existing
+ * session-ask affordance. Mirrors the public, aggregate-only facts The Board
+ * already exposes for the same session (composed from server/discovery.ts's
+ * boardGames — never a fresh scrape of a Circle's schedule). `startsAtMs` is a
+ * UTC epoch so the client formats the local "when" label itself.
+ */
+export interface NearbyCircleOpenGame {
+  sessionId: string;
+  venueName: string | null;
+  startsAtMs: number;
+  distanceLabel: string;
+  levelLine: string;
+  slotsOpen: number;
+  /** The viewer already has an open ask on this session (card shows "Asked"). */
+  viewerHasPendingKnock: boolean;
+}
+
 /** One card in the "Circles near you" directory. */
 export interface NearbyCircle {
   circleId: string;
@@ -63,6 +90,8 @@ export interface NearbyCircle {
   emblem: string | null;
   colour: string | null;
   vibeLine: string | null;
+  /** open = knockable; invite_only = visible + games take asks, joining is by invite link. */
+  tier: CircleTier;
   /** The anchor venue's NAME only — never coordinates. The "venue area" a knocker sees. */
   venueArea: string | null;
   /** Coarse, privacy-preserving distance from the viewer's patch to the anchor. */
@@ -77,6 +106,12 @@ export interface NearbyCircle {
   unratedCount: number;
   /** The viewer already has an open knock on this Circle (card shows the waiting state). */
   hasPendingKnock: boolean;
+  /**
+   * This Circle's upcoming open-slot games the viewer can ask into. Populated
+   * for invite_only cards (their only way in besides an invite link); an open
+   * card's primary affordance is the circle-knock, so it ignores this list.
+   */
+  openGames: NearbyCircleOpenGame[];
 }
 
 /** A pending knock as the organiser sees it in the Members-tab panel. */
@@ -171,9 +206,18 @@ function levelContext(ratings: (number | null)[]): { level: { min: number; max: 
 }
 
 /**
- * Circles accepting knocks, anchored near the viewer's patch, that the viewer
- * isn't already in. Two-step per the contract: SQL bounding-box pre-filter,
- * then exact `withinRadius` refine in JS against each Circle's anchor.
+ * The "Circles near you" directory: Circles anchored near the viewer's patch
+ * that the viewer isn't already in, across BOTH visibility tiers —
+ *  - OPEN (`openDoor = 1`): takes circle-knocks, as before.
+ *  - INVITE-ONLY (`openDoor = 0` AND `boardEnabled = 1`): listed but NOT
+ *    circle-knockable — joining is by invite link. Its open games already
+ *    appear on The Board under its name, so hiding the whole Circle would be
+ *    security theatre; instead the card marks it "Invite only" and carries its
+ *    open games so a viewer can still ask into a GAME (session-ask).
+ * A PRIVATE Circle (both flags off) never surfaces here.
+ *
+ * Two-step geo per the contract: SQL bounding-box pre-filter, then exact
+ * `withinRadius` refine in JS against each Circle's anchor.
  *
  * Circles the viewer already has a *pending* knock on are INCLUDED (flagged
  * `hasPendingKnock`) rather than hidden — the card flips to a "waiting on the
@@ -182,11 +226,14 @@ function levelContext(ratings: (number | null)[]): { level: { min: number; max: 
  * knock. (This deviates from the contract §6(c) sketch, which excluded them;
  * the wave's UX requirement — show the pending state, keep withdraw reachable
  * — takes precedence.)
+ *
+ * Ordering: OPEN Circles first, then invite-only; within each tier nearest
+ * first (exact km), ties broken alphabetically for stability.
  */
 export async function nearbyCircles(
   db: CuatroDb,
   viewerId: string,
-  opts: { radiusKm?: number } = {},
+  opts: { radiusKm?: number; now?: Date } = {},
 ): Promise<NearbyCircle[]> {
   const patch = await resolvePatch(db, viewerId);
   if (!patch) return [];
@@ -202,7 +249,12 @@ export async function nearbyCircles(
     lte(venues.lng, box.maxLng),
   );
 
-  // Candidate Circle ids: open door, with at least one pinned venue in the box
+  // A Circle surfaces in the directory if it is discoverable in EITHER tier:
+  // the door is open, or (door shut) it still posts its games to The Board.
+  // The private case — both flags off — falls through this OR and never lists.
+  const isVisible = or(eq(circles.openDoor, true), eq(circles.boardEnabled, true));
+
+  // Candidate Circle ids: visible, with at least one pinned venue in the box
   // (reached via a Standing Game OR a session — a Circle can be pinnable
   // through either). Two cheap queries unioned in JS.
   const sgCircles = await db
@@ -210,13 +262,13 @@ export async function nearbyCircles(
     .from(circles)
     .innerJoin(standingGames, eq(standingGames.circleId, circles.id))
     .innerJoin(venues, eq(venues.id, standingGames.venueId))
-    .where(and(eq(circles.openDoor, true), inBox));
+    .where(and(isVisible, inBox));
   const sessCircles = await db
     .select({ id: circles.id })
     .from(circles)
     .innerJoin(sessions, eq(sessions.circleId, circles.id))
     .innerJoin(venues, eq(venues.id, sessions.venueId))
-    .where(and(eq(circles.openDoor, true), inBox));
+    .where(and(isVisible, inBox));
 
   const candidateIds = new Set<string>([...sgCircles, ...sessCircles].map((r) => r.id));
   if (candidateIds.size === 0) return [];
@@ -249,10 +301,38 @@ export async function nearbyCircles(
 
   const ids = anchored.map((a) => a.id);
   const baseRows = await db
-    .select({ id: circles.id, name: circles.name, emblem: circles.emblem, colour: circles.colour, vibeLine: circles.vibeLine })
+    .select({
+      id: circles.id,
+      name: circles.name,
+      emblem: circles.emblem,
+      colour: circles.colour,
+      vibeLine: circles.vibeLine,
+      openDoor: circles.openDoor,
+    })
     .from(circles)
     .where(inArray(circles.id, ids));
   const baseById = new Map(baseRows.map((r) => [r.id, r]));
+
+  // Open games per Circle, for the invite-only cards' session-ask affordance.
+  // Composed from The Board's own read model (server/discovery.ts) so the geo
+  // gate, RSVP-window rule, open-slot check, and privacy labels stay
+  // single-sourced — never a second scrape of a Circle's schedule. boardGames
+  // already scopes to board-enabled Circles the viewer isn't in, near them.
+  const board = await boardGames(db, viewerId, { radiusKm, now: opts.now });
+  const openGamesByCircle = new Map<string, NearbyCircleOpenGame[]>();
+  for (const g of board) {
+    const list = openGamesByCircle.get(g.circleId) ?? [];
+    list.push({
+      sessionId: g.sessionId,
+      venueName: g.venueName,
+      startsAtMs: g.startsAt.getTime(),
+      distanceLabel: g.distanceLabel,
+      levelLine: g.levelLine,
+      slotsOpen: g.slotsOpen,
+      viewerHasPendingKnock: g.viewerHasPendingKnock,
+    });
+    openGamesByCircle.set(g.circleId, list);
+  }
 
   // Member Glass ratings per Circle, non-guests only.
   const memberStats = await db
@@ -278,30 +358,38 @@ export async function nearbyCircles(
     if (!cur || row.weekday < cur.weekday) cadenceByCircle.set(row.circleId, { weekday: row.weekday, startTime: row.startTime });
   }
 
-  const result: NearbyCircle[] = anchored.map(({ id, anchor }) => {
+  const result: (NearbyCircle & { km: number })[] = anchored.map(({ id, anchor }) => {
     const base = baseById.get(id)!;
     const ratings = ratingsByCircle.get(id) ?? [];
     const { level, unratedCount } = levelContext(ratings);
     const cad = cadenceByCircle.get(id);
+    const km = distanceFrom(patch, anchor);
     return {
       circleId: id,
       name: base.name,
       emblem: base.emblem,
       colour: base.colour,
       vibeLine: base.vibeLine,
+      tier: base.openDoor ? "open" : "invite_only",
       venueArea: anchor.venueName,
-      distanceLabel: coarseDistanceLabel(distanceFrom(patch, anchor)),
+      distanceLabel: coarseDistanceLabel(km),
       cadence: cad ? formatCadence(cad.weekday, cad.startTime) : null,
       memberCount: ratings.length,
       level,
       unratedCount,
       hasPendingKnock: pendingIds.has(id),
+      openGames: openGamesByCircle.get(id) ?? [],
+      km,
     };
   });
 
-  // Nearest first, then alphabetical for a stable order within a bucket.
-  result.sort((a, b) => a.name.localeCompare(b.name));
-  return result;
+  // Open Circles first, then invite-only; within a tier, nearest first, ties
+  // broken alphabetically for a stable order.
+  const tierRank: Record<CircleTier, number> = { open: 0, invite_only: 1 };
+  result.sort(
+    (a, b) => tierRank[a.tier] - tierRank[b.tier] || a.km - b.km || a.name.localeCompare(b.name),
+  );
+  return result.map(({ km: _km, ...circle }) => circle);
 }
 
 function distanceFrom(patch: { lat: number; lng: number }, anchor: CircleAnchor): number {

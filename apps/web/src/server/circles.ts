@@ -39,6 +39,9 @@ const DEFAULT_MESSAGE_LIMIT = 200;
 const INVITE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const INVITE_CODE_LENGTH = 8;
 
+/** A Circle name stays short enough to render on one line in a header/row. */
+export const MAX_CIRCLE_NAME_LENGTH = 40;
+
 export const CIRCLE_COLOUR_PRESETS = [
   "#1F6FEB",
   "#D9822B",
@@ -59,6 +62,27 @@ export class NotOrganiserError extends Error {
   constructor() {
     super("only organisers can do this");
     this.name = "NotOrganiserError";
+  }
+}
+
+export class InvalidCircleNameError extends Error {
+  constructor() {
+    super(`circle name must be 1–${MAX_CIRCLE_NAME_LENGTH} characters`);
+    this.name = "InvalidCircleNameError";
+  }
+}
+
+export class InvalidEmblemError extends Error {
+  constructor() {
+    super("emblem must be a single emoji or mark");
+    this.name = "InvalidEmblemError";
+  }
+}
+
+export class InvalidColourError extends Error {
+  constructor() {
+    super("colour must be a #rrggbb hex value");
+    this.name = "InvalidColourError";
   }
 }
 
@@ -115,6 +139,8 @@ export interface CircleDetail {
   createdBy: string;
   /** Open Door: does this Circle accept knocks from players who found it? */
   openDoor: boolean;
+  /** The Board: does this Circle surface its open games (and, with the door shut, list as "invite only") near players? */
+  boardEnabled: boolean;
   /** One warm directory sentence; null until an organiser writes it. */
   vibeLine: string | null;
   myRole: "organiser" | "member";
@@ -146,6 +172,8 @@ export interface UpdateCircleSettingsInput {
   timezone?: string;
   /** Open Door toggle — whether the Circle accepts knocks. */
   openDoor?: boolean;
+  /** The Board toggle — whether the Circle's open games surface near players (and it lists as "invite only" when the door is shut). */
+  boardEnabled?: boolean;
   /** One warm directory sentence; trimmed, and an empty string clears it back to null. */
   vibeLine?: string | null;
 }
@@ -190,6 +218,42 @@ function defaultGenerateInviteCode(): string {
 
 function isUniqueConstraintError(err: unknown): boolean {
   return err instanceof Error && /UNIQUE constraint failed/i.test(err.message);
+}
+
+/**
+ * Grapheme count via Intl.Segmenter (Node 24 / modern browsers). A single
+ * user-perceived emoji — including a flag or a ZWJ family sequence made of
+ * several code points — counts as one, so the emblem rule ("one emoji is
+ * plenty") holds for composed emoji, not just BMP ones.
+ */
+function graphemeCount(value: string): number {
+  return [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value)].length;
+}
+
+/** Trim + bound a Circle name; throws InvalidCircleNameError when empty or too long. */
+function validateCircleName(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) throw new InvalidCircleNameError();
+  if (graphemeCount(trimmed) > MAX_CIRCLE_NAME_LENGTH) throw new InvalidCircleNameError();
+  return trimmed;
+}
+
+/**
+ * Normalise an emblem to null (cleared) or exactly one grapheme cluster. Any
+ * multi-character string is rejected — the field is a flag, not a word.
+ */
+function validateEmblem(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim() ?? "";
+  if (trimmed.length === 0) return null;
+  if (graphemeCount(trimmed) !== 1) throw new InvalidEmblemError();
+  return trimmed;
+}
+
+/** Validate a colour is a #rrggbb hex string; null/undefined means "leave unchanged". */
+function validateColour(raw: string | null | undefined): string | undefined {
+  if (raw == null) return undefined;
+  if (!/^#[0-9a-fA-F]{6}$/.test(raw)) throw new InvalidColourError();
+  return raw;
 }
 
 /**
@@ -252,6 +316,10 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
 
   return {
     async createCircle(input) {
+      const name = validateCircleName(input.name);
+      const emblem = validateEmblem(input.emblem);
+      const colour = validateColour(input.colour) ?? CIRCLE_COLOUR_PRESETS[0];
+
       let lastErr: unknown;
       for (let attempt = 0; attempt < MAX_INVITE_CODE_ATTEMPTS; attempt++) {
         const inviteCode = generateCode();
@@ -259,9 +327,9 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
           const [circle] = await db
             .insert(circles)
             .values({
-              name: input.name.trim(),
-              emblem: input.emblem ?? null,
-              colour: input.colour ?? CIRCLE_COLOUR_PRESETS[0],
+              name,
+              emblem,
+              colour,
               countryCode: input.countryCode ?? "GB",
               timezone: input.timezone ?? "Europe/London",
               inviteCode,
@@ -367,6 +435,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         inviteCode: circle.inviteCode,
         createdBy: circle.createdBy,
         openDoor: circle.openDoor,
+        boardEnabled: circle.boardEnabled,
         vibeLine: circle.vibeLine,
         myRole: myMembership.role,
         members,
@@ -378,11 +447,15 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       if (membership.role !== "organiser") throw new NotOrganiserError();
 
       const patch: Partial<typeof circles.$inferInsert> = {};
-      if (updates.name !== undefined) patch.name = updates.name.trim();
-      if (updates.emblem !== undefined) patch.emblem = updates.emblem;
-      if (updates.colour !== undefined) patch.colour = updates.colour;
+      if (updates.name !== undefined) patch.name = validateCircleName(updates.name);
+      if (updates.emblem !== undefined) patch.emblem = validateEmblem(updates.emblem);
+      if (updates.colour !== undefined) {
+        const colour = validateColour(updates.colour);
+        if (colour !== undefined) patch.colour = colour;
+      }
       if (updates.timezone !== undefined) patch.timezone = updates.timezone;
       if (updates.openDoor !== undefined) patch.openDoor = updates.openDoor;
+      if (updates.boardEnabled !== undefined) patch.boardEnabled = updates.boardEnabled;
       if (updates.vibeLine !== undefined) {
         // An empty (or whitespace-only) vibe line clears it back to null so the
         // directory card falls back to its default line rather than a blank.

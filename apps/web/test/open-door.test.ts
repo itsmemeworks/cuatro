@@ -6,6 +6,8 @@ import {
   circles,
   knocks,
   notifications,
+  rsvps,
+  sessions,
   standingGames,
   users,
   venues,
@@ -20,6 +22,7 @@ import {
   nearbyCircles,
   withdrawCircleKnock,
 } from "@/server/open-door";
+import { createSessionKnock } from "@/server/discovery";
 import { NotMemberError, NotOrganiserError, createCirclesStore, __resetCirclesStoreForTests } from "@/server/circles";
 import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
 
@@ -69,6 +72,36 @@ describe("Open Door", () => {
     await db.insert(standingGames).values({ circleId, venueId, weekday: 2, startTime: "20:00" });
   };
 
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  /** An upcoming standing-game session with `confirmedRatings.length` players already IN (window open by default). */
+  const addSession = async (
+    circleId: string,
+    venueId: string,
+    opts: { confirmedRatings?: (number | null)[]; startsAt?: Date } = {},
+  ) => {
+    const [sg] = await db
+      .insert(standingGames)
+      .values({ circleId, venueId, weekday: 3, startTime: "19:00", slots: 4 })
+      .returning();
+    const [session] = await db
+      .insert(sessions)
+      .values({
+        standingGameId: sg.id,
+        circleId,
+        venueId,
+        startsAt: opts.startsAt ?? new Date(Date.now() + 3 * DAY_MS),
+        status: "upcoming",
+      })
+      .returning();
+    for (const rating of opts.confirmedRatings ?? []) {
+      const p = await mkUser({ displayName: "P", rating });
+      await db.insert(circleMembers).values({ circleId, userId: p.id, role: "member" });
+      await db.insert(rsvps).values({ sessionId: session.id, userId: p.id, status: "in" });
+    }
+    return { standingGameId: sg.id, sessionId: session.id };
+  };
+
   beforeEach(() => {
     client = createClient(":memory:");
     db = client.db;
@@ -114,8 +147,9 @@ describe("Open Door", () => {
     await addStandingGame(memberCircle.id, stratford.id);
     await addMember(memberCircle.id, viewer.id);
 
-    // A Stratford circle with the door CLOSED (must be excluded).
-    const closed = await mkCircle(organiser.id, { name: "Closed Circle", openDoor: false });
+    // A Stratford circle that is PRIVATE — door closed AND off the Board — so
+    // it is invisible to discovery (and still rejects circle-knocks).
+    const closed = await mkCircle(organiser.id, { name: "Closed Circle", openDoor: false, boardEnabled: false });
     await addStandingGame(closed.id, stratford.id);
 
     return { viewer, organiser, stratOpen, wandOpen, memberCircle, closed, shoreditch, stratford, wandsworth };
@@ -140,6 +174,8 @@ describe("Open Door", () => {
     expect(near.map((c) => c.circleId)).toEqual([stratOpen.id]);
     const card = near[0];
     expect(card.name).toBe("Stratford Open");
+    expect(card.tier).toBe("open");
+    expect(card.openGames).toEqual([]);
     expect(card.vibeLine).toBe("Friendly Tuesday four in Stratford.");
     expect(card.venueArea).toBe("Padel Social Club Stratford");
     expect(card.distanceLabel).toMatch(/km away$/);
@@ -310,6 +346,93 @@ describe("Open Door", () => {
     const ids = near.map((c) => c.circleId);
     expect(ids).toContain(stratOpen.id);
     expect(ids).toContain(wandOpen.id);
+  });
+
+  it("lists an invite-only circle with its open game: session-askable, not circle-knockable", async () => {
+    const shoreditch = await mkVenue("Powerleague Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Padel Social Club Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id, rating: 3.5 });
+    const organiser = await mkUser({ displayName: "Org", rating: 4.0 });
+
+    // Door shut but still on the Board → invite-only.
+    const inviteOnly = await mkCircle(organiser.id, {
+      name: "Stratford Invite",
+      openDoor: false,
+      boardEnabled: true,
+      vibeLine: "Invite-only Tuesday four.",
+    });
+    await addMember(inviteOnly.id, organiser.id, "organiser");
+    const { sessionId } = await addSession(inviteOnly.id, stratford.id, { confirmedRatings: [3.2, 3.9] });
+
+    const near = await nearbyCircles(db, viewer.id);
+    const card = near.find((c) => c.circleId === inviteOnly.id);
+    expect(card).toBeTruthy();
+    expect(card!.tier).toBe("invite_only");
+    expect(card!.vibeLine).toBe("Invite-only Tuesday four.");
+    // Its open game is carried for the session-ask affordance (2 of 4 taken).
+    expect(card!.openGames.map((g) => g.sessionId)).toEqual([sessionId]);
+    expect(card!.openGames[0].slotsOpen).toBe(2);
+
+    // The door is shut, so a CIRCLE knock is rejected (no UI affordance either).
+    expect(await createCircleKnock(db, { circleId: inviteOnly.id, userId: viewer.id })).toEqual({
+      ok: false,
+      error: "door_closed",
+    });
+
+    // But asking into the GAME works via the session-knock flow.
+    expect(createSessionKnock(db, sessionId, viewer.id, null).ok).toBe(true);
+  });
+
+  it("never lists a private circle (both flags off)", async () => {
+    const shoreditch = await mkVenue("Powerleague Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Padel Social Club Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
+    const organiser = await mkUser({ displayName: "Org" });
+
+    const priv = await mkCircle(organiser.id, { name: "Secret", openDoor: false, boardEnabled: false });
+    await addMember(priv.id, organiser.id, "organiser");
+    await addSession(priv.id, stratford.id, { confirmedRatings: [3.0] });
+
+    const near = await nearbyCircles(db, viewer.id);
+    expect(near.map((c) => c.circleId)).not.toContain(priv.id);
+  });
+
+  it("orders open circles ahead of invite-only ones at the same distance", async () => {
+    const shoreditch = await mkVenue("Powerleague Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Padel Social Club Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
+    const organiser = await mkUser({ displayName: "Org" });
+
+    // Invite-only sorts first alphabetically but must land AFTER the open one.
+    const invite = await mkCircle(organiser.id, { name: "AAA Invite", openDoor: false, boardEnabled: true });
+    await addStandingGame(invite.id, stratford.id);
+    const open = await mkCircle(organiser.id, { name: "ZZZ Open", openDoor: true });
+    await addStandingGame(open.id, stratford.id);
+
+    const near = await nearbyCircles(db, viewer.id);
+    const openIdx = near.findIndex((c) => c.circleId === open.id);
+    const inviteIdx = near.findIndex((c) => c.circleId === invite.id);
+    expect(openIdx).toBeGreaterThanOrEqual(0);
+    expect(inviteIdx).toBeGreaterThan(openIdx);
+  });
+
+  it("exposes the same aggregate-only preview for an invite-only circle", async () => {
+    const stratford = await mkVenue("Padel Social Club Stratford", STRATFORD);
+    const shoreditch = await mkVenue("Powerleague Shoreditch", SHOREDITCH);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
+    const organiser = await mkUser({ displayName: "Org", rating: 4.0 });
+
+    const inviteOnly = await mkCircle(organiser.id, { name: "Invite", openDoor: false, boardEnabled: true });
+    await addMember(inviteOnly.id, organiser.id, "organiser");
+    await addStandingGame(inviteOnly.id, stratford.id);
+
+    const preview = await circlePreview(db, inviteOnly.id, viewer.id);
+    expect(preview).not.toBeNull();
+    expect(preview!.venueArea).toBe("Padel Social Club Stratford");
+    // Same coordinate-free, member-list-free shape as the open-circle preview.
+    expect(Object.keys(preview!).sort()).toEqual(
+      ["cadence", "circleId", "colour", "distanceLabel", "emblem", "hasPendingKnock", "level", "memberCount", "name", "unratedCount", "venueArea", "vibeLine"].sort(),
+    );
   });
 
   it("persists door settings and clears the vibe line on empty", async () => {

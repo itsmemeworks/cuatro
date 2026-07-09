@@ -4,6 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button, Card, Meta } from "@/components/ui";
 import { EMBLEM_PRESETS, COLOUR_PRESETS, TIMEZONE_PRESETS } from "./presets";
+import { EmblemPicker, isEmblemTooLong } from "./emblem-picker";
+
+// Mirrors MAX_CIRCLE_NAME_LENGTH in server/circles.ts — kept local so this
+// client component never pulls the better-sqlite3-backed server module into
+// the browser bundle (same reason door-controls.tsx inlines its own limit).
+const MAX_CIRCLE_NAME_LENGTH = 40;
 
 const fieldClass =
   "w-full rounded-button px-4 py-3 text-[14px] outline-none bg-surface border border-ink-hairline-3 text-ink placeholder:text-ink-muted";
@@ -22,10 +28,16 @@ export function CreateCircleForm() {
   const [colour, setColour] = useState<string>(COLOUR_PRESETS[0]);
   const [timezone, setTimezone] = useState<string>("Europe/London");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("Something went wrong, try again.");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim() || status === "saving") return;
+    if (isEmblemTooLong(emblem)) {
+      setErrorMsg("One emoji is plenty.");
+      setStatus("error");
+      return;
+    }
     setStatus("saving");
     try {
       const res = await fetch("/api/circles", {
@@ -34,12 +46,14 @@ export function CreateCircleForm() {
         body: JSON.stringify({ name, emblem, colour, timezone }),
       });
       if (!res.ok) {
+        setErrorMsg("Something went wrong, try again.");
         setStatus("error");
         return;
       }
       const { circle } = (await res.json()) as { circle: { id: string } };
       router.push(`/circles/${circle.id}`);
     } catch {
+      setErrorMsg("Something went wrong, try again.");
       setStatus("error");
     }
   }
@@ -55,6 +69,7 @@ export function CreateCircleForm() {
         <input
           id="name"
           required
+          maxLength={MAX_CIRCLE_NAME_LENGTH}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Tuesday Night Lot"
@@ -100,27 +115,7 @@ export function CreateCircleForm() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-cu-meta uppercase tracking-[0.14em] text-ink-muted">Mark</span>
-        <div className="flex flex-wrap gap-2">
-          {EMBLEM_PRESETS.map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => setEmblem(e)}
-              aria-pressed={emblem === e}
-              className={`w-11 h-11 rounded-button text-xl flex items-center justify-center transition-cu-state ${
-                emblem === e ? "border-2 border-ink" : "border border-ink-hairline-3"
-              } bg-surface`}
-            >
-              {e}
-            </button>
-          ))}
-        </div>
-        <Meta as="p" className="mt-1">
-          marks stay geometric, this is a flag, not a mascot
-        </Meta>
-      </div>
+      <EmblemPicker emblem={emblem} onChange={setEmblem} />
 
       <div className="flex flex-col gap-2">
         <label htmlFor="timezone" className="text-cu-body font-semibold text-ink">
@@ -138,7 +133,7 @@ export function CreateCircleForm() {
       <Button type="submit" size="lg" fullWidth disabled={status === "saving" || !name.trim()}>
         {status === "saving" ? "Creating…" : "Create Circle"}
       </Button>
-      {status === "error" && <Meta tone="action">Something went wrong, try again.</Meta>}
+      {status === "error" && <Meta tone="action">{errorMsg}</Meta>}
       <Meta as="p" className="text-center">
         coral stays the app&apos;s action colour, your colour identifies, it never asks
       </Meta>

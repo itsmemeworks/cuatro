@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getSessionUser } from "@/lib/session";
 import { getCirclesStore } from "@/server/circles";
 import { getDb } from "@/server/db";
-import { nearbyCircles } from "@/server/open-door";
+import { circleAnchor, nearbyCircles } from "@/server/open-door";
 import { resolvePatch } from "@/server/patch";
 import { Card, Meta } from "@/components/ui";
 import { InfoTerm } from "@/components/ui/info-term";
@@ -20,11 +20,22 @@ export default async function CirclesPage({
   const myCircles = user ? await store.listCirclesForUser(user.id) : [];
   const { error } = await searchParams;
 
-  // "Circles near you" (Open Door): venue-anchored discovery of Circles that
-  // welcome knocks. Only active once the viewer has a resolved patch.
+  // "Circles near you": venue-anchored discovery of Circles the viewer can find
+  // near their patch, across both visibility tiers — open Circles (knockable)
+  // and invite-only Circles (visible, their open games take asks, joining is by
+  // invite link). nearbyCircles orders them open-first then invite-only, each
+  // nearest-first. Only active once the viewer has a resolved patch.
   const { db } = await getDb();
   const patch = user ? await resolvePatch(db, user.id) : null;
   const nearby = user && patch ? await nearbyCircles(db, user.id) : [];
+
+  // Each Circle's home court (its derived anchor venue) for the row subtitle —
+  // display only, name never coordinates. Null Circles simply omit the line.
+  const anchorNameByCircle = new Map<string, string>();
+  for (const c of myCircles) {
+    const anchor = await circleAnchor(db, c.id);
+    if (anchor) anchorNameByCircle.set(c.id, anchor.venueName);
+  }
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
@@ -74,6 +85,11 @@ export default async function CirclesPage({
                       {c.memberCount} member{c.memberCount === 1 ? "" : "s"} ·{" "}
                       {c.myRole === "organiser" ? "Organiser" : "Member"}
                     </Meta>
+                    {anchorNameByCircle.has(c.id) && (
+                      <Meta as="p" className="mt-0.5 truncate">
+                        {anchorNameByCircle.get(c.id)}
+                      </Meta>
+                    )}
                   </div>
                 </Card>
               </Link>
@@ -101,7 +117,7 @@ export default async function CirclesPage({
           ) : nearby.length === 0 ? (
             <Card>
               <p className="text-cu-body text-ink-muted">
-                No open Circles near your patch yet. The ones nearby may have their door shut for now.
+                No Circles near your patch yet. As groups nearby open up or post games, they show up here.
               </p>
             </Card>
           ) : (

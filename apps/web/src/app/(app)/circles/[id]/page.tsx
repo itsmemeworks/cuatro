@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
-import { matches, sessions, type CuatroDb } from "@cuatro/db";
+import { matches, sessions, venues, type CuatroDb } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { NotMemberError, getCirclesStore, type CircleMessageView } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForCircle, isFourthCallActive } from "@/server/games-service";
-import { circleKnocks } from "@/server/open-door";
+import { circleAnchor, circleKnocks } from "@/server/open-door";
 import type { KnockPanelItem } from "@/components/circles/knock-panel";
+import type { EditAnchor } from "@/components/circles/edit-circle-sheet";
 import { listCircleFeed } from "@/server/feed";
 import { getUnreadCountForCircle } from "@/server/circle-unread";
 import { CircleTabs, type FeedItemData } from "@/components/circle-screens/circle-tabs";
@@ -117,6 +118,17 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
   const unreadChatBadge = getUnreadCountForCircle(db, id, user.id);
   const gamesCount = countVerifiedMatches(db, id);
 
+  // Home court: the Circle's most-used pinned venue (server/open-door.ts's
+  // derived anchor — no schema column). Everyone sees the venue name; the
+  // edit surface additionally shows its full address. Null until a Standing
+  // Game or session pins a venue with coordinates.
+  const anchorPoint = await circleAnchor(db, id);
+  let anchor: EditAnchor | null = null;
+  if (anchorPoint) {
+    const [venue] = await db.select({ address: venues.address }).from(venues).where(eq(venues.id, anchorPoint.venueId));
+    anchor = { venueName: anchorPoint.venueName, address: venue?.address ?? null };
+  }
+
   // Open Door: an organiser sees pending knocks + the door controls. circleKnocks
   // itself re-checks the organiser role, so this is safe even if myRole drifted.
   const pendingKnocks: KnockPanelItem[] =
@@ -172,10 +184,21 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
         />
       </header>
 
+      {anchor ? (
+        <p className="text-cu-meta text-ink-muted">
+          Home court: <span className="text-ink">{anchor.venueName}</span>
+        </p>
+      ) : (
+        <p className="text-cu-meta text-ink-muted">
+          No home court yet. Set a venue with an address on your Standing Game and it pins itself.
+        </p>
+      )}
+
       <ToastBoundary>
         <CircleTabs
           circleId={detail.id}
           circleColour={colour}
+          circleEmblem={detail.emblem}
           unreadChatBadge={unreadChatBadge}
           sessionCards={sessionCards}
           messages={serializeMessages(messages)}
@@ -185,7 +208,9 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           circleName={detail.name}
           isOrganiser={detail.myRole === "organiser"}
           openDoor={detail.openDoor}
+          boardEnabled={detail.boardEnabled}
           vibeLine={detail.vibeLine}
+          anchor={anchor}
           pendingKnocks={pendingKnocks}
           feedItems={feedItems}
           rivalry={
