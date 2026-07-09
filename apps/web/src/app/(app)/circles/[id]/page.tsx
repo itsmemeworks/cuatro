@@ -8,6 +8,8 @@ import { CircleTabs } from "@/components/circle-screens/circle-tabs";
 import type { ResultPostData } from "@/components/circle-screens/result-post";
 import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
 import { InviteShareButton } from "@/components/circles/invite-share-button";
+import { CircleSwitcher } from "@/components/circles/circle-switcher";
+import { RememberLastCircle } from "@/components/circles/remember-last-circle";
 import type { ChatMessage } from "@/components/circles/circle-chat";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { circleColorFor } from "@/lib/design";
@@ -35,6 +37,8 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
   if (!detail) notFound();
 
   const messages = await store.listMessages(id, user.id);
+  // Powers the compact multi-Circle switcher (see components/circles/circle-switcher.tsx) — this app is multi-circle even though the Circle tab shows one at a time.
+  const allCircles = await store.listCirclesForUser(user.id);
 
   const { db } = await getGamesClient();
   const sessionSummaries = listUpcomingSessionsForCircle(db, id, user.id);
@@ -70,6 +74,9 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-5">
+      <RememberLastCircle circleId={detail.id} />
+      <CircleSwitcher circles={allCircles} activeCircleId={detail.id} />
+
       <header className="flex items-center gap-3">
         <div
           className="w-12 h-12 rounded-card flex items-center justify-center text-2xl shrink-0"

@@ -5,19 +5,29 @@ import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForUser, isFourthCallActive, type SessionSummary } from "@/server/games-service";
 import { getMatchesStore, type PendingConfirmationView } from "@/server/matches-db";
 import { getTabView } from "@/server/tab";
+import { getUnreadCount } from "@/server/notifications";
 import { formatMoney } from "@/components/tab/money";
 import { SessionCard, type SessionCardData } from "@/components/games/SessionCard";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { Card, Avatar, Meta, Fact } from "@/components/ui";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { NeedsAnswerCard, type NeedsAnswerSession } from "./needs-answer-card";
 
-function SectionHeader({ title, seeAllHref }: { title: string; seeAllHref?: string }) {
+function SectionHeader({
+  title,
+  seeAllHref,
+  linkLabel = "See all →",
+}: {
+  title: string;
+  seeAllHref?: string;
+  linkLabel?: string;
+}) {
   return (
     <div className="flex items-center justify-between">
       <h2 className="text-cu-secondary uppercase tracking-wide text-ink-muted">{title}</h2>
       {seeAllHref && (
         <Link href={seeAllHref} className="text-cu-secondary font-bold text-action">
-          See all →
+          {linkLabel}
         </Link>
       )}
     </div>
@@ -163,6 +173,11 @@ export default async function HomePage() {
     matchesStore.getPendingConfirmationsForUser(user.id),
   ]);
 
+  // The bell that used to live in the bottom nav (see bottom-nav.tsx) — the
+  // prototype's Home screen has no nav-level notification affordance, so it
+  // moves to this header instead, top-right next to the avatar.
+  const initialUnreadCount = getUnreadCount(gamesClient.db, user.id);
+
   const sessionSummaries = listUpcomingSessionsForUser(gamesClient.db, user.id);
   const activeFourthCalls = sessionSummaries.filter((s) => isFourthCallActive(s));
 
@@ -256,10 +271,13 @@ export default async function HomePage() {
             {needAnswerCount > 0 ? ` · ${needAnswerCount} need${needAnswerCount === 1 ? "s" : ""} an answer` : ""}
           </Meta>
         </div>
-        <Link href="/profile">
-          {/* SessionUser has no avatarUrl field yet — falls back to Avatar's initials treatment. */}
-          <Avatar src={null} name={name} size="md" ring="ground" />
-        </Link>
+        <div className="flex items-center gap-3">
+          <NotificationBell userId={user.id} initialUnreadCount={initialUnreadCount} />
+          <Link href="/profile">
+            {/* SessionUser has no avatarUrl field yet — falls back to Avatar's initials treatment. */}
+            <Avatar src={null} name={name} size="md" ring="ground" />
+          </Link>
+        </div>
       </div>
 
       {featuredCard && <NeedsAnswerCard session={featuredCard} />}
@@ -276,7 +294,8 @@ export default async function HomePage() {
       )}
 
       <section className="flex flex-col gap-3">
-        <SectionHeader title="Your games this week" seeAllHref={sessionSummaries.length > 0 ? "/games" : undefined} />
+        {/* "Manage" (Standing Games) used to be the standalone /games list page's header link — that page now redirects here (see (app)/games/page.tsx), so its one bit of chrome that isn't already on Home moves onto this section instead. */}
+        <SectionHeader title="Your games this week" seeAllHref="/games/standing" linkLabel="Manage" />
         {restSessionCards.length === 0 && !featuredCard ? (
           <EmptyCard
             title="No games yet"
@@ -288,7 +307,7 @@ export default async function HomePage() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            {restSessionCards.slice(0, 3).map((c) =>
+            {restSessionCards.map((c) =>
               c.viewerStatus === "in" ? (
                 <ConfirmedGameRow key={c.sessionId} session={c} />
               ) : (

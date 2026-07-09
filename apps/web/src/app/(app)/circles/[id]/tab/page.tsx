@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
 import { getTabView } from "@/server/tab";
+import { getCirclesStore } from "@/server/circles";
 import { formatMoney } from "@/components/tab/money";
 import { AddEntryForm } from "@/components/tab/add-entry-form";
 import { TabEntryRow } from "@/components/tab/tab-entry-row";
 import { LedgerRow } from "@/components/glass-screens/ledger-row";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
+import { CircleSwitcher } from "@/components/circles/circle-switcher";
 import { Card, Fact, Meta } from "@/components/ui";
 
 function activityHeadline(
@@ -34,6 +36,10 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
   // anything to an outsider.
   if (!view) notFound();
 
+  // Powers the compact multi-Circle switcher (see components/circles/circle-switcher.tsx) — same pattern as circles/[id]/page.tsx's Circle tab.
+  const store = await getCirclesStore();
+  const allCircles = await store.listCirclesForUser(user.id);
+
   const netEntries = Object.entries(view.netPositionByCurrency).filter(([, minor]) => minor !== 0);
   const openEntries = view.activity.filter((e) => e.status !== "settled");
   const settledEntries = view.activity.filter((e) => e.status === "settled");
@@ -45,6 +51,8 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
       <Link href={`/circles/${circleId}`} className="text-cu-secondary font-bold text-action">
         ‹ Circle
       </Link>
+
+      <CircleSwitcher circles={allCircles} activeCircleId={circleId} suffix="/tab" />
 
       <header className="tab-header flex flex-col gap-1">
         <h1 className="text-cu-title text-ink">The Tab</h1>

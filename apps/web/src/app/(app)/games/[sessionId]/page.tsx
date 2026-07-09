@@ -135,6 +135,7 @@ export default async function SessionDetailPage({
             levelMatchLabel={levelMatchLabel}
             expiresAt={summary.session.startsAt}
             passNotificationId={passNotificationId}
+            viewerId={user.id}
           />
         </ToastBoundary>
       </main>
@@ -147,7 +148,7 @@ export default async function SessionDetailPage({
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-4">
-      <Link href="/games" className="text-cu-body font-bold text-action-strong">
+      <Link href="/home" className="text-cu-body font-bold text-action-strong">
         ‹ Games
       </Link>
 

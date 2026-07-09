@@ -105,6 +105,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
         ring2Label={ring2Label}
         canEscalate={canEscalate}
         ring3Available={ring3Available}
+        organiserId={user.id}
       />
 
       {claimant && (
