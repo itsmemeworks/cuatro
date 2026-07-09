@@ -1,9 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "@/app/auth/callback/route";
+import { GUEST_COOKIE } from "@/lib/guest-session";
 
 const exchangeCodeForSession = vi.fn();
 const findOrCreateUserBySupabase = vi.fn();
+// vi.hoisted so these are safely readable from the vi.mock factory below —
+// vi.mock calls are hoisted above ordinary top-level `const`s (unlike
+// exchangeCodeForSession/findOrCreateUserBySupabase above, which only work
+// because their mock factories defer the reference inside a not-yet-called
+// nested function; @/server/guest's exports ARE the mocked functions
+// directly, so there's no second closure to hide behind).
+const { getGuestUserId, convertGuestOnAuth } = vi.hoisted(() => ({
+  getGuestUserId: vi.fn(),
+  convertGuestOnAuth: vi.fn(),
+}));
 
 // Both modules are mocked wholesale — the real implementations call
 // next/headers' cookies() and a real sqlite client, neither of which work
@@ -21,14 +32,32 @@ vi.mock("@/lib/auth-store", () => ({
   getAuthStore: vi.fn(async () => ({ findOrCreateUserBySupabase })),
 }));
 
-function callbackRequest(query: string): NextRequest {
-  return new NextRequest(new URL(`https://cuatro.fly.dev/auth/callback${query}`));
+// server/guest.ts's DB-touching functions and the games client are mocked
+// the same wholesale way — the guest-conversion branch under test is the
+// route's own wiring (read the cookie, call convertGuestOnAuth, clear the
+// cookie), not server/guest.ts's actual merge logic (covered directly in
+// test/guest.test.ts against a real :memory: db).
+vi.mock("@/server/guest", () => ({
+  getGuestUserId,
+  convertGuestOnAuth,
+}));
+
+vi.mock("@/server/games-db", () => ({
+  getGamesClient: vi.fn(async () => ({ db: {} })),
+}));
+
+function callbackRequest(query: string, cookies: Record<string, string> = {}): NextRequest {
+  const request = new NextRequest(new URL(`https://cuatro.fly.dev/auth/callback${query}`));
+  for (const [name, value] of Object.entries(cookies)) request.cookies.set(name, value);
+  return request;
 }
 
 describe("GET /auth/callback", () => {
   beforeEach(() => {
     exchangeCodeForSession.mockReset();
     findOrCreateUserBySupabase.mockReset();
+    getGuestUserId.mockReset();
+    convertGuestOnAuth.mockReset();
   });
 
   afterEach(() => {
@@ -114,5 +143,47 @@ describe("GET /auth/callback", () => {
     const res = await GET(callbackRequest(`?code=abc&next=${encodeURIComponent("https://evil.com")}`));
 
     expect(res.headers.get("location")).toBe("https://cuatro.fly.dev/home");
+  });
+
+  it("with no guest cookie: never touches guest conversion", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-5", email: "noguest@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-5", email: "noguest@example.com", displayName: null });
+
+    await GET(callbackRequest("?code=abc"));
+
+    expect(getGuestUserId).not.toHaveBeenCalled();
+    expect(convertGuestOnAuth).not.toHaveBeenCalled();
+  });
+
+  it("with a guest cookie that resolves: converts and clears the cookie", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-6", email: "guest@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-6", email: "guest@example.com", displayName: null });
+    getGuestUserId.mockReturnValue("guest-user-id");
+
+    const res = await GET(callbackRequest("?code=abc", { [GUEST_COOKIE]: "raw-guest-token" }));
+
+    expect(getGuestUserId).toHaveBeenCalledWith({}, "raw-guest-token");
+    expect(convertGuestOnAuth).toHaveBeenCalledWith({}, "guest-user-id", "resolved-6");
+    expect(res.cookies.get(GUEST_COOKIE)?.value).toBe("");
+  });
+
+  it("with a guest cookie that no longer resolves (already converted elsewhere): skips conversion but still clears the cookie", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-7", email: "stale@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-7", email: "stale@example.com", displayName: null });
+    getGuestUserId.mockReturnValue(null);
+
+    const res = await GET(callbackRequest("?code=abc", { [GUEST_COOKIE]: "stale-token" }));
+
+    expect(convertGuestOnAuth).not.toHaveBeenCalled();
+    expect(res.cookies.get(GUEST_COOKIE)?.value).toBe("");
   });
 });

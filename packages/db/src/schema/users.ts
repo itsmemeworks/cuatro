@@ -1,5 +1,5 @@
 import { index, real, sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
-import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
+import { booleanColumn, createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 
 // A player's auth identity, GLASS rating state, and reliability counters.
 // GLASS fields start empty — `rating` is null until the Placement Trio (first
@@ -10,8 +10,12 @@ export const users = sqliteTable(
   {
     id: idColumn(),
 
-    // Auth identity
-    email: text('email').notNull().unique(),
+    // Auth identity. Nullable: a guest claimed via a public game link (see
+    // server/guest.ts) gets a row with no email at all — SQLite's unique
+    // index treats every NULL as distinct, so many guest rows can coexist.
+    // `isGuest` is the row's actual identity flag; `email == null` is just
+    // the consequence of never having signed in.
+    email: text('email').unique(),
     emailVerifiedAt: timestampColumn('email_verified_at'),
     oauthGoogleId: text('oauth_google_id').unique(),
     oauthAppleId: text('oauth_apple_id').unique(),
@@ -22,6 +26,17 @@ export const users = sqliteTable(
     supabaseUserId: text('supabase_user_id').unique(),
     displayName: text('display_name').notNull(),
     avatarUrl: text('avatar_url'),
+
+    // Guest identity (join-via-link's "10-second promise" — no account, no
+    // password, no email). `isGuest` is true from the claim tap until the
+    // deferred magic-link conversion at /auth/callback flips it back to
+    // false. `guestClaimTokenHash` is the sha256 of the raw token held in
+    // the guest's `cuatro_guest` device cookie (see server/guest.ts) — same
+    // "store the hash, never the raw token" pattern as magic_link_tokens/
+    // sessions_auth in auth.ts. Cleared on conversion so a stale cookie from
+    // a since-converted guest can never re-resolve to this row.
+    isGuest: booleanColumn('is_guest').notNull().default(false),
+    guestClaimTokenHash: text('guest_claim_token_hash').unique(),
 
     // World-ready plumbing: country is data, not code.
     countryCode: text('country_code').notNull().default('GB'),

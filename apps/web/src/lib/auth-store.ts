@@ -77,8 +77,14 @@ function deriveDisplayName(email: string): string {
   return email.split("@")[0] || email;
 }
 
-function toSessionUser(row: { id: string; email: string; displayName: string }): SessionUser {
-  return { id: row.id, email: row.email, displayName: row.displayName };
+// `users.email` is nullable at the schema level (server/guest.ts's guest
+// rows have none), but every row this module ever resolves comes from a
+// lookup keyed on email, a Supabase id, or a session/magic-link token —
+// paths a guest row (email null, supabaseUserId null) can never match. The
+// cast documents that invariant rather than threading `| null` through
+// SessionUser for a case that can't actually occur here.
+function toSessionUser(row: { id: string; email: string | null; displayName: string }): SessionUser {
+  return { id: row.id, email: row.email as string, displayName: row.displayName };
 }
 
 export function createDrizzleAuthStore(dbPath?: string): AuthStore {
