@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { SegmentedControl, DashedSlot, Meta } from "@/components/ui";
+import { SegmentedControl, DashedSlot, Meta, QrShareSheet } from "@/components/ui";
 import { CircleChat, type ChatMessage } from "@/components/circles/circle-chat";
 import { MemberList, type MemberListItem } from "@/components/circles/member-list";
 import { InviteShareButton, InviteLinkText } from "@/components/circles/invite-share-button";
@@ -66,6 +66,14 @@ export function CircleTabs({
 }) {
   const [tab, setTab] = useState<Tab>("feed");
   const [unread, setUnread] = useState(unreadChatBadge);
+  // The invite QR (shared by the solo-circle and Members invite blocks). The
+  // origin is resolved after mount — same reason as InviteLinkText — so the
+  // link rendered under the code matches what people read off the screen.
+  const [qrOpen, setQrOpen] = useState(false);
+  const [origin, setOrigin] = useState<string | null>(null);
+  useEffect(() => setOrigin(window.location.origin), []);
+  const inviteUrl = `${origin ?? ""}/join/${inviteCode}`;
+  const inviteLinkReadable = `${origin ? origin.replace(/^https?:\/\//, "") : ""}/join/${inviteCode}`;
   // The Feed's pinned bar (prototype screen 4) is a compact one-liner for
   // whichever Standing Game session is next — never the full SessionCard
   // (dashed-slot grid, full-width "I'm in"), which stays on the session's
@@ -138,7 +146,16 @@ export function CircleTabs({
                 </div>
                 <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
               </div>
-              <InviteLinkText inviteCode={inviteCode} />
+              <div className="flex items-center justify-between gap-3">
+                <InviteLinkText inviteCode={inviteCode} className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => setQrOpen(true)}
+                  className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[11px] px-3 py-2 shrink-0 transition-cu-state active:opacity-80"
+                >
+                  Show QR
+                </button>
+              </div>
             </div>
           )}
           {pinnedBar}
@@ -202,13 +219,31 @@ export function CircleTabs({
               </div>
               <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
             </div>
-            <InviteLinkText inviteCode={inviteCode} />
+            <div className="flex items-center justify-between gap-3">
+              <InviteLinkText inviteCode={inviteCode} className="flex-1" />
+              <button
+                type="button"
+                onClick={() => setQrOpen(true)}
+                className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[11px] px-3 py-2 shrink-0 transition-cu-state active:opacity-80"
+              >
+                Show QR
+              </button>
+            </div>
           </div>
           <Meta as="p" className="text-center">
             ratings are everyone&apos;s business here — that&apos;s the point
           </Meta>
         </div>
       )}
+
+      <QrShareSheet
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        title={circleName}
+        url={inviteUrl}
+        readableLink={inviteLinkReadable}
+        caption="scan to join the Circle — no account needed to see what it is"
+      />
     </div>
   );
 }

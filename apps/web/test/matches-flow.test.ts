@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { circles, matches, notifications, ratingEvents, sessions, users, type CuatroDb } from "@cuatro/db";
+import { circleMembers, circles, matches, notifications, ratingEvents, rsvps, sessions, users, type CuatroDb } from "@cuatro/db";
 import {
   clampRating,
   confidenceMultiplier,
@@ -34,6 +34,24 @@ function insertCircleAndSession(db: CuatroDb, createdBy: string, startsAt: Date)
     .returning()
     .get();
   return session.id;
+}
+
+function insertCircleWithSession(db: CuatroDb, createdBy: string, startsAt: Date) {
+  const circle = db
+    .insert(circles)
+    .values({ name: "Test Circle", inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy })
+    .returning()
+    .get();
+  const session = db.insert(sessions).values({ circleId: circle.id, startsAt, status: "played" }).returning().get();
+  return { circleId: circle.id, sessionId: session.id };
+}
+
+function addMember(db: CuatroDb, circleId: string, userId: string, role: "organiser" | "member" = "member") {
+  db.insert(circleMembers).values({ circleId, userId, role }).run();
+}
+
+function rsvpIn(db: CuatroDb, sessionId: string, userId: string, respondedAt: Date) {
+  db.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt }).run();
 }
 
 describe("result entry + Glass verification flow", () => {
@@ -396,6 +414,150 @@ describe("result entry + Glass verification flow", () => {
     // Now verified — no longer a pending action for either team.
     expect(await store.getPendingConfirmationsForUser(c.id)).toEqual([]);
     expect(await store.getPendingConfirmationsForUser(d.id)).toEqual([]);
+  });
+});
+
+describe("substitutes at result entry — record who PLAYED, not who RSVP'd", () => {
+  let store: MatchesStore;
+  let db: CuatroDb;
+
+  beforeEach(() => {
+    store = createMatchesStore(":memory:");
+    db = store.db;
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  it("getRosterContext returns the confirmed four in RSVP order, plus subbable Circle members", async () => {
+    const alex = insertUser(db, "ra1@example.com", "Alex");
+    const priya = insertUser(db, "rp1@example.com", "Priya");
+    const jordan = insertUser(db, "rj1@example.com", "Jordan"); // a member who didn't RSVP
+    const now = Date.now();
+    const { circleId, sessionId } = insertCircleWithSession(db, alex.id, new Date(now - DAY_MS));
+    addMember(db, circleId, alex.id, "organiser");
+    addMember(db, circleId, priya.id);
+    addMember(db, circleId, jordan.id);
+    // Priya RSVP'd first, Alex second — confirmed order must follow respondedAt.
+    rsvpIn(db, sessionId, priya.id, new Date(now - 3 * DAY_MS));
+    rsvpIn(db, sessionId, alex.id, new Date(now - 2 * DAY_MS));
+
+    const roster = (await store.getRosterContext(sessionId, alex.id))!;
+    expect(roster.confirmed.map((p) => p.displayName)).toEqual(["Priya", "Alex"]);
+    // Jordan didn't RSVP but is a member — a candidate to sub in; the two
+    // confirmed players are not repeated in the candidate pool.
+    expect(roster.candidates.map((p) => p.id)).toContain(jordan.id);
+    expect(roster.candidates.map((p) => p.id)).not.toContain(alex.id);
+    expect(roster.candidates.map((p) => p.id)).not.toContain(priya.id);
+  });
+
+  it("surfaces the viewer as a candidate even when they aren't a Circle member, so they can add themselves", async () => {
+    const organiser = insertUser(db, "ro2@example.com", "Org");
+    const viewer = insertUser(db, "rv2@example.com", "Viewer");
+    const { circleId, sessionId } = insertCircleWithSession(db, organiser.id, new Date(Date.now() - DAY_MS));
+    addMember(db, circleId, organiser.id, "organiser");
+
+    const roster = (await store.getRosterContext(sessionId, viewer.id))!;
+    expect(roster.candidates.map((p) => p.id)).toContain(viewer.id);
+  });
+
+  it("subs in a Circle member who never RSVP'd, and Glass moves for all four who played", async () => {
+    const alex = insertUser(db, "sa@example.com", "Alex");
+    const priya = insertUser(db, "sp@example.com", "Priya");
+    const jordan = insertUser(db, "sj@example.com", "Jordan");
+    const sub = insertUser(db, "ss@example.com", "Sub"); // never tapped "I'm in"
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, sub.id],
+      sets: [{ a: 6, b: 3 }],
+    });
+    const outcome = await store.confirmMatch(matchId, jordan.id);
+    expect(outcome.status).toBe("verified");
+
+    const events = await db.select().from(ratingEvents).where(eq(ratingEvents.matchId, matchId));
+    expect(events.map((e) => e.userId).sort()).toEqual([alex.id, priya.id, jordan.id, sub.id].sort());
+  });
+
+  it("subs in a brand-new named guest: mints a guest users row, seals via the guest's real teammate, and moves Glass for all four", async () => {
+    const alex = insertUser(db, "ga@example.com", "Alex");
+    const priya = insertUser(db, "gp@example.com", "Priya");
+    const jordan = insertUser(db, "gj@example.com", "Jordan");
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+
+    // The fourth was a mate off the street who never had an account — the
+    // reporter names them at entry time as a `guest:` token.
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, "g0"],
+      sets: [
+        { a: 6, b: 4 },
+        { a: 6, b: 3 },
+      ],
+      newGuests: [{ token: "g0", name: "Mo" }],
+    });
+
+    // A real guest users row exists, first-class (is_guest=1, no email).
+    const guest = (await db.select().from(users).where(eq(users.displayName, "Mo")))[0]!;
+    expect(guest.isGuest).toBe(true);
+    expect(guest.email).toBeNull();
+
+    // The match carries the guest's real id — the token never reaches the DB.
+    const [matchRow] = await db.select().from(matches).where(eq(matches.id, matchId));
+    expect(matchRow!.teamBPlayer2Id).toBe(guest.id);
+
+    // Jordan (the guest's real teammate) can seal team B — the device-less
+    // guest can't confirm, but any real member of a team confirms for it.
+    const outcome = await store.confirmMatch(matchId, jordan.id);
+    expect(outcome.status).toBe("verified");
+
+    const events = await db.select().from(ratingEvents).where(eq(ratingEvents.matchId, matchId));
+    expect(events).toHaveLength(4);
+    expect(events.map((e) => e.userId).sort()).toEqual([alex.id, priya.id, jordan.id, guest.id].sort());
+
+    // The guest accrues a Placement match like anyone: hidden rating (null)
+    // until the Trio, but the verified-match counter moves.
+    const [guestAfter] = await db.select().from(users).where(eq(users.id, guest.id));
+    expect(guestAfter!.rating).toBeNull();
+    expect(guestAfter!.verifiedMatchCount).toBe(1);
+  });
+
+  it("rejects a substitute with a blank name, and a guest token that isn't one of the four slots", async () => {
+    const alex = insertUser(db, "ba@example.com", "Alex");
+    const priya = insertUser(db, "bp@example.com", "Priya");
+    const jordan = insertUser(db, "bj@example.com", "Jordan");
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+
+    await expect(
+      store.recordMatch({
+        sessionId,
+        reporterId: alex.id,
+        teamA: [alex.id, priya.id],
+        teamB: [jordan.id, "g0"],
+        sets: [{ a: 6, b: 3 }],
+        newGuests: [{ token: "g0", name: "   " }],
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      store.recordMatch({
+        sessionId,
+        reporterId: alex.id,
+        teamA: [alex.id, priya.id],
+        teamB: [jordan.id, "g0"],
+        sets: [{ a: 6, b: 3 }],
+        newGuests: [{ token: "gX", name: "Mo" }], // token nobody plays
+      }),
+    ).rejects.toThrow();
+
+    // No orphan guest row survives a rejected record.
+    expect(await db.select().from(users).where(eq(users.isGuest, true))).toHaveLength(0);
   });
 });
 

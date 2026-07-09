@@ -26,8 +26,8 @@ export default async function FeedTabPage() {
           <div>
             <p className="text-cu-card-title text-ink">You&apos;re not in a Circle yet</p>
             <p className="text-cu-body text-ink-muted mt-1">
-              Join one with a link from a friend, or create your own to bring your padel group over from
-              WhatsApp.
+              Join one with a link or QR code from a friend, or create your own to bring your padel group
+              over from WhatsApp.
             </p>
           </div>
           <Link

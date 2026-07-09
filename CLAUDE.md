@@ -28,6 +28,8 @@ npm-workspaces monorepo:
 9. **Raw error codes never reach the UI** — pass server errors through `lib/error-copy.ts` `errorCopy()` (or a page-local map for context-specific codes).
 10. **Branded-mechanic explanations live in one place**: `components/ui/info-term.tsx` `GLOSSARY` (+ `<InfoTerm>` dotted-underline → bottom-sheet). Add new mechanic copy there, not inline. NB: "Reliability" = attendance, "confidence" = rating certainty — Playtomic users conflate these; keep the disambiguation.
 11. New sign-ups with an email-derived display name route through `/welcome/name` once (cookie `cuatro_named`); OAuth buttons render only when `NEXT_PUBLIC_OAUTH_APPLE/GOOGLE=1` (fly.toml build args) — enable when the parked provider credentials go live.
+12. QR codes use the vendored zero-dep encoder in `lib/qr/` (verified bit-for-bit vs the `qrcode` npm pkg) — don't add a QR dependency. QRs render dark-on-light regardless of theme (inverted codes fail on some scanners).
+13. Match results record who PLAYED, not who RSVP'd (roster editable at /matches/new; guests minted inside the recording transaction); seal = any real member of a team confirms for it; an all-guest team leaves the match pending, never fake-verified.
 
 ## Dev environment
 - Local Supabase stack on **544xx ports** (543xx is held by apex's stack): API 54421, Studio 54423, **Mailpit 54424** (captures ALL auth emails — magic links are E2E-testable). `supabase start` from repo root.

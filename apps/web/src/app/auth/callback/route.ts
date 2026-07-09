@@ -50,27 +50,36 @@ export async function GET(request: NextRequest) {
       typeof data.user.user_metadata?.name === "string" ? data.user.user_metadata.name : null,
   });
 
+  // Guest conversion runs BEFORE the name-step decision: a guest who chose a
+  // display name while joining (a Circle or a Fourth Call) carries it onto the
+  // freshly provisioned account (server/guest.ts convertGuestOnAuth), so the
+  // "does this account still have an auto-derived name?" check below must run
+  // against the POST-conversion name — otherwise the guest gets re-prompted at
+  // /welcome/name with the wrong (email-derived) prefill.
+  let effectiveDisplayName = resolvedUser?.displayName ?? null;
+  const guestToken = request.cookies.get(GUEST_COOKIE)?.value;
+  if (guestToken) {
+    const { db } = await getGamesClient();
+    const guestUserId = getGuestUserId(db, guestToken);
+    if (guestUserId) {
+      const conversion = convertGuestOnAuth(db, guestUserId, resolvedUser.id);
+      if (conversion?.converted && conversion.carriedName) effectiveDisplayName = conversion.carriedName;
+    }
+  }
+
   // Route a fresh sign-up whose name is still the email local-part through
   // the one-field name step before its real destination (F6). No-ops for a
   // returning user (chosen name -> not derived), for anyone who's already
   // seen the step (cookie), and — safely — when provisioning didn't resolve
   // a user, so the callback's redirect contract is otherwise untouched.
   const alreadyPrompted = request.cookies.get(NAME_PROMPTED_COOKIE)?.value === "1";
-  const needsName =
-    !alreadyPrompted && displayNameLooksDerived(resolvedUser?.displayName, resolvedUser?.email);
+  const needsName = !alreadyPrompted && displayNameLooksDerived(effectiveDisplayName, resolvedUser?.email);
   const finalDestination = needsName
     ? `/welcome/name?next=${encodeURIComponent(destination)}`
     : destination;
 
   const response = NextResponse.redirect(`${origin}${finalDestination}`);
-
-  const guestToken = request.cookies.get(GUEST_COOKIE)?.value;
-  if (guestToken) {
-    const { db } = await getGamesClient();
-    const guestUserId = getGuestUserId(db, guestToken);
-    if (guestUserId) convertGuestOnAuth(db, guestUserId, resolvedUser.id);
-    response.cookies.delete(GUEST_COOKIE);
-  }
+  if (guestToken) response.cookies.delete(GUEST_COOKIE);
 
   return response;
 }

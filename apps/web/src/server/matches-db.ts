@@ -20,6 +20,8 @@
  */
 import { and, desc, eq, gte, inArray, lt, or } from "drizzle-orm";
 import {
+  circleMembers,
+  circles,
   createClient,
   matchConfirmations,
   matches,
@@ -47,6 +49,7 @@ import {
   type PlayerState,
 } from "@cuatro/glass";
 import { getDb } from "./db";
+import { normalizeGuestName } from "./guest";
 import { insertNotification } from "./notify";
 import { emitCircleEvent, emitSessionEvent, emitUserEvent } from "@/lib/realtime/broadcast";
 
@@ -72,14 +75,48 @@ export interface SessionForEntry {
   players: SessionEntryPlayer[];
 }
 
+/** One person the reporter can put on court at result-entry time — a confirmed RSVP, a Circle member who never RSVP'd, or (for the display of a just-added sub) a guest row. `rating` follows the users-table convention: null until the Placement Trio completes. */
+export interface RosterPlayer {
+  id: string;
+  displayName: string;
+  rating: number | null;
+  avatarUrl: string | null;
+  isGuest: boolean;
+}
+
+/**
+ * Everything the result-entry roster editor needs when the confirmed four
+ * aren't the four who actually played: who RSVP'd in, and who else in the
+ * Circle (plus the viewer themselves) can be swapped in. The reporter still
+ * has to land on exactly four before a score can be sent.
+ */
+export interface RosterContext {
+  session: { id: string; startsAt: Date; status: string };
+  circleId: string;
+  circleName: string;
+  /** RSVP'd-in players, in the order slots filled — the roster's starting point. */
+  confirmed: RosterPlayer[];
+  /** Circle members not already in `confirmed`, plus the viewer if they aren't a member — the pool a sub can be picked from. */
+  candidates: RosterPlayer[];
+}
+
+/** A sub the reporter named who has no `users` row yet — created as a guest (is_guest=1) atomically when the match is recorded. `token` is the client-side stand-in used in the team slots until then. */
+export interface PendingGuest {
+  token: string;
+  name: string;
+}
+
 export interface RecordMatchInput {
   sessionId: string;
   reporterId: string;
+  /** Each slot is either an existing `users.id` or a PendingGuest `token` resolved via `newGuests`. */
   teamA: [string, string];
   teamB: [string, string];
   sets: SetScore[];
   /** Defaults to "completed". A "walkover" isn't reachable from the result-entry form yet (v0 has no no-show flow). */
   outcome?: MatchOutcome;
+  /** Named substitutes with no account yet — turned into guest `users` rows inside recordMatch's own transaction, so a failed record leaves no orphan guests. */
+  newGuests?: PendingGuest[];
 }
 
 export type ConfirmOutcome =
@@ -387,6 +424,7 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
 export interface MatchesStore {
   db: CuatroDb;
   getSessionForEntry(sessionId: string): Promise<SessionForEntry | null>;
+  getRosterContext(sessionId: string, viewerId: string): Promise<RosterContext | null>;
   /** The most recently recorded match for a session, if any — used to cross-link a played session to "Record result" vs. its existing match. */
   getMatchForSession(sessionId: string): Promise<{ id: string; status: string } | null>;
   recordMatch(input: RecordMatchInput): Promise<{ matchId: string }>;
@@ -425,6 +463,73 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       return { session: { id: session.id, startsAt: session.startsAt, status: session.status }, players };
     },
 
+    async getRosterContext(sessionId, viewerId) {
+      const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+      if (!session) return null;
+
+      const [circle] = await db.select({ name: circles.name }).from(circles).where(eq(circles.id, session.circleId));
+
+      // Confirmed-in players first — same "slots fill in RSVP order" sort as
+      // games-service.getSessionSummary (rsvpIn never assigns an "in" row a
+      // position, so order comes from respondedAt, not DB order).
+      const inRows = await db
+        .select({
+          userId: users.id,
+          displayName: users.displayName,
+          rating: users.rating,
+          avatarUrl: users.avatarUrl,
+          isGuest: users.isGuest,
+          respondedAt: rsvps.respondedAt,
+        })
+        .from(rsvps)
+        .innerJoin(users, eq(rsvps.userId, users.id))
+        .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+      const confirmed: RosterPlayer[] = inRows
+        .sort((a, b) => (a.respondedAt?.getTime() ?? 0) - (b.respondedAt?.getTime() ?? 0))
+        .map((r) => ({ id: r.userId, displayName: r.displayName, rating: r.rating, avatarUrl: r.avatarUrl, isGuest: r.isGuest }));
+
+      const confirmedIds = new Set(confirmed.map((p) => p.id));
+
+      // Everyone in the Circle who could be subbed in — members who didn't
+      // RSVP in. `users.rating` is null-until-rated by convention, so it maps
+      // straight onto RosterPlayer.rating with no extra Glass read.
+      const memberRows = await db
+        .select({
+          userId: users.id,
+          displayName: users.displayName,
+          rating: users.rating,
+          avatarUrl: users.avatarUrl,
+          isGuest: users.isGuest,
+        })
+        .from(circleMembers)
+        .innerJoin(users, eq(circleMembers.userId, users.id))
+        .where(eq(circleMembers.circleId, session.circleId));
+      const candidates: RosterPlayer[] = memberRows
+        .filter((r) => !confirmedIds.has(r.userId))
+        .map((r) => ({ id: r.userId, displayName: r.displayName, rating: r.rating, avatarUrl: r.avatarUrl, isGuest: r.isGuest }));
+
+      // The reporter must end up as one of the four (they auto-confirm their
+      // own team — see recordMatch). If they RSVP'd in they're already in
+      // `confirmed`; if they're a member they're in `candidates`; otherwise
+      // surface them explicitly so they can still add themselves.
+      const alreadyListed = confirmedIds.has(viewerId) || candidates.some((c) => c.id === viewerId);
+      if (!alreadyListed) {
+        const [viewer] = await db
+          .select({ id: users.id, displayName: users.displayName, rating: users.rating, avatarUrl: users.avatarUrl, isGuest: users.isGuest })
+          .from(users)
+          .where(eq(users.id, viewerId));
+        if (viewer) candidates.unshift(viewer);
+      }
+
+      return {
+        session: { id: session.id, startsAt: session.startsAt, status: session.status },
+        circleId: session.circleId,
+        circleName: circle?.name ?? "",
+        confirmed,
+        candidates,
+      };
+    },
+
     async getMatchForSession(sessionId) {
       const rows = await db
         .select({ id: matches.id, status: matches.status })
@@ -437,9 +542,13 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
     async recordMatch(input) {
       const outcome = input.outcome ?? "completed";
-      const allIds = [...input.teamA, ...input.teamB];
-      if (new Set(allIds).size !== 4) throw new Error("A match needs four distinct players");
-      if (!allIds.includes(input.reporterId)) throw new Error("The reporter must be one of the four players");
+      // Slots may be existing user ids or PendingGuest tokens at this point;
+      // distinctness/reporter/score checks all hold on the tokens, and are
+      // re-checked on the resolved ids once guests exist (below), so a token
+      // that happens to equal a real id can't smuggle in a duplicate player.
+      const slotTokens = [...input.teamA, ...input.teamB];
+      if (new Set(slotTokens).size !== 4) throw new Error("A match needs four distinct players");
+      if (!slotTokens.includes(input.reporterId)) throw new Error("The reporter must be one of the four players");
       if (input.sets.length > 3) throw new Error("Enter at most 3 sets");
       // A "completed" match needs a real score; a "retired" one may have
       // ended with zero games played (see @cuatro/glass README's walkover/
@@ -454,19 +563,51 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         throw new Error("At least one game must have been played");
       }
 
+      // Validate substitute names before opening the transaction (guest
+      // creation happens inside it, so a bad name shouldn't get that far).
+      // Every guest token must be one of the four slots — a spec for a token
+      // nobody plays is a client bug, not something to silently drop.
+      const guestSpecs = (input.newGuests ?? []).map((g) => {
+        const name = normalizeGuestName(g.name);
+        if (!name) throw new Error("A substitute needs a name");
+        if (!slotTokens.includes(g.token)) throw new Error(`Guest token "${g.token}" isn't one of the four players`);
+        return { token: g.token, name };
+      });
+
       const [session] = await db.select().from(sessions).where(eq(sessions.id, input.sessionId));
       if (!session) throw new Error(`No such session "${input.sessionId}"`);
+      const [circle] = await db.select({ countryCode: circles.countryCode }).from(circles).where(eq(circles.id, session.circleId));
+      const guestCountryCode = circle?.countryCode ?? "GB";
 
       let createdMatch: Match | undefined;
       const result = db.transaction((tx) => {
+        // Mint a guest `users` row per named substitute — same shape as
+        // server/guest.ts's insertGuestUser (isGuest, no email, Circle's
+        // country), but with the name already known so no placeholder/name
+        // step is needed. Created here so a rollback (e.g. a bad slot) leaves
+        // no orphan guest behind.
+        const tokenToId = new Map<string, string>();
+        for (const g of guestSpecs) {
+          const guest = tx
+            .insert(users)
+            .values({ displayName: g.name, isGuest: true, countryCode: guestCountryCode })
+            .returning()
+            .get();
+          tokenToId.set(g.token, guest.id);
+        }
+        const resolve = (token: string) => tokenToId.get(token) ?? token;
+        const teamA: [string, string] = [resolve(input.teamA[0]), resolve(input.teamA[1])];
+        const teamB: [string, string] = [resolve(input.teamB[0]), resolve(input.teamB[1])];
+        if (new Set([...teamA, ...teamB]).size !== 4) throw new Error("A match needs four distinct players");
+
         const created = tx
           .insert(matches)
           .values({
             sessionId: input.sessionId,
-            teamAPlayer1Id: input.teamA[0],
-            teamAPlayer2Id: input.teamA[1],
-            teamBPlayer1Id: input.teamB[0],
-            teamBPlayer2Id: input.teamB[1],
+            teamAPlayer1Id: teamA[0],
+            teamAPlayer2Id: teamA[1],
+            teamBPlayer1Id: teamB[0],
+            teamBPlayer2Id: teamB[1],
             score: input.sets,
             status: "pending_confirmation",
             outcome,
@@ -481,7 +622,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
           .values({ matchId: created.id, team: reporterTeam, confirmedByUserId: input.reporterId })
           .run();
 
-        const otherTeamIds = reporterTeam === "A" ? input.teamB : input.teamA;
+        const otherTeamIds = reporterTeam === "A" ? teamB : teamA;
         for (const id of otherTeamIds) {
           insertNotification(tx, {
             userId: id,

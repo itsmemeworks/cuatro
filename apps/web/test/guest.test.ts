@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   createClient,
+  circleMembers,
   circles,
   matches,
   notifications,
@@ -19,8 +20,10 @@ import {
   GUEST_PLACEHOLDER_NAME,
   claimGuestSlot,
   convertGuestOnAuth,
+  getGuestMembership,
   getGuestUserId,
   hashGuestToken,
+  joinGuestCircle,
   joinGuestReserveQueue,
   lockGuestName,
   normalizeGuestName,
@@ -288,7 +291,7 @@ describe("convertGuestOnAuth", () => {
     lockGuestName(db, claim.guestUserId, session.id, "Alex");
 
     const result = convertGuestOnAuth(db, claim.guestUserId, claim.guestUserId);
-    expect(result).toEqual({ converted: true, merged: false });
+    expect(result).toEqual({ converted: true, merged: false, carriedName: "Alex" });
 
     const converted = db.select().from(users).where(eq(users.id, claim.guestUserId)).get();
     expect(converted?.isGuest).toBe(false);
@@ -311,7 +314,9 @@ describe("convertGuestOnAuth", () => {
     lockGuestName(db, claim.guestUserId, session.id, "Alex");
 
     const result = convertGuestOnAuth(db, claim.guestUserId, existingAccount.id);
-    expect(result).toEqual({ converted: true, merged: true });
+    // The pre-existing account already has a real (non-derived) chosen name,
+    // so the guest's name is NOT carried over — carriedName stays null.
+    expect(result).toEqual({ converted: true, merged: true, carriedName: null });
 
     const rsvp = db.select().from(rsvps).where(eq(rsvps.sessionId, session.id)).all().find((r) => r.userId === existingAccount.id);
     expect(rsvp?.status).toBe("in");
@@ -359,6 +364,151 @@ describe("convertGuestOnAuth", () => {
     const alex = seedUser("Alex");
     const bob = seedUser("Bob");
     expect(convertGuestOnAuth(db, alex.id, bob.id)).toEqual({ converted: false, reason: "not_a_guest" });
+  });
+
+  it("carries the guest's chosen name onto a freshly provisioned (email-derived) account", () => {
+    const organiser = seedUser("Organiser");
+    const circle = seedCircle(organiser.id);
+    const join = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
+    if (!join.ok) throw new Error("expected join");
+
+    // A brand-new magic-link account whose displayName is still the email
+    // local-part (auth-store's deriveDisplayName) — the exact case F6 targets.
+    const fresh = db.insert(users).values({ email: "pete@example.com", displayName: "pete" }).returning().get();
+
+    const result = convertGuestOnAuth(db, join.guestUserId, fresh.id);
+    expect(result).toEqual({ converted: true, merged: true, carriedName: "Pete" });
+
+    const account = db.select().from(users).where(eq(users.id, fresh.id)).get();
+    expect(account?.displayName).toBe("Pete");
+  });
+
+  it("re-points a circle-join guest's membership onto the resolved account (move, no clash)", () => {
+    const organiser = seedUser("Organiser");
+    const circle = seedCircle(organiser.id);
+    const join = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
+    if (!join.ok) throw new Error("expected join");
+    const account = seedUser("Pete (existing)");
+
+    convertGuestOnAuth(db, join.guestUserId, account.id);
+
+    // The membership moved to the resolved account; the guest no longer holds one.
+    const accountMembership = db
+      .select()
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, account.id)))
+      .get();
+    expect(accountMembership).toBeTruthy();
+    const guestMembership = db
+      .select()
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, join.guestUserId)))
+      .get();
+    expect(guestMembership).toBeUndefined();
+  });
+
+  it("drops the guest's membership when the resolved account is already in that circle", () => {
+    const organiser = seedUser("Organiser");
+    const circle = seedCircle(organiser.id);
+    const account = seedUser("Pete (existing)");
+    db.insert(circleMembers).values({ circleId: circle.id, userId: account.id, role: "member" }).run();
+
+    const join = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
+    if (!join.ok) throw new Error("expected join");
+
+    convertGuestOnAuth(db, join.guestUserId, account.id);
+
+    // Exactly one membership for this circle+account (no PK collision thrown),
+    // and the guest's row is gone.
+    const guestMembership = db
+      .select()
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, join.guestUserId)))
+      .get();
+    expect(guestMembership).toBeUndefined();
+    const accountMembership = db
+      .select()
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, account.id)))
+      .get();
+    expect(accountMembership?.role).toBe("member");
+  });
+});
+
+describe("joinGuestCircle", () => {
+  it("mints a guest user with the chosen name and a real circle_members row", () => {
+    const organiser = seedUser("Organiser");
+    const circle = seedCircle(organiser.id);
+
+    const outcome = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "  Alex  " });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.displayName).toBe("Alex");
+    expect(outcome.token).toBeTruthy();
+    expect(outcome.circleId).toBe(circle.id);
+
+    const guest = db.select().from(users).where(eq(users.id, outcome.guestUserId)).get();
+    expect(guest?.isGuest).toBe(true);
+    expect(guest?.email).toBeNull();
+    expect(guest?.displayName).toBe("Alex");
+
+    // The device cookie resolves to this guest, and they're a real member.
+    expect(getGuestUserId(db, outcome.token!)).toBe(outcome.guestUserId);
+    const membership = db
+      .select()
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, outcome.guestUserId)))
+      .get();
+    expect(membership?.role).toBe("member");
+  });
+
+  it("rejects an empty name and an unknown invite code", () => {
+    const organiser = seedUser("Organiser");
+    const circle = seedCircle(organiser.id);
+    expect(joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "   " })).toEqual({ ok: false, error: "invalid_name" });
+    expect(joinGuestCircle(db, { inviteCode: "NOPE", rawName: "Alex" })).toEqual({ ok: false, error: "circle_not_found" });
+  });
+
+  it("reuses an existing guest identity for the device rather than minting a second row", () => {
+    const organiser = seedUser("Organiser");
+    const circleA = seedCircle(organiser.id);
+    const circleB = seedCircle(organiser.id);
+
+    const first = joinGuestCircle(db, { inviteCode: circleA.inviteCode, rawName: "Alex" });
+    if (!first.ok) throw new Error("expected first join");
+
+    // Same device (existingGuestUserId) opens a second circle invite.
+    const second = joinGuestCircle(db, {
+      inviteCode: circleB.inviteCode,
+      rawName: "Alex",
+      existingGuestUserId: first.guestUserId,
+    });
+    if (!second.ok) throw new Error("expected second join");
+
+    // Same guest row reused; no fresh token to set (cookie already carries it).
+    expect(second.guestUserId).toBe(first.guestUserId);
+    expect(second.token).toBeNull();
+
+    // One guest identity, member of BOTH circles.
+    expect(getGuestMembership(db, first.guestUserId, circleA.id)?.displayName).toBe("Alex");
+    expect(getGuestMembership(db, first.guestUserId, circleB.id)?.displayName).toBe("Alex");
+  });
+});
+
+describe("getGuestMembership", () => {
+  it("returns the guest's name when a member, null otherwise", () => {
+    const organiser = seedUser("Organiser");
+    const circle = seedCircle(organiser.id);
+    const otherCircle = seedCircle(organiser.id);
+    const join = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Alex" });
+    if (!join.ok) throw new Error("expected join");
+
+    expect(getGuestMembership(db, join.guestUserId, circle.id)).toEqual({ displayName: "Alex" });
+    expect(getGuestMembership(db, join.guestUserId, otherCircle.id)).toBeNull();
+    // A normal (non-guest) member of the circle never resolves through this
+    // guest-only helper (the isGuest filter, not just an absent membership row).
+    db.insert(circleMembers).values({ circleId: circle.id, userId: organiser.id, role: "organiser" }).run();
+    expect(getGuestMembership(db, organiser.id, circle.id)).toBeNull();
   });
 });
 

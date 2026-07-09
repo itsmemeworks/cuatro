@@ -26,7 +26,7 @@ export default async function TabTabPage() {
           <div>
             <p className="text-cu-card-title text-ink">You&apos;re not in a Circle yet</p>
             <p className="text-cu-body text-ink-muted mt-1">
-              The Tab tracks who owes who within a Circle — join one with a link, or create your own to get started.
+              The Tab tracks who owes who within a Circle — join one with a link or QR code, or create your own to get started.
             </p>
           </div>
           <Link

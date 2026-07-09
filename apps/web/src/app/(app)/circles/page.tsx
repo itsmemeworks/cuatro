@@ -37,8 +37,8 @@ export default async function CirclesPage({
         <Card className="flex flex-col gap-1">
           <p className="text-cu-card-title text-ink">No Circles yet</p>
           <p className="text-cu-body text-ink-muted">
-            Join one with a link, or create your own — this is where your padel group&apos;s chat, history
-            and Standing Games live.
+            Join one with a link or QR code, or create your own — this is where your padel group&apos;s chat,
+            history and Standing Games live.
           </p>
         </Card>
       ) : (

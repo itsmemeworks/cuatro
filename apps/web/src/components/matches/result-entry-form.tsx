@@ -11,6 +11,10 @@ export interface ResultEntryPlayer {
   /** Null when the player is still unrated (Placement Trio not complete) — averages fall back gracefully. */
   rating: number | null;
   avatarUrl?: string | null;
+  /** True for a guest with no device to confirm on — an existing guest row OR a `pending` sub. Used to flag a team that can't seal the result. */
+  isGuest?: boolean;
+  /** A named substitute with no `users` row yet — `id` is a client-side token, resolved into a real guest by recordMatch. Carried to the server in the `guests` field. */
+  pending?: boolean;
 }
 
 type TeamPair = [string, string];
@@ -152,6 +156,17 @@ export function ResultEntryForm({
   const yourPair = viewerTeam === "A" ? teamA : teamB;
   const oppPair = viewerTeam === "A" ? teamB : teamA;
 
+  // The reporter auto-confirms their own team, so the seal only stalls if the
+  // OTHER team has nobody with an account to confirm — both slots are guests
+  // (existing guest rows or just-added subs). Recording is still allowed (the
+  // match sits pending, no Glass moves until it's confirmed); this only warns.
+  const oppNeedsAccount = oppPair.every((id) => byId.get(id)?.isGuest);
+
+  // Substitutes with no account yet travel to the server as their client
+  // token in the team slots, paired with their name here so recordMatch can
+  // mint the guest rows in the same transaction that writes the match.
+  const pendingGuests = players.filter((p) => p.pending).map((p) => ({ token: p.id, name: p.displayName }));
+
   function updateSet(index: number, side: "your" | "their", value: string) {
     setSets((prev) =>
       prev.map((s, idx) => {
@@ -175,6 +190,7 @@ export function ResultEntryForm({
       <input type="hidden" name="teamA2" value={teamA[1]} />
       <input type="hidden" name="teamB1" value={teamB[0]} />
       <input type="hidden" name="teamB2" value={teamB[1]} />
+      {pendingGuests.length > 0 && <input type="hidden" name="guests" value={JSON.stringify(pendingGuests)} />}
       {sets.map((s, i) => (
         <span key={i}>
           <input type="hidden" name={`set${i + 1}_a`} value={s.a} />
@@ -254,6 +270,13 @@ export function ResultEntryForm({
           Match was retired early (injury, ran out of time, etc.)
         </label>
       </Card>
+
+      {oppNeedsAccount && (
+        <p className="text-cu-meta text-ink-muted text-center px-4">
+          No one on the other team has a Cuatro account yet, so they can&apos;t confirm this. You can still send it — it
+          waits until someone on their side joins — or swap one of them for a regular player above.
+        </p>
+      )}
 
       {/* Guard the empty submit: recordMatchAction silently no-ops with no
           sets and no retired flag, so keep the button disabled until there's

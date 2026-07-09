@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, Meta } from "@/components/ui";
+import { Button, Meta, QrShareSheet } from "@/components/ui";
 import { usePresenceCount } from "@/lib/realtime/presence";
 
 export type RingState = "pending" | "sent" | "done";
@@ -54,6 +54,8 @@ export function FourthCallSend({
   const [ring3Pending, setRing3Pending] = useState(false);
   const [ring3Copied, setRing3Copied] = useState(false);
   const [ring3Error, setRing3Error] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
 
   // Live "N viewing…" (design/HANDOFF.md screen 6) — aggregates every
   // viewer currently on the receive screen or the public ring-3 link, both
@@ -72,21 +74,28 @@ export function FourthCallSend({
     }
   }
 
+  // Both ring-3 affordances (Copy and Show QR) mint the same signed public
+  // claim link — see server/fourth-call.ts getRing3ClaimLink.
+  async function mintRing3Link(): Promise<string | null> {
+    const res = await fetch(`/api/fourth-call/${sessionId}/escalate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ level: 3 }),
+    });
+    const body = await res.json();
+    if (!res.ok || !body.ok) return null;
+    return `${window.location.origin}${body.path}`;
+  }
+
   async function copyRing3Link() {
     setRing3Pending(true);
     setRing3Error(false);
     try {
-      const res = await fetch(`/api/fourth-call/${sessionId}/escalate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ level: 3 }),
-      });
-      const body = await res.json();
-      if (!res.ok || !body.ok) {
+      const url = await mintRing3Link();
+      if (!url) {
         setRing3Error(true);
         return;
       }
-      const url = `${window.location.origin}${body.path}`;
 
       if (navigator.share) {
         try {
@@ -99,6 +108,24 @@ export function FourthCallSend({
       await navigator.clipboard.writeText(url);
       setRing3Copied(true);
       setTimeout(() => setRing3Copied(false), 2000);
+    } catch {
+      setRing3Error(true);
+    } finally {
+      setRing3Pending(false);
+    }
+  }
+
+  async function showRing3Qr() {
+    setRing3Pending(true);
+    setRing3Error(false);
+    try {
+      const url = await mintRing3Link();
+      if (!url) {
+        setRing3Error(true);
+        return;
+      }
+      setQrUrl(url);
+      setQrOpen(true);
     } catch {
       setRing3Error(true);
     } finally {
@@ -187,14 +214,24 @@ export function FourthCallSend({
               </Meta>
             )}
           </div>
-          <button
-            type="button"
-            onClick={copyRing3Link}
-            disabled={!ring3Available || ring3Pending}
-            className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 shrink-0 transition-cu-state active:opacity-80 disabled:opacity-50"
-          >
-            {ring3Copied ? "Copied ✓" : ring3Pending ? "…" : "Copy ↗"}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={copyRing3Link}
+              disabled={!ring3Available || ring3Pending}
+              className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+            >
+              {ring3Copied ? "Copied ✓" : ring3Pending ? "…" : "Copy ↗"}
+            </button>
+            <button
+              type="button"
+              onClick={showRing3Qr}
+              disabled={!ring3Available || ring3Pending}
+              className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+            >
+              QR
+            </button>
+          </div>
         </div>
       </div>
 
@@ -222,6 +259,17 @@ export function FourthCallSend({
       <Meta as="p" className="text-center">
         opens automatically within 48h of kickoff · escalates to the network 20 min later if the Circle&apos;s quiet
       </Meta>
+
+      {qrUrl && (
+        <QrShareSheet
+          open={qrOpen}
+          onClose={() => setQrOpen(false)}
+          title="Fourth Call"
+          url={qrUrl}
+          readableLink={qrUrl.replace(/^https?:\/\//, "")}
+          caption="scan to grab the open spot — no account needed to see it, signing in is only for claiming"
+        />
+      )}
     </div>
   );
 }

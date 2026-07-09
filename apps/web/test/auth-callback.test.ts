@@ -173,6 +173,40 @@ describe("GET /auth/callback", () => {
     expect(res.cookies.get(GUEST_COOKIE)?.value).toBe("");
   });
 
+  it("routes a fresh sign-up whose name is still the email local-part through /welcome/name", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-name", email: "pete@example.com", user_metadata: {} } },
+      error: null,
+    });
+    // deriveDisplayName seeds the local-part; displayNameLooksDerived is true.
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-name", email: "pete@example.com", displayName: "pete" });
+
+    const res = await GET(callbackRequest("?code=abc"));
+
+    expect(res.headers.get("location")).toBe(
+      `https://cuatro.fly.dev/welcome/name?next=${encodeURIComponent("/home")}`,
+    );
+  });
+
+  it("a converting guest's carried name suppresses the /welcome/name step (F6 conversion fix)", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-carry", email: "pete@example.com", user_metadata: {} } },
+      error: null,
+    });
+    // The freshly provisioned account is still on the derived name "pete"...
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-carry", email: "pete@example.com", displayName: "pete" });
+    getGuestUserId.mockReturnValue("guest-user-id");
+    // ...but conversion carries the guest's chosen "Pete" onto it, so the
+    // name-step decision must run against "Pete" (not derived) and skip.
+    convertGuestOnAuth.mockReturnValue({ converted: true, merged: true, carriedName: "Pete" });
+
+    const res = await GET(callbackRequest("?code=abc", { [GUEST_COOKIE]: "raw-guest-token" }));
+
+    expect(convertGuestOnAuth).toHaveBeenCalledWith({}, "guest-user-id", "resolved-carry");
+    expect(res.headers.get("location")).toBe("https://cuatro.fly.dev/home");
+    expect(res.cookies.get(GUEST_COOKIE)?.value).toBe("");
+  });
+
   it("with a guest cookie that no longer resolves (already converted elsewhere): skips conversion but still clears the cookie", async () => {
     exchangeCodeForSession.mockResolvedValue({
       data: { user: { id: "sb-7", email: "stale@example.com", user_metadata: {} } },

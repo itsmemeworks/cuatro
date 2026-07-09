@@ -17,6 +17,8 @@ export { ToastProvider, useToast } from "./toast";
 
 export { Sheet } from "./sheet";
 
+export { QrCode, QrShareSheet } from "./qr-code";
+
 export { InfoTerm, GLOSSARY } from "./info-term";
 export type { GlossaryEntry, GlossaryKey } from "./info-term";
 

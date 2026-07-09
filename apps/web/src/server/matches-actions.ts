@@ -3,8 +3,36 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/session";
-import { getMatchesStore } from "@/server/matches-db";
+import { getMatchesStore, type PendingGuest } from "@/server/matches-db";
 import type { SetScore } from "@cuatro/db";
+
+/**
+ * The roster editor may swap in named substitutes who have no account yet.
+ * Each is submitted as a client-side token in the four team slots, with the
+ * token→name pairs carried in a single `guests` JSON field. recordMatch
+ * turns them into guest `users` rows inside its own transaction; here we only
+ * shape and bound the input. Anything malformed is dropped rather than
+ * trusted — an unresolved token in a slot then fails recordMatch's own
+ * "four distinct players" check, never a silent bad write.
+ */
+function parseGuests(formData: FormData): PendingGuest[] {
+  const raw = formData.get("guests");
+  if (typeof raw !== "string" || raw.trim() === "") return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const guests: PendingGuest[] = [];
+  for (const item of parsed) {
+    if (item && typeof item === "object" && typeof (item as PendingGuest).token === "string" && typeof (item as PendingGuest).name === "string") {
+      guests.push({ token: (item as PendingGuest).token, name: (item as PendingGuest).name });
+    }
+  }
+  return guests.slice(0, 4);
+}
 
 function parseSets(formData: FormData): SetScore[] {
   const sets: SetScore[] = [];
@@ -38,6 +66,8 @@ export async function recordMatchAction(formData: FormData): Promise<void> {
   const sets = parseSets(formData);
   if (sets.length === 0 && !retired) return;
 
+  const newGuests = parseGuests(formData);
+
   const store = await getMatchesStore();
   const { matchId } = await store.recordMatch({
     sessionId,
@@ -46,6 +76,7 @@ export async function recordMatchAction(formData: FormData): Promise<void> {
     teamB: [teamB1, teamB2],
     sets,
     outcome: retired ? "retired" : "completed",
+    newGuests,
   });
 
   revalidatePath("/home");
