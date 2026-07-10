@@ -60,9 +60,9 @@ export async function GET(request: NextRequest) {
   const guestToken = request.cookies.get(GUEST_COOKIE)?.value;
   if (guestToken) {
     const { db } = await getGamesClient();
-    const guestUserId = getGuestUserId(db, guestToken);
+    const guestUserId = await getGuestUserId(db, guestToken);
     if (guestUserId) {
-      const conversion = convertGuestOnAuth(db, guestUserId, resolvedUser.id);
+      const conversion = await convertGuestOnAuth(db, guestUserId, resolvedUser.id);
       if (conversion?.converted && conversion.carriedName) effectiveDisplayName = conversion.carriedName;
     }
   }

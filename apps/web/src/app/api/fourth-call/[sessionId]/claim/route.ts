@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
     // No body — the pre-existing notification-based claim never sent one.
   }
 
-  const outcome = claimFourthCallSlot(db, sessionId, user.id, new Date(), { ring3Token });
+  const outcome = await claimFourthCallSlot(db, sessionId, user.id, new Date(), { ring3Token });
   if (!outcome.ok) {
     const status = outcome.error === "session_not_found" ? 404 : outcome.error === "no_fourth_call_invite" ? 403 : 400;
     return NextResponse.json({ ok: false, error: outcome.error }, { status });

@@ -40,12 +40,12 @@ export default async function NewStandingGamePage({
 
   const { circleId: preselectedCircleId, error } = await searchParams;
   const { db } = await getGamesClient();
-  const organiserCircles = listCirclesForUser(db, user.id).filter((c) => c.role === "organiser");
+  const organiserCircles = (await listCirclesForUser(db, user.id)).filter((c) => c.role === "organiser");
   // Order the venue dropdown by the circle the form will open on (preselected,
   // else the first organiser circle). The full list of known venues shows
   // regardless of circle; only the home-court-first ordering is circle-specific.
   const orderingCircleId = preselectedCircleId ?? organiserCircles[0]?.circleId;
-  const venueOptions = orderingCircleId ? listVenuesForCircle(db, orderingCircleId) : [];
+  const venueOptions = orderingCircleId ? await listVenuesForCircle(db, orderingCircleId) : [];
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">

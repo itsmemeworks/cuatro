@@ -42,13 +42,13 @@ function formatStartTime(hhmm: string): string {
 export async function generateMetadata({ params }: { params: Promise<{ sessionId: string }> }): Promise<Metadata> {
   const { sessionId } = await params;
   const { db } = await getGamesClient();
-  const summary = getSessionSummary(db, sessionId, "");
+  const summary = await getSessionSummary(db, sessionId, "");
 
   if (!summary) {
     return { title: "CUATRO game" };
   }
 
-  const when = summary.session.startsAt.toLocaleString("en-GB", {
+  const when = new Date(summary.session.startsAt).toLocaleString("en-GB", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -84,16 +84,16 @@ export default async function SessionDetailPage({
   // Lazy trigger (no cron in v0): a rotation game at/after T-24h locks its four
   // on this first view, before the summary is read, so the page shows the
   // locked lineup and the lock notifications fire. No-op for non-rotation games.
-  lockRotationIfDue(db, sessionId);
-  const summary = getSessionSummary(db, sessionId, user.id);
+  await lockRotationIfDue(db, sessionId);
+  const summary = await getSessionSummary(db, sessionId, user.id);
   if (!summary) notFound();
 
   // Lazy triggers (no cron in v0): a locked rotation game offers an open spot
   // to the next sit-out first; the Fourth Call only broadcasts once that chain
   // is exhausted (or the game isn't a locked rotation game).
-  const offer = offerRotationSlotIfNeeded(db, sessionId);
+  const offer = await offerRotationSlotIfNeeded(db, sessionId);
   if (offer.state === "exhausted" || offer.state === "not_applicable") {
-    checkFourthCallLevel1(db, sessionId);
+    await checkFourthCallLevel1(db, sessionId);
   }
 
   // "Has this game already happened?" is judged by the session's own
@@ -110,7 +110,7 @@ export default async function SessionDetailPage({
   // taken the slot lands on a full-screen invite (prototype screen 6,
   // receive) instead of the normal session view.
   const showReceiveScreen =
-    !isPast && summary.viewerStatus !== "in" && hasFourthCallInvite(db, sessionId, user.id);
+    !isPast && summary.viewerStatus !== "in" && (await hasFourthCallInvite(db, sessionId, user.id));
 
   if (showReceiveScreen) {
     const ratings = (
@@ -128,7 +128,7 @@ export default async function SessionDetailPage({
       levelMatchLabel = `their level ${theirs} · yours ${viewerGlass?.rating != null ? viewerGlass.rating.toFixed(2) : "?.??"}`;
     }
 
-    const notifGroups = listNotificationsForUser(db, user.id);
+    const notifGroups = await listNotificationsForUser(db, user.id);
     const passNotificationId =
       notifGroups
         .flatMap((g) => g.notifications)
@@ -136,7 +136,7 @@ export default async function SessionDetailPage({
 
     // A level-2 (extended-network / Local Ring) fourth_call invite switches the
     // takeover to the "near you" framing; level 1 is the viewer's own Circle.
-    const nearby = !!db
+    const [nearbyRow] = await db
       .select({ id: notifications.id })
       .from(notifications)
       .where(
@@ -146,8 +146,8 @@ export default async function SessionDetailPage({
           sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
           sql`json_extract(${notifications.payload}, '$.level') = 2`,
         ),
-      )
-      .get();
+      );
+    const nearby = !!nearbyRow;
 
     return (
       <main className="px-5 pt-8 pb-6">
@@ -155,7 +155,7 @@ export default async function SessionDetailPage({
           <FourthCallReceive
             sessionId={sessionId}
             circleName={summary.circleName}
-            whenLabel={summary.session.startsAt.toLocaleString("en-GB", {
+            whenLabel={new Date(summary.session.startsAt).toLocaleString("en-GB", {
               weekday: "short",
               hour: "2-digit",
               minute: "2-digit",
@@ -163,7 +163,7 @@ export default async function SessionDetailPage({
             venueLabel={summary.venue?.name ?? null}
             confirmed={summary.confirmed}
             levelMatchLabel={levelMatchLabel}
-            expiresAt={summary.session.startsAt}
+            expiresAt={new Date(summary.session.startsAt)}
             passNotificationId={passNotificationId}
             viewerId={user.id}
             nearby={nearby}
@@ -174,8 +174,8 @@ export default async function SessionDetailPage({
   }
 
   const gameFull = summary.confirmed.length >= summary.slots;
-  const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt.getTime();
-  const viewerIsOrganiser = isOrganiser(db, summary.circleId, user.id);
+  const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt;
+  const viewerIsOrganiser = await isOrganiser(db, summary.circleId, user.id);
 
   // Pending asks-to-join (Board knocks) — only the organiser decides them.
   const knockRows: KnockRow[] = viewerIsOrganiser
@@ -193,7 +193,7 @@ export default async function SessionDetailPage({
     : [];
 
   const durationMinutes = summary.standingGame?.durationMinutes ?? DEFAULT_SESSION_DURATION_MINUTES;
-  const alreadySplit = isPast && summary.costMinor != null ? hasTabSplitForSession(db, sessionId) : false;
+  const alreadySplit = isPast && summary.costMinor != null ? await hasTabSplitForSession(db, sessionId) : false;
   const boundCreateSplit = createTabSplitForSessionAction.bind(null, sessionId);
   const boundPinLocation = summary.venue
     ? pinVenueLocationAction.bind(null, summary.circleId, summary.venue.name, summary.venue.address ?? null)
@@ -201,8 +201,8 @@ export default async function SessionDetailPage({
 
   const standingGameTitle = summary.standingGame
     ? `${WEEKDAY_NAMES[summary.standingGame.weekday]}s, ${formatStartTime(summary.standingGame.startTime)}`
-    : summary.session.startsAt.toLocaleString("en-GB", { weekday: "long", hour: "numeric", minute: "2-digit" });
-  const rsvpWindowDays = Math.max(1, Math.round((summary.session.startsAt.getTime() - summary.rsvpWindowOpensAt.getTime()) / (24 * 60 * 60 * 1000)));
+    : new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "long", hour: "numeric", minute: "2-digit" });
+  const rsvpWindowDays = Math.max(1, Math.round((summary.session.startsAt - summary.rsvpWindowOpensAt.getTime()) / (24 * 60 * 60 * 1000)));
 
   // Plain one-line state confirmation at the top — the pattern every
   // Playtomic-fluent user already reads for free ("You are enrolled…").
@@ -227,15 +227,14 @@ export default async function SessionDetailPage({
   );
   const guestByUserId: Record<string, boolean> = {};
   if (rosterPlayers.length > 0) {
-    const guestRows = db
+    const guestRows = await db
       .select({ id: users.id, isGuest: users.isGuest })
       .from(users)
-      .where(inArray(users.id, rosterPlayers.map((p) => p.userId)))
-      .all();
+      .where(inArray(users.id, rosterPlayers.map((p) => p.userId)));
     for (const row of guestRows) guestByUserId[row.id] = row.isGuest;
   }
 
-  const whenShort = summary.session.startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const whenShort = new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
   const rsvpWindowOpen = upcoming && Date.now() >= summary.rsvpWindowOpensAt.getTime();
   let viewerStatusLine: string | null = null;
   if (upcoming) {
@@ -292,7 +291,7 @@ export default async function SessionDetailPage({
           circleName={summary.circleName}
           circleColour={summary.circleColour}
           circleEmblem={summary.circleEmblem}
-          weekLabel={summary.session.startsAt.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+          weekLabel={new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
           slots={summary.slots}
           confirmed={summary.confirmed}
           reserves={summary.reserves}
@@ -301,7 +300,7 @@ export default async function SessionDetailPage({
           viewerAvatarUrl={user.avatarUrl}
           viewerStatus={summary.viewerStatus}
           rsvpWindowOpensAt={summary.rsvpWindowOpensAt}
-          startsAt={summary.session.startsAt}
+          startsAt={new Date(summary.session.startsAt)}
           canSendFourthCall={upcoming && !gameFull && viewerIsOrganiser}
           fourthCallHref={`/games/${sessionId}/fourth-call`}
           glassByUserId={glassByUserId}

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
-import { circleMembers, circles, sessions, standingGames, users, type CuatroDb } from "@cuatro/db";
-import { createMatchesStore, type MatchesStore } from "@/server/matches-db";
+import { circleMembers, circles, createTestClient, sessions, standingGames, users, type CuatroClient, type CuatroDb } from "@cuatro/db";
+import { createMatchesStoreFromClient, type MatchesStore } from "@/server/matches-db";
 import { computeRivalryCallout, listCircleFeed, listRecentResultsForCircle, toggleRespect, MIN_RIVALRY_STREAK } from "@/server/feed";
 import { addComment } from "@/server/comments";
 import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
@@ -9,52 +8,56 @@ import { circleChannel } from "@/lib/realtime/channels";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function insertUser(db: CuatroDb, email: string, displayName: string) {
-  return db.insert(users).values({ email, displayName }).returning().get();
+async function insertUser(db: CuatroDb, email: string, displayName: string) {
+  const [u] = await db.insert(users).values({ email, displayName }).returning();
+  return u;
 }
 
-function insertCircle(db: CuatroDb, createdBy: string) {
-  return db
+async function insertCircle(db: CuatroDb, createdBy: string) {
+  const [c] = await db
     .insert(circles)
     .values({ name: "Test Circle", inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy })
-    .returning()
-    .get();
+    .returning();
+  return c;
 }
 
-function addMember(db: CuatroDb, circleId: string, userId: string, role: "organiser" | "member" = "member") {
-  db.insert(circleMembers).values({ circleId, userId, role }).run();
+async function addMember(db: CuatroDb, circleId: string, userId: string, role: "organiser" | "member" = "member") {
+  await db.insert(circleMembers).values({ circleId, userId, role });
 }
 
-function insertSession(db: CuatroDb, circleId: string, startsAt: Date) {
-  return db.insert(sessions).values({ circleId, startsAt, status: "played" }).returning().get();
+async function insertSession(db: CuatroDb, circleId: string, startsAt: Date) {
+  const [s] = await db.insert(sessions).values({ circleId, startsAt: startsAt.getTime(), status: "played" }).returning();
+  return s;
 }
 
 describe("server/feed — circle Feed read model", () => {
+  let client: CuatroClient;
   let store: MatchesStore;
   let db: CuatroDb;
 
-  beforeEach(() => {
-    store = createMatchesStore(":memory:");
-    db = store.db;
+  beforeEach(async () => {
+    client = await createTestClient();
+    store = createMatchesStoreFromClient(client);
+    db = client.db;
   });
 
-  afterEach(() => {
-    store.close();
+  afterEach(async () => {
+    await client.close();
     __setRealtimeSenderForTests(null);
   });
 
   it("returns verified matches with both teams' Glass deltas and a rematch link to the circle when there's no standing game", async () => {
-    const organiser = insertUser(db, "org@example.com", "Organiser");
-    const circle = insertCircle(db, organiser.id);
-    addMember(db, circle.id, organiser.id, "organiser");
+    const organiser = await insertUser(db, "org@example.com", "Organiser");
+    const circle = await insertCircle(db, organiser.id);
+    await addMember(db, circle.id, organiser.id, "organiser");
 
     const a = organiser;
-    const b = insertUser(db, "b@example.com", "Bea");
-    const c = insertUser(db, "c@example.com", "Cal");
-    const d = insertUser(db, "d@example.com", "Dee");
-    for (const u of [b, c, d]) addMember(db, circle.id, u.id);
+    const b = await insertUser(db, "b@example.com", "Bea");
+    const c = await insertUser(db, "c@example.com", "Cal");
+    const d = await insertUser(db, "d@example.com", "Dee");
+    for (const u of [b, c, d]) await addMember(db, circle.id, u.id);
 
-    const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+    const session = await insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
     const { matchId } = await store.recordMatch({
       sessionId: session.id,
       reporterId: a.id,
@@ -64,7 +67,7 @@ describe("server/feed — circle Feed read model", () => {
     });
     await store.confirmMatch(matchId, c.id);
 
-    const { posts, rivalry } = listRecentResultsForCircle(db, circle.id, a.id);
+    const { posts, rivalry } = await listRecentResultsForCircle(db, circle.id, a.id);
     expect(posts).toHaveLength(1);
     const post = posts[0];
     expect(post.matchId).toBe(matchId);
@@ -89,17 +92,17 @@ describe("server/feed — circle Feed read model", () => {
   });
 
   it("links rematch to the circle's active standing game when one exists", async () => {
-    const organiser = insertUser(db, "org2@example.com", "Organiser2");
-    const circle = insertCircle(db, organiser.id);
-    addMember(db, circle.id, organiser.id, "organiser");
-    const sg = db.insert(standingGames).values({ circleId: circle.id, weekday: 2, startTime: "20:00" }).returning().get();
+    const organiser = await insertUser(db, "org2@example.com", "Organiser2");
+    const circle = await insertCircle(db, organiser.id);
+    await addMember(db, circle.id, organiser.id, "organiser");
+    const [sg] = await db.insert(standingGames).values({ circleId: circle.id, weekday: 2, startTime: "20:00" }).returning();
 
-    const b = insertUser(db, "b2@example.com", "B2");
-    const c = insertUser(db, "c2@example.com", "C2");
-    const d = insertUser(db, "d2@example.com", "D2");
-    for (const u of [b, c, d]) addMember(db, circle.id, u.id);
+    const b = await insertUser(db, "b2@example.com", "B2");
+    const c = await insertUser(db, "c2@example.com", "C2");
+    const d = await insertUser(db, "d2@example.com", "D2");
+    for (const u of [b, c, d]) await addMember(db, circle.id, u.id);
 
-    const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+    const session = await insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
     const { matchId } = await store.recordMatch({
       sessionId: session.id,
       reporterId: organiser.id,
@@ -109,22 +112,22 @@ describe("server/feed — circle Feed read model", () => {
     });
     await store.confirmMatch(matchId, c.id);
 
-    const { posts } = listRecentResultsForCircle(db, circle.id, organiser.id);
+    const { posts } = await listRecentResultsForCircle(db, circle.id, organiser.id);
     expect(posts[0].rematchHref).toBe(`/games/standing/${sg.id}`);
   });
 
   it("excludes unverified matches and caps to `limit` most recent, newest first", async () => {
-    const organiser = insertUser(db, "org3@example.com", "Organiser3");
-    const circle = insertCircle(db, organiser.id);
-    addMember(db, circle.id, organiser.id, "organiser");
-    const b = insertUser(db, "b3@example.com", "B3");
-    const c = insertUser(db, "c3@example.com", "C3");
-    const d = insertUser(db, "d3@example.com", "D3");
-    for (const u of [b, c, d]) addMember(db, circle.id, u.id);
+    const organiser = await insertUser(db, "org3@example.com", "Organiser3");
+    const circle = await insertCircle(db, organiser.id);
+    await addMember(db, circle.id, organiser.id, "organiser");
+    const b = await insertUser(db, "b3@example.com", "B3");
+    const c = await insertUser(db, "c3@example.com", "C3");
+    const d = await insertUser(db, "d3@example.com", "D3");
+    for (const u of [b, c, d]) await addMember(db, circle.id, u.id);
 
     const matchIds: string[] = [];
     for (let i = 0; i < 3; i++) {
-      const session = insertSession(db, circle.id, new Date(Date.now() - (5 - i) * DAY_MS));
+      const session = await insertSession(db, circle.id, new Date(Date.now() - (5 - i) * DAY_MS));
       const { matchId } = await store.recordMatch({
         sessionId: session.id,
         reporterId: organiser.id,
@@ -136,7 +139,7 @@ describe("server/feed — circle Feed read model", () => {
       await store.confirmMatch(matchId, c.id);
     }
     // An unverified (pending) match should never show up in the Feed.
-    const pendingSession = insertSession(db, circle.id, new Date());
+    const pendingSession = await insertSession(db, circle.id, new Date());
     await store.recordMatch({
       sessionId: pendingSession.id,
       reporterId: organiser.id,
@@ -145,19 +148,19 @@ describe("server/feed — circle Feed read model", () => {
       sets: [{ a: 6, b: 1 }],
     });
 
-    const { posts } = listRecentResultsForCircle(db, circle.id, organiser.id, 2);
+    const { posts } = await listRecentResultsForCircle(db, circle.id, organiser.id, 2);
     expect(posts).toHaveLength(2);
     expect(posts.map((p) => p.matchId)).toEqual([matchIds[2], matchIds[1]]); // newest first
   });
 
   describe("ResultPostTeam.namedDelta — the placement-hidden rule", () => {
     it("names the first-listed teammate once both teams' Placement Trios are complete", async () => {
-      const p1 = insertUser(db, "nd1@example.com", "Nadia Diaz");
-      const p2 = insertUser(db, "nd2@example.com", "Owen Park");
-      const p3 = insertUser(db, "nd3@example.com", "Priya Roy");
-      const p4 = insertUser(db, "nd4@example.com", "Quinn Fox");
-      const circle = insertCircle(db, p1.id);
-      for (const u of [p1, p2, p3, p4]) addMember(db, circle.id, u.id, u.id === p1.id ? "organiser" : "member");
+      const p1 = await insertUser(db, "nd1@example.com", "Nadia Diaz");
+      const p2 = await insertUser(db, "nd2@example.com", "Owen Park");
+      const p3 = await insertUser(db, "nd3@example.com", "Priya Roy");
+      const p4 = await insertUser(db, "nd4@example.com", "Quinn Fox");
+      const circle = await insertCircle(db, p1.id);
+      for (const u of [p1, p2, p3, p4]) await addMember(db, circle.id, u.id, u.id === p1.id ? "organiser" : "member");
 
       // Same four players, four matches: the first three complete
       // everyone's Placement Trio (PLACEMENT_TRIO_SIZE = 3); the fourth is
@@ -165,7 +168,7 @@ describe("server/feed — circle Feed read model", () => {
       // p1 (teamA's first-listed) and p3 (teamB's first-listed).
       let fourthMatchId = "";
       for (let i = 0; i < 4; i++) {
-        const session = insertSession(db, circle.id, new Date(Date.now() - (4 - i) * DAY_MS));
+        const session = await insertSession(db, circle.id, new Date(Date.now() - (4 - i) * DAY_MS));
         const { matchId } = await store.recordMatch({
           sessionId: session.id,
           reporterId: p1.id,
@@ -177,7 +180,7 @@ describe("server/feed — circle Feed read model", () => {
         fourthMatchId = matchId;
       }
 
-      const { posts } = listRecentResultsForCircle(db, circle.id, p1.id, 1);
+      const { posts } = await listRecentResultsForCircle(db, circle.id, p1.id, 1);
       expect(posts).toHaveLength(1);
       const post = posts[0];
       expect(post.matchId).toBe(fourthMatchId);
@@ -197,16 +200,16 @@ describe("server/feed — circle Feed read model", () => {
     });
 
     it("falls back to the second teammate when the first-listed player is still Placement-hidden", async () => {
-      const veteran1 = insertUser(db, "vet1@example.com", "Vera One");
-      const veteran2 = insertUser(db, "vet2@example.com", "Vic Two");
-      const opp1 = insertUser(db, "opp1@example.com", "Opal Opponent");
-      const opp2 = insertUser(db, "opp2@example.com", "Ora Opponent");
-      const circle = insertCircle(db, veteran1.id);
-      for (const u of [veteran1, veteran2, opp1, opp2]) addMember(db, circle.id, u.id, u.id === veteran1.id ? "organiser" : "member");
+      const veteran1 = await insertUser(db, "vet1@example.com", "Vera One");
+      const veteran2 = await insertUser(db, "vet2@example.com", "Vic Two");
+      const opp1 = await insertUser(db, "opp1@example.com", "Opal Opponent");
+      const opp2 = await insertUser(db, "opp2@example.com", "Ora Opponent");
+      const circle = await insertCircle(db, veteran1.id);
+      for (const u of [veteran1, veteran2, opp1, opp2]) await addMember(db, circle.id, u.id, u.id === veteran1.id ? "organiser" : "member");
 
       // All four complete their Placement Trio against each other first, so every one of them is rated going into the match under test.
       for (let i = 0; i < 3; i++) {
-        const session = insertSession(db, circle.id, new Date(Date.now() - (10 - i) * DAY_MS));
+        const session = await insertSession(db, circle.id, new Date(Date.now() - (10 - i) * DAY_MS));
         const { matchId } = await store.recordMatch({
           sessionId: session.id,
           reporterId: veteran1.id,
@@ -221,9 +224,9 @@ describe("server/feed — circle Feed read model", () => {
       // listed FIRST on teamA — still Placement-hidden, so the selection
       // should fall through to veteran1 (second-listed, already rated)
       // rather than leaving the whole team unnamed.
-      const rookie = insertUser(db, "rookie@example.com", "Rex Rookie");
-      addMember(db, circle.id, rookie.id);
-      const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+      const rookie = await insertUser(db, "rookie@example.com", "Rex Rookie");
+      await addMember(db, circle.id, rookie.id);
+      const session = await insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
       const { matchId } = await store.recordMatch({
         sessionId: session.id,
         reporterId: veteran1.id,
@@ -233,7 +236,7 @@ describe("server/feed — circle Feed read model", () => {
       });
       await store.confirmMatch(matchId, opp1.id);
 
-      const { posts } = listRecentResultsForCircle(db, circle.id, veteran1.id, 1);
+      const { posts } = await listRecentResultsForCircle(db, circle.id, veteran1.id, 1);
       const post = posts[0];
       expect(post.matchId).toBe(matchId);
       expect(post.teamA.namedDelta).not.toBeNull();
@@ -246,15 +249,15 @@ describe("server/feed — circle Feed read model", () => {
 
   describe("toggleRespect", () => {
     it("is idempotent — toggling twice returns to unrespected with the count back at zero", async () => {
-      const organiser = insertUser(db, "org4@example.com", "Organiser4");
-      const circle = insertCircle(db, organiser.id);
-      addMember(db, circle.id, organiser.id, "organiser");
-      const b = insertUser(db, "b4@example.com", "B4");
-      const c = insertUser(db, "c4@example.com", "C4");
-      const d = insertUser(db, "d4@example.com", "D4");
-      for (const u of [b, c, d]) addMember(db, circle.id, u.id);
+      const organiser = await insertUser(db, "org4@example.com", "Organiser4");
+      const circle = await insertCircle(db, organiser.id);
+      await addMember(db, circle.id, organiser.id, "organiser");
+      const b = await insertUser(db, "b4@example.com", "B4");
+      const c = await insertUser(db, "c4@example.com", "C4");
+      const d = await insertUser(db, "d4@example.com", "D4");
+      for (const u of [b, c, d]) await addMember(db, circle.id, u.id);
 
-      const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+      const session = await insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
       const { matchId } = await store.recordMatch({
         sessionId: session.id,
         reporterId: organiser.id,
@@ -264,28 +267,28 @@ describe("server/feed — circle Feed read model", () => {
       });
       await store.confirmMatch(matchId, c.id);
 
-      const first = toggleRespect(db, matchId, b.id);
+      const first = await toggleRespect(db, matchId, b.id);
       expect(first).toEqual({ ok: true, respected: true, count: 1 });
 
-      const second = toggleRespect(db, matchId, b.id);
+      const second = await toggleRespect(db, matchId, b.id);
       expect(second).toEqual({ ok: true, respected: false, count: 0 });
 
       // A repeat "respect" from someone else still counts correctly.
-      const third = toggleRespect(db, matchId, c.id);
+      const third = await toggleRespect(db, matchId, c.id);
       expect(third).toEqual({ ok: true, respected: true, count: 1 });
     });
 
     it("rejects a non-circle-member", async () => {
-      const organiser = insertUser(db, "org5@example.com", "Organiser5");
-      const circle = insertCircle(db, organiser.id);
-      addMember(db, circle.id, organiser.id, "organiser");
-      const b = insertUser(db, "b5@example.com", "B5");
-      const c = insertUser(db, "c5@example.com", "C5");
-      const d = insertUser(db, "d5@example.com", "D5");
-      for (const u of [b, c, d]) addMember(db, circle.id, u.id);
-      const outsider = insertUser(db, "outsider@example.com", "Outsider");
+      const organiser = await insertUser(db, "org5@example.com", "Organiser5");
+      const circle = await insertCircle(db, organiser.id);
+      await addMember(db, circle.id, organiser.id, "organiser");
+      const b = await insertUser(db, "b5@example.com", "B5");
+      const c = await insertUser(db, "c5@example.com", "C5");
+      const d = await insertUser(db, "d5@example.com", "D5");
+      for (const u of [b, c, d]) await addMember(db, circle.id, u.id);
+      const outsider = await insertUser(db, "outsider@example.com", "Outsider");
 
-      const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+      const session = await insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
       const { matchId } = await store.recordMatch({
         sessionId: session.id,
         reporterId: organiser.id,
@@ -295,19 +298,19 @@ describe("server/feed — circle Feed read model", () => {
       });
       await store.confirmMatch(matchId, c.id);
 
-      expect(toggleRespect(db, matchId, outsider.id)).toEqual({ ok: false, error: "not_a_circle_member" });
+      expect(await toggleRespect(db, matchId, outsider.id)).toEqual({ ok: false, error: "not_a_circle_member" });
     });
 
     it("rejects a match that hasn't been verified yet", async () => {
-      const organiser = insertUser(db, "org6@example.com", "Organiser6");
-      const circle = insertCircle(db, organiser.id);
-      addMember(db, circle.id, organiser.id, "organiser");
-      const b = insertUser(db, "b6@example.com", "B6");
-      const c = insertUser(db, "c6@example.com", "C6");
-      const d = insertUser(db, "d6@example.com", "D6");
-      for (const u of [b, c, d]) addMember(db, circle.id, u.id);
+      const organiser = await insertUser(db, "org6@example.com", "Organiser6");
+      const circle = await insertCircle(db, organiser.id);
+      await addMember(db, circle.id, organiser.id, "organiser");
+      const b = await insertUser(db, "b6@example.com", "B6");
+      const c = await insertUser(db, "c6@example.com", "C6");
+      const d = await insertUser(db, "d6@example.com", "D6");
+      for (const u of [b, c, d]) await addMember(db, circle.id, u.id);
 
-      const session = insertSession(db, circle.id, new Date());
+      const session = await insertSession(db, circle.id, new Date());
       const { matchId } = await store.recordMatch({
         sessionId: session.id,
         reporterId: organiser.id,
@@ -316,7 +319,7 @@ describe("server/feed — circle Feed read model", () => {
         sets: [{ a: 6, b: 2 }],
       });
 
-      expect(toggleRespect(db, matchId, b.id)).toEqual({ ok: false, error: "match_not_verified" });
+      expect(await toggleRespect(db, matchId, b.id)).toEqual({ ok: false, error: "match_not_verified" });
     });
 
     it("broadcasts a reaction event on the circle channel", async () => {
@@ -325,15 +328,15 @@ describe("server/feed — circle Feed read model", () => {
         events.push({ topic, type });
       });
 
-      const organiser = insertUser(db, "org7@example.com", "Organiser7");
-      const circle = insertCircle(db, organiser.id);
-      addMember(db, circle.id, organiser.id, "organiser");
-      const b = insertUser(db, "b7@example.com", "B7");
-      const c = insertUser(db, "c7@example.com", "C7");
-      const d = insertUser(db, "d7@example.com", "D7");
-      for (const u of [b, c, d]) addMember(db, circle.id, u.id);
+      const organiser = await insertUser(db, "org7@example.com", "Organiser7");
+      const circle = await insertCircle(db, organiser.id);
+      await addMember(db, circle.id, organiser.id, "organiser");
+      const b = await insertUser(db, "b7@example.com", "B7");
+      const c = await insertUser(db, "c7@example.com", "C7");
+      const d = await insertUser(db, "d7@example.com", "D7");
+      for (const u of [b, c, d]) await addMember(db, circle.id, u.id);
 
-      const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+      const session = await insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
       const { matchId } = await store.recordMatch({
         sessionId: session.id,
         reporterId: organiser.id,
@@ -344,7 +347,7 @@ describe("server/feed — circle Feed read model", () => {
       await store.confirmMatch(matchId, c.id);
       events.length = 0; // drop the match-confirm broadcasts, keep only the reaction one
 
-      toggleRespect(db, matchId, b.id);
+      await toggleRespect(db, matchId, b.id);
       expect(events).toContainEqual({ topic: circleChannel(circle.id), type: "reaction" });
     });
   });
@@ -451,29 +454,31 @@ describe("computeRivalryCallout (pure)", () => {
 });
 
 describe("listCircleFeed — result posts ∪ placement reveals", () => {
+  let client: CuatroClient;
   let store: MatchesStore;
   let db: CuatroDb;
 
-  beforeEach(() => {
-    store = createMatchesStore(":memory:");
-    db = store.db;
+  beforeEach(async () => {
+    client = await createTestClient();
+    store = createMatchesStoreFromClient(client);
+    db = client.db;
   });
 
-  afterEach(() => {
-    store.close();
+  afterEach(async () => {
+    await client.close();
     __setRealtimeSenderForTests(null);
   });
 
   it("reflects server/comments.ts's live comment count on each result post", async () => {
-    const organiser = insertUser(db, "cf-org@example.com", "CFOrg");
-    const circle = insertCircle(db, organiser.id);
-    addMember(db, circle.id, organiser.id, "organiser");
-    const b = insertUser(db, "cf-b@example.com", "CFB");
-    const c = insertUser(db, "cf-c@example.com", "CFC");
-    const d = insertUser(db, "cf-d@example.com", "CFD");
-    for (const u of [b, c, d]) addMember(db, circle.id, u.id);
+    const organiser = await insertUser(db, "cf-org@example.com", "CFOrg");
+    const circle = await insertCircle(db, organiser.id);
+    await addMember(db, circle.id, organiser.id, "organiser");
+    const b = await insertUser(db, "cf-b@example.com", "CFB");
+    const c = await insertUser(db, "cf-c@example.com", "CFC");
+    const d = await insertUser(db, "cf-d@example.com", "CFD");
+    for (const u of [b, c, d]) await addMember(db, circle.id, u.id);
 
-    const session = insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
+    const session = await insertSession(db, circle.id, new Date(Date.now() - DAY_MS));
     const { matchId } = await store.recordMatch({
       sessionId: session.id,
       reporterId: organiser.id,
@@ -482,10 +487,10 @@ describe("listCircleFeed — result posts ∪ placement reveals", () => {
       sets: [{ a: 6, b: 2 }],
     });
     await store.confirmMatch(matchId, c.id);
-    addComment(db, matchId, organiser.id, "great game");
-    addComment(db, matchId, b.id, "gg");
+    await addComment(db, matchId, organiser.id, "great game");
+    await addComment(db, matchId, b.id, "gg");
 
-    const { items } = listCircleFeed(db, circle.id, organiser.id);
+    const { items } = await listCircleFeed(db, circle.id, organiser.id);
     const resultItem = items.find((i) => i.kind === "result");
     expect(resultItem?.kind).toBe("result");
     if (resultItem?.kind !== "result") throw new Error("unreachable");
@@ -493,19 +498,19 @@ describe("listCircleFeed — result posts ∪ placement reveals", () => {
   });
 
   it("adds a placement_reveal item for every player whose Trio completes on a match, reusing that match's 👏 Respect", async () => {
-    const p1 = insertUser(db, "pr-1@example.com", "PR One");
-    const p2 = insertUser(db, "pr-2@example.com", "PR Two");
-    const p3 = insertUser(db, "pr-3@example.com", "PR Three");
-    const p4 = insertUser(db, "pr-4@example.com", "PR Four");
-    const circle = insertCircle(db, p1.id);
-    for (const u of [p1, p2, p3, p4]) addMember(db, circle.id, u.id, u.id === p1.id ? "organiser" : "member");
+    const p1 = await insertUser(db, "pr-1@example.com", "PR One");
+    const p2 = await insertUser(db, "pr-2@example.com", "PR Two");
+    const p3 = await insertUser(db, "pr-3@example.com", "PR Three");
+    const p4 = await insertUser(db, "pr-4@example.com", "PR Four");
+    const circle = await insertCircle(db, p1.id);
+    for (const u of [p1, p2, p3, p4]) await addMember(db, circle.id, u.id, u.id === p1.id ? "organiser" : "member");
 
     // Same four players, three matches — every player's verifiedMatchCount
     // goes 0 -> 1 -> 2 -> 3, so the THIRD match completes everyone's
     // Placement Trio at once (PLACEMENT_TRIO_SIZE = 3).
     let thirdMatchId = "";
     for (let i = 0; i < 3; i++) {
-      const session = insertSession(db, circle.id, new Date(Date.now() - (3 - i) * DAY_MS));
+      const session = await insertSession(db, circle.id, new Date(Date.now() - (3 - i) * DAY_MS));
       const { matchId } = await store.recordMatch({
         sessionId: session.id,
         reporterId: p1.id,
@@ -517,7 +522,7 @@ describe("listCircleFeed — result posts ∪ placement reveals", () => {
       thirdMatchId = matchId;
     }
 
-    const { items } = listCircleFeed(db, circle.id, p1.id);
+    const { items } = await listCircleFeed(db, circle.id, p1.id);
     const reveals = items.filter((i) => i.kind === "placement_reveal").map((i) => (i.kind === "placement_reveal" ? i.reveal : null))!;
     expect(reveals).toHaveLength(4); // all four players' Trio completes on the same match
     expect(new Set(reveals.map((r) => r!.userId))).toEqual(new Set([p1.id, p2.id, p3.id, p4.id]));

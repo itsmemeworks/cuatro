@@ -9,18 +9,21 @@ primary_region = "lhr"
   # are inlined into the bundle at `next build` time, not read at runtime
   # (see Dockerfile's builder stage and [env] below, which covers runtime).
   [build.args]
-    NEXT_PUBLIC_SUPABASE_URL = "https://piaeeuyqqbtmbuqfkfun.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpYWVldXlxcWJ0bWJ1cWZrZnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjA2NDMsImV4cCI6MjA5OTA5NjY0M30.0O7OQbRVV6TbqStsGhOb5_c4tVd9_88UIieRyOgoN2E"
+    NEXT_PUBLIC_SUPABASE_URL = "https://lkdnxrfddlodmjakhikw.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrZG54cmZkZGxvZG1qYWtoaWt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkwODYsImV4cCI6MjA5OTI3NTA4Nn0.h0Vkqh5vYWkARZomaebcFCvseEoryOGID2yqN6yg60s"
 
 [env]
+  # AVATAR_DIR stays on the /data volume (avatars are the only thing left on
+  # it). DATABASE_URL is NOT here — it is the Supabase Postgres connection
+  # string, set as a Fly secret (`fly secrets set DATABASE_URL=...`), never
+  # baked into config.
   AVATAR_DIR = "/data/avatars"
   PORT = "3000"
-  DATABASE_PATH = "/data/cuatro.db"
   # Dedicated cuatro Supabase project (prod). Local dev always points at the
   # local Docker stack instead, for dev/prod parity — see apps/web/.env.local
   # and .env.example.
-  NEXT_PUBLIC_SUPABASE_URL = "https://piaeeuyqqbtmbuqfkfun.supabase.co"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpYWVldXlxcWJ0bWJ1cWZrZnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjA2NDMsImV4cCI6MjA5OTA5NjY0M30.0O7OQbRVV6TbqStsGhOb5_c4tVd9_88UIieRyOgoN2E"
+  NEXT_PUBLIC_SUPABASE_URL = "https://lkdnxrfddlodmjakhikw.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrZG54cmZkZGxvZG1qYWtoaWt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkwODYsImV4cCI6MjA5OTI3NTA4Nn0.h0Vkqh5vYWkARZomaebcFCvseEoryOGID2yqN6yg60s"
 
 [[mounts]]
   source = "cuatro_data"

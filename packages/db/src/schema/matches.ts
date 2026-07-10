@@ -1,4 +1,4 @@
-import { index, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { index, jsonb, primaryKey, pgTable, text, unique } from 'drizzle-orm/pg-core'
 import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { sessions } from './sessions.js'
 import { users } from './users.js'
@@ -7,7 +7,7 @@ import { users } from './users.js'
 // [{"a":6,"b":3},{"a":6,"b":4}] — team A's/B's games won in each set.
 export type SetScore = { a: number; b: number }
 
-export const matches = sqliteTable(
+export const matches = pgTable(
   'matches',
   {
     id: idColumn(),
@@ -26,7 +26,7 @@ export const matches = sqliteTable(
     teamBPlayer2Id: text('team_b_player2_id')
       .notNull()
       .references(() => users.id),
-    score: text('score', { mode: 'json' }).$type<SetScore[]>().notNull(),
+    score: jsonb('score').$type<SetScore[]>().notNull(),
     status: text('status', {
       enum: ['pending_confirmation', 'verified', 'disputed', 'void'],
     })
@@ -51,7 +51,7 @@ export const matches = sqliteTable(
 // Both teams must confirm before a match's result moves anyone's rating.
 // One confirmation row per team per match (whichever player on that team
 // confirms first records it for the whole team).
-export const matchConfirmations = sqliteTable(
+export const matchConfirmations = pgTable(
   'match_confirmations',
   {
     matchId: text('match_id')
@@ -74,7 +74,7 @@ export const matchConfirmations = sqliteTable(
 // so a second reaction kind can land later without a new table. One row per
 // (match, user, kind): the unique index is both the storage for "did this
 // user already react" and what makes the toggle endpoint idempotent.
-export const matchReactions = sqliteTable(
+export const matchReactions = pgTable(
   'match_reactions',
   {
     id: idColumn(),
@@ -102,7 +102,7 @@ export const matchReactions = sqliteTable(
 // made (see circles.ts). Body length (≤1000) is enforced app-side (see
 // server/comments.ts's MAX_COMMENT_LENGTH), not a DB CHECK constraint —
 // matching circle_messages' MAX_MESSAGE_LENGTH precedent.
-export const matchComments = sqliteTable(
+export const matchComments = pgTable(
   'match_comments',
   {
     id: idColumn(),

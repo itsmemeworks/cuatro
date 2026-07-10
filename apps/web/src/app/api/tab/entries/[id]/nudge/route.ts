@@ -9,7 +9,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params;
   const { db } = await getDb();
-  const outcome = nudgeEntry(db, id, user.id);
+  const outcome = await nudgeEntry(db, id, user.id);
 
   if (!outcome.ok) {
     const status = outcome.error === "not_found" ? 404 : outcome.error === "not_the_payer" ? 403 : 400;

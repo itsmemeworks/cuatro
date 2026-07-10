@@ -38,9 +38,9 @@ What is coming, and roughly in what order, lives in [ROADMAP.md](ROADMAP.md). If
 ## Stack
 
 - **Next.js 16** PWA, mobile-first and installable from the browser. The app renders in a 448px centered phone-frame column: it is a phone experience.
-- **SQLite on a Fly volume, with Drizzle.** SQLite is the system of record, not a cache. `packages/db` owns the schema and client.
+- **Postgres, with Drizzle.** Each environment's own Supabase Postgres is the system of record, not a cache. `packages/db` owns the schema and client; migrations run at boot under an advisory lock.
 - **The Glass engine** (`packages/glass`) is pure TypeScript with zero runtime dependencies, exhaustively tested including a 10k-match convergence simulation.
-- **Supabase** provides auth and realtime only. No application data lives there.
+- **Supabase** provides the Postgres database plus auth and realtime, one isolated project per environment.
 - **Fly.io** for hosting (app `cuatro`, region `lhr`), with the machine kept always-warm.
 
 ## Quickstart for contributors
@@ -51,18 +51,20 @@ Prerequisites: Node 22, npm, and the [Supabase CLI](https://supabase.com/docs/gu
 # 1. Install (npm workspaces, from the repo root)
 npm ci
 
-# 2. Start the local Supabase stack (auth + realtime).
+# 2. Start the local Supabase stack (Postgres + auth + realtime).
 #    CUATRO's stack runs on 544xx ports: API 54421, Studio 54423,
-#    Mailpit 54424 (all local auth emails land here).
+#    Mailpit 54424 (all local auth emails land here), Postgres on db
+#    port 54422. This is also the local database.
 supabase start
 
 # 3. Configure the web app's environment
 cp apps/web/.env.example apps/web/.env.local
 #    Fill NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
-#    from `supabase status`. DATABASE_PATH defaults to ./dev.db.
+#    from `supabase status`. DATABASE_URL already points at the local
+#    stack's Postgres (postgresql://postgres:postgres@127.0.0.1:54422/postgres).
 
-# 4. Seed a local database with a sample circle, games and players
-DATABASE_PATH=./apps/web/dev.db npm run seed --workspace=@cuatro/db
+# 4. Seed the local database with a sample circle, games and players
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres npm run seed --workspace=@cuatro/db
 
 # 5. Run the dev server (http://localhost:3000)
 npm run dev --workspace=@cuatro/web
@@ -86,7 +88,7 @@ npm-workspaces monorepo:
 | Package | What it is |
 |---|---|
 | `packages/glass` | `@cuatro/glass`: the Glass rating engine. Pure, deterministic, zero runtime deps. Consume its exports, never reimplement its rules. |
-| `packages/db` | `@cuatro/db`: Drizzle schema and better-sqlite3 client. SQLite on the Fly volume is the system of record. |
+| `packages/db` | `@cuatro/db`: Drizzle schema and Postgres client (postgres-js). Each environment's Supabase Postgres is the system of record; tests run against in-memory PGlite. |
 | `apps/web` | `@cuatro/web`: the Next.js 16 PWA. `/` serves the marketing site, `/login` is the auth entry, `/home` is the app. |
 
 Realtime emits fire after the transaction commits and carry minimal signals only; clients refetch through the authed API. Geo discovery is venue-anchored, never device GPS.

@@ -1,11 +1,11 @@
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { bigint, index, integer, primaryKey, pgTable, text } from 'drizzle-orm/pg-core'
 import { booleanColumn, createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { users } from './users.js'
 import { venues } from './venues.js'
 
 // A Circle is the persistent group: members, chat, history, the Tab, its
 // Standing Games. Joined by link or QR only — never by phone number.
-export const circles = sqliteTable(
+export const circles = pgTable(
   'circles',
   {
     id: idColumn(),
@@ -51,7 +51,7 @@ export const circles = sqliteTable(
   }),
 )
 
-export const circleMembers = sqliteTable(
+export const circleMembers = pgTable(
   'circle_members',
   {
     circleId: text('circle_id')
@@ -76,10 +76,11 @@ export const circleMembers = sqliteTable(
 )
 
 // A Circle's chat. Flat and text-only at v0 (no replies/reactions/threads —
-// see DESIGN.md's Build plan M1); ordering ties on `created_at` (ms
-// resolution) are broken by SQLite's implicit rowid, which is always
-// strictly increasing in insertion order for a rowid table like this one.
-export const circleMessages = sqliteTable(
+// see DESIGN.md's Build plan M1). NOTE (Postgres): there is no implicit rowid
+// to break `created_at` (ms-resolution) ties the way SQLite did — queries that
+// need a stable order within the same millisecond must add a deterministic
+// tiebreaker (e.g. `order by created_at, id`). See the foundation manifest.
+export const circleMessages = pgTable(
   'circle_messages',
   {
     id: idColumn(),
@@ -91,12 +92,19 @@ export const circleMessages = sqliteTable(
       .references(() => users.id),
     body: text('body').notNull(),
     createdAt: createdAtColumn(),
+    // Monotonic insertion-order key. SQLite's implicit rowid used to break
+    // `created_at` (ms-resolution) ties for chat ordering; Postgres has no
+    // rowid, so this GENERATED-ALWAYS identity column replaces it. Chat
+    // queries order by this, not created_at. (App-facing addition: rows now
+    // carry a `seq: number`.)
+    seq: bigint('seq', { mode: 'number' }).generatedAlwaysAsIdentity(),
   },
   (table) => ({
     circleIdCreatedAtIdx: index('circle_messages_circle_id_created_at_idx').on(
       table.circleId,
       table.createdAt,
     ),
+    circleIdSeqIdx: index('circle_messages_circle_id_seq_idx').on(table.circleId, table.seq),
   }),
 )
 

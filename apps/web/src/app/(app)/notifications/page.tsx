@@ -10,7 +10,7 @@ export default async function NotificationsPage() {
   if (!user) return null; // the (app) layout already redirects unauthenticated users to /login
 
   const { db } = await getGamesClient();
-  const groups = listNotificationsForUser(db, user.id);
+  const groups = await listNotificationsForUser(db, user.id);
   const hasUnread = groups.some((g) => g.notifications.some((n) => !n.read));
 
   return (

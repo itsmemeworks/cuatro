@@ -11,11 +11,13 @@ export default async function StandingGamesPage() {
   if (!user) return null;
 
   const { db } = await getGamesClient();
-  const memberships = listCirclesForUser(db, user.id);
-  const groups = memberships.map((m) => ({
-    ...m,
-    standingGames: listStandingGamesForCircle(db, m.circleId),
-  }));
+  const memberships = await listCirclesForUser(db, user.id);
+  const groups = await Promise.all(
+    memberships.map(async (m) => ({
+      ...m,
+      standingGames: await listStandingGamesForCircle(db, m.circleId),
+    })),
+  );
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">

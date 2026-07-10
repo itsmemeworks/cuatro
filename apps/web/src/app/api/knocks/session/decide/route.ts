@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { db } = await getDb();
-  const result = decideSessionKnock(db, knockId.trim(), user.id, decision);
+  const result = await decideSessionKnock(db, knockId.trim(), user.id, decision);
   if (!result.ok) {
     const status =
       result.error === "knock_not_found" ? 404 : result.error === "not_an_organiser" ? 403 : 409;

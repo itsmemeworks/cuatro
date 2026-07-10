@@ -1,30 +1,32 @@
+import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createClient } from '../src/client.js'
+import { createTestClient } from '../src/client.js'
 import type { CuatroClient } from '../src/client.js'
 
-describe('createClient', () => {
+describe('createTestClient', () => {
   let client: CuatroClient | undefined
 
-  afterEach(() => {
-    client?.close()
+  afterEach(async () => {
+    await client?.close()
     client = undefined
   })
 
-  it('creates a fresh in-memory database and applies all migrations', () => {
-    client = createClient(':memory:')
+  it('creates a fresh in-memory database and applies all migrations', async () => {
+    client = await createTestClient()
 
-    const tableNames = client.sqlite
-      .prepare(
-        "select name from sqlite_master where type = 'table' and name not like 'sqlite_%'",
-      )
-      .all()
-      .map((row) => (row as { name: string }).name)
+    const result = await client.db.execute(
+      sql`select table_name from information_schema.tables where table_schema = 'public'`,
+    )
+    const tableNames = (result as unknown as { rows: { table_name: string }[] }).rows.map(
+      (row) => row.table_name,
+    )
 
     expect(tableNames).toEqual(
       expect.arrayContaining([
         'users',
         'circles',
         'circle_members',
+        'circle_messages',
         'venues',
         'standing_games',
         'sessions',
@@ -41,16 +43,13 @@ describe('createClient', () => {
     )
   })
 
-  it('is idempotent — migrating an already-migrated database is a no-op', () => {
-    client = createClient(':memory:')
-    // Re-running migrate() via a second createClient on the same handle isn't
-    // possible for :memory:, so instead assert the migrations table recorded
-    // exactly one batch (proves migrate() didn't double-apply on construction).
-    const migrationRows = client.sqlite
-      .prepare(
-        "select count(*) as count from sqlite_master where type = 'table' and name like '%drizzle%'",
-      )
-      .get() as { count: number }
-    expect(migrationRows.count).toBeGreaterThanOrEqual(1)
+  it('records exactly one migration batch (migrate did not double-apply)', async () => {
+    client = await createTestClient()
+
+    const result = await client.db.execute(
+      sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
+    )
+    const count = (result as unknown as { rows: { count: number }[] }).rows[0].count
+    expect(count).toBe(1)
   })
 })

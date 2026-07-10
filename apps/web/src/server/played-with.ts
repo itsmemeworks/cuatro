@@ -138,7 +138,7 @@ export async function playedWithCandidates(
   const acc = new Map<string, { count: number; lastMs: number }>();
   for (const m of verified) {
     const coPlayers = new Set(rosterOf(m).filter((id) => !confirmedSet.has(id)));
-    const playedMs = m.playedAt.getTime();
+    const playedMs = m.playedAt; // epoch ms (bigint column, mode 'number')
     for (const id of coPlayers) {
       const cur = acc.get(id) ?? { count: 0, lastMs: 0 };
       cur.count += 1;

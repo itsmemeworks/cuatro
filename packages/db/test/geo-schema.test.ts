@@ -1,20 +1,20 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createClient } from '../src/client.js'
+import { createTestClient } from '../src/client.js'
 import type { CuatroClient } from '../src/client.js'
 import { circles, knocks, users, venues } from '../src/schema/index.js'
 
-// The 0008 geo migration is additive-only: new columns default sensibly on
-// existing rows and the `knocks` table enforces one OPEN knock per target.
-describe('geo schema (migration 0008)', () => {
+// Geo columns default sensibly (findable on-by-default, anchors null) and the
+// `knocks` table enforces one OPEN knock per target via a partial unique index.
+describe('geo schema', () => {
   let client: CuatroClient
 
-  beforeEach(() => {
-    client = createClient(':memory:')
+  beforeEach(async () => {
+    client = await createTestClient()
   })
 
-  afterEach(() => {
-    client.close()
+  afterEach(async () => {
+    await client.close()
   })
 
   it('defaults findable to true and geo anchors to null on a plain user', async () => {
@@ -76,7 +76,7 @@ describe('geo schema (migration 0008)', () => {
       .returning()
     await client.db
       .update(knocks)
-      .set({ status: 'withdrawn', decidedAt: new Date() })
+      .set({ status: 'withdrawn', decidedAt: Date.now() })
       .where(eq(knocks.id, first.id))
     await expect(
       client.db.insert(knocks).values({ kind: 'session', targetId: 'session-1', userId: u.id }),

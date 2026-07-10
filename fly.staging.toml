@@ -1,8 +1,9 @@
 # STAGING — Fly app `cuatro-staging` (https://cuatro-staging.fly.dev)
 # Deploy: fly deploy -c fly.staging.toml --ha=false   (from repo root, any branch)
-# Fully isolated from prod: own volume/SQLite, own Supabase project
-# (edususarvcwppascgnmf, auth+realtime only). Machine autostops when idle;
-# first request after sleep takes a few seconds — that is fine for staging.
+# Fully isolated from prod: own Supabase project (auth + realtime + its own
+# Postgres, reached via the DATABASE_URL secret). The /data volume holds only
+# avatars now. Machine autostops when idle; first request after sleep takes a
+# few seconds — that is fine for staging.
 app = "cuatro-staging"
 primary_region = "lhr"
 
@@ -12,16 +13,17 @@ primary_region = "lhr"
   # Public-by-design client keys (anon key, not service-role) — safe to
   # commit. Inlined at `next build` time; [env] below covers runtime.
   [build.args]
-    NEXT_PUBLIC_SUPABASE_URL = "https://edususarvcwppascgnmf.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkdXN1c2FydmN3cHBhc2Nnbm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTY3NDQsImV4cCI6MjA5OTI3Mjc0NH0.EyUVwrngCi6DjHNufeEIpn5rU5SvnCV_j-_e3FaYGUE"
+    NEXT_PUBLIC_SUPABASE_URL = "https://cmqicxumhmthbuoehoju.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtcWljeHVtaG10aGJ1b2Vob2p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkxMDksImV4cCI6MjA5OTI3NTEwOX0.nJUasMQtYA4QzP10Q3lCAjNVAQcpUMZT6gJOuhela0E"
     NEXT_PUBLIC_APP_ENV = "staging"
 
 [env]
+  # AVATAR_DIR stays on the /data volume (avatars only). DATABASE_URL is a Fly
+  # secret (`fly secrets set -a cuatro-staging DATABASE_URL=...`), not baked.
   AVATAR_DIR = "/data/avatars"
   PORT = "3000"
-  DATABASE_PATH = "/data/cuatro.db"
-  NEXT_PUBLIC_SUPABASE_URL = "https://edususarvcwppascgnmf.supabase.co"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkdXN1c2FydmN3cHBhc2Nnbm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTY3NDQsImV4cCI6MjA5OTI3Mjc0NH0.EyUVwrngCi6DjHNufeEIpn5rU5SvnCV_j-_e3FaYGUE"
+  NEXT_PUBLIC_SUPABASE_URL = "https://cmqicxumhmthbuoehoju.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtcWljeHVtaG10aGJ1b2Vob2p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkxMDksImV4cCI6MjA5OTI3NTEwOX0.nJUasMQtYA4QzP10Q3lCAjNVAQcpUMZT6gJOuhela0E"
   NEXT_PUBLIC_APP_ENV = "staging"
 
 [[mounts]]

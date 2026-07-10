@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const { db } = await getGamesClient();
-  const standingGame = getStandingGame(db, id);
+  const standingGame = await getStandingGame(db, id);
   if (!standingGame) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   return NextResponse.json({ ok: true, standingGame });
@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { db } = await getGamesClient();
-  const result = updateStandingGame(db, user.id, id, {
+  const result = await updateStandingGame(db, user.id, id, {
     weekday: body.weekday !== undefined ? Number(body.weekday) : undefined,
     startTime: typeof body.startTime === "string" ? body.startTime : undefined,
     durationMinutes: body.durationMinutes !== undefined ? Number(body.durationMinutes) : undefined,
@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // A day/time (or venue) change must move the already-materialised session
   // rather than orphan it (v1 audit, journeys finding 5). No-op otherwise.
   // Realtime fires after the reschedule transaction commits.
-  const reschedule = rescheduleUpcomingSessionsForStandingGame(db, id);
+  const reschedule = await rescheduleUpcomingSessionsForStandingGame(db, id);
   if (reschedule.circleId && reschedule.movedSessionIds.length > 0) {
     for (const movedId of reschedule.movedSessionIds) {
       emitSessionEvent(movedId, "rsvp", { circleId: reschedule.circleId });

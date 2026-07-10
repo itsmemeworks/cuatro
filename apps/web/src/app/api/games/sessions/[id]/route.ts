@@ -12,12 +12,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { db } = await getGamesClient();
   // Lock a due rotation game before reading, so the response carries the locked
   // lineup (no-op otherwise) — same lazy-on-view contract as the Fourth Call.
-  lockRotationIfDue(db, id);
-  const summary = getSessionSummary(db, id, user.id);
+  await lockRotationIfDue(db, id);
+  const summary = await getSessionSummary(db, id, user.id);
   if (!summary) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
-  const offer = offerRotationSlotIfNeeded(db, id);
-  if (offer.state === "exhausted" || offer.state === "not_applicable") checkFourthCallLevel1(db, id);
+  const offer = await offerRotationSlotIfNeeded(db, id);
+  if (offer.state === "exhausted" || offer.state === "not_applicable") await checkFourthCallLevel1(db, id);
 
   return NextResponse.json({
     ok: true,

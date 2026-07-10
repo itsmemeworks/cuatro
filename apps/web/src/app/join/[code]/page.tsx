@@ -118,8 +118,8 @@ export default async function JoinPage({
   if (!user) {
     const { db } = await getGamesClient();
     const guestToken = await getGuestToken();
-    const guestUserId = guestToken ? getGuestUserId(db, guestToken) : null;
-    const membership = guestUserId ? getGuestMembership(db, guestUserId, circle.id) : null;
+    const guestUserId = guestToken ? await getGuestUserId(db, guestToken) : null;
+    const membership = guestUserId ? await getGuestMembership(db, guestUserId, circle.id) : null;
 
     // A newcomer arriving at a full Circle: warm dead-end, not a locked door.
     // A guest who is already a member still resumes into their spot below.
@@ -129,17 +129,17 @@ export default async function JoinPage({
 
     let initial: GuestCircleJoinInitial = { step: "join" };
     if (membership && guestUserId) {
-      const tz = db.select({ timezone: circles.timezone }).from(circles).where(eq(circles.id, circle.id)).get()?.timezone
+      const tz = (await db.select({ timezone: circles.timezone }).from(circles).where(eq(circles.id, circle.id)))[0]?.timezone
         ?? "Europe/London";
       const now = new Date();
-      const next = listUpcomingSessionsForCircle(db, circle.id, guestUserId, now)[0] ?? null;
+      const next = (await listUpcomingSessionsForCircle(db, circle.id, guestUserId, now))[0] ?? null;
 
       let nextGame: NextGameView | null = null;
       if (next) {
-        const rsvpOpen = now >= next.rsvpWindowOpensAt && now.getTime() < next.session.startsAt.getTime();
+        const rsvpOpen = now >= next.rsvpWindowOpensAt && now.getTime() < next.session.startsAt;
         nextGame = {
           sessionId: next.session.id,
-          whenLabel: formatWhen(next.session.startsAt, next.venue?.timezone ?? tz),
+          whenLabel: formatWhen(new Date(next.session.startsAt), next.venue?.timezone ?? tz),
           venueName: next.venue?.name ?? null,
           confirmedPeople: next.confirmed.map((p) => ({ src: p.avatarUrl, name: p.displayName })),
           status: next.viewerStatus,

@@ -7,10 +7,9 @@
 
 FROM node:22-slim AS deps
 WORKDIR /app
-# python3/make/g++ are needed if better-sqlite3 has to compile from source
-# (no prebuilt binary for this platform/node combo).
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
+# No native build toolchain needed: the DB layer is now pure-JS/WASM
+# (postgres-js driver in prod, PGlite in tests) — no better-sqlite3, so
+# no python3/make/g++.
 # Only the manifests, so `npm ci` is cached independently of source changes.
 COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/package.json
@@ -42,7 +41,11 @@ FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_PATH=/data/cuatro.db
+# DATABASE_URL is NOT baked here — it holds the Supabase Postgres connection
+# string (per-env system of record) and arrives at runtime via a Fly secret
+# (`fly secrets set DATABASE_URL=...`). The /data volume mounted below no
+# longer holds the database; it holds ONLY user-uploaded avatars
+# (AVATAR_DIR=/data/avatars, set in fly.toml [env]).
 # Explicit, guaranteed-correct migrations path — see packages/db/src/client.ts
 # for why this can't just be inferred at runtime once Next bundles the
 # package (import.meta.url gets baked to the build-time source path, and

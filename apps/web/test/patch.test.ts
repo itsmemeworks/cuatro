@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  createClient,
+  createTestClient,
   circles,
   matches,
   rsvps,
@@ -44,12 +44,12 @@ describe("resolvePatch", () => {
     return c;
   };
 
-  beforeEach(() => {
-    client = createClient(":memory:");
+  beforeEach(async () => {
+    client = await createTestClient();
   });
 
-  afterEach(() => {
-    client.close();
+  afterEach(async () => {
+    await client.close();
   });
 
   it("returns null for an unknown user", async () => {
@@ -97,7 +97,7 @@ describe("resolvePatch", () => {
     const mkSession = async (venueId: string) => {
       const [s] = await client.db
         .insert(sessions)
-        .values({ circleId: c.id, venueId, startsAt: new Date(), status: "played" })
+        .values({ circleId: c.id, venueId, startsAt: Date.now(), status: "played" })
         .returning();
       return s;
     };
@@ -127,7 +127,7 @@ describe("resolvePatch", () => {
     const c = await mkCircle(u.id);
     const [s] = await client.db
       .insert(sessions)
-      .values({ circleId: c.id, venueId: v.id, startsAt: new Date(), status: "played" })
+      .values({ circleId: c.id, venueId: v.id, startsAt: Date.now(), status: "played" })
       .returning();
     await client.db.insert(matches).values({
       sessionId: s.id,
@@ -137,7 +137,7 @@ describe("resolvePatch", () => {
       teamBPlayer2Id: p3.id,
       score: [{ a: 6, b: 3 }],
       status: "verified",
-      playedAt: new Date(),
+      playedAt: Date.now(),
     });
     const patch = await resolvePatch(client.db, u.id);
     expect(patch?.source).toBe("inferred");
@@ -150,7 +150,7 @@ describe("resolvePatch", () => {
     const c = await mkCircle(u.id);
     const [s] = await client.db
       .insert(sessions)
-      .values({ circleId: c.id, venueId: v.id, startsAt: new Date(), status: "played" })
+      .values({ circleId: c.id, venueId: v.id, startsAt: Date.now(), status: "played" })
       .returning();
     await client.db.insert(rsvps).values({ sessionId: s.id, userId: u.id, status: "in" });
     expect(await resolvePatch(client.db, u.id)).toBeNull();

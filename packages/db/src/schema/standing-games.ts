@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, pgTable, text } from 'drizzle-orm/pg-core'
 import { booleanColumn, createdAtColumn, idColumn } from './_columns.js'
 import { circles } from './circles.js'
 import { venues } from './venues.js'
@@ -6,7 +6,7 @@ import { venues } from './venues.js'
 // The recurring fixture, e.g. "Tuesdays 20:00, Powerleague Shoreditch, 4
 // slots." Court booking itself stays wherever it is today — this table holds
 // the *people*, not the booking.
-export const standingGames = sqliteTable(
+export const standingGames = pgTable(
   'standing_games',
   {
     id: idColumn(),

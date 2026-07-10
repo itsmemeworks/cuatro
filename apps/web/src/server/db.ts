@@ -21,7 +21,7 @@ import type { CuatroClient } from "@cuatro/db";
 let clientPromise: Promise<CuatroClient> | null = null;
 
 export function getDb(): Promise<CuatroClient> {
-  if (!clientPromise) clientPromise = Promise.resolve(createClient());
+  if (!clientPromise) clientPromise = createClient();
   return clientPromise;
 }
 

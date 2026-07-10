@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, pgTable, text } from 'drizzle-orm/pg-core'
 import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { circles } from './circles.js'
 import { sessions } from './sessions.js'
@@ -7,7 +7,7 @@ import { users } from './users.js'
 // Zero-platform-risk money: Cuatro never holds funds. One running Tab per
 // Circle records who owes whom; settlement is marked by counterparty
 // confirmation, not by moving real money through the app.
-export const tabs = sqliteTable(
+export const tabs = pgTable(
   'tabs',
   {
     id: idColumn(),
@@ -24,7 +24,7 @@ export const tabs = sqliteTable(
 
 // World-ready rule: every money value is amount_minor + currency (ISO 4217),
 // never a float. `amountMinor` is what `debtorUserId` owes `payerUserId`.
-export const tabEntries = sqliteTable(
+export const tabEntries = pgTable(
   'tab_entries',
   {
     id: idColumn(),

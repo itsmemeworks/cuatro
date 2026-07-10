@@ -1,28 +1,27 @@
 /**
- * Result-entry + Glass persistence, backed by @cuatro/db (drizzle + better-sqlite3).
- * `createMatchesStore(dbPath?)` opens its own isolated client (what the
- * test suite uses); the process-wide `getMatchesStore()` singleton instead
- * shares the one connection in ./db.ts with the games surface (games-db.ts)
- * — see that file's header for why.
+ * Result-entry + Glass persistence, backed by @cuatro/db (drizzle + postgres-js).
+ * `createMatchesStoreFromClient(client)` builds the store on an already-open
+ * client — the process-wide `getMatchesStore()` singleton shares the one
+ * connection in ./db.ts with the games surface (games-db.ts); tests inject a
+ * fresh PGlite client via `createTestClient()`.
  *
  * Ownership boundary: this file owns everything under matches/confirmations/
  * rating_events/notifications writes. It does NOT touch packages/db schema —
  * see the "schema gap" note on `computeWinner` for the one place this bit.
  *
- * Transaction model: better-sqlite3 is synchronous, and drizzle's
- * `db.transaction()` for this driver requires a synchronous callback (no
- * `await` inside it) — see node_modules/drizzle-orm/better-sqlite3/session.d.ts
- * (`transaction<T>(cb: (tx) => T): T`, not `Promise<T>`). If the callback were
- * async, the transaction would COMMIT before any awaited statement inside it
- * actually ran. Every transaction body below therefore uses tx.run()/.get()/
- * .all() exclusively, never `await`, and any async work (e.g. loading the
- * session row for its playedAt) happens before the transaction starts.
+ * Transaction model: Postgres transactions are ASYNC — every `db.transaction`
+ * callback below is `async` and awaits its statements (the old better-sqlite3
+ * "no await inside" rule is inverted). Because Postgres MVCC does NOT serialize
+ * writers, the read-then-decide-then-write critical sections take an explicit
+ * `.for("update")` row lock on their anchoring row BEFORE deciding: the session
+ * row in recordMatch (one match per session) and the match row in
+ * confirmMatch/disputeMatch (the double-seal race). See the LOCK comments on
+ * each. Realtime emits still fire AFTER the transaction commits, never inside.
  */
 import { and, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 import {
   circleMembers,
   circles,
-  createClient,
   matchConfirmations,
   matches,
   ratingEvents,
@@ -275,8 +274,8 @@ export function gamesTotals(sets: SetScore[]): { gamesWonA: number; gamesWonB: n
  * the engine works in 0-95 integer percentage points. Converted at the
  * boundary here and, symmetrically, when writing results back.
  */
-function loadPlayerState(tx: CuatroDb, userId: string): { state: PlayerState; userRow: User } {
-  const userRow = tx.select().from(users).where(eq(users.id, userId)).get();
+async function loadPlayerState(tx: CuatroDb, userId: string): Promise<{ state: PlayerState; userRow: User }> {
+  const [userRow] = await tx.select().from(users).where(eq(users.id, userId));
   if (!userRow) throw new Error(`matches-db: unknown user "${userId}"`);
 
   if (userRow.verifiedMatchCount === 0) {
@@ -287,13 +286,14 @@ function loadPlayerState(tx: CuatroDb, userId: string): { state: PlayerState; us
     return { state, userRow };
   }
 
-  const priorEvents = tx.select().from(ratingEvents).where(eq(ratingEvents.userId, userId)).all();
+  const priorEvents = await tx.select().from(ratingEvents).where(eq(ratingEvents.userId, userId));
   if (priorEvents.length === 0) {
     throw new Error(
       `matches-db: user "${userId}" has verifiedMatchCount=${userRow.verifiedMatchCount} but no rating_events`,
     );
   }
-  const last = [...priorEvents].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()).at(-1)!;
+  // createdAt is epoch-ms (Postgres bigint) now — sort on the number directly.
+  const last = [...priorEvents].sort((a, b) => a.createdAt - b.createdAt).at(-1)!;
 
   const opponents = new Set<string>();
   for (const ev of priorEvents) {
@@ -310,18 +310,17 @@ function loadPlayerState(tx: CuatroDb, userId: string): { state: PlayerState; us
   return { state, userRow };
 }
 
-/** Prior verified matches involving exactly these four players, for Echo Damping. */
-function loadRecentFixtures(tx: CuatroDb, fourIds: readonly PlayerId[], beforePlayedAt: Date): FixtureOccurrence[] {
-  const windowStart = new Date(beforePlayedAt.getTime() - ECHO_DAMPING_WINDOW_MS);
-  const candidates = tx
+/** Prior verified matches involving exactly these four players, for Echo Damping. `beforePlayedAt` is epoch-ms. */
+async function loadRecentFixtures(tx: CuatroDb, fourIds: readonly PlayerId[], beforePlayedAt: number): Promise<FixtureOccurrence[]> {
+  const windowStart = beforePlayedAt - ECHO_DAMPING_WINDOW_MS;
+  const candidates = await tx
     .select()
     .from(matches)
-    .where(and(eq(matches.status, "verified"), gte(matches.playedAt, windowStart), lt(matches.playedAt, beforePlayedAt)))
-    .all();
+    .where(and(eq(matches.status, "verified"), gte(matches.playedAt, windowStart), lt(matches.playedAt, beforePlayedAt)));
   const targetKey = fixtureKey(fourIds);
   return candidates
     .filter((m) => fixtureKey(fourPlayerIds(m)) === targetKey)
-    .map((m) => ({ playedAt: m.playedAt.getTime(), playerIds: fourPlayerIds(m) }));
+    .map((m) => ({ playedAt: m.playedAt, playerIds: fourPlayerIds(m) }));
 }
 
 /**
@@ -349,18 +348,17 @@ function loadRecentFixtures(tx: CuatroDb, fourIds: readonly PlayerId[], beforePl
  * path — a sealed match means the players turned up regardless of whether the
  * engine moved anyone's rating.
  */
-function creditShowUps(tx: CuatroDb, match: Match): void {
+async function creditShowUps(tx: CuatroDb, match: Match): Promise<void> {
   for (const id of fourPlayerIds(match)) {
-    const saidTheyWereIn = tx
+    const [saidTheyWereIn] = await tx
       .select({ id: rsvps.id })
       .from(rsvps)
-      .where(and(eq(rsvps.sessionId, match.sessionId), eq(rsvps.userId, id), eq(rsvps.status, "in")))
-      .get();
+      .where(and(eq(rsvps.sessionId, match.sessionId), eq(rsvps.userId, id), eq(rsvps.status, "in")));
     if (saidTheyWereIn) {
-      tx.update(users)
+      await tx
+        .update(users)
         .set({ showUpCount: sql`${users.showUpCount} + 1` })
-        .where(eq(users.id, id))
-        .run();
+        .where(eq(users.id, id));
     }
   }
 }
@@ -373,24 +371,24 @@ function creditShowUps(tx: CuatroDb, match: Match): void {
  * same transaction as the confirmation write that triggered it, so a crash
  * between "both confirmed" and "Glass applied" can't happen.
  */
-function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[] {
+async function applyGlassAndPersist(tx: CuatroDb, match: Match): Promise<readonly LedgerEvent[]> {
   const fourIds = fourPlayerIds(match);
   const playerStates: Record<string, PlayerState> = {};
   const userRows: Record<string, User> = {};
   for (const id of fourIds) {
-    const { state, userRow } = loadPlayerState(tx, id);
+    const { state, userRow } = await loadPlayerState(tx, id);
     playerStates[id] = state;
     userRows[id] = userRow;
   }
 
   const { gamesWonA, gamesWonB } = gamesTotals(match.score);
   const winner = computeWinner(match.score);
-  const recentFixtures = loadRecentFixtures(tx, fourIds, match.playedAt);
+  const recentFixtures = await loadRecentFixtures(tx, fourIds, match.playedAt);
   const opponentNames = Object.fromEntries(fourIds.map((id) => [id, userRows[id]!.displayName]));
 
   const matchInput: MatchInput = {
     matchId: match.id,
-    playedAt: match.playedAt.getTime(),
+    playedAt: match.playedAt,
     teamA: [match.teamAPlayer1Id, match.teamAPlayer2Id],
     teamB: [match.teamBPlayer1Id, match.teamBPlayer2Id],
     winner,
@@ -408,8 +406,8 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
   // walkover/retired policy table). Either way, still flip the match to
   // verified with no Ledger movement rather than leaving it stuck.
   if (result.status === "skipped") {
-    creditShowUps(tx, match);
-    tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id)).run();
+    await creditShowUps(tx, match);
+    await tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id));
     return [];
   }
 
@@ -431,38 +429,36 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
           ? `Placement match ${updated.matchesPlayed} of ${PLACEMENT_TRIO_SIZE}, your Glass number stays hidden until the Trio completes`
           : ev.explanation;
 
-    tx.insert(ratingEvents)
-      .values({
-        userId: id,
-        matchId: match.id,
-        delta: ev.delta,
-        ratingBefore: isFirstEventEver ? null : ev.ratingBefore,
-        ratingAfter: ev.ratingAfter,
-        confidenceBefore: ev.confidenceBefore / 100,
-        confidenceAfter: ev.confidenceAfter / 100,
-        factors: {
-          expectedWin: ev.factors.expectancy,
-          marginMultiplier: ev.factors.margin,
-          echoDampingMultiplier: ev.factors.echoDamping,
-          kFactor: ev.factors.kUsed,
-          opponentUserIds: [...opponentIdsOf(match, id)],
-          isFirstMeeting: ev.factors.echoDamping === 1,
-        },
-        explanation,
-      })
-      .run();
+    await tx.insert(ratingEvents).values({
+      userId: id,
+      matchId: match.id,
+      delta: ev.delta,
+      ratingBefore: isFirstEventEver ? null : ev.ratingBefore,
+      ratingAfter: ev.ratingAfter,
+      confidenceBefore: ev.confidenceBefore / 100,
+      confidenceAfter: ev.confidenceAfter / 100,
+      factors: {
+        expectedWin: ev.factors.expectancy,
+        marginMultiplier: ev.factors.margin,
+        echoDampingMultiplier: ev.factors.echoDamping,
+        kFactor: ev.factors.kUsed,
+        opponentUserIds: [...opponentIdsOf(match, id)],
+        isFirstMeeting: ev.factors.echoDamping === 1,
+      },
+      explanation,
+    });
 
-    tx.update(users)
+    await tx
+      .update(users)
       .set({
         rating: nowRated ? updated.rating : null,
         confidence: updated.confidence / 100,
         verifiedMatchCount: updated.matchesPlayed,
-        updatedAt: new Date(),
+        updatedAt: Date.now(),
       })
-      .where(eq(users.id, id))
-      .run();
+      .where(eq(users.id, id));
 
-    insertNotification(
+    await insertNotification(
       tx,
       wasUnrated && nowRated
         ? { userId: id, type: "placement_complete", payload: { matchId: match.id, rating: updated.rating } }
@@ -470,8 +466,8 @@ function applyGlassAndPersist(tx: CuatroDb, match: Match): readonly LedgerEvent[
     );
   }
 
-  creditShowUps(tx, match);
-  tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id)).run();
+  await creditShowUps(tx, match);
+  await tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id));
   return ledgerEvents;
 }
 
@@ -489,7 +485,7 @@ export interface MatchesStore {
   getLedger(userId: string): Promise<LedgerEntryView[]>;
   getMatchHistorySummary(userId: string): Promise<MatchHistorySummary>;
   getPendingConfirmationsForUser(userId: string): Promise<PendingConfirmationView[]>;
-  close(): void;
+  close(): Promise<void>;
 }
 
 /**
@@ -514,7 +510,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         .innerJoin(users, eq(rsvps.userId, users.id))
         .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
 
-      return { session: { id: session.id, startsAt: session.startsAt, status: session.status }, players };
+      return { session: { id: session.id, startsAt: new Date(session.startsAt), status: session.status }, players };
     },
 
     async getRosterContext(sessionId, viewerId) {
@@ -539,7 +535,8 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         .innerJoin(users, eq(rsvps.userId, users.id))
         .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
       const confirmed: RosterPlayer[] = inRows
-        .sort((a, b) => (a.respondedAt?.getTime() ?? 0) - (b.respondedAt?.getTime() ?? 0))
+        // respondedAt is epoch-ms (Postgres bigint) now — compare the numbers.
+        .sort((a, b) => (a.respondedAt ?? 0) - (b.respondedAt ?? 0))
         .map((r) => ({ id: r.userId, displayName: r.displayName, rating: r.rating, avatarUrl: r.avatarUrl, isGuest: r.isGuest }));
 
       const confirmedIds = new Set(confirmed.map((p) => p.id));
@@ -576,7 +573,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       }
 
       return {
-        session: { id: session.id, startsAt: session.startsAt, status: session.status },
+        session: { id: session.id, startsAt: new Date(session.startsAt), status: session.status },
         circleId: session.circleId,
         circleName: circle?.name ?? "",
         confirmed,
@@ -634,19 +631,22 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       const guestCountryCode = circle?.countryCode ?? "GB";
 
       let createdMatch: Match | undefined;
-      const result = db.transaction((tx) => {
-        // ONE match per session (v1 audit blocker B1): without this guard two
+      const result = await db.transaction(async (tx) => {
+        // LOCK: one match per session (v1 audit blocker B1). Without this two
         // players can each record the same game, both get sealed, and Glass +
-        // Reliability double-count (verified live: 109% reliability). The
-        // check lives INSIDE the synchronous transaction so the classic race
-        // (both open the form, both submit) cannot interleave past it. A
-        // voided match doesn't block a re-record.
-        const existing = tx
-          .select({ id: matches.id, status: matches.status })
-          .from(matches)
-          .where(eq(matches.sessionId, input.sessionId))
-          .all()
-          .find((m) => m.status !== "void");
+        // Reliability double-count (verified live: 109% reliability). Postgres
+        // MVCC would let two concurrent recordMatch calls both read "no live
+        // match" and both insert. FOR UPDATE on the anchoring session row
+        // serializes them: the second waits, then sees the first's committed
+        // match and bails via MatchAlreadyRecordedError. A voided match doesn't
+        // block a re-record.
+        await tx.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, input.sessionId)).for("update");
+        const existing = (
+          await tx
+            .select({ id: matches.id, status: matches.status })
+            .from(matches)
+            .where(eq(matches.sessionId, input.sessionId))
+        ).find((m) => m.status !== "void");
         if (existing) throw new MatchAlreadyRecordedError(existing.id, existing.status);
         // Mint a guest `users` row per named substitute — same shape as
         // server/guest.ts's insertGuestUser (isGuest, no email, Circle's
@@ -655,11 +655,10 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         // no orphan guest behind.
         const tokenToId = new Map<string, string>();
         for (const g of guestSpecs) {
-          const guest = tx
+          const [guest] = await tx
             .insert(users)
             .values({ displayName: g.name, isGuest: true, countryCode: guestCountryCode })
-            .returning()
-            .get();
+            .returning();
           tokenToId.set(g.token, guest.id);
         }
         const resolve = (token: string) => tokenToId.get(token) ?? token;
@@ -667,7 +666,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         const teamB: [string, string] = [resolve(input.teamB[0]), resolve(input.teamB[1])];
         if (new Set([...teamA, ...teamB]).size !== 4) throw new Error("A match needs four distinct players");
 
-        const created = tx
+        const [created] = await tx
           .insert(matches)
           .values({
             sessionId: input.sessionId,
@@ -680,18 +679,17 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
             outcome,
             playedAt: session.startsAt,
           })
-          .returning()
-          .get();
+          .returning();
         createdMatch = created;
 
         const reporterTeam = teamOf(created, input.reporterId)!;
-        tx.insert(matchConfirmations)
-          .values({ matchId: created.id, team: reporterTeam, confirmedByUserId: input.reporterId })
-          .run();
+        await tx
+          .insert(matchConfirmations)
+          .values({ matchId: created.id, team: reporterTeam, confirmedByUserId: input.reporterId });
 
         const otherTeamIds = reporterTeam === "A" ? teamB : teamA;
         for (const id of otherTeamIds) {
-          insertNotification(tx, {
+          await insertNotification(tx, {
             userId: id,
             type: "confirm_result",
             payload: { matchId: created.id, sessionId: input.sessionId },
@@ -707,8 +705,15 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
     async confirmMatch(matchId, userId) {
       let touchedMatch: Match | undefined;
-      const outcome = db.transaction((tx): ConfirmOutcome => {
-        const match = tx.select().from(matches).where(eq(matches.id, matchId)).get();
+      const outcome = await db.transaction(async (tx): Promise<ConfirmOutcome> => {
+        // LOCK: the double-seal race. Seal = any real member of a team confirms
+        // for it (rule 13). Two members (one per team) confirming at the same
+        // instant could each read status="pending_confirmation" and each see
+        // "both teams now confirmed", both running applyGlassAndPersist (double
+        // Glass + double Reliability). FOR UPDATE on the match row serializes
+        // the two confirms: the second waits for the first to commit, then the
+        // status guard below sees "verified" and returns alreadyFinal.
+        const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
         if (!match) throw new Error(`No such match "${matchId}"`);
 
         const team = teamOf(match, userId);
@@ -720,23 +725,22 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
           return { status: match.status as "verified" | "disputed" | "void", alreadyFinal: true };
         }
 
-        const existing = tx
+        const [existing] = await tx
           .select()
           .from(matchConfirmations)
-          .where(and(eq(matchConfirmations.matchId, matchId), eq(matchConfirmations.team, team)))
-          .get();
+          .where(and(eq(matchConfirmations.matchId, matchId), eq(matchConfirmations.team, team)));
         if (!existing) {
-          tx.insert(matchConfirmations).values({ matchId, team, confirmedByUserId: userId }).run();
+          await tx.insert(matchConfirmations).values({ matchId, team, confirmedByUserId: userId });
         }
 
-        const confirmations = tx.select().from(matchConfirmations).where(eq(matchConfirmations.matchId, matchId)).all();
+        const confirmations = await tx.select().from(matchConfirmations).where(eq(matchConfirmations.matchId, matchId));
         const teamsConfirmed = new Set(confirmations.map((c) => c.team));
         if (teamsConfirmed.size < 2) {
           touchedMatch = match;
           return { status: "pending_confirmation", alreadyFinal: false };
         }
 
-        const ledgerEvents = applyGlassAndPersist(tx, match);
+        const ledgerEvents = await applyGlassAndPersist(tx, match);
         touchedMatch = match;
         return { status: "verified", alreadyFinal: false, ledgerEvents };
       });
@@ -750,8 +754,11 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
     async disputeMatch(matchId, userId) {
       let touchedMatch: Match | undefined;
-      const outcome = db.transaction((tx): ConfirmOutcome => {
-        const match = tx.select().from(matches).where(eq(matches.id, matchId)).get();
+      const outcome = await db.transaction(async (tx): Promise<ConfirmOutcome> => {
+        // LOCK: same match row as confirmMatch, so a dispute and a confirm
+        // racing on the same match can't both slip past the status guard (one
+        // sealing while the other disputes). FOR UPDATE serializes them.
+        const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
         if (!match) throw new Error(`No such match "${matchId}"`);
 
         const team = teamOf(match, userId);
@@ -763,11 +770,11 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
           return { status: match.status as "verified" | "disputed" | "void", alreadyFinal: true };
         }
 
-        tx.update(matches).set({ status: "disputed" }).where(eq(matches.id, matchId)).run();
+        await tx.update(matches).set({ status: "disputed" }).where(eq(matches.id, matchId));
         touchedMatch = match;
 
         for (const id of fourPlayerIds(match)) {
-          insertNotification(tx, { userId: id, type: "result_disputed", payload: { matchId } });
+          await insertNotification(tx, { userId: id, type: "result_disputed", payload: { matchId } });
         }
 
         return { status: "disputed", alreadyFinal: true };
@@ -864,7 +871,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
           isFirstMeeting: r.factors.isFirstMeeting,
         },
         explanation: r.explanation,
-        createdAt: r.createdAt,
+        createdAt: new Date(r.createdAt),
         outcome: matchOutcome,
       }));
     },
@@ -934,22 +941,17 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         pending.push({
           matchId: m.id,
           sessionId: m.sessionId,
-          playedAt: m.playedAt,
+          playedAt: new Date(m.playedAt),
           opponentNames: opponentRows.map((r) => r.displayName).join(" & "),
         });
       }
       return pending;
     },
 
-    close() {
-      client.close();
+    async close() {
+      await client.close();
     },
   };
-}
-
-/** Convenience wrapper for tests and one-off scripts that want a fresh, isolated client (e.g. `:memory:`). */
-export function createMatchesStore(dbPath?: string): MatchesStore {
-  return createMatchesStoreFromClient(createClient(dbPath));
 }
 
 let storePromise: Promise<MatchesStore> | null = null;

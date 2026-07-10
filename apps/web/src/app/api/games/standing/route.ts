@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   if (!circleId) return NextResponse.json({ ok: false, error: "missing_circle_id" }, { status: 400 });
 
   const { db } = await getGamesClient();
-  const games = listStandingGamesForCircle(db, circleId);
+  const games = await listStandingGamesForCircle(db, circleId);
   return NextResponse.json({ ok: true, standingGames: games });
 }
 
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { db } = await getGamesClient();
-  const result = createStandingGame(db, user.id, {
+  const result = await createStandingGame(db, user.id, {
     circleId: body.circleId,
     weekday: Number(body.weekday),
     startTime: body.startTime,

@@ -29,10 +29,10 @@ export async function POST(request: Request) {
   if (!token) return NextResponse.json({ ok: false, error: "no_guest_session" }, { status: 401 });
 
   const { db } = await getGamesClient();
-  const guestUserId = getGuestUserId(db, token);
+  const guestUserId = await getGuestUserId(db, token);
   if (!guestUserId) return NextResponse.json({ ok: false, error: "no_guest_session" }, { status: 401 });
 
-  const outcome = lockGuestName(db, guestUserId, sessionId, name);
+  const outcome = await lockGuestName(db, guestUserId, sessionId, name);
   if (!outcome.ok) {
     return NextResponse.json({ ok: false, error: outcome.error }, { status: STATUS_FOR_ERROR[outcome.error] ?? 400 });
   }

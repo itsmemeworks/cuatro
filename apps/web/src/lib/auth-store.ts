@@ -1,5 +1,5 @@
 /**
- * Auth persistence, backed by @cuatro/db (drizzle + better-sqlite3). This is
+ * Auth persistence, backed by @cuatro/db (drizzle + postgres-js). This is
  * the ONE place the rest of the app talks to for auth storage.
  *
  * Two provisioning paths write the same `users` table:
@@ -20,16 +20,17 @@
  *     `sessions_auth` (not `sessions`, which is the game-instance table).
  *   - magicLinkTokens has no userId column (only email) — consuming a token
  *     re-resolves the user by email.
- *   - timestamps are `Date` objects (drizzle's timestamp_ms mode), not ISO
- *     strings — compare with `.getTime()`.
+ *   - timestamps are epoch-ms `number`s (Postgres bigint), not `Date` objects
+ *     or ISO strings — write `Date.now()`/`Date.now() + ttl`, compare directly.
  *
  * The legacy raw-better-sqlite3 fallback lives in ./db-fallback.ts; it is no
  * longer wired into the app and exists only for its own test.
  */
 import { createHash, randomBytes } from "crypto";
 import { eq } from "drizzle-orm";
-import { createClient, users, magicLinkTokens, authSessions } from "@cuatro/db";
+import { users, magicLinkTokens, authSessions } from "@cuatro/db";
 import type { CuatroClient } from "@cuatro/db";
+import { getDb } from "@/server/db";
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -88,8 +89,8 @@ function toSessionUser(row: { id: string; email: string | null; displayName: str
   return { id: row.id, email: row.email as string, displayName: row.displayName, avatarUrl: row.avatarUrl ?? null };
 }
 
-export function createDrizzleAuthStore(dbPath?: string): AuthStore {
-  const { db }: CuatroClient = createClient(dbPath);
+export function createDrizzleAuthStore(client: CuatroClient): AuthStore {
+  const { db } = client;
 
   return {
     async findOrCreateUserByEmail(email: string): Promise<SessionUser> {
@@ -109,7 +110,7 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
       await db.insert(magicLinkTokens).values({
         tokenHash: hashToken(token),
         email: email.trim().toLowerCase(),
-        expiresAt: new Date(Date.now() + MAGIC_LINK_TTL_MS),
+        expiresAt: Date.now() + MAGIC_LINK_TTL_MS,
       });
       return token;
     },
@@ -123,11 +124,11 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
 
       if (!row) return null;
       if (row.usedAt) return null;
-      if (row.expiresAt.getTime() < Date.now()) return null;
+      if (row.expiresAt < Date.now()) return null;
 
       await db
         .update(magicLinkTokens)
-        .set({ usedAt: new Date() })
+        .set({ usedAt: Date.now() })
         .where(eq(magicLinkTokens.id, row.id));
 
       const [user] = await db.select().from(users).where(eq(users.email, row.email));
@@ -140,7 +141,7 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
       await db.insert(authSessions).values({
         tokenHash: hashToken(token),
         userId,
-        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+        expiresAt: Date.now() + SESSION_TTL_MS,
       });
       return token;
     },
@@ -160,7 +161,7 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
         .where(eq(authSessions.tokenHash, tokenHash));
 
       if (!row) return null;
-      if (row.expiresAt.getTime() < Date.now()) return null;
+      if (row.expiresAt < Date.now()) return null;
       return toSessionUser(row);
     },
 
@@ -169,7 +170,7 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
     },
 
     async updateDisplayName(userId: string, displayName: string): Promise<void> {
-      await db.update(users).set({ displayName, updatedAt: new Date() }).where(eq(users.id, userId));
+      await db.update(users).set({ displayName, updatedAt: Date.now() }).where(eq(users.id, userId));
     },
 
     async findOrCreateUserBySupabase(params: SupabaseProvisionParams): Promise<SessionUser> {
@@ -185,7 +186,7 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
       if (byEmail) {
         const [linked] = await db
           .update(users)
-          .set({ supabaseUserId: params.supabaseUserId, updatedAt: new Date() })
+          .set({ supabaseUserId: params.supabaseUserId, updatedAt: Date.now() })
           .where(eq(users.id, byEmail.id))
           .returning();
         return toSessionUser(linked);
@@ -213,7 +214,7 @@ export function createDrizzleAuthStore(dbPath?: string): AuthStore {
 let storePromise: Promise<AuthStore> | null = null;
 
 export function getAuthStore(): Promise<AuthStore> {
-  if (!storePromise) storePromise = Promise.resolve(createDrizzleAuthStore());
+  if (!storePromise) storePromise = getDb().then(createDrizzleAuthStore);
   return storePromise;
 }
 

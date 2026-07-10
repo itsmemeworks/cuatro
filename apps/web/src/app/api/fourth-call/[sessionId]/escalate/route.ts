@@ -28,9 +28,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
   const { sessionId } = await params;
   const { db } = await getGamesClient();
 
-  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
   if (!session) return NextResponse.json({ ok: false, error: "session_not_found" }, { status: 404 });
-  if (!isOrganiser(db, session.circleId, user.id)) {
+  if (!(await isOrganiser(db, session.circleId, user.id))) {
     return NextResponse.json({ ok: false, error: "not_an_organiser" }, { status: 403 });
   }
 
@@ -57,7 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
   }
 
   if (level === 3) {
-    const linkResult = getRing3ClaimLink(db, sessionId, new Date());
+    const linkResult = await getRing3ClaimLink(db, sessionId, new Date());
     if (!linkResult.ok) {
       return NextResponse.json({ ok: false, error: linkResult.error }, { status: linkResult.error === "session_not_found" ? 404 : 400 });
     }

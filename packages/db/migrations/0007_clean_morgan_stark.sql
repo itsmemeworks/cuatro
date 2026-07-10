@@ -1,1 +1,0 @@
-ALTER TABLE `tab_entries` ADD `description` text;

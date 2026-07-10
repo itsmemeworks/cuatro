@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  createClient,
+  createTestClient,
   circleMembers,
   circles,
   notifications,
@@ -29,22 +29,23 @@ let client: CuatroClient;
 let db: CuatroDb;
 let n = 0;
 
-beforeEach(() => {
-  client = createClient(":memory:");
+beforeEach(async () => {
+  client = await createTestClient();
   db = client.db;
   n = 0;
 });
 
-afterEach(() => {
-  client.close();
+afterEach(async () => {
+  await client.close();
   __setRealtimeSenderForTests(null);
 });
 
-function seedVenue(pin: { name: string; lat: number | null; lng: number | null }) {
-  return db.insert(venues).values({ name: pin.name, lat: pin.lat, lng: pin.lng }).returning().get();
+async function seedVenue(pin: { name: string; lat: number | null; lng: number | null }) {
+  const [row] = await db.insert(venues).values({ name: pin.name, lat: pin.lat, lng: pin.lng }).returning();
+  return row;
 }
 
-function seedUser(
+async function seedUser(
   opts: {
     rating?: number | null;
     findable?: boolean;
@@ -57,7 +58,7 @@ function seedUser(
   } = {},
 ) {
   n += 1;
-  return db
+  const [row] = await db
     .insert(users)
     .values({
       email: `u${n}@example.com`,
@@ -71,47 +72,46 @@ function seedUser(
       showUpCount: opts.showUpCount ?? 0,
       rsvpInCount: opts.rsvpInCount ?? 0,
     })
-    .returning()
-    .get();
+    .returning();
+  return row;
 }
 
-function seedCircle(createdBy: string) {
-  return db
+async function seedCircle(createdBy: string) {
+  const [row] = await db
     .insert(circles)
     .values({ name: `Circle ${++n}`, inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy })
-    .returning()
-    .get();
+    .returning();
+  return row;
 }
 
-function addMember(circleId: string, userId: string, role: "organiser" | "member" = "member") {
-  db.insert(circleMembers).values({ circleId, userId, role }).run();
+async function addMember(circleId: string, userId: string, role: "organiser" | "member" = "member") {
+  await db.insert(circleMembers).values({ circleId, userId, role });
 }
 
-function seedSession(circleId: string, venueId: string, opts: { slots?: number; startsAt?: Date } = {}) {
+async function seedSession(circleId: string, venueId: string, opts: { slots?: number; startsAt?: Date } = {}) {
   let standingGameId: string | undefined;
   if (opts.slots) {
-    const sg = db
+    const [sg] = await db
       .insert(standingGames)
       .values({ circleId, venueId, weekday: 2, startTime: "20:00", slots: opts.slots })
-      .returning()
-      .get();
+      .returning();
     standingGameId = sg.id;
   }
-  return db
+  const [row] = await db
     .insert(sessions)
     .values({
       circleId,
       venueId,
       standingGameId,
-      startsAt: opts.startsAt ?? new Date("2026-08-04T20:00:00.000Z"),
+      startsAt: (opts.startsAt ?? new Date("2026-08-04T20:00:00.000Z")).getTime(),
       status: "upcoming",
     })
-    .returning()
-    .get();
+    .returning();
+  return row;
 }
 
-function confirm(sessionId: string, userId: string) {
-  db.insert(rsvps).values({ sessionId, userId, status: "in" }).run();
+async function confirm(sessionId: string, userId: string) {
+  await db.insert(rsvps).values({ sessionId, userId, status: "in" });
 }
 
 /**
@@ -119,32 +119,32 @@ function confirm(sessionId: string, userId: string) {
  * rated 4.0 and 4.2 (average 4.1 → Glass band [3.35, 4.85]). Returns the ids a
  * candidate test needs.
  */
-function shortGameAtShoreditch(slots = 4) {
-  const shoreditch = seedVenue(SHOREDITCH);
-  const organiser = seedUser();
-  const circle = seedCircle(organiser.id);
-  addMember(circle.id, organiser.id, "organiser");
-  const p1 = seedUser({ rating: 4.0, homeVenueId: shoreditch.id });
-  const p2 = seedUser({ rating: 4.2, homeVenueId: shoreditch.id });
-  addMember(circle.id, p1.id);
-  addMember(circle.id, p2.id);
-  const session = seedSession(circle.id, shoreditch.id, { slots });
-  confirm(session.id, p1.id);
-  confirm(session.id, p2.id);
+async function shortGameAtShoreditch(slots = 4) {
+  const shoreditch = await seedVenue(SHOREDITCH);
+  const organiser = await seedUser();
+  const circle = await seedCircle(organiser.id);
+  await addMember(circle.id, organiser.id, "organiser");
+  const p1 = await seedUser({ rating: 4.0, homeVenueId: shoreditch.id });
+  const p2 = await seedUser({ rating: 4.2, homeVenueId: shoreditch.id });
+  await addMember(circle.id, p1.id);
+  await addMember(circle.id, p2.id);
+  const session = await seedSession(circle.id, shoreditch.id, { slots });
+  await confirm(session.id, p1.id);
+  await confirm(session.id, p2.id);
   return { shoreditch, organiser, circle, p1, p2, session };
 }
 
 describe("localRingCandidates — the geo candidate query", () => {
   it("includes an in-radius, in-band, findable player and excludes the 11 km, non-findable, guest, and out-of-band ones", async () => {
-    const { session } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
-    const wandsworth = seedVenue(WANDSWORTH);
+    const { session } = await shortGameAtShoreditch();
+    const stratford = await seedVenue(STRATFORD);
+    const wandsworth = await seedVenue(WANDSWORTH);
 
-    const near = seedUser({ rating: 4.3, homeVenueId: stratford.id }); // ~5.1 km, in band → IN
-    const eleftKm = seedUser({ rating: 4.1, homeVenueId: wandsworth.id }); // ~11 km → OUT (boundary)
-    const marcus = seedUser({ rating: 4.1, homeVenueId: stratford.id, findable: false }); // opted out → OUT
-    const guest = seedUser({ rating: 4.1, homeVenueId: stratford.id, isGuest: true }); // guest → OUT
-    const tooStrong = seedUser({ rating: 6.0, homeVenueId: stratford.id }); // 1.9 above the 4.1 centre → OUT
+    const near = await seedUser({ rating: 4.3, homeVenueId: stratford.id }); // ~5.1 km, in band → IN
+    const eleftKm = await seedUser({ rating: 4.1, homeVenueId: wandsworth.id }); // ~11 km → OUT (boundary)
+    const marcus = await seedUser({ rating: 4.1, homeVenueId: stratford.id, findable: false }); // opted out → OUT
+    const guest = await seedUser({ rating: 4.1, homeVenueId: stratford.id, isGuest: true }); // guest → OUT
+    const tooStrong = await seedUser({ rating: 6.0, homeVenueId: stratford.id }); // 1.9 above the 4.1 centre → OUT
 
     const candidates = await localRingCandidates(db, session.id);
     const ids = candidates.map((c) => c.userId);
@@ -157,10 +157,10 @@ describe("localRingCandidates — the geo candidate query", () => {
   });
 
   it("an unrated nearby player matches any band; the confirmed slot-holders are never candidates", async () => {
-    const { session, p1, p2 } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
+    const { session, p1, p2 } = await shortGameAtShoreditch();
+    const stratford = await seedVenue(STRATFORD);
 
-    const unrated = seedUser({ rating: null, homeVenueId: stratford.id });
+    const unrated = await seedUser({ rating: null, homeVenueId: stratford.id });
 
     const ids = (await localRingCandidates(db, session.id)).map((c) => c.userId);
     expect(ids).toContain(unrated.id);
@@ -169,18 +169,18 @@ describe("localRingCandidates — the geo candidate query", () => {
   });
 
   it("places explicit-patch and inferred-only players, not just home-venue-pinned ones", async () => {
-    const { session, circle } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
+    const { session, circle } = await shortGameAtShoreditch();
+    const stratford = await seedVenue(STRATFORD);
 
     // Explicit patch dropped right on Stratford, no home venue.
-    const explicit = seedUser({ rating: 4.2, patchLat: STRATFORD.lat, patchLng: STRATFORD.lng });
+    const explicit = await seedUser({ rating: 4.2, patchLat: STRATFORD.lat, patchLng: STRATFORD.lng });
 
     // Inferred-only: no home, no patch — but plays at Stratford (an RSVP to a
     // played session there), which resolvePatch derives as their pin.
-    const inferred = seedUser({ rating: 4.0 });
-    const priorSession = seedSession(circle.id, stratford.id, {});
-    db.update(sessions).set({ status: "played" }).where(eq(sessions.id, priorSession.id)).run();
-    confirm(priorSession.id, inferred.id);
+    const inferred = await seedUser({ rating: 4.0 });
+    const priorSession = await seedSession(circle.id, stratford.id, {});
+    await db.update(sessions).set({ status: "played" }).where(eq(sessions.id, priorSession.id));
+    await confirm(priorSession.id, inferred.id);
 
     const ids = (await localRingCandidates(db, session.id)).map((c) => c.userId);
     expect(ids).toContain(explicit.id);
@@ -188,13 +188,13 @@ describe("localRingCandidates — the geo candidate query", () => {
   });
 
   it("a pinned home venue outside the radius wins over an in-radius explicit patch (resolvePatch priority)", async () => {
-    const { session } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
-    const wandsworth = seedVenue(WANDSWORTH);
+    const { session } = await shortGameAtShoreditch();
+    await seedVenue(STRATFORD);
+    const wandsworth = await seedVenue(WANDSWORTH);
 
     // Home venue is the far Wandsworth (their true anchor), even though their
     // explicit patch happens to sit on nearby Stratford — home wins, so OUT.
-    const conflicted = seedUser({
+    const conflicted = await seedUser({
       rating: 4.1,
       homeVenueId: wandsworth.id,
       patchLat: STRATFORD.lat,
@@ -206,25 +206,26 @@ describe("localRingCandidates — the geo candidate query", () => {
   });
 
   it("orders by Reliability first, then proximity", async () => {
-    const { session } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
-    const shoreditch2 = seedVenue({ name: "Shoreditch annex", lat: SHOREDITCH.lat, lng: SHOREDITCH.lng });
+    const { session } = await shortGameAtShoreditch();
+    const stratford = await seedVenue(STRATFORD);
+    const shoreditch2 = await seedVenue({ name: "Shoreditch annex", lat: SHOREDITCH.lat, lng: SHOREDITCH.lng });
 
     // Reliable-but-farther should sort ahead of unreliable-but-closer.
-    const reliableFar = seedUser({ rating: 4.1, homeVenueId: stratford.id, showUpCount: 10, rsvpInCount: 10 }); // 100%
-    const flakeyNear = seedUser({ rating: 4.1, homeVenueId: shoreditch2.id, showUpCount: 5, rsvpInCount: 10 }); // 50%, ~0 km
+    const reliableFar = await seedUser({ rating: 4.1, homeVenueId: stratford.id, showUpCount: 10, rsvpInCount: 10 }); // 100%
+    const flakeyNear = await seedUser({ rating: 4.1, homeVenueId: shoreditch2.id, showUpCount: 5, rsvpInCount: 10 }); // 50%, ~0 km
 
     const ordered = (await localRingCandidates(db, session.id)).map((c) => c.userId);
     expect(ordered.indexOf(reliableFar.id)).toBeLessThan(ordered.indexOf(flakeyNear.id));
   });
 
   it("excludes explicitly-passed ids and caps the fan-out", async () => {
-    const { session } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
+    const { session } = await shortGameAtShoreditch();
+    const stratford = await seedVenue(STRATFORD);
 
-    const many = Array.from({ length: LOCAL_RING_FANOUT_CAP + 3 }, () =>
-      seedUser({ rating: 4.1, homeVenueId: stratford.id, showUpCount: 1, rsvpInCount: 1 }),
-    );
+    const many: { id: string }[] = [];
+    for (let i = 0; i < LOCAL_RING_FANOUT_CAP + 3; i++) {
+      many.push(await seedUser({ rating: 4.1, homeVenueId: stratford.id, showUpCount: 1, rsvpInCount: 1 }));
+    }
 
     const excluded = many[0].id;
     const candidates = await localRingCandidates(db, session.id, { excludeUserIds: [excluded] });
@@ -233,12 +234,12 @@ describe("localRingCandidates — the geo candidate query", () => {
   });
 
   it("returns nothing when the session's venue is unpinned", async () => {
-    const unpinned = seedVenue({ name: "Unpinned club", lat: null, lng: null });
-    const organiser = seedUser();
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, unpinned.id, { slots: 4 });
-    const stratford = seedVenue(STRATFORD);
-    seedUser({ rating: 4.1, homeVenueId: stratford.id });
+    const unpinned = await seedVenue({ name: "Unpinned club", lat: null, lng: null });
+    const organiser = await seedUser();
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, unpinned.id, { slots: 4 });
+    const stratford = await seedVenue(STRATFORD);
+    await seedUser({ rating: 4.1, homeVenueId: stratford.id });
 
     expect(await localRingCandidates(db, session.id)).toEqual([]);
   });
@@ -248,11 +249,11 @@ describe("checkFourthCallLocalRing — escalation", () => {
   const NOW = new Date("2026-08-04T18:00:00.000Z");
 
   it("forceEscalate invites the in-radius candidates with level-2 notifications and fires realtime", async () => {
-    const { session, circle } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
-    const wandsworth = seedVenue(WANDSWORTH);
-    const near = seedUser({ rating: 4.2, homeVenueId: stratford.id });
-    const far = seedUser({ rating: 4.2, homeVenueId: wandsworth.id });
+    const { session, circle } = await shortGameAtShoreditch();
+    const stratford = await seedVenue(STRATFORD);
+    const wandsworth = await seedVenue(WANDSWORTH);
+    const near = await seedUser({ rating: 4.2, homeVenueId: stratford.id });
+    const far = await seedUser({ rating: 4.2, homeVenueId: wandsworth.id });
 
     const calls: { topic: string; type: string; fields: Record<string, unknown> }[] = [];
     __setRealtimeSenderForTests(async (topic, type, fields) => {
@@ -266,12 +267,9 @@ describe("checkFourthCallLocalRing — escalation", () => {
     expect(result.notifiedUserIds).not.toContain(far.id);
 
     // Each candidate holds a level-2 fourth_call notification (the invite).
-    const level2 = db
-      .select()
-      .from(notifications)
-      .where(eq(notifications.type, "fourth_call"))
-      .all()
-      .filter((r) => (r.payload as { level: number }).level === 2);
+    const level2 = (await db.select().from(notifications).where(eq(notifications.type, "fourth_call"))).filter(
+      (r) => (r.payload as { level: number }).level === 2,
+    );
     expect(level2.map((r) => r.userId).sort()).toEqual([...result.notifiedUserIds].sort());
 
     // Realtime fired to both channels, level 2, after commit.
@@ -282,9 +280,9 @@ describe("checkFourthCallLocalRing — escalation", () => {
   });
 
   it("never nags twice: a second escalation is a no-op and re-notifies nobody", async () => {
-    const { session } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
-    const near = seedUser({ rating: 4.2, homeVenueId: stratford.id });
+    const { session } = await shortGameAtShoreditch();
+    const stratford = await seedVenue(STRATFORD);
+    const near = await seedUser({ rating: 4.2, homeVenueId: stratford.id });
 
     const first = await checkFourthCallLocalRing(db, session.id, NOW, { forceEscalate: true });
     expect(first.fired).toBe(true);
@@ -292,27 +290,23 @@ describe("checkFourthCallLocalRing — escalation", () => {
     const second = await checkFourthCallLocalRing(db, session.id, new Date(NOW.getTime() + 60_000), { forceEscalate: true });
     expect(second).toEqual({ fired: false, reason: "already_notified" });
 
-    const forNear = db
-      .select()
-      .from(notifications)
-      .where(eq(notifications.type, "fourth_call"))
-      .all()
-      .filter((r) => r.userId === near.id);
+    const forNear = (await db.select().from(notifications).where(eq(notifications.type, "fourth_call"))).filter(
+      (r) => r.userId === near.id,
+    );
     expect(forNear).toHaveLength(1);
   });
 
   it("without forceEscalate, waits for the 20-minute window after ring 1", async () => {
-    const { session, p1 } = shortGameAtShoreditch();
-    const stratford = seedVenue(STRATFORD);
-    seedUser({ rating: 4.2, homeVenueId: stratford.id });
+    const { session, p1 } = await shortGameAtShoreditch();
+    const stratford = await seedVenue(STRATFORD);
+    await seedUser({ rating: 4.2, homeVenueId: stratford.id });
 
     const ring1At = new Date("2026-08-04T18:00:00.000Z");
-    const row = db
+    const [row] = await db
       .insert(notifications)
       .values({ userId: p1.id, type: "fourth_call", payload: { sessionId: session.id, level: 1 } })
-      .returning()
-      .get();
-    db.update(notifications).set({ createdAt: ring1At }).where(eq(notifications.id, row.id)).run();
+      .returning();
+    await db.update(notifications).set({ createdAt: ring1At.getTime() }).where(eq(notifications.id, row.id));
 
     const tooSoon = await checkFourthCallLocalRing(
       db,
@@ -326,25 +320,25 @@ describe("checkFourthCallLocalRing — escalation", () => {
   });
 
   it("declines when the four is already full", async () => {
-    const shoreditch = seedVenue(SHOREDITCH);
-    const organiser = seedUser();
-    const circle = seedCircle(organiser.id);
-    const p1 = seedUser({ rating: 4 });
-    const p2 = seedUser({ rating: 4 });
-    addMember(circle.id, p1.id);
-    addMember(circle.id, p2.id);
-    const session = seedSession(circle.id, shoreditch.id, { slots: 2 });
-    confirm(session.id, p1.id);
-    confirm(session.id, p2.id);
+    const shoreditch = await seedVenue(SHOREDITCH);
+    const organiser = await seedUser();
+    const circle = await seedCircle(organiser.id);
+    const p1 = await seedUser({ rating: 4 });
+    const p2 = await seedUser({ rating: 4 });
+    await addMember(circle.id, p1.id);
+    await addMember(circle.id, p2.id);
+    const session = await seedSession(circle.id, shoreditch.id, { slots: 2 });
+    await confirm(session.id, p1.id);
+    await confirm(session.id, p2.id);
 
     const result = await checkFourthCallLocalRing(db, session.id, NOW, { forceEscalate: true });
     expect(result).toEqual({ fired: false, reason: "already_full" });
   });
 
   it("returns no_candidates when nobody nearby matches", async () => {
-    const { session } = shortGameAtShoreditch();
-    const wandsworth = seedVenue(WANDSWORTH);
-    seedUser({ rating: 4.2, homeVenueId: wandsworth.id }); // 11 km away — too far
+    const { session } = await shortGameAtShoreditch();
+    const wandsworth = await seedVenue(WANDSWORTH);
+    await seedUser({ rating: 4.2, homeVenueId: wandsworth.id }); // 11 km away — too far
 
     const result = await checkFourthCallLocalRing(db, session.id, NOW, { forceEscalate: true });
     expect(result).toEqual({ fired: false, reason: "no_candidates" });

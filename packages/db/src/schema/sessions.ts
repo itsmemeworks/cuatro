@@ -1,11 +1,11 @@
-import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, pgTable, text } from 'drizzle-orm/pg-core'
 import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { circles } from './circles.js'
 import { standingGames } from './standing-games.js'
 import { venues } from './venues.js'
 
 // A single instance of a Standing Game (or a one-off: standingGameId null).
-export const sessions = sqliteTable(
+export const sessions = pgTable(
   'sessions',
   {
     id: idColumn(),

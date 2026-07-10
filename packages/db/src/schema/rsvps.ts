@@ -1,11 +1,11 @@
-import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core'
 import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { sessions } from './sessions.js'
 import { users } from './users.js'
 
 // One RSVP row per (session, user). `position` orders the reserve queue for
 // auto-promotion when a confirmed player drops out.
-export const rsvps = sqliteTable(
+export const rsvps = pgTable(
   'rsvps',
   {
     id: idColumn(),

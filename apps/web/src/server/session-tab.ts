@@ -26,16 +26,17 @@ export type CreateTabSplitOutcome =
   | { ok: false; error: "session_not_found" | "not_played" | "no_cost_set" | AddSplitEntryError };
 
 /** True if a Tab split has already been created for this session — the idempotency guard `createTabSplitForSession` itself relies on. */
-export function hasTabSplitForSession(db: CuatroDb, sessionId: string): boolean {
-  return !!db.select({ id: tabEntries.id }).from(tabEntries).where(eq(tabEntries.sessionId, sessionId)).get();
+export async function hasTabSplitForSession(db: CuatroDb, sessionId: string): Promise<boolean> {
+  const [row] = await db.select({ id: tabEntries.id }).from(tabEntries).where(eq(tabEntries.sessionId, sessionId));
+  return !!row;
 }
 
-function isCircleMember(db: CuatroDb, circleId: string, userId: string): boolean {
-  return !!db
+async function isCircleMember(db: CuatroDb, circleId: string, userId: string): Promise<boolean> {
+  const [row] = await db
     .select({ userId: circleMembers.userId })
     .from(circleMembers)
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)))
-    .get();
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+  return !!row;
 }
 
 /**
@@ -44,14 +45,18 @@ function isCircleMember(db: CuatroDb, circleId: string, userId: string): boolean
  * creating a second split (guarded by checking tab_entries for this
  * session_id, per the brief — one split per session, ever).
  */
-export function createTabSplitForSession(db: CuatroDb, sessionId: string, requestingUserId: string): CreateTabSplitOutcome {
-  const summary = getSessionSummary(db, sessionId, requestingUserId);
+export async function createTabSplitForSession(
+  db: CuatroDb,
+  sessionId: string,
+  requestingUserId: string,
+): Promise<CreateTabSplitOutcome> {
+  const summary = await getSessionSummary(db, sessionId, requestingUserId);
   if (!summary) return { ok: false, error: "session_not_found" };
-  if (!isCircleMember(db, summary.circleId, requestingUserId)) return { ok: false, error: "not_a_circle_member" };
+  if (!(await isCircleMember(db, summary.circleId, requestingUserId))) return { ok: false, error: "not_a_circle_member" };
   if (summary.session.status !== "played") return { ok: false, error: "not_played" };
   if (summary.costMinor == null) return { ok: false, error: "no_cost_set" };
 
-  const existing = db.select().from(tabEntries).where(eq(tabEntries.sessionId, sessionId)).all();
+  const existing = await db.select().from(tabEntries).where(eq(tabEntries.sessionId, sessionId));
   if (existing.length > 0) {
     // payerShareMinor isn't stored on tab_entries (only what OTHERS owe the
     // payer is — see tab.ts's addSplitEntry header); recomputed here purely
@@ -60,25 +65,26 @@ export function createTabSplitForSession(db: CuatroDb, sessionId: string, reques
     return { ok: true, entries: existing, payerShareMinor, alreadyExisted: true };
   }
 
-  const organiserRows = db
+  const organiserRows = await db
     .select({ userId: circleMembers.userId, role: circleMembers.role })
     .from(circleMembers)
     .where(eq(circleMembers.circleId, summary.circleId))
-    .orderBy(asc(circleMembers.joinedAt))
-    .all();
+    .orderBy(asc(circleMembers.joinedAt));
   const payerUserId = organiserRows.find((r) => r.role === "organiser")?.userId ?? organiserRows[0]?.userId;
   if (!payerUserId) return { ok: false, error: "not_a_circle_member" };
 
   const debtorIds = summary.confirmed.map((p) => p.userId).filter((id) => id !== payerUserId);
 
-  const result = addSplitEntry(db, {
+  const result = await addSplitEntry(db, {
     circleId: summary.circleId,
     payerUserId,
     debtorUserIds: debtorIds,
     totalAmountMinor: summary.costMinor,
     currency: summary.costCurrency,
     sessionId,
-    description: `court split · ${formatSessionDateLabel(summary.session.startsAt)}`,
+    // summary.session.startsAt is epoch-ms now; wrap for the formatter (a Date
+    // passes through new Date() unchanged too, so this is robust either way).
+    description: `court split · ${formatSessionDateLabel(new Date(summary.session.startsAt))}`,
   });
   if (!result.ok) return { ok: false, error: result.error };
 

@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   const { db } = await getGamesClient();
-  const count = getUnreadCountForCircle(db, id, user.id);
+  const count = await getUnreadCountForCircle(db, id, user.id);
 
   return NextResponse.json({ ok: true, count });
 }

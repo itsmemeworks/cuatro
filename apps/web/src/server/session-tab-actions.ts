@@ -11,7 +11,7 @@ export async function createTabSplitForSessionAction(sessionId: string, _formDat
   if (!user) return;
 
   const { db } = await getGamesClient();
-  createTabSplitForSession(db, sessionId, user.id);
+  await createTabSplitForSession(db, sessionId, user.id);
 
   revalidatePath(`/games/${sessionId}`);
 }

@@ -25,7 +25,7 @@
  * instance handled the write.
  */
 import { randomInt } from "node:crypto";
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import { createClient, circleMembers, circleMessages, circles, users, venues } from "@cuatro/db";
 import type { CuatroDb, Circle } from "@cuatro/db";
 import { HEADER_KEYS, isHeaderKey } from "@/lib/circle-headers";
@@ -300,8 +300,20 @@ function defaultGenerateInviteCode(): string {
   return code;
 }
 
-function isUniqueConstraintError(err: unknown): boolean {
-  return err instanceof Error && /UNIQUE constraint failed/i.test(err.message);
+/**
+ * True for a Postgres unique-constraint violation, however the driver wraps it.
+ * Shared by the knock/guest insert paths that pre-check then rely on a partial
+ * unique index as the real race guard (open-door, discovery, guest).
+ */
+export function isUniqueConstraintError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  // Postgres unique_violation is SQLSTATE 23505. postgres-js surfaces `.code`
+  // directly; drizzle (and PGlite) wrap the driver error, exposing it on
+  // `.cause.code`. Fall back to a message match for either wrapping.
+  const code = (err as { code?: string }).code ?? (err.cause as { code?: string } | undefined)?.code;
+  if (code === "23505") return true;
+  const causeMessage = (err.cause as { message?: string } | undefined)?.message ?? "";
+  return /duplicate key value|unique constraint/i.test(`${err.message} ${causeMessage}`);
 }
 
 /**
@@ -365,63 +377,68 @@ function validateMaxMembersRange(raw: number | null): number | null {
   return raw;
 }
 
-/** Throws InvalidHomeVenueError unless `venueId` references an existing venue. Synchronous (usable in a tx). */
-function assertVenueExists(db: CuatroDb, venueId: string): void {
-  const row = db.select({ id: venues.id }).from(venues).where(eq(venues.id, venueId)).get();
+/** Throws InvalidHomeVenueError unless `venueId` references an existing venue. */
+async function assertVenueExists(db: CuatroDb, venueId: string): Promise<void> {
+  const [row] = await db.select({ id: venues.id }).from(venues).where(eq(venues.id, venueId));
   if (!row) throw new InvalidHomeVenueError();
 }
 
-/** Current member count for a Circle. Synchronous `.get()` form so it is callable inside a tx. */
-function memberCountOf(db: CuatroDb, circleId: string): number {
-  return (
-    db.select({ n: sql<number>`count(*)` }).from(circleMembers).where(eq(circleMembers.circleId, circleId)).get()?.n ?? 0
-  );
+/** Current member count for a Circle. */
+async function memberCountOf(db: CuatroDb, circleId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`cast(count(*) as int)` })
+    .from(circleMembers)
+    .where(eq(circleMembers.circleId, circleId));
+  return row?.n ?? 0;
 }
 
 /**
  * The single insert path for "this user is now a real member of this Circle".
- * `onConflictDoNothing().returning().get()` makes it atomic and idempotent in
- * one round trip — a returned row means this call created the membership, an
- * empty result means it already existed. Uses the synchronous `.get()` form
- * so it is equally callable on the plain db (joinCircle) and inside a
- * better-sqlite3 `db.transaction((tx) => …)` callback (Open Door's knock
- * accept, which must add the membership and write its notification in one
- * synchronous transaction). Returns whether a NEW membership was created.
+ * `onConflictDoNothing().returning()` makes it atomic and idempotent — a
+ * returned row means this call created the membership, an empty result means
+ * it already existed. Returns whether a NEW membership was created.
+ *
+ * MUST BE CALLED INSIDE A TRANSACTION (`tx`). Postgres MVCC does not serialize
+ * writers the way better-sqlite3 did, so the capacity read-then-insert takes an
+ * explicit `SELECT ... FOR UPDATE` on the anchoring Circle row first: that
+ * serializes concurrent joins against the same Circle so two racing joiners
+ * can't both pass the cap check and overflow the roster. Callers are
+ * joinCircle, joinGuestCircle, and decideCircleKnock's accept path — each wraps
+ * this in its own `db.transaction(async (tx) => …)`.
  *
  * CAPACITY: when the Circle has a `maxMembers` cap, a NEW member is rejected
  * with CircleFullError once the roster is at the cap. An already-present member
- * re-inserting is a no-op and is never blocked (they already hold a slot). The
- * capacity read + the insert are consecutive synchronous better-sqlite3 calls
- * — no `await` between them — so they cannot interleave with another write on
- * this connection, whether or not a `db.transaction()` wraps the caller. That
- * makes the check-then-insert atomic exactly where every membership is added:
- * joinCircle, joinGuestCircle, and decideCircleKnock's accept path.
+ * re-inserting is a no-op and is never blocked (they already hold a slot).
  */
-export function insertCircleMembership(
-  db: CuatroDb,
+export async function insertCircleMembership(
+  tx: CuatroDb,
   circleId: string,
   userId: string,
   role: "organiser" | "member" = "member",
-): boolean {
-  const cap = db.select({ maxMembers: circles.maxMembers }).from(circles).where(eq(circles.id, circleId)).get();
+): Promise<boolean> {
+  // Lock the Circle row before the capacity decision — the race guard (see the
+  // doc comment). Harmless for uncapped Circles; it is a low-contention row.
+  const [cap] = await tx
+    .select({ maxMembers: circles.maxMembers })
+    .from(circles)
+    .where(eq(circles.id, circleId))
+    .for("update");
   if (cap?.maxMembers != null) {
-    const alreadyMember = db
+    const [alreadyMember] = await tx
       .select({ userId: circleMembers.userId })
       .from(circleMembers)
-      .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)))
-      .get();
-    if (!alreadyMember && memberCountOf(db, circleId) >= cap.maxMembers) {
+      .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+    if (!alreadyMember && (await memberCountOf(tx, circleId)) >= cap.maxMembers) {
       throw new CircleFullError();
     }
   }
 
-  const inserted = db
+  const inserted = await tx
     .insert(circleMembers)
     .values({ circleId, userId, role })
     .onConflictDoNothing()
-    .returning()
-    .get();
-  return Boolean(inserted);
+    .returning();
+  return inserted.length > 0;
 }
 
 function toCircleSummary(circle: Circle, memberCount: number, myRole: "organiser" | "member"): CircleSummary {
@@ -435,7 +452,7 @@ function toCircleSummary(circle: Circle, memberCount: number, myRole: "organiser
     timezone: circle.timezone,
     inviteCode: circle.inviteCode,
     createdBy: circle.createdBy,
-    createdAt: circle.createdAt,
+    createdAt: new Date(circle.createdAt),
     memberCount,
     maxMembers: circle.maxMembers,
     myRole,
@@ -467,32 +484,37 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       const headerImage = validateHeaderImage(input.headerImage ?? null);
       const maxMembers = validateMaxMembersRange(input.maxMembers ?? null);
       const homeVenueId = input.homeVenueId ?? null;
-      if (homeVenueId !== null) assertVenueExists(db, homeVenueId);
+      if (homeVenueId !== null) await assertVenueExists(db, homeVenueId);
 
       let lastErr: unknown;
       for (let attempt = 0; attempt < MAX_INVITE_CODE_ATTEMPTS; attempt++) {
         const inviteCode = generateCode();
         try {
-          const [circle] = await db
-            .insert(circles)
-            .values({
-              name,
-              emblem,
-              colour,
-              headerImage,
-              homeVenueId,
-              maxMembers,
-              countryCode: input.countryCode ?? "GB",
-              timezone: input.timezone ?? "Europe/London",
-              inviteCode,
-              createdBy: input.creatorUserId,
-            })
-            .returning();
+          // Circle + creator membership atomically: an invite-code collision
+          // rolls the whole thing back so the retry doesn't orphan a circle.
+          const circle = await db.transaction(async (tx) => {
+            const [created] = await tx
+              .insert(circles)
+              .values({
+                name,
+                emblem,
+                colour,
+                headerImage,
+                homeVenueId,
+                maxMembers,
+                countryCode: input.countryCode ?? "GB",
+                timezone: input.timezone ?? "Europe/London",
+                inviteCode,
+                createdBy: input.creatorUserId,
+              })
+              .returning();
 
-          await db.insert(circleMembers).values({
-            circleId: circle.id,
-            userId: input.creatorUserId,
-            role: "organiser",
+            await tx.insert(circleMembers).values({
+              circleId: created.id,
+              userId: input.creatorUserId,
+              role: "organiser",
+            });
+            return created;
           });
 
           return toCircleSummary(circle, 1, "organiser");
@@ -519,7 +541,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
           colour: circles.colour,
           headerImage: circles.headerImage,
           maxMembers: circles.maxMembers,
-          memberCount: sql<number>`(select count(*) from circle_members cm where cm.circle_id = ${circles.id})`,
+          memberCount: sql<number>`(select cast(count(*) as int) from circle_members cm where cm.circle_id = ${circles.id})`,
         })
         .from(circles)
         .where(eq(circles.inviteCode, inviteCode));
@@ -532,7 +554,9 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       if (!circle) return null;
 
       try {
-        const created = insertCircleMembership(db, circle.id, userId);
+        // insertCircleMembership locks the Circle row for its capacity check,
+        // so it must run inside a transaction (see its doc comment).
+        const created = await db.transaction((tx) => insertCircleMembership(tx, circle.id, userId));
         return { circleId: circle.id, circleName: circle.name, alreadyMember: !created, full: false };
       } catch (err) {
         if (err instanceof CircleFullError) {
@@ -547,12 +571,12 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         .select({
           circle: circles,
           role: circleMembers.role,
-          memberCount: sql<number>`(select count(*) from circle_members cm2 where cm2.circle_id = ${circles.id})`,
+          memberCount: sql<number>`(select cast(count(*) as int) from circle_members cm2 where cm2.circle_id = ${circles.id})`,
         })
         .from(circleMembers)
         .innerJoin(circles, eq(circleMembers.circleId, circles.id))
         .where(eq(circleMembers.userId, userId))
-        .orderBy(sql`${circles.createdAt} desc`);
+        .orderBy(desc(circles.createdAt));
 
       return rows.map((row) => toCircleSummary(row.circle, Number(row.memberCount), row.role));
     },
@@ -586,7 +610,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         displayName: row.displayName,
         avatarUrl: row.avatarUrl,
         role: row.role,
-        joinedAt: row.joinedAt,
+        joinedAt: new Date(row.joinedAt),
         rating: row.rating,
         confidence: row.confidence,
         reliability: row.rsvpInCount > 0 ? Math.min(1, row.showUpCount / row.rsvpInCount) : null,
@@ -651,7 +675,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       }
       if (updates.headerImage !== undefined) patch.headerImage = validateHeaderImage(updates.headerImage);
       if (updates.homeVenueId !== undefined) {
-        if (updates.homeVenueId !== null) assertVenueExists(db, updates.homeVenueId);
+        if (updates.homeVenueId !== null) await assertVenueExists(db, updates.homeVenueId);
         patch.homeVenueId = updates.homeVenueId;
       }
       if (updates.maxMembers !== undefined) {
@@ -659,7 +683,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         // A cap can never be set below the roster it already holds — that would
         // leave the Circle permanently "over" its own limit.
         if (next !== null) {
-          const current = memberCountOf(db, circleId);
+          const current = await memberCountOf(db, circleId);
           if (next < current) {
             throw new InvalidMaxMembersError(
               `member limit cannot be below the current member count (${current})`,
@@ -689,7 +713,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         userId: row.userId,
         displayName: author?.displayName ?? "Unknown",
         body: row.body,
-        createdAt: row.createdAt,
+        createdAt: new Date(row.createdAt),
       };
       emitCircleEvent(circleId, "message", { messageId: message.id });
       return message;
@@ -699,7 +723,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       await requireMembership(circleId, requestingUserId);
 
       const conditions = [eq(circleMessages.circleId, circleId)];
-      if (opts?.after) conditions.push(gt(circleMessages.createdAt, opts.after));
+      if (opts?.after) conditions.push(gt(circleMessages.createdAt, opts.after.getTime()));
 
       const rows = await db
         .select({
@@ -713,14 +737,14 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         .from(circleMessages)
         .innerJoin(users, eq(circleMessages.userId, users.id))
         .where(and(...conditions))
-        // circle_messages.rowid, not created_at, is the sort key — see the
-        // schema comment on circleMessages for why ms-resolution timestamps
-        // alone aren't a safe way to recover insertion order. Qualified
-        // because the join brings in users' rowid too.
-        .orderBy(sql`circle_messages.rowid asc`)
+        // circle_messages.seq (a monotonic GENERATED identity), not created_at,
+        // is the sort key — Postgres has no rowid, and ms-resolution timestamps
+        // alone can't recover insertion order within the same millisecond. See
+        // the schema comment on circleMessages + the foundation manifest §6.
+        .orderBy(asc(circleMessages.seq))
         .limit(opts?.limit ?? DEFAULT_MESSAGE_LIMIT);
 
-      return rows;
+      return rows.map((row) => ({ ...row, createdAt: new Date(row.createdAt) }));
     },
   };
 }
@@ -729,8 +753,7 @@ let storePromise: Promise<CirclesStore> | null = null;
 
 export function getCirclesStore(): Promise<CirclesStore> {
   if (!storePromise) {
-    const { db } = createClient();
-    storePromise = Promise.resolve(createCirclesStore(db));
+    storePromise = createClient().then(({ db }) => createCirclesStore(db));
   }
   return storePromise;
 }

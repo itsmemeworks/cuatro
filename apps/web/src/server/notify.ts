@@ -18,21 +18,21 @@
  *    this one hook covers all of them (fourth call, Glass moved, placement
  *    complete, tab nudge, ...) without each caller needing its own emit.
  *
- * insertNotification() is a synchronous drop-in for the old
+ * insertNotification() is an async drop-in for the old
  * `tx.insert(notifications).values({...}).run()` call sites: same DB
- * effect, callable from inside games-service.ts's and matches-db.ts's
- * existing `db.transaction((tx) => {...})` bodies (see those files' headers
- * for why the callback must stay fully synchronous — better-sqlite3
- * requires it). Push delivery can't happen inside that callback
- * (webpush.sendNotification is async), so it's scheduled with
- * `setImmediate`, which always runs after the synchronous transaction body
- * returns and better-sqlite3 has committed. If the surrounding transaction
- * later threw for an unrelated reason *after* this insert ran, a push could
- * in theory fire for a write that got rolled back; every call site writes
- * its notification as the last statement in its transaction, so in
- * practice that window doesn't occur. Documented limitation, not solved
- * generically. The realtime broadcast piggybacks on the same setImmediate
- * for the same "after commit" reason.
+ * effect, `await`ed from inside games-service.ts's and matches-db.ts's
+ * `await db.transaction(async (tx) => {...})` bodies (Postgres transactions
+ * are async — awaits inside the callback are correct and required). Push
+ * delivery still can't happen inside the transaction (webpush.sendNotification
+ * is async and must not gate the commit), so it's scheduled with
+ * `setImmediate`, which runs after the transaction body's microtasks settle
+ * and the commit lands. If the surrounding transaction later threw for an
+ * unrelated reason *after* this insert ran, a push could in theory fire for a
+ * write that got rolled back; every call site writes its notification as the
+ * last statement in its transaction, so in practice that window doesn't
+ * occur. Documented limitation, not solved generically. The realtime
+ * broadcast piggybacks on the same setImmediate for the same "after commit"
+ * reason.
  */
 import { eq } from "drizzle-orm";
 import { notifications, sessions, circles, users, type CuatroDb, type Notification } from "@cuatro/db";
@@ -80,11 +80,11 @@ function fmtDelta(delta: number): string {
 }
 
 /** Circle name + a human "Tue 20:00" style timestamp for a session, or null if the session's gone. */
-function sessionContext(tx: CuatroDb, sessionId: string): { circleName: string; when: string } | null {
-  const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+async function sessionContext(tx: CuatroDb, sessionId: string): Promise<{ circleName: string; when: string } | null> {
+  const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId));
   if (!session) return null;
-  const circle = tx.select({ name: circles.name }).from(circles).where(eq(circles.id, session.circleId)).get();
-  const when = session.startsAt.toLocaleString("en-GB", {
+  const [circle] = await tx.select({ name: circles.name }).from(circles).where(eq(circles.id, session.circleId));
+  const when = new Date(session.startsAt).toLocaleString("en-GB", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -102,17 +102,17 @@ function sessionContext(tx: CuatroDb, sessionId: string): { circleName: string; 
  * (insertNotification) and the reader (notifications.ts's list model) get
  * identical copy from the same stored payload.
  */
-export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): NotificationCopy {
+export async function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): Promise<NotificationCopy> {
   switch (input.type) {
     case "game_filled": {
-      const ctx = sessionContext(tx, input.payload.sessionId);
+      const ctx = await sessionContext(tx, input.payload.sessionId);
       return {
         title: "Your four is set",
         body: ctx ? `All slots filled for ${ctx.circleName}, ${ctx.when}.` : "All slots are filled for your next game.",
       };
     }
     case "slot_promoted": {
-      const ctx = sessionContext(tx, input.payload.sessionId);
+      const ctx = await sessionContext(tx, input.payload.sessionId);
       return {
         title: "You're in",
         body: ctx
@@ -121,8 +121,8 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       };
     }
     case "dropout": {
-      const ctx = sessionContext(tx, input.payload.sessionId);
-      const dropped = tx.select({ displayName: users.displayName }).from(users).where(eq(users.id, input.payload.userId)).get();
+      const ctx = await sessionContext(tx, input.payload.sessionId);
+      const [dropped] = await tx.select({ displayName: users.displayName }).from(users).where(eq(users.id, input.payload.userId));
       return {
         title: "A slot just opened",
         body: ctx
@@ -131,7 +131,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       };
     }
     case "fourth_call": {
-      const ctx = sessionContext(tx, input.payload.sessionId);
+      const ctx = await sessionContext(tx, input.payload.sessionId);
       if (input.payload.via === "rotation_offer") {
         return {
           title: "A spot opened in your four",
@@ -185,7 +185,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       };
     }
     case "confirm_result": {
-      const ctx = sessionContext(tx, input.payload.sessionId);
+      const ctx = await sessionContext(tx, input.payload.sessionId);
       return {
         title: "Confirm your result",
         body: ctx
@@ -201,7 +201,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       };
     }
     case "rotation_selected": {
-      const ctx = sessionContext(tx, input.payload.sessionId);
+      const ctx = await sessionContext(tx, input.payload.sessionId);
       return {
         title: "You're in this week",
         body: ctx
@@ -210,7 +210,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       };
     }
     case "rotation_sitting_out": {
-      const ctx = sessionContext(tx, input.payload.sessionId);
+      const ctx = await sessionContext(tx, input.payload.sessionId);
       return {
         title: "You're sitting this one out",
         body: ctx
@@ -219,7 +219,7 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       };
     }
     case "session_rescheduled": {
-      const ctx = sessionContext(tx, input.payload.sessionId);
+      const ctx = await sessionContext(tx, input.payload.sessionId);
       return {
         title: "Your game moved",
         body: ctx
@@ -228,20 +228,19 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       };
     }
     case "knock_received": {
-      const knocker = tx
+      const [knocker] = await tx
         .select({ displayName: users.displayName })
         .from(users)
-        .where(eq(users.id, input.payload.userId))
-        .get();
+        .where(eq(users.id, input.payload.userId));
       const who = knocker?.displayName ?? "Someone";
       if (input.payload.kind === "circle") {
-        const circle = tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.targetId)).get();
+        const [circle] = await tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.targetId));
         return {
           title: "Someone wants to join your Circle",
           body: `${who} asked to join ${circle?.name ?? "your Circle"}. Tap to decide.`,
         };
       }
-      const ctx = sessionContext(tx, input.payload.targetId);
+      const ctx = await sessionContext(tx, input.payload.targetId);
       return {
         title: "Someone wants in on your game",
         body: ctx ? `${who} asked to join ${ctx.circleName}, ${ctx.when}. Tap to decide.` : `${who} asked to join your game. Tap to decide.`,
@@ -249,13 +248,13 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
     }
     case "knock_accepted": {
       if (input.payload.kind === "circle") {
-        const circle = tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.targetId)).get();
+        const [circle] = await tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.targetId));
         return {
           title: "You're in",
           body: `${circle?.name ?? "The Circle"} said yes. Welcome in.`,
         };
       }
-      const ctx = sessionContext(tx, input.payload.targetId);
+      const ctx = await sessionContext(tx, input.payload.targetId);
       return {
         title: "You're in",
         body: ctx ? `You're playing with ${ctx.circleName}, ${ctx.when}. See you on court.` : "Your ask was accepted. See you on court.",
@@ -273,11 +272,10 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
           };
     }
     case "match_comment": {
-      const commenter = tx
+      const [commenter] = await tx
         .select({ displayName: users.displayName })
         .from(users)
-        .where(eq(users.id, input.payload.commenterId))
-        .get();
+        .where(eq(users.id, input.payload.commenterId));
       return {
         title: "A comment on your result",
         body: `${commenter?.displayName ?? "Someone"} commented on a match you played. Tap to read it.`,
@@ -341,10 +339,10 @@ function scheduleRealtimeBroadcast(userId: string, notificationId: string, type:
  * plus centralised copy + a best-effort push (see file header for why push
  * is deferred rather than awaited).
  */
-export function insertNotification(tx: CuatroDb, input: InsertNotificationInput): Notification {
+export async function insertNotification(tx: CuatroDb, input: InsertNotificationInput): Promise<Notification> {
   const { userId, ...rest } = input;
-  const row = tx.insert(notifications).values({ userId, type: rest.type, payload: rest.payload }).returning().get();
-  const copy = renderNotificationCopy(tx, rest);
+  const [row] = await tx.insert(notifications).values({ userId, type: rest.type, payload: rest.payload }).returning();
+  const copy = await renderNotificationCopy(tx, rest);
   schedulePush(userId, copy, deepLinkFor(rest));
   scheduleRealtimeBroadcast(userId, row.id, rest.type);
   return row;

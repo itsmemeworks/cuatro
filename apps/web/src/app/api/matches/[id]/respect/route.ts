@@ -10,7 +10,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const { db } = await getGamesClient();
-  const outcome = toggleRespect(db, id, user.id);
+  const outcome = await toggleRespect(db, id, user.id);
 
   if (!outcome.ok) {
     const status = outcome.error === "match_not_found" ? 404 : outcome.error === "not_a_circle_member" ? 403 : 400;

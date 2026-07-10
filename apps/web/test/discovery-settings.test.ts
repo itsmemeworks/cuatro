@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createClient, users, venues, type CuatroClient, type CuatroDb } from "@cuatro/db";
+import { createTestClient, users, venues, type CuatroClient, type CuatroDb } from "@cuatro/db";
 import { eq } from "drizzle-orm";
 import { resolvePatch } from "@/server/patch";
 
@@ -18,28 +18,29 @@ import { updateDiscoverySettingsAction } from "@/app/(app)/profile/discovery-act
 describe("updateDiscoverySettingsAction", () => {
   let client: CuatroClient;
 
-  beforeEach(() => {
-    client = createClient(":memory:");
+  beforeEach(async () => {
+    client = await createTestClient();
     h.db = client.db;
-    const u = client.db.insert(users).values({ email: "u@e.com", displayName: "U", findable: true }).returning().get();
+    const [u] = await client.db.insert(users).values({ email: "u@e.com", displayName: "U", findable: true }).returning();
     h.userId = u.id;
   });
 
-  afterEach(() => client.close());
+  afterEach(async () => {
+    await client.close();
+  });
 
   it("persists a home venue and findable, and the patch then resolves there", async () => {
-    const venue = client.db
+    const [venue] = await client.db
       .insert(venues)
       .values({ name: "Shoreditch", lat: 51.5265, lng: -0.0805 })
-      .returning()
-      .get();
+      .returning();
 
     const fd = new FormData();
     fd.set("findable", "on");
     fd.set("homeVenueId", venue.id);
     await updateDiscoverySettingsAction(fd);
 
-    const row = client.db.select().from(users).where(eq(users.id, h.userId)).get();
+    const [row] = await client.db.select().from(users).where(eq(users.id, h.userId));
     expect(row?.findable).toBe(true);
     expect(row?.homeVenueId).toBe(venue.id);
 
@@ -50,7 +51,8 @@ describe("updateDiscoverySettingsAction", () => {
   it("an unchecked findable box turns discovery off", async () => {
     const fd = new FormData(); // no "findable" key => unchecked
     await updateDiscoverySettingsAction(fd);
-    expect(client.db.select().from(users).where(eq(users.id, h.userId)).get()?.findable).toBe(false);
+    const [row] = await client.db.select().from(users).where(eq(users.id, h.userId));
+    expect(row?.findable).toBe(false);
   });
 
   it("drops a stale home-venue id rather than breaking the FK", async () => {
@@ -58,6 +60,7 @@ describe("updateDiscoverySettingsAction", () => {
     fd.set("findable", "on");
     fd.set("homeVenueId", "does-not-exist");
     await updateDiscoverySettingsAction(fd);
-    expect(client.db.select().from(users).where(eq(users.id, h.userId)).get()?.homeVenueId).toBeNull();
+    const [row] = await client.db.select().from(users).where(eq(users.id, h.userId));
+    expect(row?.homeVenueId).toBeNull();
   });
 });

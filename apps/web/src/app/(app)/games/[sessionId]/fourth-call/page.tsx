@@ -23,21 +23,21 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
 
   const { sessionId } = await params;
   const { db } = await getGamesClient();
-  const summary = getSessionSummary(db, sessionId, user.id);
+  const summary = await getSessionSummary(db, sessionId, user.id);
   if (!summary) notFound();
 
-  if (!isOrganiser(db, summary.circleId, user.id)) redirect(`/games/${sessionId}`);
+  if (!(await isOrganiser(db, summary.circleId, user.id))) redirect(`/games/${sessionId}`);
 
   // Ladder order matters: ring 1, then played-with (ring 2a), then the geo
   // Local Ring (ring 2b) — the geo ring's auto-open gate waits until
   // played-with has had its first-refusal turn (see checkFourthCallLocalRing),
   // so played-with MUST run before it on this same view.
-  const result1 = checkFourthCallLevel1(db, sessionId);
+  const result1 = await checkFourthCallLevel1(db, sessionId);
   await checkFourthCallPlayedWith(db, sessionId);
   const result2 = await checkFourthCallLocalRing(db, sessionId);
 
   const gameFull = summary.confirmed.length >= summary.slots;
-  const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt.getTime();
+  const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt;
 
   const ring1Sent = result1.fired || result1.reason === "already_notified";
   const ring1Label = gameFull
@@ -73,7 +73,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
   // out (including anyone who has since claimed and dropped off the candidate
   // list). Available candidates exclude circle members, guests, opted-out
   // players, and current session participants — see server/played-with.ts.
-  const pwInvitedIds = new Set(playedWithInvitedUserIds(db, sessionId));
+  const pwInvitedIds = new Set(await playedWithInvitedUserIds(db, sessionId));
   const pwCandidates = await playedWithCandidates(db, sessionId, { limit: 8 });
   const playedWith: PlayedWithRow[] = pwCandidates.map((c) => ({
     userId: c.userId,
@@ -113,7 +113,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
   // ring-3 paths, so this is exact rather than the old hasFourthCallInvite
   // heuristic.
   let claimant: { displayName: string; avatarUrl: string | null; rating: number | null } | null = null;
-  const claimantId = findFourthCallClaimant(db, sessionId);
+  const claimantId = await findFourthCallClaimant(db, sessionId);
   if (claimantId) {
     const p = summary.confirmed.find((c) => c.userId === claimantId);
     if (p) {
@@ -122,7 +122,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
     }
   }
 
-  const whenLabel = summary.session.startsAt.toLocaleString("en-GB", {
+  const whenLabel = new Date(summary.session.startsAt).toLocaleString("en-GB", {
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",

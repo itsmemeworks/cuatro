@@ -7,11 +7,12 @@
  * unchanged.
  *
  * Concurrency-critical mutations (RSVP dropout -> auto-promotion) run
- * inside `db.transaction(...)` against this shared connection. better-
- * sqlite3 transactions execute fully synchronously (no `await` inside), so
- * as long as every write path gets its `CuatroDb` from here rather than
- * opening a fresh connection per call, two "concurrent" RSVP mutations
- * within this process can never interleave mid-transaction — one fully
- * commits before the next transaction's callback runs.
+ * inside `await db.transaction(async (tx) => ...)` against this shared
+ * Postgres connection. Postgres MVCC does NOT serialise writers the way
+ * better-sqlite3 did, so those transactions take an explicit
+ * `SELECT ... FOR UPDATE` row lock on the anchoring row (the session, or the
+ * standing_games parent) before their read-decide-write — see
+ * games-service.ts. That lock, not the driver, is what now prevents two
+ * concurrent RSVP mutations from double-promoting the same reserve.
  */
 export { getDb as getGamesClient, __resetDbForTests as __resetGamesClientForTests } from "./db";

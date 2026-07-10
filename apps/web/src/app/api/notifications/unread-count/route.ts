@@ -8,5 +8,5 @@ export async function GET() {
   if (!user) return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
 
   const { db } = await getGamesClient();
-  return NextResponse.json({ ok: true, unreadCount: getUnreadCount(db, user.id) });
+  return NextResponse.json({ ok: true, unreadCount: await getUnreadCount(db, user.id) });
 }

@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   if (!sessionId || !token) return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
 
   const { db } = await getGamesClient();
-  const outcome = claimGuestSlot(db, sessionId, token);
+  const outcome = await claimGuestSlot(db, sessionId, token);
   if (!outcome.ok) {
     return NextResponse.json({ ok: false, error: outcome.error }, { status: STATUS_FOR_ERROR[outcome.error] ?? 400 });
   }
