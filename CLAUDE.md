@@ -46,7 +46,7 @@ npm-workspaces monorepo:
 | Env | URL | Data | Auth/realtime | Notes |
 |---|---|---|---|---|
 | local | localhost:3000 | ./dev.db | local Supabase stack (544xx) | Mailpit 54424 catches auth emails |
-| staging | **cuatro-staging.fly.dev** | own Fly volume `/data/cuatro.db` | own Supabase project `edususarvcwppascgnmf` | deploy ANY branch: `fly deploy -c fly.staging.toml --ha=false`; autostops when idle (first hit after sleep takes a few seconds); STAGING badge + noindex are gated on build arg `NEXT_PUBLIC_APP_ENV=staging`; staging auth email = Supabase built-in (team members only) until SMTP lands |
+| staging | **cuatro-staging.fly.dev** | own Fly volume `/data/cuatro.db` | own Supabase project `edususarvcwppascgnmf` | deploy ANY branch: `fly deploy -c fly.staging.toml --ha=false`; ALSO auto-deploys when a release-please release PR merges (release-please.yml `deploy-staging` job, token = repo secret FLY_STAGING_DEPLOY_TOKEN, deploy-scoped to cuatro-staging only); autostops when idle (first hit after sleep takes a few seconds); STAGING badge + noindex are gated on build arg `NEXT_PUBLIC_APP_ENV=staging`; staging auth email = Supabase built-in (team members only) until SMTP lands |
 | prod | **padelcuatro.com** (cuatro.fly.dev = same app) | Fly volume on app `cuatro` | Supabase `piaeeuyqqbtmbuqfkfun` | main branch only, after the gate |
 
 `supabase config push` targets the LINKED project (prod). To push auth config to staging: swap site_url/redirects to cuatro-staging.fly.dev in config.toml, `echo edususarvcwppascgnmf > supabase/.temp/project-ref`, push, then RESTORE both (config.toml back to prod values, project-ref back to `piaeeuyqqbtmbuqfkfun`) — never leave the repo linked to staging.
