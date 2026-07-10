@@ -9,3 +9,4 @@
 apps/web/dev.db*
 dist/
 node_modules/
+*.tsbuildinfo

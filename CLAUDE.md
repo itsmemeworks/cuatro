@@ -50,6 +50,14 @@ npm-workspaces monorepo:
 - **Before deploying schema changes**: `fly ssh sftp get /data/cuatro.db` and apply migrations to the copy locally — unauthenticated smoke checks do NOT exercise the DB and will lie to you.
 - Prod debugging: `fly logs -a cuatro`; a user-visible "server error" with clean health checks usually means a DB-touching path is failing while health (no DB) passes.
 
+## Working agreement (multi-agent sessions — how this repo is actually built)
+- **Parallel agents get strictly disjoint FILE territories** (not themes). Each writes a manifest to the session scratchpad (decisions, files, verified journey, risks) and NEVER commits — the session lead reviews, gates, commits, deploys.
+- **Single-owner files** (agents never edit; write the exact addition you need into your manifest and the lead applies it): `server/notify.ts`, `components/ui/info-term.tsx` (GLOSSARY), `lib/error-copy.ts` is lead-seeded but agents may add codes ONLY when no other agent is running.
+- **The gate** before every deploy: full `npm test` from root + `tsc --noEmit` + `npm run build`; schema changes additionally rehearse ALL migrations against a FRESH prod copy (`fly ssh sftp get`) with `PRAGMA foreign_key_check` = 0.
+- **Deploy order**: app (`fly deploy --ha=false` from repo root) THEN the marketing mirror (`../cuatro-site`, app `cuatro-site`). The landing page ships from TWO synced copies: `apps/web/public/landing/` (served at `/`) and `../cuatro-site/public/` — byte-identical bar the asset prefix.
+- **GitHub**: https://github.com/itsmemeworks/cuatro — push as gh account `conspirafi` (`gh auth switch -u conspirafi`). Conventional commits REQUIRED (release-please builds the changelog from them).
+- **Decision records**: product decisions log = `../CLAUDE.md`; v1.0 cut line + blessed spec deviations = `V1-READINESS.md`; the shared dev server (:3000) + dev.db are SHARED across concurrent agents — never kill/reseed while others run.
+
 ## Verification bar (non-negotiable, learned the hard way)
 - **Design claims require visual proof**: screenshot at phone width vs the LATEST prototype. Agents self-certifying design accuracy without screenshots have been wrong before (an entire wave shipped the wrong nav IA).
 - Functional claims require driving the real app (curl session or browser), not just green units. Realtime claims require a genuinely separate subscriber observing the event live.

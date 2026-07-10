@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in CUATRO is not working the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. CUATRO is a phone-first PWA,
+        so device and browser detail really helps us reproduce the problem.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the bug. What did you see?
+      placeholder: When I tapped "I'm in" on a closed RSVP, nothing happened.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact steps that lead to the bug.
+      placeholder: |
+        1. Open a circle with a standing game whose window has closed
+        2. Tap the pinned game
+        3. Tap "I'm in"
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag in a screenshot if you have one. Phone-width shots are ideal.
+    validations:
+      required: false
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Phone or computer, and the model if you know it.
+      placeholder: iPhone 14, or MacBook Air M2
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Browser and version, and whether CUATRO was installed to the home screen.
+      placeholder: Safari 17 (installed to home screen), or Chrome 121
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Console errors, the URL you were on, or anything else that might help.
+    validations:
+      required: false

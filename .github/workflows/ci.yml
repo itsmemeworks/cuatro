@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm workspaces: installs every package, and builds better-sqlite3's
+      # native binding from a prebuilt binary for ubuntu-latest.
+      - name: Install
+        run: npm ci
+
+      # apps/web imports @cuatro/glass from its built dist, so the engine
+      # must be compiled before the web app is typechecked.
+      - name: Build the Glass engine
+        run: npm run build --workspace=@cuatro/glass
+
+      - name: Typecheck (the lint bar — no ESLint config)
+        run: |
+          npx tsc --noEmit -p apps/web/tsconfig.json
+          npx tsc --noEmit -p packages/db/tsconfig.json
+          npm run typecheck --workspace=@cuatro/glass
+
+      # Tests use better-sqlite3 and mock Supabase, so no local stack is needed.
+      - name: Test
+        run: npm test

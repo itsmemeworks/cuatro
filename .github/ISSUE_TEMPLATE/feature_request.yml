@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest something CUATRO should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        CUATRO is built around a few named mechanics. It helps to know which one
+        your idea touches, or whether it is something new.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is painful today? Describe the situation, not the solution.
+      placeholder: When two people drop at once, the group has no idea who is next up.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed mechanic or change
+      description: What should CUATRO do about it?
+    validations:
+      required: true
+  - type: dropdown
+    id: mechanic
+    attributes:
+      label: Which mechanic does this touch?
+      description: Pick the closest one, or "Something new".
+      options:
+        - Glass and the Ledger (rating)
+        - Circles
+        - The Standing Game
+        - The Rotation
+        - The Fourth Call
+        - The Board / Open Door (discovery)
+        - Reliability
+        - The Tab
+        - Something new
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Alternatives you considered, or why this matters to your four.
+    validations:
+      required: false
