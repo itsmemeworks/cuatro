@@ -25,6 +25,10 @@ primary_region = "lhr"
   NEXT_PUBLIC_SUPABASE_URL = "https://cmqicxumhmthbuoehoju.supabase.co"
   NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtcWljeHVtaG10aGJ1b2Vob2p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkxMDksImV4cCI6MjA5OTI3NTEwOX0.nJUasMQtYA4QzP10Q3lCAjNVAQcpUMZT6gJOuhela0E"
   NEXT_PUBLIC_APP_ENV = "staging"
+  # Server-side product analytics for the §9 pilot metrics (pilot/METRICS.md).
+  # POSTHOG_KEY is a PUBLIC project write key (safe to commit); no key ⇒ no-op.
+  POSTHOG_KEY = "phc_CsaZuVaiRo6W5fqhUcBYYRyFdXuZ6z5KDc2ioRhu4ty9"
+  POSTHOG_HOST = "https://us.i.posthog.com"
 
 [[mounts]]
   source = "cuatro_staging_data"

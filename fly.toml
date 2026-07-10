@@ -24,6 +24,10 @@ primary_region = "lhr"
   # and .env.example.
   NEXT_PUBLIC_SUPABASE_URL = "https://lkdnxrfddlodmjakhikw.supabase.co"
   NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrZG54cmZkZGxvZG1qYWtoaWt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkwODYsImV4cCI6MjA5OTI3NTA4Nn0.h0Vkqh5vYWkARZomaebcFCvseEoryOGID2yqN6yg60s"
+  # Server-side product analytics for the §9 pilot metrics (pilot/METRICS.md).
+  # POSTHOG_KEY is a PUBLIC project write key (safe to commit); no key ⇒ no-op.
+  POSTHOG_KEY = "phc_CsaZuVaiRo6W5fqhUcBYYRyFdXuZ6z5KDc2ioRhu4ty9"
+  POSTHOG_HOST = "https://us.i.posthog.com"
 
 [[mounts]]
   source = "cuatro_data"

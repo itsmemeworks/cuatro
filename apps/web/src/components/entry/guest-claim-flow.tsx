@@ -208,7 +208,7 @@ export function GuestClaimFlow({
       <div className="w-full text-center">
         <h2 className="text-cu-title text-ink">Beaten to it</h2>
         <p className="text-cu-body text-ink-muted mt-1.5">
-          Brutal. But there&apos;s a queue, and this circle plays every week.
+          Brutal. But there&apos;s a queue, and this Circle plays every week.
         </p>
         <Button size="lg" fullWidth disabled={pending} onClick={joinReserve} className="mt-4">
           {pending ? "…" : "Join the reserve queue"}

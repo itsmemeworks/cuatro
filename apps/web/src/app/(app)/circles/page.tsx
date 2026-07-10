@@ -119,7 +119,7 @@ export default async function CirclesPage({
             <Card>
               <p className="text-cu-body text-ink-muted">
                 Set a home club or patch in{" "}
-                <Link href="/profile" className="font-bold text-action-strong">
+                <Link href="/profile" className="font-bold text-ink underline">
                   profile settings
                 </Link>{" "}
                 and we&apos;ll show Circles near you that welcome new players.

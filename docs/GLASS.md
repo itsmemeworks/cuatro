@@ -37,6 +37,12 @@ Confidence is how sure Glass is about your number, and it is shown next to your 
 
 CUATRO tracks two things that other apps blur into one. **Confidence** is about your rating: how much evidence sits behind the number. **Reliability** is about attendance: whether you turn up when you said you would. Turning up is a virtue, and your circle can see it, but it is not a skill signal, so it never moves Glass in either direction.
 
+## Friendlies
+
+Not every game is played for the record. A game can be marked friendly, set for a whole circle or one game at a time, and a friendly still records its score, still confirms the same way, and still counts for Reliability, streaks and who you have played with. What it never does is move Glass. No rating events are written, and no one's confidence shifts.
+
+The match itself remembers it was friendly. That snapshot is why the Ledger can always explain a rating that did not move: real padel happened, it simply was not for the record, and nothing rewrites that later.
+
 ## The Ledger
 
 Every movement of every rating is written to the Ledger at the moment it happens, in plain English. A typical line:

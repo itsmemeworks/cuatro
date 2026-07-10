@@ -30,6 +30,7 @@ import { createClient, circleMembers, circleMessages, circles, rsvps, sessions, 
 import type { CuatroDb, Circle } from "@cuatro/db";
 import { HEADER_KEYS, isHeaderKey } from "@/lib/circle-headers";
 import { emitCircleEvent } from "@/lib/realtime/broadcast";
+import { captureEvent } from "@/lib/analytics";
 import { insertNotification } from "@/server/notify";
 import { markUnavailable, rsvpOut } from "@/server/games-service";
 
@@ -644,6 +645,22 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
             return created;
           });
 
+          // §9 metric 1 + 4: circle_created (after commit). Seed attribution
+          // (origin / seed_cohort_id / origin_circle_id) has no column on
+          // `circles` yet (schema is FRIENDLIES' territory this wave), so
+          // origin is "unknown" until those land — see metrics-manifest.md.
+          // Metric 4 (organic-per-seeded) is unmeasurable until then.
+          captureEvent("circle_created", {
+            distinctId: circle.createdBy,
+            circleId: circle.id,
+            timestamp: circle.createdAt,
+            properties: {
+              origin: "unknown",
+              created_by: circle.createdBy,
+              default_game_type: circle.defaultGameType,
+              created_at: circle.createdAt,
+            },
+          });
           return toCircleSummary(circle, 1, "organiser");
         } catch (err) {
           if (isUniqueConstraintError(err)) {

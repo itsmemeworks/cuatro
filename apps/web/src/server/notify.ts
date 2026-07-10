@@ -93,7 +93,7 @@ async function sessionContext(tx: CuatroDb, sessionId: string): Promise<{ circle
     hour: "2-digit",
     minute: "2-digit",
   });
-  return { circleName: circle?.name ?? "your circle", when };
+  return { circleName: circle?.name ?? "your Circle", when };
 }
 
 /**
@@ -155,7 +155,7 @@ export async function renderNotificationCopy(tx: CuatroDb, input: NotificationIn
             title: "Your circle needs a fourth",
             body: ctx
               ? `${ctx.circleName} is short for ${ctx.when}. Tap in if you can make it.`
-              : "A game in your circle is short a player.",
+              : "A game in your Circle is short a player.",
           }
         : {
             title: "A four near you needs a player",

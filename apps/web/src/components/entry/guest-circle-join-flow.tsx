@@ -256,7 +256,7 @@ export function GuestCircleJoinFlow({
           Save your spot, send me a magic link
         </Link>
         <Meta as="p" className="leading-[1.7]">
-          no password needed to play, the link just keeps your circle and games, so you can pick up where you left off
+          no password needed to play, the link just keeps your Circle and games, so you can pick up where you left off
         </Meta>
       </div>
     </div>

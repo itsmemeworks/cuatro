@@ -19,6 +19,7 @@ import {
   type StandingGame,
   type GameType,
 } from "@cuatro/db";
+import { captureEvent } from "@/lib/analytics";
 
 export type ServiceResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -167,6 +168,23 @@ export async function createStandingGame(
       rotationMode: input.rotationMode ?? "limited",
     })
     .returning();
+
+  // §9 metric 1: standing_game_created (after commit). The fixture is a single
+  // weekday slot, so cadence is always "weekly" in v1 (no cadence column —
+  // fortnightly/etc. from METRICS.md isn't modelled yet; see metrics-manifest.md).
+  captureEvent("standing_game_created", {
+    distinctId: userId,
+    circleId: created.circleId,
+    timestamp: created.createdAt,
+    properties: {
+      standing_game_id: created.id,
+      cadence: "weekly",
+      venue_id: created.venueId,
+      slots: created.slots,
+      game_type: created.gameType,
+      created_at: created.createdAt,
+    },
+  });
 
   return { ok: true, value: created };
 }

@@ -196,7 +196,7 @@ export function CircleTabs({
               <div className="flex items-center gap-3">
                 <DashedSlot label="+" size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-cu-body font-bold text-action-strong">Invite your group</p>
+                  <p className="text-cu-body font-bold text-ink">Invite your group</p>
                   <Meta as="p" className="mt-0.5">
                     it&apos;s just you so far, share the link and your four fills up
                   </Meta>
@@ -270,7 +270,7 @@ export function CircleTabs({
             <div className="flex items-center gap-3">
               <DashedSlot label="+" size="md" />
               <div className="flex-1 min-w-0">
-                <p className="text-cu-body font-bold text-action-strong">Invite a mate</p>
+                <p className="text-cu-body font-bold text-ink">Invite a mate</p>
                 <Meta as="p" className="mt-0.5">
                   share the Circle link, they&apos;re in before their first game
                 </Meta>

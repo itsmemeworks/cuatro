@@ -19,7 +19,7 @@ const TIER_COPY: Record<Tier, { name: string; line: string }> = {
   open: { name: "Open", line: "nearby players can find you and knock" },
   invite_only: {
     name: "Invite only",
-    line: "your circle is visible near you and your open games take asks, but joining is by invite link",
+    line: "your Circle is visible near you and your open games take asks, but joining is by invite link",
   },
   private: { name: "Private", line: "invisible to discovery" },
 };

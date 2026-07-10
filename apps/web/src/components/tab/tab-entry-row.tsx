@@ -16,7 +16,7 @@ export interface TabEntryRowData {
   currency: string;
   status: "open" | "nudged" | "settled";
   pendingSettleBy: string | null;
-  /** What the money was for, when known — e.g. "Tuesday's court split" from the linked session's date. Null for a manually-added entry. */
+  /** What the money was for, when known — e.g. "court split · Tue 8 Jul" from the linked session's date (server/session-tab.ts). Null for a manually-added entry. */
   subtitle?: string | null;
 }
 

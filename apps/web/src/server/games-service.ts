@@ -48,6 +48,7 @@ import { computeEqualSplit } from "./tab";
 import { localRingCandidates, LOCAL_RING_FANOUT_CAP } from "./local-ring";
 import { playedWithCandidates, PLAYED_WITH_FANOUT_CAP } from "./played-with";
 import { emitCircleEvent, emitSessionEvent, emitUserEvent } from "@/lib/realtime/broadcast";
+import { captureEvent } from "@/lib/analytics";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -121,7 +122,12 @@ export async function ensureUpcomingSessionForStandingGame(
   standingGameId: string,
   now: Date = new Date(),
 ): Promise<Session> {
-  return db.transaction(async (tx) => {
+  // Set when the transaction actually inserts a NEW session (vs. finding an
+  // existing one), so the §9 session_materialized event fires AFTER commit and
+  // only on a genuine materialisation — not on every idempotent re-check.
+  let materialised: Session | undefined;
+
+  const session = await db.transaction(async (tx) => {
     // Lock the standing_games row FIRST: materialisation is a read-decide-insert
     // (is there already a session on this occurrence? if not, insert one) with
     // no unique constraint on (standing_game_id, starts_at), so two concurrent
@@ -154,8 +160,28 @@ export async function ensureUpcomingSessionForStandingGame(
         gameType: sg.gameType,
       })
       .returning();
+    materialised = created;
     return created;
   });
+
+  // §9 metric 1: session_materialized — a scheduler-driven, no-acting-user
+  // event (SYSTEM_DISTINCT_ID). METRICS.md §5 depends on these arriving as the
+  // scheduler-heartbeat health signal, so a silent gap reads as an ops fault,
+  // not churn.
+  if (materialised) {
+    captureEvent("session_materialized", {
+      circleId: materialised.circleId,
+      sessionId: materialised.id,
+      timestamp: materialised.createdAt,
+      properties: {
+        standing_game_id: materialised.standingGameId,
+        scheduled_for: materialised.startsAt,
+        game_type: materialised.gameType,
+        created_at: materialised.createdAt,
+      },
+    });
+  }
+  return session;
 }
 
 /** Ensures every active standing game in a circle has its next session generated. */
@@ -440,6 +466,17 @@ export async function rsvpIn(db: CuatroDb, sessionId: string, userId: string, no
   if (outcome.ok && circleId) {
     emitSessionEvent(sessionId, "rsvp", { circleId });
     emitCircleEvent(circleId, "rsvp", { sessionId });
+    // §9 metric 1: rsvp_changed (state=in|reserve). `source` (feed/session_page/
+    // link) from METRICS.md is a UI origin not available at this server layer,
+    // so it's omitted. The actor is always an authenticated circle member
+    // (guests don't self-RSVP), so is_guest is false — see metrics-manifest.md.
+    captureEvent("rsvp_changed", {
+      distinctId: userId,
+      circleId,
+      sessionId,
+      timestamp: now.getTime(),
+      properties: { user_id: userId, state: outcome.status, is_guest: false },
+    });
   }
   return outcome;
 }
@@ -541,6 +578,14 @@ export async function rsvpOut(db: CuatroDb, sessionId: string, userId: string, n
   if (outcome.ok && circleId) {
     emitSessionEvent(sessionId, "rsvp", { circleId });
     emitCircleEvent(circleId, "rsvp", { sessionId });
+    // §9 metric 1: rsvp_changed (state=out). See rsvpIn's note on source/is_guest.
+    captureEvent("rsvp_changed", {
+      distinctId: userId,
+      circleId,
+      sessionId,
+      timestamp: now.getTime(),
+      properties: { user_id: userId, state: "out", is_guest: false },
+    });
   }
   return outcome;
 }
@@ -573,6 +618,7 @@ export async function checkFourthCallLevel1(
   now: Date = new Date(),
 ): Promise<FourthCallCheckResult> {
   let circleId: string | undefined;
+  let openSlots: number | undefined;
 
   const result = await db.transaction(async (tx): Promise<FourthCallCheckResult> => {
     // Lock the session row: the "already fired?" idempotency check then the
@@ -589,9 +635,12 @@ export async function checkFourthCallLevel1(
     const standingGame = session.standingGameId
       ? ((await tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
       : null;
-    if ((await countConfirmed(tx, sessionId)) >= slotsForSession(standingGame)) {
+    const slots = slotsForSession(standingGame);
+    const confirmed = await countConfirmed(tx, sessionId);
+    if (confirmed >= slots) {
       return { fired: false, reason: "already_full" };
     }
+    openSlots = slots - confirmed;
 
     const [alreadyFired] = await tx
       .select({ id: notifications.id })
@@ -625,6 +674,17 @@ export async function checkFourthCallLevel1(
   if (result.fired && circleId) {
     emitSessionEvent(sessionId, "fourth_call", { circleId, level: 1 });
     emitCircleEvent(circleId, "fourth_call", { sessionId, level: 1 });
+    // §9 metric 3: fourth_call_fired, ring 1 (the Circle). There is no discrete
+    // "call" entity in the schema, so call_id = session_id (one open call per
+    // session); the metric query takes MIN(fired_at) per call_id as the call's
+    // open time and slices fill-rate by ring — see metrics-manifest.md. Ring 1
+    // is the automatic T-48h window; there's no acting user (SYSTEM_DISTINCT_ID).
+    captureEvent("fourth_call_fired", {
+      circleId,
+      sessionId,
+      timestamp: now.getTime(),
+      properties: { call_id: sessionId, ring: 1, open_slots: openSlots, trigger: "t48h", fired_at: now.getTime() },
+    });
   }
   return result;
 }
@@ -801,6 +861,7 @@ export async function checkFourthCallLocalRing(
 
   // --- Phase B: transaction — re-validate under a session lock + write invites -
   let circleId: string | undefined;
+  let openSlots: number | undefined;
   const result = await db.transaction(async (tx): Promise<FourthCallLocalRingResult> => {
     const [s] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
     if (!s || s.status !== "upcoming" || now.getTime() >= s.startsAt) {
@@ -811,9 +872,12 @@ export async function checkFourthCallLocalRing(
     const sg = s.standingGameId
       ? ((await tx.select().from(standingGames).where(eq(standingGames.id, s.standingGameId)))[0] ?? null)
       : null;
-    if ((await countConfirmed(tx, sessionId)) >= slotsForSession(sg)) {
+    const slots = slotsForSession(sg);
+    const confirmed = await countConfirmed(tx, sessionId);
+    if (confirmed >= slots) {
       return { fired: false, reason: "already_full" };
     }
+    openSlots = slots - confirmed;
     if (await fourthCallLevel2AlreadyFired(tx, sessionId)) {
       return { fired: false, reason: "already_notified" };
     }
@@ -834,6 +898,22 @@ export async function checkFourthCallLocalRing(
   if (result.fired && circleId) {
     emitSessionEvent(sessionId, "fourth_call", { circleId, level: 2 });
     emitCircleEvent(circleId, "fourth_call", { sessionId, level: 2 });
+    // §9 metric 3: fourth_call_fired, ring 2 (the geo Local Ring). See ring 1's
+    // note on call_id = session_id. `via: "local_ring"` distinguishes this from
+    // the played-with ring, which also fires at level 2.
+    captureEvent("fourth_call_fired", {
+      circleId,
+      sessionId,
+      timestamp: now.getTime(),
+      properties: {
+        call_id: sessionId,
+        ring: 2,
+        via: "local_ring",
+        open_slots: openSlots,
+        trigger: options.forceEscalate ? "manual" : "t48h",
+        fired_at: now.getTime(),
+      },
+    });
   }
   return result;
 }
@@ -940,6 +1020,7 @@ export async function checkFourthCallPlayedWith(
 
   // --- Phase B: transaction — re-validate under a session lock + write invites -
   let circleId: string | undefined;
+  let openSlots: number | undefined;
   const result = await db.transaction(async (tx): Promise<FourthCallPlayedWithResult> => {
     const [s] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
     if (!s || s.status !== "upcoming" || now.getTime() >= s.startsAt) {
@@ -950,9 +1031,12 @@ export async function checkFourthCallPlayedWith(
     const sg = s.standingGameId
       ? ((await tx.select().from(standingGames).where(eq(standingGames.id, s.standingGameId)))[0] ?? null)
       : null;
-    if ((await countConfirmed(tx, sessionId)) >= slotsForSession(sg)) {
+    const slots = slotsForSession(sg);
+    const confirmed = await countConfirmed(tx, sessionId);
+    if (confirmed >= slots) {
       return { fired: false, reason: "already_full" };
     }
+    openSlots = slots - confirmed;
 
     // Re-read the notified set inside the transaction so a concurrent
     // escalation can't cause a double-invite (never nag twice, per person).
@@ -974,6 +1058,22 @@ export async function checkFourthCallPlayedWith(
   if (result.fired && circleId) {
     emitSessionEvent(sessionId, "fourth_call", { circleId, level: 2, via: "played_with" });
     emitCircleEvent(circleId, "fourth_call", { sessionId, level: 2, via: "played_with" });
+    // §9 metric 3: fourth_call_fired, ring 2 (the played-with ring). Same
+    // call_id = session_id convention; `via: "played_with"` distinguishes it
+    // from the geo Local Ring (also level 2).
+    captureEvent("fourth_call_fired", {
+      circleId,
+      sessionId,
+      timestamp: now.getTime(),
+      properties: {
+        call_id: sessionId,
+        ring: 2,
+        via: "played_with",
+        open_slots: openSlots,
+        trigger: options.forceEscalate ? "manual" : "t48h",
+        fired_at: now.getTime(),
+      },
+    });
   }
   return result;
 }
