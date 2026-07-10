@@ -1,48 +1,59 @@
 name: Feature request
-description: Suggest something CUATRO should do
+description: Ask for something CUATRO should do
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        CUATRO is built around a few named mechanics. It helps to know which one
-        your idea touches, or whether it is something new.
+        Thanks for helping shape CUATRO. Tell us about the situation first
+        and the solution second. Padel terms welcome, no technical language
+        needed. The public roadmap lives in
+        [ROADMAP.md](https://github.com/itsmemeworks/cuatro/blob/main/ROADMAP.md).
   - type: textarea
-    id: problem
+    id: goal
     attributes:
-      label: The problem
-      description: What is painful today? Describe the situation, not the solution.
-      placeholder: When two people drop at once, the group has no idea who is next up.
+      label: What are you trying to do?
+      description: The situation, in your own words.
+      placeholder: Our Tuesday four is sometimes six, and we want everyone to get fair court time.
     validations:
       required: true
   - type: textarea
-    id: proposal
+    id: friction
     attributes:
-      label: Proposed mechanic or change
-      description: What should CUATRO do about it?
+      label: What gets in the way?
+      description: The part that is annoying, slow or impossible right now.
+      placeholder: There is no way to see who sat out last week, so the same people keep missing out.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you do it today?
+      description: Your current workaround, even if it is a group chat and crossed fingers.
+      placeholder: Someone scrolls back through WhatsApp and makes a ruling.
     validations:
       required: true
   - type: dropdown
     id: mechanic
     attributes:
-      label: Which mechanic does this touch?
-      description: Pick the closest one, or "Something new".
+      label: Which part of CUATRO is this closest to?
+      description: Pick the nearest one if you know it, or leave it blank.
       options:
-        - Glass and the Ledger (rating)
+        - Glass and the Ledger (the rating)
         - Circles
         - The Standing Game
         - The Rotation
         - The Fourth Call
-        - The Board / Open Door (discovery)
+        - The Board and the Open Door (finding games nearby)
         - Reliability
         - The Tab
         - Something new
     validations:
-      required: true
+      required: false
   - type: textarea
     id: extra
     attributes:
       label: Anything else
-      description: Alternatives you considered, or why this matters to your four.
+      description: Why this matters to your four, or anything we should know.
     validations:
       required: false
