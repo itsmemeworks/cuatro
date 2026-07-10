@@ -18,7 +18,7 @@ Live: **[cuatro.fly.dev](https://cuatro.fly.dev)**
 
 Playtomic got a lot of us into padel and books a court well, but the friction starts with everything around the game: a rating nobody can explain, level anxiety by default, a marketplace of strangers when you just want your usual four, and a group chat where plans go to die. CUATRO fixes the part Playtomic never touched, the organising, and inverts the part it is hated for, the rating.
 
-Full product spec and market research: [../DESIGN.md](../DESIGN.md).
+Full product spec: [docs/DESIGN.md](docs/DESIGN.md). Market research lives at [padel-research.fly.dev](https://padel-research.fly.dev).
 
 ## The mechanics
 
@@ -89,7 +89,7 @@ Realtime emits fire after the transaction commits and carry minimal signals only
 
 ## Documentation
 
-- [../DESIGN.md](../DESIGN.md) — the product spec: named mechanics, economics, scope.
+- [docs/DESIGN.md](docs/DESIGN.md) — the product spec: named mechanics, economics, scope.
 - [CLAUDE.md](CLAUDE.md) — the canonical engineering context: architecture, hard conventions, dev environment, deploy shape.
 - [E2E-CHARTER.md](E2E-CHARTER.md) — the functional, realtime and multi-user test bar.
 - [V1-READINESS.md](V1-READINESS.md) — honest current state and the cut-line to v1.0.
