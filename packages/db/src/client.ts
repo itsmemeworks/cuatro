@@ -85,7 +85,13 @@ export async function createClient(databaseUrl?: string): Promise<CuatroClient> 
     process.env.DATABASE_URL ??
     'postgresql://postgres:postgres@127.0.0.1:54422/postgres'
 
-  const sql = postgres(url)
+  // Cap the pool well under Supabase's session-pooler client limit (15):
+  // a Fly deploy briefly runs the old and new machine TOGETHER, so the
+  // budget is per-machine x2, plus headroom for ad-hoc admin connections.
+  // postgres-js's default max of 10 blew this during the 2026-07-10 deploy
+  // (Sentry CUATRO-2, EMAXCONNSESSION from the scheduler tick).
+  const max = Number(process.env.DATABASE_POOL_MAX ?? 6)
+  const sql = postgres(url, { max: Number.isFinite(max) && max > 0 ? max : 6 })
   const db = drizzle(sql, { schema })
 
   // Serialize concurrent boots. Take the advisory lock on a single reserved
