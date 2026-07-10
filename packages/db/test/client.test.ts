@@ -43,13 +43,22 @@ describe('createTestClient', () => {
     )
   })
 
-  it('records exactly one migration batch (migrate did not double-apply)', async () => {
+  it('records one batch per migration file (migrate did not double-apply)', async () => {
     client = await createTestClient()
+
+    // One journal row per .sql migration — pinned to the folder's actual
+    // contents so adding migration N+1 doesn't break this test, while a
+    // double-apply (2x the file count) still fails loudly.
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const migrationFiles = fs
+      .readdirSync(path.join(__dirname, '..', 'migrations'))
+      .filter((f) => f.endsWith('.sql')).length
 
     const result = await client.db.execute(
       sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
     )
     const count = (result as unknown as { rows: { count: number }[] }).rows[0].count
-    expect(count).toBe(1)
+    expect(count).toBe(migrationFiles)
   })
 })

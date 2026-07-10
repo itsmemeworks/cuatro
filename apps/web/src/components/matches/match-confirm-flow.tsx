@@ -65,6 +65,7 @@ export function glassSkipNote(outcome: MatchOutcome, ledgerEventCount: number): 
 export function MatchConfirmFlow({
   status,
   outcome,
+  friendly = false,
   teamAName,
   teamBName,
   confirmedTeams,
@@ -79,6 +80,8 @@ export function MatchConfirmFlow({
 }: {
   status: MatchStatus;
   outcome: MatchOutcome;
+  /** FRIENDLIES: a friendly match seals like any other but never moves Glass — the seal card says so instead of showing empty Ledger columns. */
+  friendly?: boolean;
   teamAName: string;
   teamBName: string;
   confirmedTeams: Team[];
@@ -128,6 +131,21 @@ export function MatchConfirmFlow({
   }
 
   if (phase === "sealed" && ledgerEvents) {
+    // FRIENDLIES: a friendly match seals with zero Ledger rows on purpose (the
+    // rating gate skipped the Glass engine). Say that plainly — never fall
+    // through to glassSkipNote's "no games were played" (games WERE played, the
+    // game was just friendly) or to the two-blank-columns seal card.
+    if (friendly) {
+      return (
+        <Card>
+          <p className="text-cu-body font-semibold text-ink">Result sealed.</p>
+          <p className="text-cu-secondary text-ink-muted mt-1">
+            A friendly, so no one&apos;s Glass rating moved. It still counts for Reliability and shows in your history.
+          </p>
+        </Card>
+      );
+    }
+
     const skipNote = glassSkipNote(outcome, ledgerEvents.length);
     if (skipNote) {
       // Same quiet-fact framing as the disputed card above — a skipped

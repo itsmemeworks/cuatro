@@ -20,10 +20,13 @@ import { getGamesClient } from "@/server/games-db";
  * this whole redirect (it's a plain httpOnly cookie on this domain, and
  * this route lives on it too). If that cookie still resolves to a guest
  * row, server/guest.ts's convertGuestOnAuth either flips it to a real
- * account in place or — on an email conflict — re-points its rsvps onto
+ * account in place or — on an email conflict — MERGES its whole trail
+ * (matches, Ledger, RSVPs, memberships, tab, comments, reliability) onto
  * the pre-existing account findOrCreateUserBySupabase resolved instead.
  * Either way the cookie is cleared here: converted, it's no longer needed;
- * merged, it must not keep resolving to the now-inert guest row.
+ * merged, it must not keep resolving to the now-inert guest husk. The merge
+ * runs at most once per identity (the husk is left isGuest:false), so a
+ * double-clicked magic link that replays this callback can't double-merge.
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");

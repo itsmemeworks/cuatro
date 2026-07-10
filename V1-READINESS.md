@@ -56,6 +56,11 @@ session; Reliability >100%) was hotfixed and deployed mid-review (`93b9708`).
     attendance, Reliability, streaks and played-with, but write NO rating
     events; Glass and confidence untouched; clearly badged in the UI. The
     §9 seal-rate metric counts competitive games only.
+11a. EMAIL DESIGN (Pete, 2026-07-10): the magic-link email is Supabase's
+    unstyled default. Build a branded template with react-email components
+    (rendered to static HTML with Supabase Go-template vars, wired via
+    config.toml [auth.email.template.magic_link] + config push). CUATRO
+    look: warm ground, coral action button, mono facts, copy rules apply.
 11. GUEST HISTORY MERGE (Pete, 2026-07-10, promoted from v1.1): a guest who
     converts or signs in must keep their match history and rating trail.
     Same-row conversion (guest cookie at auth callback) already keeps it;

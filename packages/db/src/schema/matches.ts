@@ -1,5 +1,6 @@
-import { index, jsonb, primaryKey, pgTable, text, unique } from 'drizzle-orm/pg-core'
-import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
+import { sql } from 'drizzle-orm'
+import { check, index, jsonb, primaryKey, pgTable, text, unique } from 'drizzle-orm/pg-core'
+import { createdAtColumn, gameTypeColumn, idColumn, timestampColumn } from './_columns.js'
 import { sessions } from './sessions.js'
 import { users } from './users.js'
 
@@ -40,11 +41,19 @@ export const matches = pgTable(
       .notNull()
       .default('completed'),
     playedAt: timestampColumn('played_at').notNull(), // UTC
+    // FRIENDLIES (V1-READINESS #10): the classification SNAPSHOT taken from the
+    // session at record time (matches-db.ts recordMatch). This is the row the
+    // rating gate reads: a 'friendly' match seals and counts for Reliability but
+    // writes NO rating_events and never moves users.rating/confidence. Snapshotted
+    // (not joined live) so a later session/circle change can't retroactively
+    // rewrite why a past match did or didn't move Glass.
+    gameType: gameTypeColumn('game_type'),
     createdAt: createdAtColumn(),
   },
   (table) => ({
     sessionIdIdx: index('matches_session_id_idx').on(table.sessionId),
     statusIdx: index('matches_status_idx').on(table.status),
+    gameTypeCheck: check('matches_game_type_check', sql`${table.gameType} in ('competitive', 'friendly')`),
   }),
 )
 
@@ -119,6 +128,11 @@ export const matchComments = pgTable(
     matchIdCreatedAtIdx: index('match_comments_match_id_created_at_idx').on(table.matchId, table.createdAt),
   }),
 )
+
+// Public game-type surface (FRIENDLIES): the enum values + TS union live on the
+// shared column helper; re-exported here so app code imports them from
+// `@cuatro/db` alongside `Match` (which now carries `gameType: GameType`).
+export { GAME_TYPES, type GameType } from './_columns.js'
 
 export type Match = typeof matches.$inferSelect
 export type NewMatch = typeof matches.$inferInsert

@@ -240,6 +240,7 @@ export default async function CircleDetailPage({
           openDoor={detail.openDoor}
           boardEnabled={detail.boardEnabled}
           vibeLine={detail.vibeLine}
+          defaultGameType={detail.defaultGameType}
           anchor={anchor}
           headerImage={detail.headerImage}
           homeVenueId={detail.homeVenueId}

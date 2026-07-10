@@ -30,6 +30,7 @@ import {
   users,
   type CuatroClient,
   type CuatroDb,
+  type GameType,
   type Match,
   type SetScore,
   type User,
@@ -90,7 +91,7 @@ export interface RosterPlayer {
  * has to land on exactly four before a score can be sent.
  */
 export interface RosterContext {
-  session: { id: string; startsAt: Date; status: string };
+  session: { id: string; startsAt: Date; status: string; gameType: GameType };
   circleId: string;
   circleName: string;
   /** RSVP'd-in players, in the order slots filled — the roster's starting point. */
@@ -292,11 +293,18 @@ async function loadPlayerState(tx: CuatroDb, userId: string): Promise<{ state: P
       `matches-db: user "${userId}" has verifiedMatchCount=${userRow.verifiedMatchCount} but no rating_events`,
     );
   }
+  // A guest identity merged into this account (server/guest.ts) parks its
+  // events here MARKED — visible in the Ledger, but never part of this
+  // account's LIVE trajectory. Compute current state from unmarked events only.
+  const liveEvents = priorEvents.filter(
+    (e) => !(e.factors as { mergedFromGuestUserId?: string }).mergedFromGuestUserId,
+  );
+  const trajectory = liveEvents.length > 0 ? liveEvents : priorEvents; // defensive fallback
   // createdAt is epoch-ms (Postgres bigint) now — sort on the number directly.
-  const last = [...priorEvents].sort((a, b) => a.createdAt - b.createdAt).at(-1)!;
+  const last = [...trajectory].sort((a, b) => a.createdAt - b.createdAt).at(-1)!;
 
   const opponents = new Set<string>();
-  for (const ev of priorEvents) {
+  for (const ev of trajectory) {
     for (const id of ev.factors.opponentUserIds) opponents.add(id);
   }
 
@@ -372,6 +380,20 @@ async function creditShowUps(tx: CuatroDb, match: Match): Promise<void> {
  * between "both confirmed" and "Glass applied" can't happen.
  */
 async function applyGlassAndPersist(tx: CuatroDb, match: Match): Promise<readonly LedgerEvent[]> {
+  // FRIENDLIES gate (V1-READINESS #10). This is the single server-side point
+  // where rating events are written, so the classification gate lives here (the
+  // engine in packages/glass is never touched). A friendly match is a real,
+  // sealed result: it still credits Reliability show-ups and flips to
+  // "verified" — so it counts for streaks, played-with, and match history
+  // exactly like a competitive game — but it writes NO rating_events and never
+  // moves users.rating / confidence / verifiedMatchCount. Same tail as the
+  // walkover/retired skip path below, minus the Glass run.
+  if (match.gameType === "friendly") {
+    await creditShowUps(tx, match);
+    await tx.update(matches).set({ status: "verified" }).where(eq(matches.id, match.id));
+    return [];
+  }
+
   const fourIds = fourPlayerIds(match);
   const playerStates: Record<string, PlayerState> = {};
   const userRows: Record<string, User> = {};
@@ -573,7 +595,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       }
 
       return {
-        session: { id: session.id, startsAt: new Date(session.startsAt), status: session.status },
+        session: { id: session.id, startsAt: new Date(session.startsAt), status: session.status, gameType: session.gameType },
         circleId: session.circleId,
         circleName: circle?.name ?? "",
         confirmed,
@@ -677,6 +699,11 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
             score: input.sets,
             status: "pending_confirmation",
             outcome,
+            // FRIENDLIES: snapshot the session's classification onto the match
+            // at record time, so the seal path (and the Ledger) can say whether
+            // Glass moved without joining back to a session/circle that may
+            // change later. Competitive is the default everywhere.
+            gameType: session.gameType,
             playedAt: session.startsAt,
           })
           .returning();

@@ -1,3 +1,5 @@
+import { inArray } from "drizzle-orm";
+import { circles } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { listCirclesForUser } from "@/server/standing-games-service";
@@ -46,6 +48,18 @@ export default async function NewStandingGamePage({
   // regardless of circle; only the home-court-first ordering is circle-specific.
   const orderingCircleId = preselectedCircleId ?? organiserCircles[0]?.circleId;
   const venueOptions = orderingCircleId ? await listVenuesForCircle(db, orderingCircleId) : [];
+
+  // FRIENDLIES: the game-type control defaults to the circle's own default. With
+  // multiple organiser circles the default reflects the one the form opens on
+  // (preselected, else the first); switching the Circle dropdown does not
+  // re-default it, so the organiser sets it explicitly — it is always an
+  // explicit value on submit, never "inherit".
+  const organiserCircleIds = organiserCircles.map((c) => c.circleId);
+  const defaultTypeRows = organiserCircleIds.length
+    ? await db.select({ id: circles.id, defaultGameType: circles.defaultGameType }).from(circles).where(inArray(circles.id, organiserCircleIds))
+    : [];
+  const defaultTypeByCircle = new Map(defaultTypeRows.map((r) => [r.id, r.defaultGameType]));
+  const initialGameType = (orderingCircleId && defaultTypeByCircle.get(orderingCircleId)) ?? "competitive";
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
@@ -116,6 +130,15 @@ export default async function NewStandingGamePage({
             RSVP window (days out)
             <Meta as="span" className="font-normal">how far ahead members can RSVP each week</Meta>
             <input type="number" name="rsvpWindowDays" defaultValue={6} min={1} max={21} className={fieldClass} />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
+            Game type
+            <Meta as="span" className="font-normal">Friendly games keep the score, Reliability and your played-with, but never move Glass. Starts from your Circle&apos;s default.</Meta>
+            <select name="gameType" defaultValue={initialGameType} className={fieldClass}>
+              <option value="competitive">Competitive, results move Glass</option>
+              <option value="friendly">Friendly, Glass stays put</option>
+            </select>
           </label>
 
           <label className="flex items-start gap-3 rounded-button p-3 bg-surface border border-ink-hairline-3 cursor-pointer">

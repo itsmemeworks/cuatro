@@ -36,7 +36,22 @@
  */
 import { randomBytes, createHash } from "node:crypto";
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
-import { circleMembers, circles, rsvps, sessions, standingGames, users, type CuatroDb } from "@cuatro/db";
+import {
+  circleMembers,
+  circleMessages,
+  circles,
+  matchComments,
+  matchReactions,
+  matches,
+  notifications,
+  ratingEvents,
+  rsvps,
+  sessions,
+  standingGames,
+  tabEntries,
+  users,
+  type CuatroDb,
+} from "@cuatro/db";
 import { slotsForSession } from "./games-service";
 import { parseRing3ClaimToken } from "./fourth-call";
 import { insertNotification } from "./notify";
@@ -361,32 +376,199 @@ export type ConvertGuestResult =
   | { converted: true; merged: boolean; carriedName: string | null }
   | { converted: false; reason: "not_a_guest" };
 
+/** Marker written into a re-attributed rating_event's `factors` jsonb when the guest AND the surviving account both had a rating trajectory. It flags the row as historical provenance, not part of the account's LIVE trajectory, so matches-db.ts's loadPlayerState can exclude it when computing the account's current internal rating for its next game (see reattributeGuestData + the both-have-history note on convertGuestOnAuth). */
+export const MERGED_FROM_GUEST_FACTOR_KEY = "mergedFromGuestUserId";
+
+/**
+ * Moves every trace of the guest identity `guestUserId` onto the surviving
+ * account `resolvedUserId`, inside the caller's already-locked transaction.
+ * `guest` is the locked guest row (its reliability counters + rating fields
+ * are read from this snapshot).
+ *
+ * Union, never duplicate: relations with a uniqueness constraint that the
+ * account might already satisfy (rsvps' (session,user); circle_members' PK;
+ * match_reactions' (match,user,kind)) drop the guest's row on a clash and
+ * move it otherwise. Relations with no such constraint (matches' four player
+ * columns, match_comments, circle_messages, tab_entries, notifications,
+ * rating_events) are re-attributed wholesale.
+ *
+ * The Ledger (rating_events) is APPEND-ONLY: rows are re-attributed (user_id
+ * updated), never rewritten or deleted. The two-trajectory case additionally
+ * stamps a `factors` provenance key (a jsonb note, not a schema change) — the
+ * only permitted touch beyond user_id, and explicitly the honest mark the
+ * ledger's own design note anticipates. Reliability counters
+ * (rsvp/showUp/lateCancel) are additive, so they FOLD (survivor += guest);
+ * the show-up-rate ratio stays exact because numerator and denominator move
+ * together. Tab entries are money, not the Ledger: a debt the survivor would
+ * now owe ITSELF (payer === debtor after the merge) is nonsense and deleted.
+ *
+ * Not touched, all because a guest structurally can never own one: circles
+ * (guests can't create a Circle), match_confirmations (a seal needs a real
+ * member; an all-guest team stays pending), and knocks (guests are excluded
+ * from the discovery surfaces a knock comes from).
+ */
+async function reattributeGuestData(
+  tx: CuatroDb,
+  guest: typeof users.$inferSelect,
+  resolvedUserId: string,
+  nowMs: number,
+): Promise<void> {
+  const guestUserId = guest.id;
+
+  // rsvps — unique(session_id, user_id): move, drop-on-clash.
+  const guestRsvps = await tx.select().from(rsvps).where(eq(rsvps.userId, guestUserId));
+  for (const row of guestRsvps) {
+    const [clash] = await tx
+      .select({ id: rsvps.id })
+      .from(rsvps)
+      .where(and(eq(rsvps.sessionId, row.sessionId), eq(rsvps.userId, resolvedUserId)));
+    if (clash) {
+      await tx.delete(rsvps).where(eq(rsvps.id, row.id));
+    } else {
+      await tx.update(rsvps).set({ userId: resolvedUserId }).where(eq(rsvps.id, row.id));
+    }
+  }
+
+  // circle_members — PK(circle_id, user_id): move, drop-on-clash. Without this
+  // a circle-join guest would fall OUT of the Circle they just joined the
+  // instant they signed in (the device cookie is cleared, so the now-signed-in
+  // account would not otherwise be in it).
+  const guestMemberships = await tx.select().from(circleMembers).where(eq(circleMembers.userId, guestUserId));
+  for (const row of guestMemberships) {
+    const [clash] = await tx
+      .select({ userId: circleMembers.userId })
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, resolvedUserId)));
+    if (clash) {
+      await tx.delete(circleMembers)
+        .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, guestUserId)));
+    } else {
+      await tx.update(circleMembers)
+        .set({ userId: resolvedUserId })
+        .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, guestUserId)));
+    }
+  }
+
+  // matches — no user-uniqueness constraint; the guest may sit in any of the
+  // four player slots of any match (any status). Re-point each slot. A single
+  // match holding the guest AND the account on different slots can't arise in
+  // practice (one real person is one roster entry at record time).
+  await tx.update(matches).set({ teamAPlayer1Id: resolvedUserId }).where(eq(matches.teamAPlayer1Id, guestUserId));
+  await tx.update(matches).set({ teamAPlayer2Id: resolvedUserId }).where(eq(matches.teamAPlayer2Id, guestUserId));
+  await tx.update(matches).set({ teamBPlayer1Id: resolvedUserId }).where(eq(matches.teamBPlayer1Id, guestUserId));
+  await tx.update(matches).set({ teamBPlayer2Id: resolvedUserId }).where(eq(matches.teamBPlayer2Id, guestUserId));
+
+  // match_reactions — unique(match_id, user_id, kind): move, drop-on-clash.
+  const guestReactions = await tx.select().from(matchReactions).where(eq(matchReactions.userId, guestUserId));
+  for (const row of guestReactions) {
+    const [clash] = await tx
+      .select({ id: matchReactions.id })
+      .from(matchReactions)
+      .where(and(eq(matchReactions.matchId, row.matchId), eq(matchReactions.userId, resolvedUserId), eq(matchReactions.kind, row.kind)));
+    if (clash) {
+      await tx.delete(matchReactions).where(eq(matchReactions.id, row.id));
+    } else {
+      await tx.update(matchReactions).set({ userId: resolvedUserId }).where(eq(matchReactions.id, row.id));
+    }
+  }
+
+  // match_comments / circle_messages / notifications — no uniqueness on user;
+  // authored content and the guest's own inbox move wholesale.
+  await tx.update(matchComments).set({ userId: resolvedUserId }).where(eq(matchComments.userId, guestUserId));
+  await tx.update(circleMessages).set({ userId: resolvedUserId }).where(eq(circleMessages.userId, guestUserId));
+  await tx.update(notifications).set({ userId: resolvedUserId }).where(eq(notifications.userId, guestUserId));
+
+  // tab_entries — re-point every user reference (payer, debtor, settled-by),
+  // then delete any self-debt the merge just created (you can't owe yourself).
+  await tx.update(tabEntries).set({ payerUserId: resolvedUserId }).where(eq(tabEntries.payerUserId, guestUserId));
+  await tx.update(tabEntries).set({ debtorUserId: resolvedUserId }).where(eq(tabEntries.debtorUserId, guestUserId));
+  await tx.update(tabEntries).set({ settledConfirmedBy: resolvedUserId }).where(eq(tabEntries.settledConfirmedBy, guestUserId));
+  await tx.delete(tabEntries).where(and(eq(tabEntries.payerUserId, resolvedUserId), eq(tabEntries.debtorUserId, resolvedUserId)));
+
+  // rating_events — THE LEDGER. Presence of any row is "has a rating
+  // trajectory" (rating stays null through the Placement Trio, so users.rating
+  // alone can't tell). Two shapes:
+  const [{ n: accountEvents } = { n: 0 }] = await tx
+    .select({ n: sql<number>`cast(count(*) as int)` })
+    .from(ratingEvents)
+    .where(eq(ratingEvents.userId, resolvedUserId));
+  const [{ n: guestEvents } = { n: 0 }] = await tx
+    .select({ n: sql<number>`cast(count(*) as int)` })
+    .from(ratingEvents)
+    .where(eq(ratingEvents.userId, guestUserId));
+
+  if (guestEvents > 0 && accountEvents === 0) {
+    // Account was Unrated with no history: adopt the guest's trajectory
+    // wholesale. The re-attributed events become the account's own (unmarked),
+    // and the mirrored users fields follow so loadPlayerState reads a coherent
+    // state. placementPriorRating never clobbers an explicit import the account
+    // already made.
+    await tx.update(ratingEvents).set({ userId: resolvedUserId }).where(eq(ratingEvents.userId, guestUserId));
+    await tx.update(users)
+      .set({
+        rating: guest.rating,
+        confidence: guest.confidence,
+        verifiedMatchCount: guest.verifiedMatchCount,
+        placementPriorRating: sql`coalesce(${users.placementPriorRating}, ${guest.placementPriorRating})`,
+        updatedAt: nowMs,
+      })
+      .where(eq(users.id, resolvedUserId));
+  } else if (guestEvents > 0) {
+    // Both identities have real history: re-attribution alone would interleave
+    // two independent rating trajectories. Keep the account's trail as the LIVE
+    // rating (its rating/confidence/verifiedMatchCount are left untouched; future
+    // games absorb), and move the guest events with a provenance mark so they
+    // stay visible in the Ledger history but never drive the live rating (the
+    // matches-db.ts loadPlayerState filter — see the manifest — excludes marked
+    // rows). The mark is a jsonb key added to factors: the only touch beyond
+    // user_id, and append-only in spirit (nothing existing is rewritten).
+    await tx.update(ratingEvents)
+      .set({
+        userId: resolvedUserId,
+        factors: sql`${ratingEvents.factors} || jsonb_build_object(${MERGED_FROM_GUEST_FACTOR_KEY}::text, ${guestUserId}::text)`,
+      })
+      .where(eq(ratingEvents.userId, guestUserId));
+  }
+
+  // Reliability counters are additive — fold the guest's into the survivor's so
+  // the show-up-rate ratio (showUp / rsvpIn) stays exact. Runs in every merge,
+  // independent of the rating decision above.
+  await tx.update(users)
+    .set({
+      rsvpInCount: sql`${users.rsvpInCount} + ${guest.rsvpInCount}`,
+      showUpCount: sql`${users.showUpCount} + ${guest.showUpCount}`,
+      lateCancelCount: sql`${users.lateCancelCount} + ${guest.lateCancelCount}`,
+      updatedAt: nowMs,
+    })
+    .where(eq(users.id, resolvedUserId));
+}
+
 /**
  * The deferred signup, called additively from /auth/callback once
  * findOrCreateUserBySupabase has resolved `resolvedUserId` for the identity
- * that just signed in. Two cases:
- *  - `resolvedUserId === guestUserId`: Supabase provisioned (or linked) the
- *    SAME row this guest cookie points at — no pre-existing account at that
- *    email, so just flip the row from guest to real in place.
- *  - otherwise: an email conflict — the signed-in identity resolved onto a
- *    DIFFERENT, pre-existing account. That account wins. The guest's rsvps
- *    are re-pointed onto it; one that would collide with an rsvp the
- *    resolved user already holds for the same session (the (session_id,
- *    user_id) unique constraint) is dropped instead — the resolved
- *    account's own row for that session is the one that counts. The guest
- *    row itself is left in place (not deleted): rating_events or
- *    notifications may reference it from a verified match played as a
- *    guest, and re-pointing rsvps is the full extent of the merge this
- *    function is asked to do. Its token hash is cleared either way so the
- *    device cookie can never resolve to it again post-conversion.
+ * that just signed in.
  *
- * Two re-pointed relations, not one: a guest who joined a Circle via
- * /join/[code] (joinGuestCircle) carries a `circle_members` row too, not just
- * rsvps. Both move to the resolved account under the same PK-collision rule
- * (drop-on-clash, move otherwise) — without the membership re-point a
- * circle-join guest would silently fall OUT of the Circle they just joined
- * the instant they signed in (the guest row keeps it, but the device cookie
- * is cleared here, so the now-signed-in account would not be in it).
+ * Truth table (guestUserId = the row the cuatro_guest cookie resolves to;
+ * resolvedUserId = the row Supabase provisioned/linked for the email):
+ *  - guest row already converted (isGuest false) → { converted:false }: a
+ *    no-op, which is exactly what makes a replayed callback (double-clicked
+ *    magic link) safe — the husk below is left isGuest:false, so a second
+ *    convert with the same ids short-circuits here.
+ *  - resolvedUserId === guestUserId → CONVERT IN PLACE: no pre-existing
+ *    account at that email, so flip the one row guest→real. Nothing to merge.
+ *  - resolvedUserId !== guestUserId → MERGE: an email conflict — the identity
+ *    resolved onto a DIFFERENT, pre-existing account, which wins. The guest's
+ *    entire trail (rsvps, memberships, matches, ledger, tab, comments, chat,
+ *    notifications, reliability counters) moves onto that account via
+ *    reattributeGuestData. The guest row becomes an emptied husk: isGuest is
+ *    set false and its token hash cleared, mirroring the in-place path so the
+ *    device cookie can never re-resolve it and a replay is a clean no-op.
+ *
+ * Rating on the surviving account (MERGE case), decided in reattributeGuestData:
+ *  - account had no ledger events → adopt the guest's rating fields wholesale.
+ *  - account AND guest both had events → keep the account's rating as the live
+ *    trail; the guest's events move in marked as historical provenance.
+ * The Ledger is never rewritten or deleted — only re-attributed (+ that mark).
  *
  * `carriedName`: the guest's chosen display name is carried onto the resolved
  * account when that account is still on an auto-derived (email local-part)
@@ -398,9 +580,16 @@ export type ConvertGuestResult =
 export async function convertGuestOnAuth(db: CuatroDb, guestUserId: string, resolvedUserId: string, now: Date = new Date()): Promise<ConvertGuestResult> {
   const nowMs = now.getTime();
   return db.transaction(async (tx): Promise<ConvertGuestResult> => {
-    // Lock the guest row: the re-point-then-clear-token sequence must not race
-    // a second conversion of the same guest identity.
-    const [guest] = await tx.select().from(users).where(eq(users.id, guestUserId)).for("update");
+    // Lock BOTH user rows up front, in a deterministic (id-sorted) order, so two
+    // merges touching the same pair can never deadlock. The guest row's lock
+    // also serialises the re-attribute-then-clear-token sequence against a
+    // second conversion of the same guest identity.
+    const lockIds = guestUserId === resolvedUserId ? [guestUserId] : [guestUserId, resolvedUserId].sort();
+    for (const id of lockIds) {
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, id)).for("update");
+    }
+
+    const [guest] = await tx.select().from(users).where(eq(users.id, guestUserId));
     if (!guest || !guest.isGuest) return { converted: false, reason: "not_a_guest" };
 
     const chosenName = guest.displayName !== GUEST_PLACEHOLDER_NAME ? guest.displayName : null;
@@ -410,34 +599,7 @@ export async function convertGuestOnAuth(db: CuatroDb, guestUserId: string, reso
       return { converted: true, merged: false, carriedName: chosenName };
     }
 
-    const guestRsvps = await tx.select().from(rsvps).where(eq(rsvps.userId, guestUserId));
-    for (const row of guestRsvps) {
-      const [clash] = await tx
-        .select({ id: rsvps.id })
-        .from(rsvps)
-        .where(and(eq(rsvps.sessionId, row.sessionId), eq(rsvps.userId, resolvedUserId)));
-      if (clash) {
-        await tx.delete(rsvps).where(eq(rsvps.id, row.id));
-      } else {
-        await tx.update(rsvps).set({ userId: resolvedUserId }).where(eq(rsvps.id, row.id));
-      }
-    }
-
-    const guestMemberships = await tx.select().from(circleMembers).where(eq(circleMembers.userId, guestUserId));
-    for (const row of guestMemberships) {
-      const [clash] = await tx
-        .select({ userId: circleMembers.userId })
-        .from(circleMembers)
-        .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, resolvedUserId)));
-      if (clash) {
-        await tx.delete(circleMembers)
-          .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, guestUserId)));
-      } else {
-        await tx.update(circleMembers)
-          .set({ userId: resolvedUserId })
-          .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, guestUserId)));
-      }
-    }
+    await reattributeGuestData(tx, guest, resolvedUserId, nowMs);
 
     let carriedName: string | null = null;
     if (chosenName) {
@@ -451,7 +613,10 @@ export async function convertGuestOnAuth(db: CuatroDb, guestUserId: string, reso
       }
     }
 
-    await tx.update(users).set({ guestClaimTokenHash: null, updatedAt: nowMs }).where(eq(users.id, guestUserId));
+    // Emptied husk: guest→not-guest AND token cleared. isGuest:false is what
+    // makes a replay short-circuit at the not_a_guest guard above, and stops
+    // any old link/cookie from resurrecting the drained row as a live guest.
+    await tx.update(users).set({ isGuest: false, guestClaimTokenHash: null, updatedAt: nowMs }).where(eq(users.id, guestUserId));
     return { converted: true, merged: true, carriedName };
   });
 }

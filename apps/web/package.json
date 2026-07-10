@@ -14,23 +14,25 @@
   "dependencies": {
     "@cuatro/db": "*",
     "@cuatro/glass": "*",
+    "@sentry/nextjs": "^10.65.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.1",
+    "drizzle-orm": "^0.45.2",
     "next": "16.2.10",
+    "posthog-node": "^5.40.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "drizzle-orm": "^0.45.2",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^24.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/web-push": "^3.6.4",
-    "typescript": "^5.7.0",
+    "@vitejs/plugin-react": "^4.3.0",
     "tailwindcss": "^4.3.2",
-    "@tailwindcss/postcss": "^4.3.2",
-    "vitest": "^3.0.0",
-    "@vitejs/plugin-react": "^4.3.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   }
 }

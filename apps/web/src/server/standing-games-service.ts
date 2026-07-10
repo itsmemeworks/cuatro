@@ -17,6 +17,7 @@ import {
   venues,
   type CuatroDb,
   type StandingGame,
+  type GameType,
 } from "@cuatro/db";
 
 export type ServiceResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -42,6 +43,8 @@ export type StandingGameInput = {
   rotationCutoffHours?: number;
   /** 'limited' locks at the cutoff (default); 'unlimited' re-ranks to kickoff, never locks. */
   rotationMode?: "limited" | "unlimited";
+  /** FRIENDLIES classification. Omit to inherit the circle's default_game_type. */
+  gameType?: GameType;
 };
 
 export type StandingGamePatch = Partial<
@@ -52,6 +55,7 @@ export type StandingGamePatch = Partial<
     | "durationMinutes"
     | "slots"
     | "rsvpWindowDays"
+    | "gameType"
     | "venueId"
     | "venueName"
     | "venueAddress"
@@ -138,10 +142,17 @@ export async function createStandingGame(
 
   const venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName, input.venueAddress);
 
+  const [circleRow] = await db
+    .select({ defaultGameType: circles.defaultGameType })
+    .from(circles)
+    .where(eq(circles.id, input.circleId));
+  const gameType = input.gameType ?? circleRow?.defaultGameType ?? "competitive";
+
   const [created] = await db
     .insert(standingGames)
     .values({
       circleId: input.circleId,
+      gameType,
       venueId,
       weekday: input.weekday,
       startTime: input.startTime,
@@ -215,6 +226,7 @@ export async function updateStandingGame(
       ...(patch.rotationEnabled !== undefined ? { rotationEnabled: patch.rotationEnabled } : {}),
       ...(patch.rotationCutoffHours !== undefined ? { rotationCutoffHours: patch.rotationCutoffHours } : {}),
       ...(patch.rotationMode !== undefined ? { rotationMode: patch.rotationMode } : {}),
+      ...(patch.gameType !== undefined ? { gameType: patch.gameType } : {}),
     })
     .where(eq(standingGames.id, id))
     .returning();

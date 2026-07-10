@@ -25,11 +25,13 @@
  * instance handled the write.
  */
 import { randomInt } from "node:crypto";
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
-import { createClient, circleMembers, circleMessages, circles, users, venues } from "@cuatro/db";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { createClient, circleMembers, circleMessages, circles, rsvps, sessions, users, venues, type GameType } from "@cuatro/db";
 import type { CuatroDb, Circle } from "@cuatro/db";
 import { HEADER_KEYS, isHeaderKey } from "@/lib/circle-headers";
 import { emitCircleEvent } from "@/lib/realtime/broadcast";
+import { insertNotification } from "@/server/notify";
+import { markUnavailable, rsvpOut } from "@/server/games-service";
 
 const MAX_INVITE_CODE_ATTEMPTS = 8;
 const MAX_MESSAGE_LENGTH = 2000;
@@ -72,6 +74,51 @@ export class NotOrganiserError extends Error {
   constructor() {
     super("only organisers can do this");
     this.name = "NotOrganiserError";
+  }
+}
+
+/**
+ * Thrown when an organiser tries to leave a Circle in which they are the ONLY
+ * organiser and other members remain. They must hand the Circle over first
+ * (transferOrganiser) so nobody is ever stranded in an ownerless group. Maps
+ * to the `last_organiser` error code.
+ */
+export class LastOrganiserError extends Error {
+  constructor() {
+    super("you are the only organiser; transfer the Circle before you leave");
+    this.name = "LastOrganiserError";
+  }
+}
+
+/** The target of a remove/transfer is not a member of this Circle. Maps to `target_not_a_member`. */
+export class TargetNotMemberError extends Error {
+  constructor() {
+    super("that player is not a member of this circle");
+    this.name = "TargetNotMemberError";
+  }
+}
+
+/** An organiser tried to remove themselves — that is what leaving is for. Maps to `cannot_remove_self`. */
+export class CannotRemoveSelfError extends Error {
+  constructor() {
+    super("use leave circle to remove yourself");
+    this.name = "CannotRemoveSelfError";
+  }
+}
+
+/** An organiser tried to transfer the Circle to themselves. Maps to `cannot_transfer_to_self`. */
+export class CannotTransferToSelfError extends Error {
+  constructor() {
+    super("you are already an organiser of this circle");
+    this.name = "CannotTransferToSelfError";
+  }
+}
+
+/** A transfer target is a guest — guests can't sign in to organise. Maps to `cannot_transfer_to_guest`. */
+export class CannotTransferToGuestError extends Error {
+  constructor() {
+    super("guests cannot be organisers");
+    this.name = "CannotTransferToGuestError";
   }
 }
 
@@ -170,6 +217,8 @@ export interface CircleMemberView {
   displayName: string;
   avatarUrl: string | null;
   role: "organiser" | "member";
+  /** Guests are first-class users but can't sign in to organise — the roster-management UI hides "make organiser" for them. */
+  isGuest: boolean;
   joinedAt: Date;
   rating: number | null;
   confidence: number;
@@ -194,6 +243,8 @@ export interface CircleDetail {
   boardEnabled: boolean;
   /** One warm directory sentence; null until an organiser writes it. */
   vibeLine: string | null;
+  /** FRIENDLIES: what new games in this circle default to. */
+  defaultGameType: GameType;
   /** Curated header collection KEY (e.g. "court-03"), or null → deterministic default (headerFor). Never a URL. */
   headerImage: string | null;
   /** Explicit home venue id, or null (anchor then derives from most-used pinned venue). */
@@ -230,6 +281,8 @@ export interface CreateCircleInput {
   maxMembers?: number | null;
   countryCode?: string;
   timezone?: string;
+  /** FRIENDLIES: the circle's default game classification for new games. */
+  defaultGameType?: GameType;
   creatorUserId: string;
 }
 
@@ -244,6 +297,8 @@ export interface UpdateCircleSettingsInput {
   boardEnabled?: boolean;
   /** One warm directory sentence; trimmed, and an empty string clears it back to null. */
   vibeLine?: string | null;
+  /** FRIENDLIES: the circle's default game classification for new games. */
+  defaultGameType?: GameType;
   /** Curated header key; validated against HEADER_KEYS. `null` resets to the deterministic default. */
   headerImage?: string | null;
   /** Explicit home venue id; must exist. `null` clears it (anchor falls back to derived). */
@@ -284,6 +339,34 @@ export interface CirclesStore {
     requestingUserId: string,
     updates: UpdateCircleSettingsInput,
   ): Promise<void>;
+  /**
+   * A member removes THEMSELVES from a Circle. Their history (matches, Ledger,
+   * Tab) is untouched — they leave the roster, not the record. An organiser who
+   * is the only organiser and has other members behind them is blocked
+   * (LastOrganiserError): they must transferOrganiser first. The last person
+   * leaving is allowed (the Circle stays, empty, with its door shut). Any open
+   * RSVPs the leaver holds for this Circle's upcoming sessions are withdrawn
+   * coherently (reserves promoted) first. Idempotent: leaving a Circle you are
+   * not in is a no-op.
+   */
+  leaveCircle(circleId: string, userId: string, now?: Date): Promise<void>;
+  /**
+   * An organiser removes another member. Confirm-first at the UI. The removed
+   * member keeps all their history; their open RSVPs for this Circle's upcoming
+   * sessions are withdrawn (reserves promoted) and they get one notification.
+   * Guards: only an organiser may call it (NotOrganiserError); the target must
+   * be a member (TargetNotMemberError); an organiser cannot remove themselves
+   * (CannotRemoveSelfError — that is leaveCircle).
+   */
+  removeMember(circleId: string, requestingUserId: string, targetUserId: string, now?: Date): Promise<void>;
+  /**
+   * An organiser hands the Circle to another member: the target becomes an
+   * organiser and the caller steps back to member, in one locked transaction.
+   * The new organiser gets one notification. Guards: caller must be an organiser
+   * (NotOrganiserError); target must be a member (TargetNotMemberError), not the
+   * caller (CannotTransferToSelfError), and not a guest (CannotTransferToGuestError).
+   */
+  transferOrganiser(circleId: string, requestingUserId: string, targetUserId: string): Promise<void>;
   postMessage(input: { circleId: string; userId: string; body: string }): Promise<CircleMessageView>;
   listMessages(
     circleId: string,
@@ -390,6 +473,49 @@ async function memberCountOf(db: CuatroDb, circleId: string): Promise<number> {
     .from(circleMembers)
     .where(eq(circleMembers.circleId, circleId));
   return row?.n ?? 0;
+}
+
+/** How many members of a Circle hold the organiser role. */
+async function organiserCountOf(db: CuatroDb, circleId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`cast(count(*) as int)` })
+    .from(circleMembers)
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.role, "organiser")));
+  return row?.n ?? 0;
+}
+
+/**
+ * Withdraw every open RSVP `userId` holds for `circleId`'s UPCOMING sessions,
+ * so a leaver/removed member never lingers on a future roster. Delegates to the
+ * games layer so reserve promotion (and, for a locked rotation, the consent
+ * offer cascade) runs exactly as it does for a normal drop-out — this never
+ * re-implements that logic. An 'available' row (rotation pre-lock) goes through
+ * markUnavailable; a held ('in') or reserve row through rsvpOut. Called while
+ * the user is still a member (both games functions require membership), so it
+ * MUST run before the roster row is deleted. Each call runs its own
+ * session-locked transaction and fires its own realtime emits.
+ */
+async function withdrawFutureRsvps(db: CuatroDb, circleId: string, userId: string, now: Date): Promise<void> {
+  const rows = await db
+    .select({ sessionId: sessions.id, status: rsvps.status })
+    .from(rsvps)
+    .innerJoin(sessions, eq(rsvps.sessionId, sessions.id))
+    .where(
+      and(
+        eq(sessions.circleId, circleId),
+        eq(sessions.status, "upcoming"),
+        gt(sessions.startsAt, now.getTime()),
+        eq(rsvps.userId, userId),
+        inArray(rsvps.status, ["in", "reserve", "available"]),
+      ),
+    );
+  for (const row of rows) {
+    if (row.status === "available") {
+      await markUnavailable(db, row.sessionId, userId, now);
+    } else {
+      await rsvpOut(db, row.sessionId, userId, now);
+    }
+  }
 }
 
 /**
@@ -502,6 +628,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
                 headerImage,
                 homeVenueId,
                 maxMembers,
+                defaultGameType: input.defaultGameType ?? "competitive",
                 countryCode: input.countryCode ?? "GB",
                 timezone: input.timezone ?? "Europe/London",
                 inviteCode,
@@ -593,6 +720,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
           displayName: users.displayName,
           avatarUrl: users.avatarUrl,
           role: circleMembers.role,
+          isGuest: users.isGuest,
           joinedAt: circleMembers.joinedAt,
           rating: users.rating,
           confidence: users.confidence,
@@ -610,6 +738,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         displayName: row.displayName,
         avatarUrl: row.avatarUrl,
         role: row.role,
+        isGuest: row.isGuest,
         joinedAt: new Date(row.joinedAt),
         rating: row.rating,
         confidence: row.confidence,
@@ -642,6 +771,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         openDoor: circle.openDoor,
         boardEnabled: circle.boardEnabled,
         vibeLine: circle.vibeLine,
+        defaultGameType: circle.defaultGameType,
         headerImage: circle.headerImage,
         homeVenueId: circle.homeVenueId,
         homeVenueName,
@@ -666,6 +796,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       }
       if (updates.timezone !== undefined) patch.timezone = updates.timezone;
       if (updates.openDoor !== undefined) patch.openDoor = updates.openDoor;
+      if (updates.defaultGameType !== undefined) patch.defaultGameType = updates.defaultGameType;
       if (updates.boardEnabled !== undefined) patch.boardEnabled = updates.boardEnabled;
       if (updates.vibeLine !== undefined) {
         // An empty (or whitespace-only) vibe line clears it back to null so the
@@ -695,6 +826,127 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
       if (Object.keys(patch).length === 0) return;
 
       await db.update(circles).set(patch).where(eq(circles.id, circleId));
+    },
+
+    async leaveCircle(circleId, userId, now = new Date()) {
+      // Fast pre-check so the common "only organiser" block never withdraws a
+      // thing; the authoritative check re-runs under the Circle-row lock below.
+      const [pre] = await db
+        .select({ role: circleMembers.role })
+        .from(circleMembers)
+        .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+      if (!pre) return; // not a member — leaving is a no-op
+      if (pre.role === "organiser" && (await organiserCountOf(db, circleId)) === 1 && (await memberCountOf(db, circleId)) > 1) {
+        throw new LastOrganiserError();
+      }
+
+      // Withdraw this member's future RSVPs while they are still a member, so
+      // reserves promote. Runs BEFORE the roster delete (see withdrawFutureRsvps).
+      await withdrawFutureRsvps(db, circleId, userId, now);
+
+      await db.transaction(async (tx) => {
+        // Lock the Circle row — the universal roster lock (join/leave/remove/
+        // transfer all take it), so the organiser/member counts read here can't
+        // race a concurrent lifecycle change.
+        await tx.select({ id: circles.id }).from(circles).where(eq(circles.id, circleId)).for("update");
+        const [membership] = await tx
+          .select({ role: circleMembers.role })
+          .from(circleMembers)
+          .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+        if (!membership) return; // raced: already left
+        if (membership.role === "organiser" && (await organiserCountOf(tx, circleId)) === 1 && (await memberCountOf(tx, circleId)) > 1) {
+          throw new LastOrganiserError();
+        }
+        await tx
+          .delete(circleMembers)
+          .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+        // Last person out: shut the door so an ownerless, empty Circle is not
+        // discoverable or knockable with nobody left to answer. The row stays,
+        // history intact (conservative default; flagged in the manifest).
+        if ((await memberCountOf(tx, circleId)) === 0) {
+          await tx.update(circles).set({ openDoor: false, boardEnabled: false }).where(eq(circles.id, circleId));
+        }
+      });
+
+      emitCircleEvent(circleId, "notification", { reason: "roster" });
+    },
+
+    async removeMember(circleId, requestingUserId, targetUserId, now = new Date()) {
+      if (requestingUserId === targetUserId) throw new CannotRemoveSelfError();
+      const requester = await requireMembership(circleId, requestingUserId);
+      if (requester.role !== "organiser") throw new NotOrganiserError();
+      const [target] = await db
+        .select({ userId: circleMembers.userId })
+        .from(circleMembers)
+        .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, targetUserId)));
+      if (!target) throw new TargetNotMemberError();
+
+      // Withdraw the target's future RSVPs (reserves promote) while they are
+      // still a member — must precede the roster delete.
+      await withdrawFutureRsvps(db, circleId, targetUserId, now);
+
+      await db.transaction(async (tx) => {
+        await tx.select({ id: circles.id }).from(circles).where(eq(circles.id, circleId)).for("update");
+        const [reCheck] = await tx
+          .select({ role: circleMembers.role })
+          .from(circleMembers)
+          .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, requestingUserId)));
+        if (!reCheck) throw new NotMemberError();
+        if (reCheck.role !== "organiser") throw new NotOrganiserError();
+        const deleted = await tx
+          .delete(circleMembers)
+          .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, targetUserId)))
+          .returning();
+        if (deleted.length === 0) return; // raced: already gone, don't double-notify
+        await insertNotification(tx, { userId: targetUserId, type: "member_removed", payload: { circleId } });
+      });
+
+      emitCircleEvent(circleId, "notification", { reason: "roster" });
+    },
+
+    async transferOrganiser(circleId, requestingUserId, targetUserId) {
+      if (requestingUserId === targetUserId) throw new CannotTransferToSelfError();
+      const requester = await requireMembership(circleId, requestingUserId);
+      if (requester.role !== "organiser") throw new NotOrganiserError();
+      const [target] = await db
+        .select({ isGuest: users.isGuest })
+        .from(circleMembers)
+        .innerJoin(users, eq(circleMembers.userId, users.id))
+        .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, targetUserId)));
+      if (!target) throw new TargetNotMemberError();
+      if (target.isGuest) throw new CannotTransferToGuestError();
+
+      await db.transaction(async (tx) => {
+        await tx.select({ id: circles.id }).from(circles).where(eq(circles.id, circleId)).for("update");
+        const [reCheck] = await tx
+          .select({ role: circleMembers.role })
+          .from(circleMembers)
+          .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, requestingUserId)));
+        if (!reCheck) throw new NotMemberError();
+        if (reCheck.role !== "organiser") throw new NotOrganiserError();
+        const [reTarget] = await tx
+          .select({ userId: circleMembers.userId })
+          .from(circleMembers)
+          .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, targetUserId)));
+        if (!reTarget) throw new TargetNotMemberError();
+        // Handover: promote the target, step the caller back to member. The
+        // schema allows multiple organisers, but a transfer is a clean swap.
+        await tx
+          .update(circleMembers)
+          .set({ role: "organiser" })
+          .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, targetUserId)));
+        await tx
+          .update(circleMembers)
+          .set({ role: "member" })
+          .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, requestingUserId)));
+        await insertNotification(tx, {
+          userId: targetUserId,
+          type: "organiser_transferred",
+          payload: { circleId, fromUserId: requestingUserId },
+        });
+      });
+
+      emitCircleEvent(circleId, "notification", { reason: "roster" });
     },
 
     async postMessage({ circleId, userId, body }) {

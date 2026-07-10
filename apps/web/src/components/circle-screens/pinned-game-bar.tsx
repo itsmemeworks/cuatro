@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast, Meta } from "@/components/ui";
 import { useSessionLive } from "@/lib/realtime/hooks";
 import { formatCountdown } from "@/components/games/SessionCard";
+import { rsvpWindowPhase } from "./pinned-game-view";
 import { errorCopy } from "@/lib/error-copy";
 
 /**
@@ -60,8 +61,9 @@ export function PinnedGameBar({
 
   const opensMs = rsvpWindowOpensAt.getTime();
   const startsMs = startsAt.getTime();
-  const rsvpOpen = now >= opensMs && now < startsMs;
-  const sessionStarted = now >= startsMs;
+  const phase = rsvpWindowPhase(now, opensMs, startsMs);
+  const rsvpOpen = phase === "open";
+  const sessionStarted = phase === "started";
 
   const viewerIn = localStatus === "in";
   const openSpots = Math.max(0, slots - confirmedCount);

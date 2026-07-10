@@ -232,6 +232,10 @@ sender_name = "CUATRO"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+[auth.email.template.magic_link]
+subject = "Your sign-in link"
+content_path = "./supabase/templates/magic-link.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"

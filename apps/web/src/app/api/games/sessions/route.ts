@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     startsAt,
     venueId: typeof body.venueId === "string" ? body.venueId : null,
     venueName: typeof body.venueName === "string" ? body.venueName : null,
+    gameType: body.gameType === "friendly" ? "friendly" : body.gameType === "competitive" ? "competitive" : undefined,
   });
 
   if (!result.ok) {

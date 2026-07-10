@@ -26,7 +26,7 @@ export type DoorSettingsResult = { ok: true } | { ok: false; error: string };
  */
 export async function saveDoorSettings(
   circleId: string,
-  updates: { openDoor?: boolean; boardEnabled?: boolean; vibeLine?: string },
+  updates: { openDoor?: boolean; boardEnabled?: boolean; vibeLine?: string; defaultGameType?: "competitive" | "friendly" },
 ): Promise<DoorSettingsResult> {
   const user = await getSessionUser();
   if (!user) return { ok: false, error: "unauthorized" };
@@ -37,6 +37,7 @@ export async function saveDoorSettings(
       openDoor: updates.openDoor,
       boardEnabled: updates.boardEnabled,
       vibeLine: updates.vibeLine,
+      defaultGameType: updates.defaultGameType,
     });
   } catch (err) {
     if (err instanceof NotOrganiserError) return { ok: false, error: "not_an_organiser" };

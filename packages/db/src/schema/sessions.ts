@@ -1,5 +1,6 @@
-import { index, pgTable, text } from 'drizzle-orm/pg-core'
-import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
+import { sql } from 'drizzle-orm'
+import { check, index, pgTable, text } from 'drizzle-orm/pg-core'
+import { createdAtColumn, gameTypeColumn, idColumn, timestampColumn } from './_columns.js'
 import { circles } from './circles.js'
 import { standingGames } from './standing-games.js'
 import { venues } from './venues.js'
@@ -24,12 +25,18 @@ export const sessions = pgTable(
     // lockRotationIfDue) — this records the instant that happened. Null on
     // non-rotation sessions and on rotation sessions still gathering availability.
     rotationLockedAt: timestampColumn('rotation_locked_at'),
+    // FRIENDLIES (V1-READINESS #10): this occurrence's classification. A standing
+    // session inherits it from its Standing Game at materialisation; a one-off
+    // inherits the circle default at creation. Snapshotted onto the match at
+    // record time (matches.game_type) so the Ledger can explain a no-move seal.
+    gameType: gameTypeColumn('game_type'),
     createdAt: createdAtColumn(),
   },
   (table) => ({
     circleIdIdx: index('sessions_circle_id_idx').on(table.circleId),
     standingGameIdIdx: index('sessions_standing_game_id_idx').on(table.standingGameId),
     startsAtIdx: index('sessions_starts_at_idx').on(table.startsAt),
+    gameTypeCheck: check('sessions_game_type_check', sql`${table.gameType} in ('competitive', 'friendly')`),
   }),
 )
 
