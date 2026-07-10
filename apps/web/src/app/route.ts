@@ -42,6 +42,9 @@ export async function GET() {
       // A short cache with revalidation: the page is static but we redeploy it,
       // so let the CDN/browser hold it briefly and revalidate rather than pin it.
       "cache-control": "public, max-age=0, s-maxage=3600, must-revalidate",
+      // Route Handlers bypass layout.tsx metadata, so staging opts out of
+      // indexing here too — staging must never compete with padelcuatro.com.
+      ...(process.env.NEXT_PUBLIC_APP_ENV === "staging" ? { "x-robots-tag": "noindex, nofollow" } : {}),
     },
   });
 }
