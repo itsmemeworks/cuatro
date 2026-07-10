@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getMatchesStore } from "@/server/matches-db";
 import { RosterEntry } from "@/components/matches/roster-entry";
+import { FriendlyBadge } from "@/components/matches/friendly-badge";
 import { Card, Meta } from "@/components/ui";
 
 export default async function NewMatchPage({
@@ -48,7 +49,10 @@ export default async function NewMatchPage({
       </Link>
 
       <div>
-        <h1 className="text-cu-title text-ink">How did it go?</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-cu-title text-ink">How did it go?</h1>
+          {roster.session.gameType === "friendly" && <FriendlyBadge />}
+        </div>
         <Meta className="mt-1 block">
           {roster.session.startsAt.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
           {roster.circleName && ` · ${roster.circleName}`}
@@ -63,7 +67,9 @@ export default async function NewMatchPage({
       />
 
       <p className="text-cu-meta text-ink-muted text-center px-6">
-        Glass moves only when both teams confirm, no referee, no disputes desk
+        {roster.session.gameType === "friendly"
+          ? "This one's a friendly, so Glass stays put. The score, Reliability and your played-with all still count once both teams confirm."
+          : "Glass moves only when both teams confirm, no referee, no disputes desk"}
       </p>
     </main>
   );

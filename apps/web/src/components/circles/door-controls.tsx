@@ -70,13 +70,16 @@ export function DoorControls({
   initialOpenDoor,
   initialBoardEnabled,
   initialVibeLine,
+  initialDefaultGameType,
 }: {
   circleId: string;
   initialOpenDoor: boolean;
   initialBoardEnabled: boolean;
   initialVibeLine: string | null;
+  initialDefaultGameType: "competitive" | "friendly";
 }) {
   const [openDoor, setOpenDoor] = useState(initialOpenDoor);
+  const [defaultGameType, setDefaultGameType] = useState(initialDefaultGameType);
   const [boardEnabled, setBoardEnabled] = useState(initialBoardEnabled);
   const [vibeLine, setVibeLine] = useState(initialVibeLine ?? "");
   const [savedVibe, setSavedVibe] = useState(initialVibeLine ?? "");
@@ -104,6 +107,19 @@ export function DoorControls({
       const res = await saveDoorSettings(circleId, { boardEnabled: next });
       if (!res.ok) {
         setBoardEnabled(!next); // revert
+        setError(true);
+      }
+    });
+  }
+
+  function changeDefaultGameType(next: "competitive" | "friendly") {
+    const prev = defaultGameType;
+    setDefaultGameType(next);
+    setError(false);
+    startTransition(async () => {
+      const res = await saveDoorSettings(circleId, { defaultGameType: next });
+      if (!res.ok) {
+        setDefaultGameType(prev); // revert
         setError(true);
       }
     });
@@ -152,6 +168,23 @@ export function DoorControls({
           <Meta as="p" className="mt-0.5">your open games appear to players near you</Meta>
         </div>
         <Toggle checked={boardEnabled} onToggle={toggleBoard} label="Show on the Board" disabled={pending} />
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-cu-body text-ink">New games default to</p>
+          <Meta as="p" className="mt-0.5">friendly games keep scores and Reliability but never move Glass</Meta>
+        </div>
+        <select
+          value={defaultGameType}
+          onChange={(e) => changeDefaultGameType(e.target.value === "friendly" ? "friendly" : "competitive")}
+          disabled={pending}
+          aria-label="Default game type"
+          className="rounded-button border border-ink-hairline-4 bg-surface px-2.5 py-2 text-cu-body text-ink"
+        >
+          <option value="competitive">Competitive</option>
+          <option value="friendly">Friendly</option>
+        </select>
       </div>
 
       {visible && (

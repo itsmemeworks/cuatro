@@ -19,6 +19,7 @@ import { KnockPanel, type KnockRow } from "@/components/games/knock-panel";
 import { sessionKnocks } from "@/server/discovery";
 import { FourthCallReceive } from "@/components/circle-screens/fourth-call-receive";
 import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
+import { FriendlyBadge } from "@/components/matches/friendly-badge";
 import { Button, Meta } from "@/components/ui";
 import { sessionOgImageUrl } from "@/lib/og";
 import { formatMoney } from "@/components/tab/money";
@@ -267,9 +268,12 @@ export default async function SessionDetailPage({
       )}
 
       <div>
-        <Meta as="p" className="uppercase tracking-[0.12em]">
-          Standing Game · {summary.circleName}
-        </Meta>
+        <div className="flex items-center gap-2">
+          <Meta as="p" className="uppercase tracking-[0.12em]">
+            Standing Game · {summary.circleName}
+          </Meta>
+          {summary.session.gameType === "friendly" && <FriendlyBadge />}
+        </div>
         <h1 className="text-cu-title text-ink mt-1.5 leading-tight">
           {standingGameTitle}
           {summary.venue && (

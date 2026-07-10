@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/session";
 import { getMatchesStore, computeWinner, gamesTotals } from "@/server/matches-db";
 import { confirmMatchAction, disputeMatchAction } from "@/server/matches-actions";
 import { ScoreTable, MatchStatusBadge } from "@/components/matches/score-table";
+import { FriendlyBadge } from "@/components/matches/friendly-badge";
 import { MatchConfirmFlow } from "@/components/matches/match-confirm-flow";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { Card, Meta } from "@/components/ui";
@@ -40,6 +41,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 
   const viewerHasConfirmed = viewerTeam !== null && confirmedTeams.includes(viewerTeam);
   const canAct = match.status === "pending_confirmation" && viewerTeam !== null && !viewerHasConfirmed;
+  const isFriendly = match.gameType === "friendly";
 
   const confirmWithId = confirmMatchAction.bind(null, match.id);
   const disputeWithId = disputeMatchAction.bind(null, match.id);
@@ -49,7 +51,10 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
       <LiveRefresh sessionId={match.sessionId} />
       <div className="flex items-center justify-between">
         <h1 className="text-cu-title text-ink">Match result</h1>
-        <MatchStatusBadge status={match.status} outcome={match.outcome} />
+        <div className="flex items-center gap-2">
+          {isFriendly && <FriendlyBadge />}
+          <MatchStatusBadge status={match.status} outcome={match.outcome} />
+        </div>
       </div>
 
       <Card className="flex flex-col gap-3">
@@ -61,6 +66,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         <MatchConfirmFlow
           status={match.status}
           outcome={match.outcome}
+          friendly={isFriendly}
           teamAName={teamAName}
           teamBName={teamBName}
           confirmedTeams={confirmedTeams}
@@ -77,7 +83,9 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 
       {match.status === "pending_confirmation" && (
         <p className="text-cu-meta text-ink-muted text-center px-6">
-          Glass moves only when both teams confirm, no referee, no disputes desk
+          {isFriendly
+            ? "A friendly still gets confirmed by both teams. It counts for Reliability and shows in your history, Glass just stays put."
+            : "Glass moves only when both teams confirm, no referee, no disputes desk"}
         </p>
       )}
     </main>

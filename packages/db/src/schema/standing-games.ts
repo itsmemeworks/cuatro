@@ -1,5 +1,6 @@
-import { index, integer, pgTable, text } from 'drizzle-orm/pg-core'
-import { booleanColumn, createdAtColumn, idColumn } from './_columns.js'
+import { sql } from 'drizzle-orm'
+import { check, index, integer, pgTable, text } from 'drizzle-orm/pg-core'
+import { booleanColumn, createdAtColumn, gameTypeColumn, idColumn } from './_columns.js'
 import { circles } from './circles.js'
 import { venues } from './venues.js'
 
@@ -39,10 +40,19 @@ export const standingGames = pgTable(
     // float (see packages/db/src/schema/tabs.ts's amount_minor precedent).
     costMinor: integer('cost_minor'),
     costCurrency: text('cost_currency').notNull().default('GBP'),
+    // FRIENDLIES (V1-READINESS #10): this fixture's classification, set from the
+    // circle's default at creation and overridable per Standing Game. Every
+    // session materialised from this game inherits it (see games-service.ts
+    // ensureUpcomingSessionForStandingGame).
+    gameType: gameTypeColumn('game_type'),
     createdAt: createdAtColumn(),
   },
   (table) => ({
     circleIdIdx: index('standing_games_circle_id_idx').on(table.circleId),
+    gameTypeCheck: check(
+      'standing_games_game_type_check',
+      sql`${table.gameType} in ('competitive', 'friendly')`,
+    ),
   }),
 )
 

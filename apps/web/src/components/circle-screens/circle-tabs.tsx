@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { SegmentedControl, DashedSlot, Meta, QrShareSheet } from "@/components/ui";
 import { CircleChat, type ChatMessage } from "@/components/circles/circle-chat";
 import { MemberList, type MemberListItem } from "@/components/circles/member-list";
+import { MembersManager } from "@/components/circles/members-manager";
+import { LeaveCircleButton } from "@/components/circles/leave-circle-button";
 import { InviteShareButton, InviteLinkText } from "@/components/circles/invite-share-button";
 import { KnockPanel, type KnockPanelItem } from "@/components/circles/knock-panel";
 import { DoorControls } from "@/components/circles/door-controls";
@@ -56,6 +58,7 @@ export function CircleTabs({
   openDoor,
   boardEnabled,
   vibeLine,
+  defaultGameType,
   anchor,
   headerImage,
   homeVenueId,
@@ -81,6 +84,7 @@ export function CircleTabs({
   openDoor: boolean;
   boardEnabled: boolean;
   vibeLine: string | null;
+  defaultGameType: "competitive" | "friendly";
   anchor: EditAnchor | null;
   headerImage: string | null;
   homeVenueId: string | null;
@@ -123,6 +127,12 @@ export function CircleTabs({
   // A one-member Circle's most urgent action is inviting, not reading an empty
   // Feed — surface it right at the top of the landing tab.
   const soloCircle = members.length <= 1;
+  // Roster-lifecycle flags for the Members tab. The sole organiser with members
+  // behind them must hand over before leaving; the server enforces this too.
+  const organiserCount = members.filter((m) => m.role === "organiser").length;
+  const myRole = members.find((m) => m.userId === currentUserId)?.role ?? "member";
+  const mustTransferFirst = myRole === "organiser" && organiserCount === 1 && members.length > 1;
+  const isLastMember = members.length === 1;
 
   const refreshUnread = useCallback(async () => {
     try {
@@ -255,6 +265,7 @@ export function CircleTabs({
       {activeTab === "members" && (
         <div className="flex flex-col gap-3">
           <MemberList members={members} currentUserId={currentUserId} />
+          {isOrganiser && <MembersManager circleId={circleId} members={members} currentUserId={currentUserId} />}
           <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
             <div className="flex items-center gap-3">
               <DashedSlot label="+" size="md" />
@@ -280,6 +291,12 @@ export function CircleTabs({
           <Meta as="p" className="text-center">
             ratings are everyone&apos;s business here, that&apos;s the point
           </Meta>
+          <LeaveCircleButton
+            circleId={circleId}
+            circleName={circleName}
+            mustTransferFirst={mustTransferFirst}
+            isLastMember={isLastMember}
+          />
         </div>
       )}
 
@@ -319,6 +336,7 @@ export function CircleTabs({
               initialOpenDoor={openDoor}
               initialBoardEnabled={boardEnabled}
               initialVibeLine={vibeLine}
+              initialDefaultGameType={defaultGameType}
             />
           </section>
 

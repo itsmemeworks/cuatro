@@ -63,7 +63,9 @@ export type NotificationInput =
   | { type: "rotation_sitting_out"; payload: { sessionId: string } }
   | { type: "knock_received"; payload: { knockId: string; kind: "circle" | "session"; targetId: string; userId: string } }
   | { type: "knock_accepted"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } }
-  | { type: "knock_declined"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } };
+  | { type: "knock_declined"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } }
+  | { type: "member_removed"; payload: { circleId: string } }
+  | { type: "organiser_transferred"; payload: { circleId: string; fromUserId: string } };
 
 export type NotificationType = NotificationInput["type"];
 export type PayloadFor<T extends NotificationType> = Extract<NotificationInput, { type: T }>["payload"];
@@ -281,6 +283,21 @@ export async function renderNotificationCopy(tx: CuatroDb, input: NotificationIn
         body: `${commenter?.displayName ?? "Someone"} commented on a match you played. Tap to read it.`,
       };
     }
+    case "member_removed": {
+      const [circle] = await tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.circleId));
+      return {
+        title: "You're no longer in this Circle",
+        body: `An organiser removed you from ${circle?.name ?? "the Circle"}. Your match history and Ledger stay with you.`,
+      };
+    }
+    case "organiser_transferred": {
+      const [circle] = await tx.select({ name: circles.name }).from(circles).where(eq(circles.id, input.payload.circleId));
+      const [from] = await tx.select({ displayName: users.displayName }).from(users).where(eq(users.id, input.payload.fromUserId));
+      return {
+        title: "You're the organiser now",
+        body: `${from?.displayName ?? "The previous organiser"} handed ${circle?.name ?? "the Circle"} to you. Settings, members and the door are yours.`,
+      };
+    }
   }
 }
 
@@ -315,6 +332,10 @@ export function deepLinkFor(input: NotificationInput): string {
       return input.payload.kind === "circle" ? `/circles/${input.payload.targetId}` : `/games/${input.payload.targetId}`;
     case "knock_declined":
       return input.payload.kind === "circle" ? "/circles" : "/home";
+    case "member_removed":
+      return "/circles";
+    case "organiser_transferred":
+      return `/circles/${input.payload.circleId}?tab=settings`;
   }
 }
 

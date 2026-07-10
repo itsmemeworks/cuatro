@@ -3,12 +3,18 @@ import { and, eq } from "drizzle-orm";
 import {
   createTestClient,
   circleMembers,
+  circleMessages,
   circles,
+  matchComments,
+  matchReactions,
   matches,
   notifications,
+  ratingEvents,
   rsvps,
   sessions,
   standingGames,
+  tabEntries,
+  tabs,
   users,
   type CuatroClient,
   type CuatroDb,
@@ -18,6 +24,7 @@ import { getRing3ClaimLink, mintRing3ClaimToken } from "@/server/fourth-call";
 import {
   GUEST_HOLD_MS,
   GUEST_PLACEHOLDER_NAME,
+  MERGED_FROM_GUEST_FACTOR_KEY,
   claimGuestSlot,
   convertGuestOnAuth,
   getGuestMembership,
@@ -433,6 +440,269 @@ describe("convertGuestOnAuth", () => {
       .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, account.id)))
       ;
     expect(accountMembership?.role).toBe("member");
+  });
+});
+
+// --- Full merge (V1-READINESS #11): a guest claimed into an EXISTING account.
+// These build their trail on `db` directly, and (where a real Ledger is needed)
+// through a MatchesStore sharing the same client so rating_events are genuine.
+async function seedGuestRow(target: CuatroDb, displayName = GUEST_PLACEHOLDER_NAME) {
+  n += 1;
+  const [row] = await target
+    .insert(users)
+    .values({ displayName, isGuest: true, guestClaimTokenHash: `hash-${n}-${Math.random().toString(36).slice(2)}` })
+    .returning();
+  return row;
+}
+async function seedRealUserOn(target: CuatroDb, displayName: string) {
+  n += 1;
+  const [row] = await target.insert(users).values({ email: `real${n}@example.com`, displayName }).returning();
+  return row;
+}
+async function seedCircleOn(target: CuatroDb, createdBy: string) {
+  n += 1;
+  const [row] = await target
+    .insert(circles)
+    .values({ name: `Circle ${n}`, inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy })
+    .returning();
+  return row;
+}
+/** Plays one verified match through the real Glass pipeline (both teams sealed), so every player on it gains a genuine rating_events row. `sealBy` must be a real member of teamB. */
+async function playVerifiedMatch(
+  store: MatchesStore,
+  target: CuatroDb,
+  circleId: string,
+  teamA: [string, string],
+  teamB: [string, string],
+  sealBy: string,
+) {
+  n += 1;
+  const [session] = await target
+    .insert(sessions)
+    .values({ circleId, startsAt: new Date("2026-08-01T18:00:00.000Z").getTime() + n * 3_600_000, status: "played" })
+    .returning();
+  const { matchId } = await store.recordMatch({
+    sessionId: session.id,
+    reporterId: teamA[0],
+    teamA,
+    teamB,
+    sets: [{ a: 6, b: 2 }],
+  });
+  const outcome = await store.confirmMatch(matchId, sealBy);
+  return { matchId, sessionId: session.id, outcome };
+}
+
+describe("convertGuestOnAuth — merge into an existing account", () => {
+  it("moves match participations, tab entries, comments, chat, reactions and notifications; dedupes memberships; deletes self-debt", async () => {
+    const store = createMatchesStoreFromClient(await createTestClient());
+    try {
+      const sdb = store.db;
+      const account = await seedRealUserOn(sdb, "Alex (existing)");
+      const partner = await seedRealUserOn(sdb, "Partner");
+      const opp1 = await seedRealUserOn(sdb, "Opp1");
+      const opp2 = await seedRealUserOn(sdb, "Opp2");
+      const guest = await seedGuestRow(sdb, "Alex (guest)");
+      const circle = await seedCircleOn(sdb, account.id);
+
+      // The guest PLAYED a verified match (guest as reporter on team A).
+      const { matchId } = await playVerifiedMatch(store, sdb, circle.id, [guest.id, partner.id], [opp1.id, opp2.id], opp1.id);
+
+      // A circle the guest is in but the account is not (moves), and one they
+      // both are in (dedupes to a single account row).
+      const soloCircle = await seedCircleOn(sdb, account.id);
+      await sdb.insert(circleMembers).values({ circleId: soloCircle.id, userId: guest.id, role: "member" });
+      const sharedCircle = await seedCircleOn(sdb, account.id);
+      await sdb.insert(circleMembers).values({ circleId: sharedCircle.id, userId: account.id, role: "organiser" });
+      await sdb.insert(circleMembers).values({ circleId: sharedCircle.id, userId: guest.id, role: "member" });
+
+      // Guest-authored content + a reaction the account already made (dedupe).
+      await sdb.insert(matchComments).values({ matchId, userId: guest.id, body: "gg" });
+      await sdb.insert(circleMessages).values({ circleId: circle.id, userId: guest.id, body: "hi all" });
+      await sdb.insert(matchReactions).values({ matchId, userId: account.id, kind: "respect" });
+      await sdb.insert(matchReactions).values({ matchId, userId: guest.id, kind: "respect" });
+
+      // Tab: the guest OWES the organiser (moves), and a to-be self-debt where
+      // the account paid and the guest owed (payer===debtor after merge → gone).
+      const [tab] = await sdb.insert(tabs).values({ circleId: circle.id }).returning();
+      await sdb.insert(tabEntries).values({ tabId: tab.id, payerUserId: partner.id, debtorUserId: guest.id, amountMinor: 500 });
+      await sdb.insert(tabEntries).values({ tabId: tab.id, payerUserId: account.id, debtorUserId: guest.id, amountMinor: 700 });
+
+      const result = await convertGuestOnAuth(sdb, guest.id, account.id);
+      expect(result.converted).toBe(true);
+      if (!result.converted) return;
+      expect(result.merged).toBe(true);
+
+      // Match participation re-pointed to the account.
+      const [matchRow] = await sdb.select().from(matches).where(eq(matches.id, matchId));
+      expect(matchRow?.teamAPlayer1Id).toBe(account.id);
+
+      // Memberships: moved for the solo circle, deduped for the shared one.
+      const soloMembers = await sdb.select().from(circleMembers).where(eq(circleMembers.circleId, soloCircle.id));
+      expect(soloMembers.map((m) => m.userId)).toEqual([account.id]);
+      const sharedMembers = await sdb.select().from(circleMembers).where(eq(circleMembers.circleId, sharedCircle.id));
+      expect(sharedMembers.filter((m) => m.userId === account.id)).toHaveLength(1);
+      expect(sharedMembers.find((m) => m.userId === guest.id)).toBeUndefined();
+      expect(sharedMembers.find((m) => m.userId === account.id)?.role).toBe("organiser");
+
+      // Content moved; the reaction deduped to the single pre-existing account row.
+      expect((await sdb.select().from(matchComments).where(eq(matchComments.matchId, matchId)))[0]?.userId).toBe(account.id);
+      expect((await sdb.select().from(circleMessages).where(eq(circleMessages.circleId, circle.id)))[0]?.userId).toBe(account.id);
+      const reactions = await sdb.select().from(matchReactions).where(eq(matchReactions.matchId, matchId));
+      expect(reactions).toHaveLength(1);
+      expect(reactions[0]?.userId).toBe(account.id);
+
+      // Notifications from the played match followed the guest onto the account.
+      const guestNotifs = await sdb.select().from(notifications).where(eq(notifications.userId, guest.id));
+      expect(guestNotifs).toHaveLength(0);
+      expect((await sdb.select().from(notifications).where(eq(notifications.userId, account.id))).length).toBeGreaterThan(0);
+
+      // Tab: the real debt moved; the self-debt was deleted.
+      const entries = await sdb.select().from(tabEntries).where(eq(tabEntries.tabId, tab.id));
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.debtorUserId).toBe(account.id);
+      expect(entries[0]?.amountMinor).toBe(500);
+
+      // The husk: drained, no longer a guest, cannot resurrect.
+      const [husk] = await sdb.select().from(users).where(eq(users.id, guest.id));
+      expect(husk?.isGuest).toBe(false);
+      expect(husk?.guestClaimTokenHash).toBeNull();
+    } finally {
+      await store.close();
+    }
+  });
+
+  it("adopts the guest's rating trajectory wholesale when the account had no Ledger history", async () => {
+    const store = createMatchesStoreFromClient(await createTestClient());
+    try {
+      const sdb = store.db;
+      const account = await seedRealUserOn(sdb, "Alex (existing, unrated)");
+      const partner = await seedRealUserOn(sdb, "Partner");
+      const opp1 = await seedRealUserOn(sdb, "Opp1");
+      const opp2 = await seedRealUserOn(sdb, "Opp2");
+      const guest = await seedGuestRow(sdb, "Alex (guest)");
+      const circle = await seedCircleOn(sdb, account.id);
+
+      await playVerifiedMatch(store, sdb, circle.id, [guest.id, partner.id], [opp1.id, opp2.id], opp1.id);
+      const [guestBefore] = await sdb.select().from(users).where(eq(users.id, guest.id));
+      expect(guestBefore?.verifiedMatchCount).toBe(1);
+
+      await convertGuestOnAuth(sdb, guest.id, account.id);
+
+      const [accountAfter] = await sdb.select().from(users).where(eq(users.id, account.id));
+      // Rating fields adopted from the guest wholesale.
+      expect(accountAfter?.verifiedMatchCount).toBe(guestBefore!.verifiedMatchCount);
+      expect(accountAfter?.confidence).toBe(guestBefore!.confidence);
+      expect(accountAfter?.rating).toBe(guestBefore!.rating); // null: still 1 of 3
+
+      // The guest's Ledger events are now the account's — and UNMARKED (they
+      // are the account's own trajectory, not merged-in provenance).
+      const accountEvents = await sdb.select().from(ratingEvents).where(eq(ratingEvents.userId, account.id));
+      expect(accountEvents).toHaveLength(1);
+      expect((accountEvents[0]!.factors as Record<string, unknown>)[MERGED_FROM_GUEST_FACTOR_KEY]).toBeUndefined();
+    } finally {
+      await store.close();
+    }
+  });
+
+  it("keeps the account's rating as the live trail and marks the guest's Ledger events when BOTH have history", async () => {
+    const store = createMatchesStoreFromClient(await createTestClient());
+    try {
+      const sdb = store.db;
+      const account = await seedRealUserOn(sdb, "Alex (existing, rated)");
+      const aPartner = await seedRealUserOn(sdb, "A-Partner");
+      const aOpp1 = await seedRealUserOn(sdb, "A-Opp1");
+      const aOpp2 = await seedRealUserOn(sdb, "A-Opp2");
+      const guest = await seedGuestRow(sdb, "Alex (guest)");
+      const gPartner = await seedRealUserOn(sdb, "G-Partner");
+      const gOpp1 = await seedRealUserOn(sdb, "G-Opp1");
+      const gOpp2 = await seedRealUserOn(sdb, "G-Opp2");
+      const circle = await seedCircleOn(sdb, account.id);
+
+      // The account has its OWN history.
+      const accountMatch = await playVerifiedMatch(store, sdb, circle.id, [account.id, aPartner.id], [aOpp1.id, aOpp2.id], aOpp1.id);
+      const accountEventBefore = (await sdb.select().from(ratingEvents).where(eq(ratingEvents.userId, account.id)))[0]!;
+      const [accountBefore] = await sdb.select().from(users).where(eq(users.id, account.id));
+
+      // The guest has a separate trajectory.
+      await playVerifiedMatch(store, sdb, circle.id, [guest.id, gPartner.id], [gOpp1.id, gOpp2.id], gOpp1.id);
+      const guestEvent = (await sdb.select().from(ratingEvents).where(eq(ratingEvents.userId, guest.id)))[0]!;
+
+      await convertGuestOnAuth(sdb, guest.id, account.id);
+
+      // The account's live rating is untouched.
+      const [accountAfter] = await sdb.select().from(users).where(eq(users.id, account.id));
+      expect(accountAfter?.rating).toBe(accountBefore!.rating);
+      expect(accountAfter?.confidence).toBe(accountBefore!.confidence);
+      expect(accountAfter?.verifiedMatchCount).toBe(accountBefore!.verifiedMatchCount);
+
+      // Both events now belong to the account; the guest's is marked, the
+      // account's own is not (append-only: neither was rewritten).
+      const accountEvents = await sdb.select().from(ratingEvents).where(eq(ratingEvents.userId, account.id));
+      expect(accountEvents).toHaveLength(2);
+      const moved = accountEvents.find((e) => e.id === guestEvent.id)!;
+      const own = accountEvents.find((e) => e.id === accountEventBefore.id)!;
+      expect((moved.factors as Record<string, unknown>)[MERGED_FROM_GUEST_FACTOR_KEY]).toBe(guest.id);
+      expect((own.factors as Record<string, unknown>)[MERGED_FROM_GUEST_FACTOR_KEY]).toBeUndefined();
+      expect(own.ratingAfter).toBe(accountEventBefore.ratingAfter); // untouched
+    } finally {
+      await store.close();
+    }
+  });
+
+  it("folds the guest's Reliability counters into the surviving account", async () => {
+    const account = await seedUser("Alex (existing)");
+    await db.update(users).set({ rsvpInCount: 4, showUpCount: 3, lateCancelCount: 1 }).where(eq(users.id, account.id));
+    const guest = await seedGuestRow(db, "Alex (guest)");
+    await db.update(users).set({ rsvpInCount: 2, showUpCount: 1, lateCancelCount: 0 }).where(eq(users.id, guest.id));
+
+    await convertGuestOnAuth(db, guest.id, account.id);
+
+    const [after] = await db.select().from(users).where(eq(users.id, account.id));
+    expect(after?.rsvpInCount).toBe(6);
+    expect(after?.showUpCount).toBe(4);
+    expect(after?.lateCancelCount).toBe(1);
+  });
+
+  it("is idempotent: replaying the conversion never double-merges", async () => {
+    const account = await seedUser("Alex (existing)");
+    await db.update(users).set({ rsvpInCount: 4, showUpCount: 3 }).where(eq(users.id, account.id));
+    const guest = await seedGuestRow(db, "Alex (guest)");
+    await db.update(users).set({ rsvpInCount: 2, showUpCount: 1 }).where(eq(users.id, guest.id));
+
+    const first = await convertGuestOnAuth(db, guest.id, account.id);
+    expect(first.converted).toBe(true);
+
+    // A double-clicked magic link replays the callback with the same ids.
+    const second = await convertGuestOnAuth(db, guest.id, account.id);
+    expect(second).toEqual({ converted: false, reason: "not_a_guest" });
+
+    // Counters folded exactly once.
+    const [after] = await db.select().from(users).where(eq(users.id, account.id));
+    expect(after?.rsvpInCount).toBe(6);
+    expect(after?.showUpCount).toBe(4);
+  });
+
+  it("a converted guest's ring-3 claim link still resolves for the next visitor, and the drained husk cookie cannot", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const existingAccount = await seedUser("Alex (existing)");
+    const link = await getRing3ClaimLink(db, session.id);
+    if (!link.ok) throw new Error("expected link");
+    const claim = await claimGuestSlot(db, session.id, link.value.token);
+    if (!claim.ok) throw new Error("expected claim");
+
+    await convertGuestOnAuth(db, claim.guestUserId, existingAccount.id);
+
+    // The husk's old device cookie can never resolve again.
+    expect(await getGuestUserId(db, claim.token)).toBeNull();
+
+    // The ring-3 LINK (bound to the session, not the guest) still works: the
+    // next person who taps it claims a fresh slot.
+    const nextClaim = await claimGuestSlot(db, session.id, link.value.token);
+    expect(nextClaim.ok).toBe(true);
+    if (!nextClaim.ok) return;
+    expect(nextClaim.guestUserId).not.toBe(claim.guestUserId);
   });
 });
 

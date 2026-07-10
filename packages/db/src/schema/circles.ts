@@ -1,5 +1,6 @@
-import { bigint, index, integer, primaryKey, pgTable, text } from 'drizzle-orm/pg-core'
-import { booleanColumn, createdAtColumn, idColumn, timestampColumn } from './_columns.js'
+import { sql } from 'drizzle-orm'
+import { bigint, check, index, integer, primaryKey, pgTable, text } from 'drizzle-orm/pg-core'
+import { booleanColumn, createdAtColumn, gameTypeColumn, idColumn, timestampColumn } from './_columns.js'
 import { users } from './users.js'
 import { venues } from './venues.js'
 
@@ -44,10 +45,19 @@ export const circles = pgTable(
     homeVenueId: text('home_venue_id').references(() => venues.id),
     maxMembers: integer('max_members'),
 
+    // FRIENDLIES (V1-READINESS #10): the circle's default game classification —
+    // the top of the inheritance chain (see _columns.ts gameTypeColumn). New
+    // Standing Games / one-offs adopt this unless the organiser overrides.
+    defaultGameType: gameTypeColumn('default_game_type'),
+
     createdAt: createdAtColumn(),
   },
   (table) => ({
     createdByIdx: index('circles_created_by_idx').on(table.createdBy),
+    defaultGameTypeCheck: check(
+      'circles_default_game_type_check',
+      sql`${table.defaultGameType} in ('competitive', 'friendly')`,
+    ),
   }),
 )
 

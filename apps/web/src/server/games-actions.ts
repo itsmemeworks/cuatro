@@ -1,5 +1,6 @@
 "use server";
 
+import { GAME_TYPES, type GameType } from "@cuatro/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/session";
@@ -13,6 +14,12 @@ import { parseAmountToMinor } from "@/components/tab/money";
 import type { CuatroClient } from "@cuatro/db";
 
 /** Rotation cutoff + mode from the form (both create and edit render them). Cutoff clamps to a sane 1..168h; mode is the strict enum. */
+/** A form's game-type field, coerced to a valid value or undefined (then the
+ * service falls back to the circle default). Never trusts a crafted value. */
+function parseGameType(v: FormDataEntryValue | null): GameType | undefined {
+  return typeof v === "string" && (GAME_TYPES as readonly string[]).includes(v) ? (v as GameType) : undefined;
+}
+
 function parseRotationFields(formData: FormData): { rotationCutoffHours: number; rotationMode: "limited" | "unlimited" } {
   const rawHours = Number(formData.get("rotationCutoffHours"));
   const rotationCutoffHours = Number.isFinite(rawHours) && rawHours >= 1 && rawHours <= 168 ? Math.round(rawHours) : 24;
@@ -81,6 +88,7 @@ export async function createStandingGameAction(formData: FormData): Promise<void
     // Unchecked checkboxes submit nothing, so absence = off.
     rotationEnabled: formData.get("rotationEnabled") === "on",
     ...parseRotationFields(formData),
+    gameType: parseGameType(formData.get("gameType")),
   });
 
   revalidatePath("/games/standing");
@@ -123,6 +131,7 @@ export async function updateStandingGameAction(id: string, formData: FormData): 
     // explicit "off", not "leave unchanged".
     rotationEnabled: formData.get("rotationEnabled") === "on",
     ...parseRotationFields(formData),
+    gameType: parseGameType(formData.get("gameType")),
   });
 
   if (result.ok) {

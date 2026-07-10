@@ -8,6 +8,13 @@
       "when": 1783699648912,
       "tag": "0000_magenta_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783711390063,
+      "tag": "0001_silky_otto_octavius",
+      "breakpoints": true
     }
   ]
 }

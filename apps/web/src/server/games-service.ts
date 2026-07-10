@@ -31,6 +31,7 @@ import {
   type Session,
   type StandingGame,
   type Venue,
+  type GameType,
 } from "@cuatro/db";
 import { computeNextOccurrence } from "./tz";
 import { resolveVenue, isOrganiser } from "./standing-games-service";
@@ -150,6 +151,7 @@ export async function ensureUpcomingSessionForStandingGame(
         venueId: sg.venueId,
         startsAt: nextStart,
         status: "upcoming",
+        gameType: sg.gameType,
       })
       .returning();
     return created;
@@ -261,6 +263,8 @@ export type OneOffSessionInput = {
   startsAt: Date;
   venueId?: string | null;
   venueName?: string | null;
+  /** FRIENDLIES classification. Omit to inherit the circle's default_game_type. */
+  gameType?: GameType;
 };
 
 export type ServiceResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -270,6 +274,11 @@ export async function createOneOffSession(db: CuatroDb, userId: string, input: O
   if (!(await isOrganiser(db, input.circleId, userId))) return { ok: false, error: "not_an_organiser" };
 
   const venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName);
+  const [circleRow] = await db
+    .select({ defaultGameType: circles.defaultGameType })
+    .from(circles)
+    .where(eq(circles.id, input.circleId));
+  const gameType = input.gameType ?? circleRow?.defaultGameType ?? "competitive";
   const [created] = await db
     .insert(sessions)
     .values({
@@ -277,6 +286,7 @@ export async function createOneOffSession(db: CuatroDb, userId: string, input: O
       venueId,
       startsAt: input.startsAt.getTime(),
       status: "upcoming",
+      gameType,
     })
     .returning();
 

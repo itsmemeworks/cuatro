@@ -1,0 +1,17 @@
+{
+  "name": "@cuatro/emails",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "tsx src/render.ts"
+  },
+  "dependencies": {
+    "@react-email/components": "^0.5.0",
+    "@react-email/render": "^1.1.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

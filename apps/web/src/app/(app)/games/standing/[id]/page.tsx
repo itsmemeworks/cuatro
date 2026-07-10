@@ -164,6 +164,15 @@ export default async function EditStandingGamePage({
               />
             </label>
 
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
+              Game type
+              <Meta as="span" className="font-normal">Friendly games keep the score, Reliability and your played-with, but never move Glass. New sessions use this. A game already on the calendar keeps the type it opened with.</Meta>
+              <select name="gameType" defaultValue={standingGame.gameType} className={fieldClass}>
+                <option value="competitive">Competitive, results move Glass</option>
+                <option value="friendly">Friendly, Glass stays put</option>
+              </select>
+            </label>
+
             <label className="flex items-start gap-3 rounded-button p-3 bg-surface border border-ink-hairline-3 cursor-pointer">
               <input
                 type="checkbox"

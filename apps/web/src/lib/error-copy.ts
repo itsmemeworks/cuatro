@@ -4,6 +4,11 @@
 
 const ERROR_COPY: Record<string, string> = {
   network_error: "Couldn't reach the server. Check your connection and try again.",
+  last_organiser: "You're the only organiser. Hand the Circle to someone else before you leave.",
+  target_not_a_member: "That player isn't in this Circle any more.",
+  cannot_remove_self: "You can't remove yourself. Use Leave this Circle instead.",
+  cannot_transfer_to_self: "You're already an organiser.",
+  cannot_transfer_to_guest: "Guests can't be organisers. Pick a member who's signed in.",
   something_went_wrong: "Something didn't go through. Give it another tap.",
   not_a_member: "You're not in this Circle, so that action isn't available.",
   not_member: "You're not in this Circle, so that action isn't available.",

@@ -26,6 +26,11 @@ export interface GlossaryEntry {
 }
 
 export const GLOSSARY = {
+  friendly: {
+    term: "Friendly",
+    plain: "A friendly game still records the score and confirms like any other, and it counts for your Reliability and who you've played with. It just never moves anyone's Glass rating.",
+    why: "Some circles want to keep score without the pressure of a rating on the line. Friendly is that switch, set per game, so a knockabout stays a knockabout.",
+  },
   rotation: {
     term: "The Rotation",
     plain: "When it's on, you tap 'I'm available' instead of grabbing a slot, and CUATRO picks a fair four each week, rotating who sits out.",
