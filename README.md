@@ -4,7 +4,7 @@
 
 Built by a padel four in the North East, for padel fours everywhere. CUATRO is free, has no ads, no fees and no dark patterns. It never touches your court money and never holds a penny of it.
 
-Live: **[cuatro.fly.dev](https://cuatro.fly.dev)**
+Live: **[padelcuatro.com](https://padelcuatro.com)**
 
 > Status: v1.0 candidate. The core loop (circle, standing game, RSVP, Fourth Call, result, seal, Ledger, Tab) runs end to end and is v1.0-quality for a real group today. A short cut-line of items remains before an external pilot, tracked in [V1-READINESS.md](V1-READINESS.md).
 
