@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { transformLandingHtml } from "@/lib/landing";
+import { resolveRequestOrigin } from "@/lib/safe-redirect";
 
 /**
  * The domain root now serves the marketing site, not the app (Pete, 2026-07-10:
@@ -34,8 +36,23 @@ async function loadLandingHtml(): Promise<string> {
   return cachedHtml;
 }
 
-export async function GET() {
-  const html = await loadLandingHtml();
+/*
+ * The file is written against the canonical prod origin; every other origin
+ * (staging, cuatro.fly.dev, local dev) gets its links/copy/QR rewritten to
+ * itself so a tester is never silently bounced into prod — see lib/landing.ts.
+ * Memoised per origin; the cap only guards against unbounded junk Host
+ * headers, real traffic uses a handful of hostnames.
+ */
+const transformedByOrigin = new Map<string, string>();
+
+export async function GET(request: NextRequest) {
+  const base = await loadLandingHtml();
+  const origin = resolveRequestOrigin(request);
+  let html = transformedByOrigin.get(origin);
+  if (html === undefined) {
+    html = transformLandingHtml(base, origin);
+    if (transformedByOrigin.size < 8) transformedByOrigin.set(origin, html);
+  }
   return new NextResponse(html, {
     headers: {
       "content-type": "text/html; charset=utf-8",
