@@ -49,6 +49,7 @@ npm-workspaces monorepo:
 - Secrets: `FOURTH_CALL_LINK_SECRET` (ring-3 HMAC links). NEXT_PUBLIC_* are baked at BUILD time (fly.toml [build.args]).
 - **Before deploying schema changes**: `fly ssh sftp get /data/cuatro.db` and apply migrations to the copy locally — unauthenticated smoke checks do NOT exercise the DB and will lie to you.
 - Prod debugging: `fly logs -a cuatro`; a user-visible "server error" with clean health checks usually means a DB-touching path is failing while health (no DB) passes.
+- **Prod domain = padelcuatro.com** (Gandi-registered; Fly certs added for apex+www; Supabase auth allowlists it). Cutover pending Pete adding DNS at Gandi (A 66.241.125.38 / AAAA 2a09:8280:1::143:a979:0); after DNS lands: flip Supabase `site_url`, update landing og:url/buttons (BOTH landing copies), README. cuatro.fly.dev stays as the dev-facing URL.
 
 ## Working agreement (multi-agent sessions — how this repo is actually built)
 - **Parallel agents get strictly disjoint FILE territories** (not themes). Each writes a manifest to the session scratchpad (decisions, files, verified journey, risks) and NEVER commits — the session lead reviews, gates, commits, deploys.
