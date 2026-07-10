@@ -4,6 +4,10 @@
 // app itself runs as an unprivileged user. Chown it, then permanently drop
 // to that user via process.setuid/setgid before importing the real server,
 // so nothing app-level ever executes as root.
+//
+// The /data volume now holds ONLY user-uploaded avatars (AVATAR_DIR=
+// /data/avatars). The database is no longer on the volume — it lives in the
+// env's Supabase Postgres, reached via the DATABASE_URL secret.
 import fs from "node:fs";
 
 const APP_UID = 1001;

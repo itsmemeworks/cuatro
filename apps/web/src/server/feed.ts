@@ -206,24 +206,25 @@ function pickNamedDelta(
   return null;
 }
 
-function isMember(db: CuatroDb, circleId: string, userId: string): boolean {
-  return !!db
+async function isMember(db: CuatroDb, circleId: string, userId: string): Promise<boolean> {
+  const [row] = await db
     .select({ userId: circleMembers.userId })
     .from(circleMembers)
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)))
-    .get();
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+  return !!row;
 }
 
 /** Every verified match ever played in this circle's sessions, newest first. */
-function loadVerifiedMatches(db: CuatroDb, circleId: string) {
-  return db
+async function loadVerifiedMatches(db: CuatroDb, circleId: string) {
+  const rows = await db
     .select({ match: matches })
     .from(matches)
     .innerJoin(sessions, eq(matches.sessionId, sessions.id))
     .where(and(eq(sessions.circleId, circleId), eq(matches.status, "verified")))
-    .orderBy(desc(matches.playedAt))
-    .all()
-    .map((r) => r.match);
+    // playedAt then id: a deterministic newest-first order even within the
+    // same millisecond (Postgres has no rowid tiebreak).
+    .orderBy(desc(matches.playedAt), desc(matches.id));
+  return rows.map((r) => r.match);
 }
 
 function fourIds(m: { teamAPlayer1Id: string; teamAPlayer2Id: string; teamBPlayer1Id: string; teamBPlayer2Id: string }) {
@@ -238,20 +239,20 @@ function fourIds(m: { teamAPlayer1Id: string; teamAPlayer2Id: string; teamBPlaye
  * listUpcomingSessionsForCircle's trust boundary in games-service.ts, not
  * server/circles.ts's own store methods, which gate independently.
  */
-export function listRecentResultsForCircle(
+export async function listRecentResultsForCircle(
   db: CuatroDb,
   circleId: string,
   viewerUserId: string,
   limit = DEFAULT_FEED_LIMIT,
-): { posts: ResultPostView[]; rivalry: RivalryCallout | null } {
-  const allMatches = loadVerifiedMatches(db, circleId);
+): Promise<{ posts: ResultPostView[]; rivalry: RivalryCallout | null }> {
+  const allMatches = await loadVerifiedMatches(db, circleId);
   if (allMatches.length === 0) return { posts: [], rivalry: null };
 
   const displayMatches = allMatches.slice(0, limit);
   const matchIds = displayMatches.map((m) => m.id);
 
   const allUserIds = [...new Set(allMatches.flatMap(fourIds))];
-  const userRows = db.select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(inArray(users.id, allUserIds)).all();
+  const userRows = await db.select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(inArray(users.id, allUserIds));
   const userById = new Map(userRows.map((u) => [u.id, u]));
   const nameOf = (userId: string) => userById.get(userId)?.displayName ?? "Unknown";
   const refOf = (userId: string): FeedPlayerRef => {
@@ -260,7 +261,7 @@ export function listRecentResultsForCircle(
   };
 
   const eventRows = matchIds.length
-    ? db
+    ? await db
         .select({
           matchId: ratingEvents.matchId,
           userId: ratingEvents.userId,
@@ -270,7 +271,6 @@ export function listRecentResultsForCircle(
         })
         .from(ratingEvents)
         .where(inArray(ratingEvents.matchId, matchIds))
-        .all()
     : [];
   const eventsByMatch = new Map<string, Map<string, { delta: number; ratingAfter: number; explanation: string }>>();
   for (const row of eventRows) {
@@ -279,7 +279,7 @@ export function listRecentResultsForCircle(
   }
 
   const reactionRows = matchIds.length
-    ? db.select({ matchId: matchReactions.matchId, userId: matchReactions.userId }).from(matchReactions).where(and(inArray(matchReactions.matchId, matchIds), eq(matchReactions.kind, "respect"))).all()
+    ? await db.select({ matchId: matchReactions.matchId, userId: matchReactions.userId }).from(matchReactions).where(and(inArray(matchReactions.matchId, matchIds), eq(matchReactions.kind, "respect")))
     : [];
   const reactionsByMatch = new Map<string, string[]>();
   for (const row of reactionRows) {
@@ -288,10 +288,10 @@ export function listRecentResultsForCircle(
     reactionsByMatch.set(row.matchId, list);
   }
 
-  const activeStandingGame = db.select({ id: standingGames.id }).from(standingGames).where(and(eq(standingGames.circleId, circleId), eq(standingGames.active, true))).get();
+  const [activeStandingGame] = await db.select({ id: standingGames.id }).from(standingGames).where(and(eq(standingGames.circleId, circleId), eq(standingGames.active, true)));
   const rematchHref = activeStandingGame ? `/games/standing/${activeStandingGame.id}` : `/circles/${circleId}`;
 
-  const commentCounts = getCommentCounts(db, matchIds);
+  const commentCounts = await getCommentCounts(db, matchIds);
 
   function teamDelta(events: Map<string, { delta: number }> | undefined, playerIds: readonly [string, string]): number | null {
     if (!events) return null;
@@ -308,7 +308,7 @@ export function listRecentResultsForCircle(
     return {
       matchId: m.id,
       sessionId: m.sessionId,
-      playedAt: m.playedAt,
+      playedAt: new Date(m.playedAt),
       sets: m.score,
       outcome: m.outcome,
       winner: computeWinner(m.score),
@@ -323,7 +323,7 @@ export function listRecentResultsForCircle(
 
   const streakMatches: StreakMatch[] = allMatches.map((m) => ({
     id: m.id,
-    playedAt: m.playedAt,
+    playedAt: new Date(m.playedAt),
     teamA: [m.teamAPlayer1Id, m.teamAPlayer2Id],
     teamB: [m.teamBPlayer1Id, m.teamBPlayer2Id],
     winner: computeWinner(m.score),
@@ -343,19 +343,19 @@ export function listRecentResultsForCircle(
  * everything a reveal needs to reuse for 👏 Respect (see
  * PlacementRevealView's header note).
  */
-export function listCircleFeed(
+export async function listCircleFeed(
   db: CuatroDb,
   circleId: string,
   viewerUserId: string,
   limit = DEFAULT_FEED_LIMIT,
-): { items: FeedItem[]; rivalry: RivalryCallout | null } {
-  const { posts, rivalry } = listRecentResultsForCircle(db, circleId, viewerUserId, limit);
+): Promise<{ items: FeedItem[]; rivalry: RivalryCallout | null }> {
+  const { posts, rivalry } = await listRecentResultsForCircle(db, circleId, viewerUserId, limit);
   if (posts.length === 0) return { items: [], rivalry };
 
   const matchIds = posts.map((p) => p.matchId);
   const postByMatchId = new Map(posts.map((p) => [p.matchId, p]));
 
-  const revealRows = db
+  const revealRows = await db
     .select({
       id: ratingEvents.id,
       matchId: ratingEvents.matchId,
@@ -364,12 +364,11 @@ export function listCircleFeed(
       confidenceAfter: ratingEvents.confidenceAfter,
     })
     .from(ratingEvents)
-    .where(and(inArray(ratingEvents.matchId, matchIds), like(ratingEvents.explanation, `${PLACEMENT_REVEAL_EXPLANATION_PREFIX}%`)))
-    .all();
+    .where(and(inArray(ratingEvents.matchId, matchIds), like(ratingEvents.explanation, `${PLACEMENT_REVEAL_EXPLANATION_PREFIX}%`)));
 
   const revealUserIds = [...new Set(revealRows.map((r) => r.userId))];
   const revealUsers = revealUserIds.length
-    ? db.select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(inArray(users.id, revealUserIds)).all()
+    ? await db.select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(inArray(users.id, revealUserIds))
     : [];
   const revealUserById = new Map(revealUsers.map((u) => [u.id, u]));
 
@@ -426,39 +425,40 @@ export type ToggleRespectOutcome =
  * double-tap either inserts once or deletes the one row that exists, never
  * accumulates duplicates.
  */
-export function toggleRespect(db: CuatroDb, matchId: string, userId: string): ToggleRespectOutcome {
+export async function toggleRespect(db: CuatroDb, matchId: string, userId: string): Promise<ToggleRespectOutcome> {
   let circleId: string | undefined;
 
-  const outcome = db.transaction((tx): ToggleRespectOutcome => {
-    const match = tx.select().from(matches).where(eq(matches.id, matchId)).get();
+  const outcome = await db.transaction(async (tx): Promise<ToggleRespectOutcome> => {
+    // Lock the match row so a user's concurrent double-tap serializes on the
+    // read-existing-then-toggle decision (the unique index protects integrity;
+    // the lock makes the reported respected/count consistent).
+    const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
     if (!match) return { ok: false, error: "match_not_found" };
     if (match.status !== "verified") return { ok: false, error: "match_not_verified" };
 
-    const session = tx.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, match.sessionId)).get();
+    const [session] = await tx.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, match.sessionId));
     if (!session) return { ok: false, error: "match_not_found" };
     circleId = session.circleId;
 
-    if (!isMember(tx, session.circleId, userId)) return { ok: false, error: "not_a_circle_member" };
+    if (!(await isMember(tx, session.circleId, userId))) return { ok: false, error: "not_a_circle_member" };
 
-    const existing = tx
+    const [existing] = await tx
       .select({ id: matchReactions.id })
       .from(matchReactions)
-      .where(and(eq(matchReactions.matchId, matchId), eq(matchReactions.userId, userId), eq(matchReactions.kind, "respect")))
-      .get();
+      .where(and(eq(matchReactions.matchId, matchId), eq(matchReactions.userId, userId), eq(matchReactions.kind, "respect")));
 
     if (existing) {
-      tx.delete(matchReactions).where(eq(matchReactions.id, existing.id)).run();
+      await tx.delete(matchReactions).where(eq(matchReactions.id, existing.id));
     } else {
-      tx.insert(matchReactions).values({ matchId, userId, kind: "respect" }).run();
+      await tx.insert(matchReactions).values({ matchId, userId, kind: "respect" });
     }
 
-    const count = tx
+    const reactors = await tx
       .select({ userId: matchReactions.userId })
       .from(matchReactions)
-      .where(and(eq(matchReactions.matchId, matchId), eq(matchReactions.kind, "respect")))
-      .all().length;
+      .where(and(eq(matchReactions.matchId, matchId), eq(matchReactions.kind, "respect")));
 
-    return { ok: true, respected: !existing, count };
+    return { ok: true, respected: !existing, count: reactors.length };
   });
 
   if (outcome.ok && circleId) {

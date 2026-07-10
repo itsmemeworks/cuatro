@@ -52,6 +52,7 @@ import {
 } from "@/lib/geo";
 import { resolvePatch } from "./patch";
 import { slotsForSession, DEFAULT_RSVP_WINDOW_DAYS } from "./games-service";
+import { isUniqueConstraintError } from "./circles";
 import { insertNotification } from "./notify";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 
@@ -109,9 +110,10 @@ function levelLineFor(ratings: (number | null)[]): string {
   return rated.length < ratings.length ? `${range} · mixed` : range;
 }
 
-function loadStandingGame(db: CuatroDb, standingGameId: string | null): StandingGame | null {
+async function loadStandingGame(db: CuatroDb, standingGameId: string | null): Promise<StandingGame | null> {
   if (!standingGameId) return null;
-  return db.select().from(standingGames).where(eq(standingGames.id, standingGameId)).get() ?? null;
+  const [row] = await db.select().from(standingGames).where(eq(standingGames.id, standingGameId));
+  return row ?? null;
 }
 
 function rsvpWindowDaysFor(standingGame: StandingGame | null): number {
@@ -135,24 +137,24 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
   const box = boundingBox(patch.lat, patch.lng, radiusKm);
 
   const memberCircleIds = new Set(
-    db
-      .select({ circleId: circleMembers.circleId })
-      .from(circleMembers)
-      .where(eq(circleMembers.userId, viewerId))
-      .all()
-      .map((r) => r.circleId),
+    (
+      await db
+        .select({ circleId: circleMembers.circleId })
+        .from(circleMembers)
+        .where(eq(circleMembers.userId, viewerId))
+    ).map((r) => r.circleId),
   );
 
   const pendingKnockTargets = new Set(
-    db
-      .select({ targetId: knocks.targetId })
-      .from(knocks)
-      .where(and(eq(knocks.userId, viewerId), eq(knocks.kind, "session"), eq(knocks.status, "pending")))
-      .all()
-      .map((r) => r.targetId),
+    (
+      await db
+        .select({ targetId: knocks.targetId })
+        .from(knocks)
+        .where(and(eq(knocks.userId, viewerId), eq(knocks.kind, "session"), eq(knocks.status, "pending")))
+    ).map((r) => r.targetId),
   );
 
-  const rows = db
+  const rows = await db
     .select({
       sessionId: sessions.id,
       circleId: sessions.circleId,
@@ -171,7 +173,7 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
     .where(
       and(
         eq(sessions.status, "upcoming"),
-        gt(sessions.startsAt, now),
+        gt(sessions.startsAt, now.getTime()),
         eq(circles.boardEnabled, true),
         isNotNull(venues.lat),
         isNotNull(venues.lng),
@@ -180,8 +182,7 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
         gte(venues.lng, box.minLng),
         lte(venues.lng, box.maxLng),
       ),
-    )
-    .all();
+    );
 
   const scored: (BoardGame & { km: number })[] = [];
   for (const row of rows) {
@@ -191,11 +192,11 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
     const km = haversineKm(patch.lat, patch.lng, row.lat, row.lng);
     if (km > radiusKm) continue; // refine the box's corners
 
-    const standingGame = loadStandingGame(db, row.standingGameId);
-    const windowOpensAt = row.startsAt.getTime() - rsvpWindowDaysFor(standingGame) * DAY_MS;
+    const standingGame = await loadStandingGame(db, row.standingGameId);
+    const windowOpensAt = row.startsAt - rsvpWindowDaysFor(standingGame) * DAY_MS;
     if (now.getTime() < windowOpensAt) continue; // RSVP window not open yet
 
-    const confirmed = db
+    const confirmed = await db
       .select({
         userId: users.id,
         displayName: users.displayName,
@@ -206,12 +207,11 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
       })
       .from(rsvps)
       .innerJoin(users, eq(users.id, rsvps.userId))
-      .where(and(eq(rsvps.sessionId, row.sessionId), eq(rsvps.status, "in")))
-      .all();
+      .where(and(eq(rsvps.sessionId, row.sessionId), eq(rsvps.status, "in")));
     // Slots fill (and display) in RSVP arrival order — same sort getSessionSummary uses.
     const confirmedPlayers: BoardConfirmedPlayer[] = confirmed
       .slice()
-      .sort((a, b) => (a.respondedAt?.getTime() ?? 0) - (b.respondedAt?.getTime() ?? 0))
+      .sort((a, b) => (a.respondedAt ?? 0) - (b.respondedAt ?? 0))
       .map((c) => ({
         userId: c.userId,
         displayName: c.displayName,
@@ -230,7 +230,7 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
       circleColour: row.circleColour,
       circleEmblem: row.circleEmblem,
       venueName: row.venueName,
-      startsAt: row.startsAt,
+      startsAt: new Date(row.startsAt),
       slots,
       slotsOpen,
       confirmedCount: confirmed.length,
@@ -267,11 +267,14 @@ export interface SessionKnockView {
 
 /** Pending knocks on a session, oldest first, with the knocker's Glass/Reliability/coarse-distance for the organiser panel. */
 export async function sessionKnocks(db: CuatroDb, sessionId: string): Promise<SessionKnockView[]> {
-  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-  const venue =
-    session?.venueId != null ? (db.select().from(venues).where(eq(venues.id, session.venueId)).get() ?? null) : null;
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+  let venue: typeof venues.$inferSelect | null = null;
+  if (session?.venueId != null) {
+    const [v] = await db.select().from(venues).where(eq(venues.id, session.venueId));
+    venue = v ?? null;
+  }
 
-  const rows = db
+  const rows = await db
     .select({
       knockId: knocks.id,
       message: knocks.message,
@@ -287,8 +290,7 @@ export async function sessionKnocks(db: CuatroDb, sessionId: string): Promise<Se
     .from(knocks)
     .innerJoin(users, eq(users.id, knocks.userId))
     .where(and(eq(knocks.kind, "session"), eq(knocks.targetId, sessionId), eq(knocks.status, "pending")))
-    .orderBy(asc(knocks.createdAt))
-    .all();
+    .orderBy(asc(knocks.createdAt), asc(knocks.id));
 
   const out: SessionKnockView[] = [];
   for (const r of rows) {
@@ -300,7 +302,7 @@ export async function sessionKnocks(db: CuatroDb, sessionId: string): Promise<Se
     out.push({
       knockId: r.knockId,
       message: r.message,
-      createdAt: r.createdAt,
+      createdAt: new Date(r.createdAt),
       userId: r.userId,
       displayName: r.displayName,
       avatarUrl: r.avatarUrl,
@@ -317,40 +319,36 @@ export async function sessionKnocks(db: CuatroDb, sessionId: string): Promise<Se
 // Knock mutations — create / withdraw / decide
 // ---------------------------------------------------------------------------
 
-function countConfirmed(tx: CuatroDb, sessionId: string): number {
-  return (
-    tx
-      .select({ n: sql<number>`count(*)` })
-      .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")))
-      .get()?.n ?? 0
-  );
+async function countConfirmed(tx: CuatroDb, sessionId: string): Promise<number> {
+  const [row] = await tx
+    .select({ n: sql<number>`cast(count(*) as int)` })
+    .from(rsvps)
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+  return row?.n ?? 0;
 }
 
-function confirmedParticipantIds(tx: CuatroDb, sessionId: string): string[] {
-  return tx
+async function confirmedParticipantIds(tx: CuatroDb, sessionId: string): Promise<string[]> {
+  const rows = await tx
     .select({ userId: rsvps.userId })
     .from(rsvps)
-    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")))
-    .all()
-    .map((r) => r.userId);
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+  return rows.map((r) => r.userId);
 }
 
-function organiserIdsFor(tx: CuatroDb, circleId: string): string[] {
-  return tx
+async function organiserIdsFor(tx: CuatroDb, circleId: string): Promise<string[]> {
+  const rows = await tx
     .select({ userId: circleMembers.userId })
     .from(circleMembers)
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.role, "organiser")))
-    .all()
-    .map((r) => r.userId);
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.role, "organiser")));
+  return rows.map((r) => r.userId);
 }
 
-function isCircleMember(tx: CuatroDb, circleId: string, userId: string): boolean {
-  return !!tx
+async function isCircleMember(tx: CuatroDb, circleId: string, userId: string): Promise<boolean> {
+  const [row] = await tx
     .select({ userId: circleMembers.userId })
     .from(circleMembers)
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)))
-    .get();
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+  return !!row;
 }
 
 export type CreateSessionKnockError =
@@ -373,77 +371,82 @@ export type CreateSessionKnockResult = { ok: true; knock: Knock } | { ok: false;
  * enforced here *and* by the `knocks_open_unique` partial index at the DB).
  * Fires a `knock_received` notification to every organiser.
  */
-export function createSessionKnock(
+export async function createSessionKnock(
   db: CuatroDb,
   sessionId: string,
   userId: string,
   message: string | null = null,
   now: Date = new Date(),
-): CreateSessionKnockResult {
+): Promise<CreateSessionKnockResult> {
   let circleId: string | undefined;
 
-  const outcome = db.transaction((tx): CreateSessionKnockResult => {
-    // Guests can't reach this route today (no cuatro_session ever resolves
-    // for a guest), but the gate belongs here too, matching createCircleKnock:
-    // discovery is for account holders (geo contract §5).
-    const knocker = tx.select({ isGuest: users.isGuest }).from(users).where(eq(users.id, userId)).get();
-    if (!knocker || knocker.isGuest) return { ok: false, error: "knock_not_allowed" };
+  let outcome: CreateSessionKnockResult;
+  try {
+    outcome = await db.transaction(async (tx): Promise<CreateSessionKnockResult> => {
+      // Guests can't reach this route today (no cuatro_session ever resolves
+      // for a guest), but the gate belongs here too, matching createCircleKnock:
+      // discovery is for account holders (geo contract §5).
+      const [knocker] = await tx.select({ isGuest: users.isGuest }).from(users).where(eq(users.id, userId));
+      if (!knocker || knocker.isGuest) return { ok: false, error: "knock_not_allowed" };
 
-    const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-    if (!session) return { ok: false, error: "session_not_found" };
-    circleId = session.circleId;
+      // Lock the session row: the capacity (already_full) decision + the
+      // open-knock check must serialize against concurrent claims/knocks.
+      const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
+      if (!session) return { ok: false, error: "session_not_found" };
+      circleId = session.circleId;
 
-    if (session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
-      return { ok: false, error: "session_started" };
-    }
-    if (isCircleMember(tx, session.circleId, userId)) return { ok: false, error: "already_member" };
+      if (session.status !== "upcoming" || now.getTime() >= session.startsAt) {
+        return { ok: false, error: "session_started" };
+      }
+      if (await isCircleMember(tx, session.circleId, userId)) return { ok: false, error: "already_member" };
 
-    const existingRsvp = tx
-      .select()
-      .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)))
-      .get();
-    if (existingRsvp?.status === "in") return { ok: false, error: "already_in" };
+      const [existingRsvp] = await tx
+        .select()
+        .from(rsvps)
+        .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)));
+      if (existingRsvp?.status === "in") return { ok: false, error: "already_in" };
 
-    const standingGame = session.standingGameId ? loadStandingGame(tx, session.standingGameId) : null;
-    if (now.getTime() < session.startsAt.getTime() - rsvpWindowDaysFor(standingGame) * DAY_MS) {
-      return { ok: false, error: "window_not_open" };
-    }
-    if (countConfirmed(tx, sessionId) >= slotsForSession(standingGame)) return { ok: false, error: "already_full" };
+      const standingGame = session.standingGameId ? await loadStandingGame(tx, session.standingGameId) : null;
+      if (now.getTime() < session.startsAt - rsvpWindowDaysFor(standingGame) * DAY_MS) {
+        return { ok: false, error: "window_not_open" };
+      }
+      if ((await countConfirmed(tx, sessionId)) >= slotsForSession(standingGame)) return { ok: false, error: "already_full" };
 
-    // Single shared connection (server/db.ts) ⇒ no concurrent transaction can
-    // interleave, so this pre-check is authoritative; the partial unique index
-    // is the belt-and-braces DB guarantee against any future concurrency.
-    const openKnock = tx
-      .select({ id: knocks.id })
-      .from(knocks)
-      .where(
-        and(
-          eq(knocks.kind, "session"),
-          eq(knocks.targetId, sessionId),
-          eq(knocks.userId, userId),
-          eq(knocks.status, "pending"),
-        ),
-      )
-      .get();
-    if (openKnock) return { ok: false, error: "already_knocked" };
+      // Pre-check for a friendlier error; the `knocks_open_unique` partial
+      // index is the real guarantee against a racing double-knock (caught
+      // below and mapped to the same code).
+      const [openKnock] = await tx
+        .select({ id: knocks.id })
+        .from(knocks)
+        .where(
+          and(
+            eq(knocks.kind, "session"),
+            eq(knocks.targetId, sessionId),
+            eq(knocks.userId, userId),
+            eq(knocks.status, "pending"),
+          ),
+        );
+      if (openKnock) return { ok: false, error: "already_knocked" };
 
-    const knock = tx
-      .insert(knocks)
-      .values({ kind: "session", targetId: sessionId, userId, message: message ?? null })
-      .returning()
-      .get();
+      const [knock] = await tx
+        .insert(knocks)
+        .values({ kind: "session", targetId: sessionId, userId, message: message ?? null })
+        .returning();
 
-    for (const organiserId of organiserIdsFor(tx, session.circleId)) {
-      insertNotification(tx, {
-        userId: organiserId,
-        type: "knock_received",
-        payload: { knockId: knock.id, kind: "session", targetId: sessionId, userId },
-      });
-    }
+      for (const organiserId of await organiserIdsFor(tx, session.circleId)) {
+        await insertNotification(tx, {
+          userId: organiserId,
+          type: "knock_received",
+          payload: { knockId: knock.id, kind: "session", targetId: sessionId, userId },
+        });
+      }
 
-    return { ok: true, knock };
-  });
+      return { ok: true, knock };
+    });
+  } catch (err) {
+    if (isUniqueConstraintError(err)) return { ok: false, error: "already_knocked" };
+    throw err;
+  }
 
   if (outcome.ok && circleId) {
     emitSessionEvent(sessionId, "rsvp", { circleId });
@@ -455,16 +458,16 @@ export function createSessionKnock(
 export type WithdrawSessionKnockResult = { ok: true } | { ok: false; error: "no_open_knock" };
 
 /** The asker withdraws their own pending knock. */
-export function withdrawSessionKnock(
+export async function withdrawSessionKnock(
   db: CuatroDb,
   sessionId: string,
   userId: string,
   now: Date = new Date(),
-): WithdrawSessionKnockResult {
+): Promise<WithdrawSessionKnockResult> {
   let circleId: string | undefined;
 
-  const outcome = db.transaction((tx): WithdrawSessionKnockResult => {
-    const open = tx
+  const outcome = await db.transaction(async (tx): Promise<WithdrawSessionKnockResult> => {
+    const [open] = await tx
       .select()
       .from(knocks)
       .where(
@@ -474,16 +477,14 @@ export function withdrawSessionKnock(
           eq(knocks.userId, userId),
           eq(knocks.status, "pending"),
         ),
-      )
-      .get();
+      );
     if (!open) return { ok: false, error: "no_open_knock" };
 
-    tx.update(knocks)
-      .set({ status: "withdrawn", decidedAt: now, decidedBy: userId })
-      .where(eq(knocks.id, open.id))
-      .run();
+    await tx.update(knocks)
+      .set({ status: "withdrawn", decidedAt: now.getTime(), decidedBy: userId })
+      .where(eq(knocks.id, open.id));
 
-    const session = tx.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, sessionId)).get();
+    const [session] = await tx.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, sessionId));
     circleId = session?.circleId;
     return { ok: true };
   });
@@ -515,27 +516,30 @@ export type DecideSessionKnockResult =
  * fills the four. DECLINE: mark declined. Either way the asker gets the
  * matching knock_accepted / knock_declined notification. Organiser-only.
  */
-export function decideSessionKnock(
+export async function decideSessionKnock(
   db: CuatroDb,
   knockId: string,
   deciderId: string,
   decision: "accept" | "decline",
   now: Date = new Date(),
-): DecideSessionKnockResult {
+): Promise<DecideSessionKnockResult> {
   let circleId: string | undefined;
   let sessionId: string | undefined;
 
-  const outcome = db.transaction((tx): DecideSessionKnockResult => {
-    const knock = tx.select().from(knocks).where(eq(knocks.id, knockId)).get();
+  const outcome = await db.transaction(async (tx): Promise<DecideSessionKnockResult> => {
+    // Lock the knock row so two organisers can't both accept/decline it.
+    const [knock] = await tx.select().from(knocks).where(eq(knocks.id, knockId)).for("update");
     if (!knock || knock.kind !== "session") return { ok: false, error: "knock_not_found" };
     if (knock.status !== "pending") return { ok: false, error: "not_pending" };
 
     sessionId = knock.targetId;
-    const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    // Lock the session row too — the accept path's capacity check + RSVP write
+    // must serialize against concurrent claims filling the same four.
+    const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
     if (!session) return { ok: false, error: "session_not_found" };
     circleId = session.circleId;
 
-    const isOrganiser = !!tx
+    const [organiser] = await tx
       .select({ userId: circleMembers.userId })
       .from(circleMembers)
       .where(
@@ -544,16 +548,14 @@ export function decideSessionKnock(
           eq(circleMembers.userId, deciderId),
           eq(circleMembers.role, "organiser"),
         ),
-      )
-      .get();
-    if (!isOrganiser) return { ok: false, error: "not_an_organiser" };
+      );
+    if (!organiser) return { ok: false, error: "not_an_organiser" };
 
     if (decision === "decline") {
-      tx.update(knocks)
-        .set({ status: "declined", decidedAt: now, decidedBy: deciderId })
-        .where(eq(knocks.id, knockId))
-        .run();
-      insertNotification(tx, {
+      await tx.update(knocks)
+        .set({ status: "declined", decidedAt: now.getTime(), decidedBy: deciderId })
+        .where(eq(knocks.id, knockId));
+      await insertNotification(tx, {
         userId: knock.userId,
         type: "knock_declined",
         payload: { knockId, kind: "session", targetId: sessionId },
@@ -562,48 +564,43 @@ export function decideSessionKnock(
     }
 
     // ACCEPT
-    if (session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+    if (session.status !== "upcoming" || now.getTime() >= session.startsAt) {
       return { ok: false, error: "session_started" };
     }
-    const standingGame = session.standingGameId ? loadStandingGame(tx, session.standingGameId) : null;
+    const standingGame = session.standingGameId ? await loadStandingGame(tx, session.standingGameId) : null;
     const slots = slotsForSession(standingGame);
-    const confirmed = countConfirmed(tx, sessionId);
+    const confirmed = await countConfirmed(tx, sessionId);
     if (confirmed >= slots) return { ok: false, error: "already_full" };
 
-    tx.update(knocks)
-      .set({ status: "accepted", decidedAt: now, decidedBy: deciderId })
-      .where(eq(knocks.id, knockId))
-      .run();
+    await tx.update(knocks)
+      .set({ status: "accepted", decidedAt: now.getTime(), decidedBy: deciderId })
+      .where(eq(knocks.id, knockId));
 
     // Non-member session participant — same write claimFourthCallSlot makes.
-    const existing = tx
+    const [existing] = await tx
       .select()
       .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, knock.userId)))
-      .get();
+      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, knock.userId)));
     if (existing) {
-      tx.update(rsvps)
-        .set({ status: "in", position: null, respondedAt: now, cancelledAt: null, promotedAt: null, source: "fourth_call" })
-        .where(eq(rsvps.id, existing.id))
-        .run();
+      await tx.update(rsvps)
+        .set({ status: "in", position: null, respondedAt: now.getTime(), cancelledAt: null, promotedAt: null, source: "fourth_call" })
+        .where(eq(rsvps.id, existing.id));
     } else {
-      tx.insert(rsvps)
-        .values({ sessionId, userId: knock.userId, status: "in", respondedAt: now, source: "fourth_call" })
-        .run();
+      await tx.insert(rsvps)
+        .values({ sessionId, userId: knock.userId, status: "in", respondedAt: now.getTime(), source: "fourth_call" });
     }
-    tx.update(users)
+    await tx.update(users)
       .set({ rsvpInCount: sql`${users.rsvpInCount} + 1` })
-      .where(eq(users.id, knock.userId))
-      .run();
+      .where(eq(users.id, knock.userId));
 
     const filled = confirmed + 1 >= slots;
     if (confirmed + 1 === slots) {
-      for (const uid of confirmedParticipantIds(tx, sessionId)) {
-        insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
+      for (const uid of await confirmedParticipantIds(tx, sessionId)) {
+        await insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
       }
     }
 
-    insertNotification(tx, {
+    await insertNotification(tx, {
       userId: knock.userId,
       type: "knock_accepted",
       payload: { knockId, kind: "session", targetId: sessionId },

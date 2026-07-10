@@ -161,9 +161,9 @@ export async function getPlayerLedger(userId: string): Promise<PlayerLedger | nu
   const sessionIds = [...new Set(details.map((d) => d?.match.sessionId).filter((id): id is string => !!id))];
   const venueBySessionId = new Map<string, string>();
   if (sessionIds.length > 0) {
-    const sessionRows = db.select({ id: sessions.id, venueId: sessions.venueId }).from(sessions).where(inArray(sessions.id, sessionIds)).all();
+    const sessionRows = await db.select({ id: sessions.id, venueId: sessions.venueId }).from(sessions).where(inArray(sessions.id, sessionIds));
     const venueIds = [...new Set(sessionRows.map((r) => r.venueId).filter((id): id is string => !!id))];
-    const venueRows = venueIds.length > 0 ? db.select({ id: venues.id, name: venues.name }).from(venues).where(inArray(venues.id, venueIds)).all() : [];
+    const venueRows = venueIds.length > 0 ? await db.select({ id: venues.id, name: venues.name }).from(venues).where(inArray(venues.id, venueIds)) : [];
     const venueNameById = new Map(venueRows.map((v) => [v.id, v.name]));
     for (const sr of sessionRows) {
       const name = sr.venueId ? venueNameById.get(sr.venueId) : undefined;

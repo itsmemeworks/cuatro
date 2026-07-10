@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core'
 import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { users } from './users.js'
 
@@ -14,7 +14,7 @@ import { users } from './users.js'
 // partial unique index enforces it, so a re-knock after a decline/withdraw
 // is allowed but a double-knock while one is still pending is rejected at
 // the DB. `decidedAt`/`decidedBy` are set the moment status leaves 'pending'.
-export const knocks = sqliteTable(
+export const knocks = pgTable(
   'knocks',
   {
     id: idColumn(),

@@ -23,9 +23,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const store = await getCirclesStore();
   const circles = await store.listCirclesForUser(user.id);
   const circleIds = circles.map((c) => c.id);
-  const initialHasOpenTabEntries = hasOpenEntriesAgainstViewer(db, circleIds, user.id);
+  const initialHasOpenTabEntries = await hasOpenEntriesAgainstViewer(db, circleIds, user.id);
   // Powers N2 (design/DESIGN-AUDIT.md) — the nav Circle-item's unread-chat dot.
-  const initialHasUnreadCircleMessages = hasUnreadMessages(db, circleIds, user.id);
+  const initialHasUnreadCircleMessages = await hasUnreadMessages(db, circleIds, user.id);
 
   return (
     <div className="min-h-dvh flex flex-col bg-ground text-ink pt-safe">

@@ -64,12 +64,12 @@ export async function createStandingGameAction(formData: FormData): Promise<void
   // The picker submits EITHER a chosen venueId or free-form name + address.
   // Resolve first so a near-duplicate free-form entry dedupe-matches onto an
   // existing venue instead of creating a second row.
-  const venue = resolveSubmittedVenue(db, {
+  const venue = await resolveSubmittedVenue(db, {
     venueId: String(formData.get("venueId") ?? ""),
     name: String(formData.get("venueName") ?? ""),
     address: String(formData.get("venueAddress") ?? ""),
   });
-  const result = createStandingGame(db, user.id, {
+  const result = await createStandingGame(db, user.id, {
     circleId,
     weekday: Number(formData.get("weekday")),
     startTime,
@@ -105,13 +105,13 @@ export async function updateStandingGameAction(id: string, formData: FormData): 
   // Same picker contract as create: a chosen venueId, or free-form name +
   // address that dedupe-matches before creating. `none` (nothing submitted)
   // leaves the game's venue untouched.
-  const venue = resolveSubmittedVenue(db, {
+  const venue = await resolveSubmittedVenue(db, {
     venueId: String(formData.get("venueId") ?? ""),
     name: String(formData.get("venueName") ?? ""),
     address: String(formData.get("venueAddress") ?? ""),
   });
 
-  const result = updateStandingGame(db, user.id, id, {
+  const result = await updateStandingGame(db, user.id, id, {
     weekday: formData.get("weekday") !== null ? Number(formData.get("weekday")) : undefined,
     startTime: formData.get("startTime") ? String(formData.get("startTime")) : undefined,
     durationMinutes: formData.get("durationMinutes") ? Number(formData.get("durationMinutes")) : undefined,
@@ -133,7 +133,7 @@ export async function updateStandingGameAction(id: string, formData: FormData): 
     // journeys finding 5). No-op for edits that don't touch the slot/venue
     // (e.g. a cost-only change). Realtime signals fire AFTER the reschedule
     // transaction commits, per lib/realtime/broadcast.ts's contract.
-    const reschedule = rescheduleUpcomingSessionsForStandingGame(db, id);
+    const reschedule = await rescheduleUpcomingSessionsForStandingGame(db, id);
     if (reschedule.circleId && reschedule.movedSessionIds.length > 0) {
       for (const movedId of reschedule.movedSessionIds) {
         emitSessionEvent(movedId, "rsvp", { circleId: reschedule.circleId });
@@ -151,7 +151,7 @@ export async function toggleStandingGameActiveAction(id: string, active: boolean
   if (!user) return;
 
   const { db } = await getGamesClient();
-  updateStandingGame(db, user.id, id, { active });
+  await updateStandingGame(db, user.id, id, { active });
 
   revalidatePath("/games/standing");
   revalidatePath(`/games/standing/${id}`);

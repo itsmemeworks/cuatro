@@ -35,7 +35,7 @@
  *      /auth/callback once Supabase resolves a real identity.
  */
 import { randomBytes, createHash } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { circleMembers, circles, rsvps, sessions, standingGames, users, type CuatroDb } from "@cuatro/db";
 import { slotsForSession } from "./games-service";
 import { parseRing3ClaimToken } from "./fourth-call";
@@ -63,23 +63,20 @@ export function normalizeGuestName(raw: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function countConfirmed(tx: CuatroDb, sessionId: string): number {
-  return (
-    tx
-      .select({ n: sql<number>`count(*)` })
-      .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")))
-      .get()?.n ?? 0
-  );
+async function countConfirmed(tx: CuatroDb, sessionId: string): Promise<number> {
+  const [row] = await tx
+    .select({ n: sql<number>`cast(count(*) as int)` })
+    .from(rsvps)
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+  return row?.n ?? 0;
 }
 
-function confirmedParticipantIds(tx: CuatroDb, sessionId: string): string[] {
-  return tx
+async function confirmedParticipantIds(tx: CuatroDb, sessionId: string): Promise<string[]> {
+  const rows = await tx
     .select({ userId: rsvps.userId })
     .from(rsvps)
-    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")))
-    .all()
-    .map((r) => r.userId);
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+  return rows.map((r) => r.userId);
 }
 
 /**
@@ -91,39 +88,41 @@ function confirmedParticipantIds(tx: CuatroDb, sessionId: string): string[] {
  * games-service.ts's rsvpOut does — v0 leaves that to the next lazy view,
  * same "no cron" posture as checkFourthCallLevel1/2.
  */
-function sweepExpiredHolds(tx: CuatroDb, sessionId: string, now: Date): void {
-  tx.update(rsvps)
-    .set({ status: "out", holdExpiresAt: null, position: null, cancelledAt: now })
+async function sweepExpiredHolds(tx: CuatroDb, sessionId: string, now: Date): Promise<void> {
+  await tx.update(rsvps)
+    .set({ status: "out", holdExpiresAt: null, position: null, cancelledAt: now.getTime() })
     .where(
       and(
         eq(rsvps.sessionId, sessionId),
         eq(rsvps.status, "in"),
         eq(rsvps.source, "guest_link"),
-        sql`${rsvps.holdExpiresAt} IS NOT NULL AND ${rsvps.holdExpiresAt} < ${now.getTime()}`,
+        isNotNull(rsvps.holdExpiresAt),
+        lt(rsvps.holdExpiresAt, now.getTime()),
       ),
-    )
-    .run();
+    );
 }
 
-function loadSessionForClaim(
+async function loadSessionForClaim(
   tx: CuatroDb,
   sessionId: string,
   now: Date,
-): { session: (typeof sessions.$inferSelect); error?: undefined } | { session?: undefined; error: "session_not_found" | "session_started" } {
-  const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+): Promise<{ session: (typeof sessions.$inferSelect); error?: undefined } | { session?: undefined; error: "session_not_found" | "session_started" }> {
+  // FOR UPDATE: every guest claim/reserve locks the session row up front so the
+  // capacity check + hold sweep + insert serialize against concurrent claims.
+  const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
   if (!session) return { error: "session_not_found" };
-  if (session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+  if (session.status !== "upcoming" || now.getTime() >= session.startsAt) {
     return { error: "session_started" };
   }
   return { session };
 }
 
-function insertGuestUser(tx: CuatroDb, countryCode: string, tokenHash: string) {
-  return tx
+async function insertGuestUser(tx: CuatroDb, countryCode: string, tokenHash: string) {
+  const [row] = await tx
     .insert(users)
     .values({ displayName: GUEST_PLACEHOLDER_NAME, isGuest: true, guestClaimTokenHash: tokenHash, countryCode })
-    .returning()
-    .get();
+    .returning();
+  return row;
 }
 
 export type GuestClaimOutcome =
@@ -131,7 +130,7 @@ export type GuestClaimOutcome =
   | { ok: false; error: "invalid_link" | "session_not_found" | "session_started" | "already_full" };
 
 /** Ring 3's "I can play — claim it" for an anonymous visitor. Verifies `ring3Token` itself (unlike claimFourthCallSlot, there's no signed-in user to already hold a fourth_call invite) then mints a fresh guest identity and soft-holds the open slot for GUEST_HOLD_MS. */
-export function claimGuestSlot(db: CuatroDb, sessionId: string, ring3Token: string, now: Date = new Date()): GuestClaimOutcome {
+export async function claimGuestSlot(db: CuatroDb, sessionId: string, ring3Token: string, now: Date = new Date()): Promise<GuestClaimOutcome> {
   const parsed = parseRing3ClaimToken(ring3Token, now);
   if (!parsed || parsed.sessionId !== sessionId) return { ok: false, error: "invalid_link" };
 
@@ -139,40 +138,38 @@ export function claimGuestSlot(db: CuatroDb, sessionId: string, ring3Token: stri
   const rawToken = mintGuestToken();
   const tokenHash = hashGuestToken(rawToken);
 
-  const outcome = db.transaction((tx): GuestClaimOutcome => {
-    const loaded = loadSessionForClaim(tx, sessionId, now);
+  const outcome = await db.transaction(async (tx): Promise<GuestClaimOutcome> => {
+    const loaded = await loadSessionForClaim(tx, sessionId, now);
     if (loaded.error) return { ok: false, error: loaded.error };
     const { session } = loaded;
     circleId = session.circleId;
 
-    sweepExpiredHolds(tx, sessionId, now);
+    await sweepExpiredHolds(tx, sessionId, now);
 
-    const circle = tx.select().from(circles).where(eq(circles.id, session.circleId)).get();
+    const [circle] = await tx.select().from(circles).where(eq(circles.id, session.circleId));
     const standingGame = session.standingGameId
-      ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+      ? (await tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null
       : null;
     const slots = slotsForSession(standingGame);
-    const confirmedCount = countConfirmed(tx, sessionId);
+    const confirmedCount = await countConfirmed(tx, sessionId);
     if (confirmedCount >= slots) return { ok: false, error: "already_full" };
 
-    const holdExpiresAt = new Date(now.getTime() + GUEST_HOLD_MS);
-    const guest = insertGuestUser(tx, circle?.countryCode ?? "GB", tokenHash);
+    const holdExpiresMs = now.getTime() + GUEST_HOLD_MS;
+    const guest = await insertGuestUser(tx, circle?.countryCode ?? "GB", tokenHash);
 
-    tx.insert(rsvps)
-      .values({ sessionId, userId: guest.id, status: "in", respondedAt: now, source: "guest_link", holdExpiresAt })
-      .run();
-    tx.update(users)
+    await tx.insert(rsvps)
+      .values({ sessionId, userId: guest.id, status: "in", respondedAt: now.getTime(), source: "guest_link", holdExpiresAt: holdExpiresMs });
+    await tx.update(users)
       .set({ rsvpInCount: sql`${users.rsvpInCount} + 1` })
-      .where(eq(users.id, guest.id))
-      .run();
+      .where(eq(users.id, guest.id));
 
     if (confirmedCount + 1 === slots) {
-      for (const uid of confirmedParticipantIds(tx, sessionId)) {
-        insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
+      for (const uid of await confirmedParticipantIds(tx, sessionId)) {
+        await insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
       }
     }
 
-    return { ok: true, status: "in", guestUserId: guest.id, token: rawToken, holdExpiresAt };
+    return { ok: true, status: "in", guestUserId: guest.id, token: rawToken, holdExpiresAt: new Date(holdExpiresMs) };
   });
 
   if (outcome.ok && circleId) {
@@ -187,7 +184,7 @@ export type GuestReserveOutcome =
   | { ok: false; error: "invalid_link" | "session_not_found" | "session_started" };
 
 /** The race-loser path: "X beat you to it" -> one-tap join the reserve queue as a fresh guest. */
-export function joinGuestReserveQueue(db: CuatroDb, sessionId: string, ring3Token: string, now: Date = new Date()): GuestReserveOutcome {
+export async function joinGuestReserveQueue(db: CuatroDb, sessionId: string, ring3Token: string, now: Date = new Date()): Promise<GuestReserveOutcome> {
   const parsed = parseRing3ClaimToken(ring3Token, now);
   if (!parsed || parsed.sessionId !== sessionId) return { ok: false, error: "invalid_link" };
 
@@ -195,24 +192,24 @@ export function joinGuestReserveQueue(db: CuatroDb, sessionId: string, ring3Toke
   const rawToken = mintGuestToken();
   const tokenHash = hashGuestToken(rawToken);
 
-  const outcome = db.transaction((tx): GuestReserveOutcome => {
-    const loaded = loadSessionForClaim(tx, sessionId, now);
+  const outcome = await db.transaction(async (tx): Promise<GuestReserveOutcome> => {
+    const loaded = await loadSessionForClaim(tx, sessionId, now);
     if (loaded.error) return { ok: false, error: loaded.error };
     const { session } = loaded;
     circleId = session.circleId;
 
-    const circle = tx.select().from(circles).where(eq(circles.id, session.circleId)).get();
-    const guest = insertGuestUser(tx, circle?.countryCode ?? "GB", tokenHash);
+    const [circle] = await tx.select().from(circles).where(eq(circles.id, session.circleId));
+    const guest = await insertGuestUser(tx, circle?.countryCode ?? "GB", tokenHash);
 
-    const maxPos =
-      tx
-        .select({ n: sql<number>`coalesce(max(${rsvps.position}), 0)` })
-        .from(rsvps)
-        .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "reserve")))
-        .get()?.n ?? 0;
-    const position = maxPos + 1;
+    // Session row is already locked (loadSessionForClaim FOR UPDATE), so the
+    // max-position read + insert can't race another reserve joiner.
+    const [maxRow] = await tx
+      .select({ n: sql<number>`coalesce(max(${rsvps.position}), 0)` })
+      .from(rsvps)
+      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "reserve")));
+    const position = (maxRow?.n ?? 0) + 1;
 
-    tx.insert(rsvps).values({ sessionId, userId: guest.id, status: "reserve", position, respondedAt: now, source: "guest_link" }).run();
+    await tx.insert(rsvps).values({ sessionId, userId: guest.id, status: "reserve", position, respondedAt: now.getTime(), source: "guest_link" });
 
     return { ok: true, status: "reserve", guestUserId: guest.id, token: rawToken, position };
   });
@@ -229,30 +226,30 @@ export type LockGuestNameOutcome =
   | { ok: false; error: "invalid_name" | "not_found" | "slot_lost" };
 
 /** The name step: "Spot held. Who should we say is coming?" -> "Lock it in". */
-export function lockGuestName(
+export async function lockGuestName(
   db: CuatroDb,
   guestUserId: string,
   sessionId: string,
   rawName: string,
   now: Date = new Date(),
-): LockGuestNameOutcome {
+): Promise<LockGuestNameOutcome> {
   const displayName = normalizeGuestName(rawName);
   if (!displayName) return { ok: false, error: "invalid_name" };
 
   let circleId: string | undefined;
-  const outcome = db.transaction((tx): LockGuestNameOutcome => {
-    const user = tx.select().from(users).where(eq(users.id, guestUserId)).get();
+  const outcome = await db.transaction(async (tx): Promise<LockGuestNameOutcome> => {
+    const [user] = await tx.select().from(users).where(eq(users.id, guestUserId));
     if (!user || !user.isGuest) return { ok: false, error: "not_found" };
 
-    const rsvp = tx.select().from(rsvps).where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, guestUserId))).get();
+    const [rsvp] = await tx.select().from(rsvps).where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, guestUserId)));
     if (!rsvp || rsvp.status === "out") return { ok: false, error: "slot_lost" };
 
-    tx.update(users).set({ displayName, updatedAt: now }).where(eq(users.id, guestUserId)).run();
+    await tx.update(users).set({ displayName, updatedAt: now.getTime() }).where(eq(users.id, guestUserId));
     if (rsvp.holdExpiresAt) {
-      tx.update(rsvps).set({ holdExpiresAt: null }).where(eq(rsvps.id, rsvp.id)).run();
+      await tx.update(rsvps).set({ holdExpiresAt: null }).where(eq(rsvps.id, rsvp.id));
     }
 
-    const session = tx.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, sessionId)).get();
+    const [session] = await tx.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, sessionId));
     circleId = session?.circleId;
 
     return { ok: true, displayName };
@@ -266,12 +263,11 @@ export function lockGuestName(
 }
 
 /** Resolves a raw device-cookie token to a still-guest user id, or null (no match, or that row has since converted — guestClaimTokenHash is cleared on conversion so a stale cookie can never resolve again). */
-export function getGuestUserId(db: CuatroDb, rawToken: string): string | null {
-  const row = db
+export async function getGuestUserId(db: CuatroDb, rawToken: string): Promise<string | null> {
+  const [row] = await db
     .select({ id: users.id, isGuest: users.isGuest })
     .from(users)
-    .where(eq(users.guestClaimTokenHash, hashGuestToken(rawToken)))
-    .get();
+    .where(eq(users.guestClaimTokenHash, hashGuestToken(rawToken)));
   return row?.isGuest ? row.id : null;
 }
 
@@ -302,39 +298,38 @@ export type JoinGuestCircleOutcome =
  * usable existing guest row is a fresh one (and a fresh device token) minted;
  * the caller sets the cookie iff `token` comes back non-null.
  */
-export function joinGuestCircle(
+export async function joinGuestCircle(
   db: CuatroDb,
   { inviteCode, rawName, existingGuestUserId }: { inviteCode: string; rawName: string; existingGuestUserId?: string | null },
   now: Date = new Date(),
-): JoinGuestCircleOutcome {
+): Promise<JoinGuestCircleOutcome> {
   const displayName = normalizeGuestName(rawName);
   if (!displayName) return { ok: false, error: "invalid_name" };
 
-  const circle = db.select().from(circles).where(eq(circles.inviteCode, inviteCode)).get();
+  const [circle] = await db.select().from(circles).where(eq(circles.inviteCode, inviteCode));
   if (!circle) return { ok: false, error: "circle_not_found" };
 
   const rawToken = mintGuestToken();
   const tokenHash = hashGuestToken(rawToken);
 
   try {
-    return db.transaction((tx): JoinGuestCircleOutcome => {
-      const existing = existingGuestUserId
-        ? tx.select().from(users).where(eq(users.id, existingGuestUserId)).get()
-        : undefined;
+    return await db.transaction(async (tx): Promise<JoinGuestCircleOutcome> => {
+      const [existing] = existingGuestUserId
+        ? await tx.select().from(users).where(eq(users.id, existingGuestUserId))
+        : [undefined];
       const reuse = existing?.isGuest ? existing : null;
 
       let guestUserId: string;
       let token: string | null;
       if (reuse) {
-        tx.update(users).set({ displayName, updatedAt: now }).where(eq(users.id, reuse.id)).run();
+        await tx.update(users).set({ displayName, updatedAt: now.getTime() }).where(eq(users.id, reuse.id));
         guestUserId = reuse.id;
         token = null; // the device cookie already carries this identity
       } else {
-        const guest = tx
+        const [guest] = await tx
           .insert(users)
           .values({ displayName, isGuest: true, guestClaimTokenHash: tokenHash, countryCode: circle.countryCode })
-          .returning()
-          .get();
+          .returning();
         guestUserId = guest.id;
         token = rawToken;
       }
@@ -342,7 +337,7 @@ export function joinGuestCircle(
       // Shared membership path — enforces the Circle's capacity in this same
       // transaction. A full capped Circle throws CircleFullError, rolling back
       // the whole join (including a freshly-minted guest row), caught below.
-      insertCircleMembership(tx, circle.id, guestUserId);
+      await insertCircleMembership(tx, circle.id, guestUserId);
 
       return { ok: true, guestUserId, token, circleId: circle.id, circleName: circle.name, displayName };
     });
@@ -353,13 +348,12 @@ export function joinGuestCircle(
 }
 
 /** The guest's displayName if `guestUserId` is already a member of `circleId`, else null — the /join/[code] page's "is this guest in yet?" check that picks the done-vs-join step. */
-export function getGuestMembership(db: CuatroDb, guestUserId: string, circleId: string): { displayName: string } | null {
-  const row = db
+export async function getGuestMembership(db: CuatroDb, guestUserId: string, circleId: string): Promise<{ displayName: string } | null> {
+  const [row] = await db
     .select({ displayName: users.displayName })
     .from(circleMembers)
     .innerJoin(users, eq(circleMembers.userId, users.id))
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, guestUserId), eq(users.isGuest, true)))
-    .get();
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, guestUserId), eq(users.isGuest, true)));
   return row ? { displayName: row.displayName } : null;
 }
 
@@ -401,65 +395,63 @@ export type ConvertGuestResult =
  * the first-run name step against the POST-conversion name, so a guest who
  * already named themselves isn't re-prompted with the wrong prefill.
  */
-export function convertGuestOnAuth(db: CuatroDb, guestUserId: string, resolvedUserId: string, now: Date = new Date()): ConvertGuestResult {
-  return db.transaction((tx): ConvertGuestResult => {
-    const guest = tx.select().from(users).where(eq(users.id, guestUserId)).get();
+export async function convertGuestOnAuth(db: CuatroDb, guestUserId: string, resolvedUserId: string, now: Date = new Date()): Promise<ConvertGuestResult> {
+  const nowMs = now.getTime();
+  return db.transaction(async (tx): Promise<ConvertGuestResult> => {
+    // Lock the guest row: the re-point-then-clear-token sequence must not race
+    // a second conversion of the same guest identity.
+    const [guest] = await tx.select().from(users).where(eq(users.id, guestUserId)).for("update");
     if (!guest || !guest.isGuest) return { converted: false, reason: "not_a_guest" };
 
     const chosenName = guest.displayName !== GUEST_PLACEHOLDER_NAME ? guest.displayName : null;
 
     if (guestUserId === resolvedUserId) {
-      tx.update(users).set({ isGuest: false, guestClaimTokenHash: null, updatedAt: now }).where(eq(users.id, guestUserId)).run();
+      await tx.update(users).set({ isGuest: false, guestClaimTokenHash: null, updatedAt: nowMs }).where(eq(users.id, guestUserId));
       return { converted: true, merged: false, carriedName: chosenName };
     }
 
-    const guestRsvps = tx.select().from(rsvps).where(eq(rsvps.userId, guestUserId)).all();
+    const guestRsvps = await tx.select().from(rsvps).where(eq(rsvps.userId, guestUserId));
     for (const row of guestRsvps) {
-      const clash = tx
+      const [clash] = await tx
         .select({ id: rsvps.id })
         .from(rsvps)
-        .where(and(eq(rsvps.sessionId, row.sessionId), eq(rsvps.userId, resolvedUserId)))
-        .get();
+        .where(and(eq(rsvps.sessionId, row.sessionId), eq(rsvps.userId, resolvedUserId)));
       if (clash) {
-        tx.delete(rsvps).where(eq(rsvps.id, row.id)).run();
+        await tx.delete(rsvps).where(eq(rsvps.id, row.id));
       } else {
-        tx.update(rsvps).set({ userId: resolvedUserId }).where(eq(rsvps.id, row.id)).run();
+        await tx.update(rsvps).set({ userId: resolvedUserId }).where(eq(rsvps.id, row.id));
       }
     }
 
-    const guestMemberships = tx.select().from(circleMembers).where(eq(circleMembers.userId, guestUserId)).all();
+    const guestMemberships = await tx.select().from(circleMembers).where(eq(circleMembers.userId, guestUserId));
     for (const row of guestMemberships) {
-      const clash = tx
+      const [clash] = await tx
         .select({ userId: circleMembers.userId })
         .from(circleMembers)
-        .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, resolvedUserId)))
-        .get();
+        .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, resolvedUserId)));
       if (clash) {
-        tx.delete(circleMembers)
-          .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, guestUserId)))
-          .run();
+        await tx.delete(circleMembers)
+          .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, guestUserId)));
       } else {
-        tx.update(circleMembers)
+        await tx.update(circleMembers)
           .set({ userId: resolvedUserId })
-          .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, guestUserId)))
-          .run();
+          .where(and(eq(circleMembers.circleId, row.circleId), eq(circleMembers.userId, guestUserId)));
       }
     }
 
     let carriedName: string | null = null;
     if (chosenName) {
-      const resolved = tx
+      const [resolved] = await tx
         .select({ displayName: users.displayName, email: users.email })
         .from(users)
-        .where(eq(users.id, resolvedUserId))
-        .get();
+        .where(eq(users.id, resolvedUserId));
       if (resolved && displayNameLooksDerived(resolved.displayName, resolved.email)) {
-        tx.update(users).set({ displayName: chosenName, updatedAt: now }).where(eq(users.id, resolvedUserId)).run();
+        await tx.update(users).set({ displayName: chosenName, updatedAt: nowMs }).where(eq(users.id, resolvedUserId));
         carriedName = chosenName;
       }
     }
 
-    tx.update(users).set({ guestClaimTokenHash: null, updatedAt: now }).where(eq(users.id, guestUserId)).run();
+    await tx.update(users).set({ guestClaimTokenHash: null, updatedAt: nowMs }).where(eq(users.id, guestUserId));
     return { converted: true, merged: true, carriedName };
   });
 }

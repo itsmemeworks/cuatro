@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { db } = await getDb();
-  const result = addSplitEntry(db, {
+  const result = await addSplitEntry(db, {
     circleId,
     payerUserId: user.id,
     debtorUserIds,

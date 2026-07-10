@@ -23,8 +23,10 @@ session; Reliability >100%) was hotfixed and deployed mid-review (`93b9708`).
    anyone opening the app + VAPID keys set in Fly so web push actually sends.
 3. SEEING IT BREAK: /api/health does a real DB read; Sentry + global error
    boundary (Pete's stack default; currently zero telemetry).
-4. LEDGER SAFETY: Litestream (or scheduled off-box VACUUM INTO) for the SQLite
-   volume before real data accrues; current snapshots are not WAL-consistent.
+4. LEDGER SAFETY: SUPERSEDED 2026-07-10 by the Postgres conversion (data
+   lives in each env's Supabase project; managed backups). Remaining action:
+   put the prod project on Supabase Pro before real users (daily backups,
+   no free-tier pausing).
 5. PRODUCT BUGS (journeys audit):
    - Court cost cannot be added after Standing Game creation (edit drops it
      silently) → the Tab one-tap split becomes permanently unreachable. Fix +
@@ -46,8 +48,21 @@ session; Reliability >100%) was hotfixed and deployed mid-review (`93b9708`).
    loading.tsx + error.tsx; 3 one-coral violations; loss-tone error in
    nearby-circle-card; "Circle" capitalisation; 2 copy nits (missing space in
    confirm-settled; weekday label on Tab splits).
-9. E2E: run the charter's prod smoke against cuatro.fly.dev once SMTP lands
+9. E2E: run the charter's prod smoke against padelcuatro.com once SMTP lands
    (it has never been run against prod), re-driving the post-2026-07-08 waves.
+10. FRIENDLIES (Pete, 2026-07-10): circles need a way to keep scores without
+    moving Glass. Mechanic: a Competitive/Friendly game classification
+    (circle default, per-game override). Friendly results record scores,
+    attendance, Reliability, streaks and played-with, but write NO rating
+    events; Glass and confidence untouched; clearly badged in the UI. The
+    §9 seal-rate metric counts competitive games only.
+11. GUEST HISTORY MERGE (Pete, 2026-07-10, promoted from v1.1): a guest who
+    converts or signs in must keep their match history and rating trail.
+    Same-row conversion (guest cookie at auth callback) already keeps it;
+    the stranding case is a guest claimed into an EXISTING account — merge
+    participations and Ledger events. If the account has no rating history,
+    adopt the guest trail wholesale; if both have history, design the merge
+    honestly (append-only Ledger must never be rewritten).
 
 ## Explicitly deferred to v1.1 (recommended)
 

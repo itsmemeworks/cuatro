@@ -12,7 +12,7 @@ export async function GET() {
   const { db } = await getDb();
   const store = await getCirclesStore();
   const circles = await store.listCirclesForUser(user.id);
-  const hasOpenEntries = hasOpenEntriesAgainstViewer(
+  const hasOpenEntries = await hasOpenEntriesAgainstViewer(
     db,
     circles.map((c) => c.id),
     user.id,

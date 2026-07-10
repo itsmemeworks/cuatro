@@ -20,11 +20,11 @@ import type { CuatroDb } from "@cuatro/db";
 import { insertNotification } from "./notify";
 
 /** A rotation-selected player has been locked into this week's four. */
-export function notifyRotationSelected(tx: CuatroDb, userId: string, sessionId: string): void {
-  insertNotification(tx, { userId, type: "rotation_selected", payload: { sessionId } });
+export async function notifyRotationSelected(tx: CuatroDb, userId: string, sessionId: string): Promise<void> {
+  await insertNotification(tx, { userId, type: "rotation_selected", payload: { sessionId } });
 }
 
 /** A rotation player is sitting out this week (first in the auto-promote queue). */
-export function notifyRotationSittingOut(tx: CuatroDb, userId: string, sessionId: string): void {
-  insertNotification(tx, { userId, type: "rotation_sitting_out", payload: { sessionId } });
+export async function notifyRotationSittingOut(tx: CuatroDb, userId: string, sessionId: string): Promise<void> {
+  await insertNotification(tx, { userId, type: "rotation_sitting_out", payload: { sessionId } });
 }

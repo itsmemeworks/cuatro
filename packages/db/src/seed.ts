@@ -171,7 +171,7 @@ export async function seed(db: CuatroDb) {
       circleId: tuesdayCircle.id,
       userId: byName(name).id,
       role,
-      joinedAt: new Date(now - (40 - i) * DAY_MS),
+      joinedAt: now - (40 - i) * DAY_MS,
     })),
     ...[
       { name: 'Nadia Petrov', role: 'organiser' as const },
@@ -183,7 +183,7 @@ export async function seed(db: CuatroDb) {
       circleId: weekendCircle.id,
       userId: byName(name).id,
       role,
-      joinedAt: new Date(now - (25 - i) * DAY_MS),
+      joinedAt: now - (25 - i) * DAY_MS,
     })),
   ])
 
@@ -218,7 +218,7 @@ export async function seed(db: CuatroDb) {
     standingGameId: tuesdayStanding.id,
     circleId: tuesdayCircle.id,
     venueId: shoreditchVenue.id,
-    startsAt: new Date(now - 14 * DAY_MS),
+    startsAt: now - 14 * DAY_MS,
     status: 'played' as const,
   }
   const tuesdayPlayed2 = {
@@ -226,7 +226,7 @@ export async function seed(db: CuatroDb) {
     standingGameId: tuesdayStanding.id,
     circleId: tuesdayCircle.id,
     venueId: shoreditchVenue.id,
-    startsAt: new Date(now - 7 * DAY_MS),
+    startsAt: now - 7 * DAY_MS,
     status: 'played' as const,
   }
   const tuesdayUpcoming = {
@@ -234,7 +234,7 @@ export async function seed(db: CuatroDb) {
     standingGameId: tuesdayStanding.id,
     circleId: tuesdayCircle.id,
     venueId: shoreditchVenue.id,
-    startsAt: new Date(now + 5 * DAY_MS),
+    startsAt: now + 5 * DAY_MS,
     status: 'upcoming' as const,
   }
   const weekendPlayed1 = {
@@ -242,7 +242,7 @@ export async function seed(db: CuatroDb) {
     standingGameId: weekendStanding.id,
     circleId: weekendCircle.id,
     venueId: wandsworthVenue.id,
-    startsAt: new Date(now - 10 * DAY_MS),
+    startsAt: now - 10 * DAY_MS,
     status: 'played' as const,
   }
   const weekendUpcoming = {
@@ -250,7 +250,7 @@ export async function seed(db: CuatroDb) {
     standingGameId: weekendStanding.id,
     circleId: weekendCircle.id,
     venueId: wandsworthVenue.id,
-    startsAt: new Date(now + 3 * DAY_MS),
+    startsAt: now + 3 * DAY_MS,
     status: 'upcoming' as const,
   }
   await db
@@ -277,7 +277,7 @@ export async function seed(db: CuatroDb) {
   // Team A: Alex 4.10 + Priya 3.70 -> avg 3.90. Team B: Jordan 3.95 + Kwame 3.65 -> avg 3.80.
   // P(A) = 0.613, margin multiplier = 1.13 (12 of 19 games).
   const match1Id = uuid()
-  const match1ConfirmedAt = new Date(tuesdayPlayed1.startsAt.getTime() + 90 * 60 * 1000)
+  const match1ConfirmedAt = tuesdayPlayed1.startsAt + 90 * 60 * 1000
   await db.insert(matches).values({
     id: match1Id,
     sessionId: tuesdayPlayed1.id,
@@ -377,7 +377,7 @@ export async function seed(db: CuatroDb) {
 
   // ---- Match 2 (tuesdayPlayed2): Tom's Placement Trio completes; Lucia's first placement match ----
   const match2Id = uuid()
-  const match2ConfirmedAt = new Date(tuesdayPlayed2.startsAt.getTime() + 95 * 60 * 1000)
+  const match2ConfirmedAt = tuesdayPlayed2.startsAt + 95 * 60 * 1000
   await db.insert(matches).values({
     id: match2Id,
     sessionId: tuesdayPlayed2.id,
@@ -483,7 +483,7 @@ export async function seed(db: CuatroDb) {
 
   // ---- Match 3 (weekendPlayed1): Marcus's first placement match ----
   const match3Id = uuid()
-  const match3ConfirmedAt = new Date(weekendPlayed1.startsAt.getTime() + 90 * 60 * 1000)
+  const match3ConfirmedAt = weekendPlayed1.startsAt + 90 * 60 * 1000
   await db.insert(matches).values({
     id: match3Id,
     sessionId: weekendPlayed1.id,
@@ -598,7 +598,7 @@ export async function seed(db: CuatroDb) {
       currency: 'GBP',
       status: 'settled',
       settledConfirmedBy: alex.id,
-      settledAt: new Date(match1ConfirmedAt.getTime() + 60 * 60 * 1000),
+      settledAt: match1ConfirmedAt + 60 * 60 * 1000,
     },
     {
       tabId: tuesdayTabId,
@@ -609,7 +609,7 @@ export async function seed(db: CuatroDb) {
       currency: 'GBP',
       status: 'settled',
       settledConfirmedBy: alex.id,
-      settledAt: new Date(match1ConfirmedAt.getTime() + 2 * 60 * 60 * 1000),
+      settledAt: match1ConfirmedAt + 2 * 60 * 60 * 1000,
     },
     {
       tabId: tuesdayTabId,
@@ -619,7 +619,7 @@ export async function seed(db: CuatroDb) {
       amountMinor: 800,
       currency: 'GBP',
       status: 'nudged',
-      nudgedAt: new Date(now - 2 * DAY_MS),
+      nudgedAt: now - 2 * DAY_MS,
     },
     {
       tabId: tuesdayTabId,
@@ -648,7 +648,7 @@ export async function seed(db: CuatroDb) {
       currency: 'GBP',
       status: 'settled',
       settledConfirmedBy: nadia.id,
-      settledAt: new Date(now - 9 * DAY_MS),
+      settledAt: now - 9 * DAY_MS,
     },
     {
       tabId: weekendTabId,
@@ -667,29 +667,29 @@ export async function seed(db: CuatroDb) {
       userId: sofia.id,
       type: 'fourth_call',
       payload: { sessionId: tuesdayUpcoming.id, level: 1 },
-      createdAt: new Date(now - 1 * DAY_MS),
+      createdAt: now - 1 * DAY_MS,
     },
     {
       userId: kwame.id,
       type: 'tab_nudge',
       payload: { tabEntryAmountMinor: 800, currency: 'GBP', debtorUserId: kwame.id },
-      createdAt: new Date(now - 2 * DAY_MS),
+      createdAt: now - 2 * DAY_MS,
     },
     {
       userId: tom.id,
       type: 'placement_complete',
       payload: { rating: 3.25 },
-      readAt: new Date(match2ConfirmedAt.getTime() + 10 * 60 * 1000),
+      readAt: match2ConfirmedAt + 10 * 60 * 1000,
       createdAt: match2ConfirmedAt,
     },
   ])
 }
 
 async function main() {
-  const { db, close } = createClient()
+  const { db, close } = await createClient()
   await seed(db)
   console.log('[@cuatro/db] seed complete')
-  close()
+  await close()
 }
 
 // Only run automatically when executed directly (`npm run seed`), not when

@@ -28,15 +28,13 @@ import { circleColorFor } from "@/lib/design";
  * not a new server export: the Feed read model only ever returns its
  * most-recent `limit` items, never a circle-wide total.
  */
-function countVerifiedMatches(db: CuatroDb, circleId: string): number {
-  return (
-    db
-      .select({ n: sql<number>`count(*)` })
-      .from(matches)
-      .innerJoin(sessions, eq(matches.sessionId, sessions.id))
-      .where(and(eq(sessions.circleId, circleId), eq(matches.status, "verified")))
-      .get()?.n ?? 0
-  );
+async function countVerifiedMatches(db: CuatroDb, circleId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`cast(count(*) as int)` })
+    .from(matches)
+    .innerJoin(sessions, eq(matches.sessionId, sessions.id))
+    .where(and(eq(sessions.circleId, circleId), eq(matches.status, "verified")));
+  return row?.n ?? 0;
 }
 
 function serializeMessages(messages: CircleMessageView[]): ChatMessage[] {
@@ -79,7 +77,7 @@ export default async function CircleDetailPage({
   const allCircles = await store.listCirclesForUser(user.id);
 
   const { db } = await getGamesClient();
-  const sessionSummaries = listUpcomingSessionsForCircle(db, id, user.id);
+  const sessionSummaries = await listUpcomingSessionsForCircle(db, id, user.id);
   const sessionCards: SessionCardData[] = sessionSummaries.map((s) => ({
     sessionId: s.session.id,
     circleId: s.circleId,
@@ -87,7 +85,7 @@ export default async function CircleDetailPage({
     circleColour: s.circleColour,
     circleEmblem: s.circleEmblem,
     venueName: s.venue?.name ?? null,
-    startsAt: s.session.startsAt,
+    startsAt: new Date(s.session.startsAt),
     slots: s.slots,
     confirmed: s.confirmed,
     reserves: s.reserves,
@@ -96,7 +94,7 @@ export default async function CircleDetailPage({
     fourthCallActive: isFourthCallActive(s),
   }));
 
-  const { items, rivalry } = listCircleFeed(db, id, user.id);
+  const { items, rivalry } = await listCircleFeed(db, id, user.id);
   const feedItems: FeedItemData[] = items.map((item) =>
     item.kind === "result"
       ? {
@@ -132,8 +130,8 @@ export default async function CircleDetailPage({
         },
   );
 
-  const unreadChatBadge = getUnreadCountForCircle(db, id, user.id);
-  const gamesCount = countVerifiedMatches(db, id);
+  const unreadChatBadge = await getUnreadCountForCircle(db, id, user.id);
+  const gamesCount = await countVerifiedMatches(db, id);
 
   // Home court: the Circle's most-used pinned venue (server/open-door.ts's
   // derived anchor — no schema column). Everyone sees the venue name; the

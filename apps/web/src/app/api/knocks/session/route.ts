@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { db } = await getDb();
-  const result = createSessionKnock(db, sessionId.trim(), user.id, message);
+  const result = await createSessionKnock(db, sessionId.trim(), user.id, message);
   if (!result.ok) {
     // already_knocked / already_member / already_in / already_full are
     // expected conflicts, not server faults — 409.
@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   const { db } = await getDb();
-  const result = withdrawSessionKnock(db, sessionId.trim(), user.id);
+  const result = await withdrawSessionKnock(db, sessionId.trim(), user.id);
   if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 });
   return NextResponse.json({ ok: true });
 }

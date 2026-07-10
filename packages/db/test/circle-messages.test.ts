@@ -1,20 +1,21 @@
+import { asc, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createClient } from '../src/client.js'
+import { createTestClient } from '../src/client.js'
 import type { CuatroClient } from '../src/client.js'
 import { circleMessages, circles, users } from '../src/schema/index.js'
 
 describe('circle_messages', () => {
   let client: CuatroClient
 
-  beforeEach(() => {
-    client = createClient(':memory:')
+  beforeEach(async () => {
+    client = await createTestClient()
   })
 
-  afterEach(() => {
-    client.close()
+  afterEach(async () => {
+    await client.close()
   })
 
-  it('persists a message and orders by insertion (rowid) even when created_at ties', async () => {
+  it('persists a message and orders by the seq identity even when created_at ties', async () => {
     const [author] = await client.db
       .insert(users)
       .values({ email: 'chat@example.com', displayName: 'Chat User' })
@@ -24,18 +25,21 @@ describe('circle_messages', () => {
       .values({ name: 'Chat Circle', inviteCode: 'CHATCIRCLE', createdBy: author.id })
       .returning()
 
-    // All three share one Date instance to reproduce the ms-resolution tie
-    // that the rowid ordering (see schema comment) is there to break.
-    const sameInstant = new Date()
+    // All three share one createdAt to reproduce the ms-resolution tie that
+    // the `seq` identity column (see schema comment) is there to break —
+    // Postgres has no rowid, so insertion order is carried by seq instead.
+    const sameInstant = Date.now()
     await client.db.insert(circleMessages).values([
       { circleId: circle.id, userId: author.id, body: 'first', createdAt: sameInstant },
       { circleId: circle.id, userId: author.id, body: 'second', createdAt: sameInstant },
       { circleId: circle.id, userId: author.id, body: 'third', createdAt: sameInstant },
     ])
 
-    const rows = client.sqlite
-      .prepare('select body from circle_messages where circle_id = ? order by rowid asc')
-      .all(circle.id) as { body: string }[]
+    const rows = await client.db
+      .select({ body: circleMessages.body })
+      .from(circleMessages)
+      .where(eq(circleMessages.circleId, circle.id))
+      .orderBy(asc(circleMessages.seq))
 
     expect(rows.map((r) => r.body)).toEqual(['first', 'second', 'third'])
   })

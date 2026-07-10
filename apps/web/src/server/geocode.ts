@@ -123,10 +123,10 @@ export async function backfillVenueGeocodes(client: CuatroClient): Promise<Backf
 }
 
 async function main() {
-  const client = createClient()
+  const client = await createClient()
   const result = await backfillVenueGeocodes(client)
   console.log(`[@cuatro/geocode] backfill: ${JSON.stringify(result)}`)
-  client.close()
+  await client.close()
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -192,7 +192,7 @@ function toSessionCardData(s: SessionSummary): SessionCardData {
     circleColour: s.circleColour,
     circleEmblem: s.circleEmblem,
     venueName: s.venue?.name ?? null,
-    startsAt: s.session.startsAt,
+    startsAt: new Date(s.session.startsAt),
     slots: s.slots,
     confirmed: s.rotation ? s.rotation.lineup : s.confirmed,
     reserves: s.rotation ? s.rotation.sitting : s.reserves,
@@ -204,7 +204,7 @@ function toSessionCardData(s: SessionSummary): SessionCardData {
 }
 
 function needsRsvp(s: SessionSummary, now: number): boolean {
-  return s.viewerStatus === null && now >= s.rsvpWindowOpensAt.getTime() && now < s.session.startsAt.getTime();
+  return s.viewerStatus === null && now >= s.rsvpWindowOpensAt.getTime() && now < s.session.startsAt;
 }
 
 export default async function HomePage() {
@@ -229,9 +229,9 @@ export default async function HomePage() {
   // The bell that used to live in the bottom nav (see bottom-nav.tsx) — the
   // prototype's Home screen has no nav-level notification affordance, so it
   // moves to this header instead, top-right next to the avatar.
-  const initialUnreadCount = getUnreadCount(gamesClient.db, user.id);
+  const initialUnreadCount = await getUnreadCount(gamesClient.db, user.id);
 
-  const sessionSummaries = listUpcomingSessionsForUser(gamesClient.db, user.id);
+  const sessionSummaries = await listUpcomingSessionsForUser(gamesClient.db, user.id);
   const activeFourthCalls = sessionSummaries.filter((s) => isFourthCallActive(s));
 
   // THE ONE coral action on this screen (components/ui/button.tsx's rule)
@@ -250,7 +250,7 @@ export default async function HomePage() {
         circleColour: featured.circleColour,
         circleEmblem: featured.circleEmblem,
         venueName: featured.venue?.name ?? null,
-        startsAt: featured.session.startsAt,
+        startsAt: new Date(featured.session.startsAt),
         slots: featured.slots,
         confirmed: featured.confirmed,
       }
@@ -310,7 +310,7 @@ export default async function HomePage() {
           sessionId: s.session.id,
           circleName: s.circleName,
           venueName: s.venue?.name ?? null,
-          startsAt: s.session.startsAt,
+          startsAt: new Date(s.session.startsAt),
           askerAvatarUrl: asker?.avatarUrl ?? null,
           askerName: asker?.displayName ?? s.circleName,
           levelRangeLabel,
@@ -324,7 +324,7 @@ export default async function HomePage() {
   // one surface summarising the whole week, not just one Circle's Tab.
   const owedRows: { circleId: string; circleName: string; name: string; amountMinor: number; currency: string; description: string | null }[] = [];
   for (const circle of circles) {
-    const view = getTabView(gamesClient.db, circle.id, user.id);
+    const view = await getTabView(gamesClient.db, circle.id, user.id);
     if (!view) continue;
     for (const balance of view.balances) {
       if (balance.netMinor >= 0) continue; // only "you owe" rows get a Settle prompt on Home

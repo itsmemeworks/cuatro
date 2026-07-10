@@ -46,7 +46,7 @@ import { boundingBox, coarseDistanceLabel, DEFAULT_RADIUS_KM, haversineKm, withi
 import { resolvePatch } from "@/server/patch";
 import { boardGames, type BoardConfirmedPlayer } from "@/server/discovery";
 import { insertNotification } from "@/server/notify";
-import { CircleFullError, NotMemberError, NotOrganiserError, insertCircleMembership } from "@/server/circles";
+import { CircleFullError, NotMemberError, NotOrganiserError, insertCircleMembership, isUniqueConstraintError } from "@/server/circles";
 import { emitCircleEvent } from "@/lib/realtime/broadcast";
 
 /** A Circle's canonical location for the directory: its most-used pinned venue. */
@@ -501,7 +501,7 @@ export async function circleKnocks(db: CuatroDb, circleId: string, requestingUse
     .from(knocks)
     .innerJoin(users, eq(users.id, knocks.userId))
     .where(and(eq(knocks.kind, "circle"), eq(knocks.targetId, circleId), eq(knocks.status, "pending")))
-    .orderBy(knocks.createdAt);
+    .orderBy(knocks.createdAt, knocks.id);
 
   const anchor = await circleAnchor(db, circleId);
 
@@ -523,7 +523,7 @@ export async function circleKnocks(db: CuatroDb, circleId: string, requestingUse
       reliability: row.rsvpInCount > 0 ? Math.min(1, row.showUpCount / row.rsvpInCount) : null,
       distanceLabel,
       message: row.message,
-      createdAt: row.createdAt,
+      createdAt: new Date(row.createdAt),
     });
   }
   return views;
@@ -560,7 +560,7 @@ export async function circlePreview(db: CuatroDb, circleId: string, viewerId: st
     .select({ weekday: standingGames.weekday, startTime: standingGames.startTime })
     .from(standingGames)
     .where(and(eq(standingGames.circleId, circleId), eq(standingGames.active, true)))
-    .orderBy(standingGames.weekday)
+    .orderBy(standingGames.weekday, standingGames.id)
     .limit(1);
   const cadence = sg ? formatCadence(sg.weekday, sg.startTime) : null;
 
@@ -624,20 +624,18 @@ export async function createCircleKnock(
 
   let knockId: string;
   try {
-    knockId = db.transaction((tx) => {
-      const knock = tx
+    knockId = await db.transaction(async (tx) => {
+      const [knock] = await tx
         .insert(knocks)
         .values({ kind: "circle", targetId: circleId, userId, message })
-        .returning()
-        .get();
+        .returning();
 
-      const organisers = tx
+      const organisers = await tx
         .select({ userId: circleMembers.userId })
         .from(circleMembers)
-        .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.role, "organiser")))
-        .all();
+        .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.role, "organiser")));
       for (const org of organisers) {
-        insertNotification(tx, {
+        await insertNotification(tx, {
           userId: org.userId,
           type: "knock_received",
           payload: { knockId: knock.id, kind: "circle", targetId: circleId, userId },
@@ -647,7 +645,7 @@ export async function createCircleKnock(
     });
   } catch (err) {
     // The partial unique index rejects a second OPEN knock on the same target.
-    if (err instanceof Error && /UNIQUE constraint failed/i.test(err.message)) {
+    if (isUniqueConstraintError(err)) {
       return { ok: false, error: "already_knocked" };
     }
     throw err;
@@ -670,15 +668,13 @@ export async function withdrawCircleKnock(
   input: { circleId: string; userId: string },
 ): Promise<{ ok: true }> {
   const { circleId, userId } = input;
-  const now = new Date();
-  const updated = db
+  const updated = await db
     .update(knocks)
-    .set({ status: "withdrawn", decidedAt: now, decidedBy: userId })
+    .set({ status: "withdrawn", decidedAt: Date.now(), decidedBy: userId })
     .where(
       and(eq(knocks.userId, userId), eq(knocks.kind, "circle"), eq(knocks.targetId, circleId), eq(knocks.status, "pending")),
     )
-    .returning()
-    .all();
+    .returning();
   if (updated.length > 0) emitCircleEvent(circleId, "notification", { reason: "knock" });
   return { ok: true };
 }
@@ -709,31 +705,31 @@ export async function decideCircleKnock(
     .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, organiserId)));
   if (!membership || membership.role !== "organiser") return { ok: false, error: "not_organiser" };
 
-  const now = new Date();
+  const now = Date.now();
   let committed: boolean;
   try {
-    committed = db.transaction((tx) => {
-      // Guard again inside the transaction against a concurrent decide.
-      const fresh = tx.select({ status: knocks.status }).from(knocks).where(eq(knocks.id, knockId)).get();
+    committed = await db.transaction(async (tx) => {
+      // Guard again inside the transaction against a concurrent decide, taking
+      // a row lock so two organisers can't both resolve the same pending knock.
+      const [fresh] = await tx.select({ status: knocks.status }).from(knocks).where(eq(knocks.id, knockId)).for("update");
       if (!fresh || fresh.status !== "pending") return false;
 
-      tx.update(knocks)
+      await tx.update(knocks)
         .set({ status: action === "accept" ? "accepted" : "declined", decidedAt: now, decidedBy: organiserId })
-        .where(eq(knocks.id, knockId))
-        .run();
+        .where(eq(knocks.id, knockId));
 
       if (action === "accept") {
         // Capacity is enforced here, inside the accept transaction: a full
         // capped Circle throws CircleFullError, rolling back the knock
         // resolution AND the membership together (caught below → circle_full).
-        insertCircleMembership(tx, circleId, knock.userId);
-        insertNotification(tx, {
+        await insertCircleMembership(tx, circleId, knock.userId);
+        await insertNotification(tx, {
           userId: knock.userId,
           type: "knock_accepted",
           payload: { knockId, kind: "circle", targetId: circleId },
         });
       } else {
-        insertNotification(tx, {
+        await insertNotification(tx, {
           userId: knock.userId,
           type: "knock_declined",
           payload: { knockId, kind: "circle", targetId: circleId },

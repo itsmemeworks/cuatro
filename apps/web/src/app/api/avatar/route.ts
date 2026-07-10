@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   const { db } = await getGamesClient();
   if (!actorId) {
     const token = await getGuestToken();
-    if (token) actorId = getGuestUserId(db, token);
+    if (token) actorId = await getGuestUserId(db, token);
   }
   if (!actorId) return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
 
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   saveAvatarJpeg(actorId, buffer);
 
   const avatarUrl = `/api/avatar/${actorId}?v=${Date.now()}`;
-  db.update(users).set({ avatarUrl, updatedAt: new Date() }).where(eq(users.id, actorId)).run();
+  await db.update(users).set({ avatarUrl, updatedAt: Date.now() }).where(eq(users.id, actorId));
 
   return NextResponse.json({ ok: true, avatarUrl });
 }

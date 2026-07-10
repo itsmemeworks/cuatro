@@ -131,10 +131,10 @@ Playtomic's version of this loop breaks at "log" (opaque rating) and never had "
 ## 6. Stack & Architecture
 Per stack defaults (ADHX patterns):
 - **Next.js 16** PWA, mobile-first (installable; iOS/Android web push)
-- **SQLite on a Fly volume + Drizzle** (Litestream backup to object storage)
+- **Postgres in each environment's Supabase project + Drizzle** (managed backups; superseded SQLite-on-volume 2026-07-10, Pete-blessed)
 - **Vitest** — rating engine gets exhaustive unit coverage (deltas, damping, confidence, placement) as pure functions; simulation test: 10k synthetic matches must converge known-skill agents to ±0.2
 - **Fly.io** (app: `cuatro`, lhr), **Sentry**
-- Chat/feed realtime via SSE (fine at v0 scale; SQLite WAL)
+- Chat/feed realtime via SSE (fine at v0 scale)
 - Auth: email magic link + Apple/Google OAuth
 - Core tables: `users, circles, circle_members, standing_games, sessions (game instances), rsvps, matches, match_confirmations, rating_events (the Ledger — append-only), tabs, tab_entries, venues, notifications`
 

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { db } = await getGamesClient();
-  const result = createOneOffSession(db, user.id, {
+  const result = await createOneOffSession(db, user.id, {
     circleId: body.circleId,
     startsAt,
     venueId: typeof body.venueId === "string" ? body.venueId : null,

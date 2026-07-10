@@ -10,7 +10,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const { db } = await getGamesClient();
-  const marked = markCircleRead(db, id, user.id);
+  const marked = await markCircleRead(db, id, user.id);
 
   return NextResponse.json({ ok: true, marked });
 }

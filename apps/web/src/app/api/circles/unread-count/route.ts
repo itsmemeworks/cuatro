@@ -16,8 +16,8 @@ export async function GET() {
   if (!user) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
   const { db } = await getGamesClient();
-  const circleIds = listCirclesForUser(db, user.id).map((c) => c.circleId);
-  const hasUnread = hasUnreadMessages(db, circleIds, user.id);
+  const circleIds = (await listCirclesForUser(db, user.id)).map((c) => c.circleId);
+  const hasUnread = await hasUnreadMessages(db, circleIds, user.id);
 
   return NextResponse.json({ ok: true, hasUnread });
 }

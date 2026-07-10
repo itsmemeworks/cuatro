@@ -1,10 +1,10 @@
-import { createClient } from "@cuatro/db";
+import { createTestClient } from "@cuatro/db";
 import type { CuatroClient, CuatroDb } from "@cuatro/db";
 import { circleMembers, circles, standingGames, users, venues } from "@cuatro/db";
 
 export type Fixture = {
   db: CuatroDb;
-  close: () => void;
+  close: () => Promise<void>;
   circleId: string;
   venueId: string;
   organiserId: string;
@@ -16,10 +16,10 @@ export type Fixture = {
  * A circle in `timezone` (default Europe/London) with one organiser +
  * `memberCount` additional members, a venue, and — if `standingGame` is
  * given — an active standing game. Each call opens a brand-new, fully
- * isolated `:memory:` SQLite database (better-sqlite3 never shares state
- * across separate `:memory:` opens).
+ * isolated in-memory PGlite database (createTestClient() applies all
+ * migrations to a fresh in-process Postgres per call).
  */
-export function seedCircle(opts: {
+export async function seedCircle(opts: {
   memberCount: number;
   timezone?: string;
   standingGame?: {
@@ -29,28 +29,26 @@ export function seedCircle(opts: {
     rsvpWindowDays?: number;
     active?: boolean;
   };
-}): Fixture {
-  const { db, close }: CuatroClient = createClient(":memory:");
+}): Promise<Fixture> {
+  const { db, close }: CuatroClient = await createTestClient();
   const timezone = opts.timezone ?? "Europe/London";
 
-  const organiser = db
+  const [organiser] = await db
     .insert(users)
     .values({ email: "organiser@example.com", displayName: "Organiser" })
-    .returning()
-    .get();
+    .returning();
 
   const memberIds: string[] = [];
   for (let i = 0; i < opts.memberCount; i++) {
-    const member = db
+    const [member] = await db
       .insert(users)
       .values({ email: `member${i}@example.com`, displayName: `Member ${i}` })
-      .returning()
-      .get();
+      .returning();
     memberIds.push(member.id);
   }
 
-  const venue = db.insert(venues).values({ name: "Test Venue", timezone }).returning().get();
-  const circle = db
+  const [venue] = await db.insert(venues).values({ name: "Test Venue", timezone }).returning();
+  const [circle] = await db
     .insert(circles)
     .values({
       name: "Test Circle",
@@ -58,17 +56,16 @@ export function seedCircle(opts: {
       inviteCode: `TEST-${Math.random().toString(36).slice(2, 8)}`,
       createdBy: organiser.id,
     })
-    .returning()
-    .get();
+    .returning();
 
-  db.insert(circleMembers).values({ circleId: circle.id, userId: organiser.id, role: "organiser" }).run();
+  await db.insert(circleMembers).values({ circleId: circle.id, userId: organiser.id, role: "organiser" });
   for (const id of memberIds) {
-    db.insert(circleMembers).values({ circleId: circle.id, userId: id, role: "member" }).run();
+    await db.insert(circleMembers).values({ circleId: circle.id, userId: id, role: "member" });
   }
 
   let standingGameId: string | undefined;
   if (opts.standingGame) {
-    const sg = db
+    const [sg] = await db
       .insert(standingGames)
       .values({
         circleId: circle.id,
@@ -79,8 +76,7 @@ export function seedCircle(opts: {
         rsvpWindowDays: opts.standingGame.rsvpWindowDays ?? 6,
         active: opts.standingGame.active ?? true,
       })
-      .returning()
-      .get();
+      .returning();
     standingGameId = sg.id;
   }
 

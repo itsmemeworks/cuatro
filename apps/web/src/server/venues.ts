@@ -15,11 +15,10 @@
  *     OR both carry the same extracted UK postcode. On no match a genuinely
  *     new court is created as before — an unmatched entry is never blocked.
  *
- * All DB access here is synchronous (`.get()/.all()/.run()`, no `await`),
- * matching standing-games-service.ts — no network happens in this module, so
- * it is safe to call from a synchronous path. Geocoding (which does hit the
- * network) stays in geocode.ts and is triggered by the caller after the row
- * is resolved.
+ * All DB access here is async (postgres-js/drizzle) — callers `await`. No
+ * network happens in this module (geocoding, which does hit the network, stays
+ * in geocode.ts and is triggered by the caller after the row is resolved), so
+ * the awaits here are pure DB round-trips.
  */
 import { eq } from "drizzle-orm";
 import { circles, sessions, standingGames, venues, type CuatroDb, type Venue } from "@cuatro/db";
@@ -84,18 +83,18 @@ export type VenueOption = { id: string; name: string; areaHint: string | null };
  * short area hint. Global list — venues aren't scoped to a circle, only the
  * ordering is.
  */
-export function listVenuesForCircle(db: CuatroDb, circleId: string): VenueOption[] {
-  const allVenues = db.select().from(venues).all();
+export async function listVenuesForCircle(db: CuatroDb, circleId: string): Promise<VenueOption[]> {
+  const allVenues = await db.select().from(venues);
   if (allVenues.length === 0) return [];
 
-  const circle = db.select({ homeVenueId: circles.homeVenueId }).from(circles).where(eq(circles.id, circleId)).get();
+  const [circle] = await db.select({ homeVenueId: circles.homeVenueId }).from(circles).where(eq(circles.id, circleId));
   const homeVenueId = circle?.homeVenueId ?? null;
 
   const playedAt = new Set<string>();
-  for (const r of db.select({ venueId: standingGames.venueId }).from(standingGames).where(eq(standingGames.circleId, circleId)).all()) {
+  for (const r of await db.select({ venueId: standingGames.venueId }).from(standingGames).where(eq(standingGames.circleId, circleId))) {
     if (r.venueId) playedAt.add(r.venueId);
   }
-  for (const r of db.select({ venueId: sessions.venueId }).from(sessions).where(eq(sessions.circleId, circleId)).all()) {
+  for (const r of await db.select({ venueId: sessions.venueId }).from(sessions).where(eq(sessions.circleId, circleId))) {
     if (r.venueId) playedAt.add(r.venueId);
   }
 
@@ -116,12 +115,12 @@ export type VenueMatchInput = { name?: string | null; address?: string | null };
  * place, while two clubs can share a name across cities) OR the normalised
  * names are equal. Null when nothing matches (a genuinely new court).
  */
-export function matchVenue(db: CuatroDb, input: VenueMatchInput): Venue | null {
+export async function matchVenue(db: CuatroDb, input: VenueMatchInput): Promise<Venue | null> {
   const targetName = normaliseVenueName(input.name);
   const targetPostcode = extractUkPostcode(input.address);
   if (!targetName && !targetPostcode) return null;
 
-  const all = db.select().from(venues).all();
+  const all = await db.select().from(venues);
   if (targetPostcode) {
     for (const v of all) {
       if (extractUkPostcode(v.address) === targetPostcode) return v;
@@ -161,7 +160,7 @@ export type VenueResolution = {
  * match but writes nothing itself; the caller passes the result into
  * create/update (which own the insert/address write) and then geocodes.
  */
-export function resolveSubmittedVenue(db: CuatroDb, input: SubmittedVenue): VenueResolution {
+export async function resolveSubmittedVenue(db: CuatroDb, input: SubmittedVenue): Promise<VenueResolution> {
   const venueId = input.venueId?.trim() || null;
   const name = input.name?.trim() || null;
   const address = input.address?.trim() || null;
@@ -169,7 +168,7 @@ export function resolveSubmittedVenue(db: CuatroDb, input: SubmittedVenue): Venu
   if (venueId) return { outcome: "picked", venueId };
   if (!name) return { outcome: "none" };
 
-  const match = matchVenue(db, { name, address });
+  const match = await matchVenue(db, { name, address });
   if (match) {
     const resolution: VenueResolution = { outcome: "matched", venueId: match.id, matchedName: match.name };
     // Only fill an address we don't already have — never overwrite a good one.

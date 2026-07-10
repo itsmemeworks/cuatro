@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import type { ExtractTablesWithRelations } from 'drizzle-orm'
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import { migrate } from 'drizzle-orm/postgres-js/migrator'
+import postgres from 'postgres'
 import * as schema from './schema/index.js'
 
 // Resolving the migrations folder is trickier than it looks once this
@@ -46,41 +47,94 @@ function resolveMigrationsFolder(): string {
 
 const migrationsFolder = resolveMigrationsFolder()
 
+// Arbitrary but fixed key for the boot-migration advisory lock. Every process
+// that boots against the same Postgres takes this lock before running
+// migrate(), so concurrent boots (Fly rolling deploy, multiple workers) can't
+// race the schema. Database-global, so it serializes regardless of which
+// pooled connection migrate() happens to use.
+const MIGRATION_LOCK_KEY = 4927_0710
+
 export type CuatroSchema = typeof schema
-export type CuatroDb = BetterSQLite3Database<CuatroSchema>
+
+// The app-facing drizzle type. Deliberately the pg-core BASE type rather than
+// `PostgresJsDatabase<CuatroSchema>` so BOTH the production (postgres-js) and
+// the test (PGlite) drizzle instances are assignable to it with no cast — the
+// query-builder / relational-query / transaction surface is identical across
+// the two drivers, only the underlying result HKT differs (and that is in
+// output position, so specific→base assignability holds).
+export type CuatroDb = PgDatabase<
+  PgQueryResultHKT,
+  CuatroSchema,
+  ExtractTablesWithRelations<CuatroSchema>
+>
 
 export type CuatroClient = {
   db: CuatroDb
-  sqlite: Database.Database
-  close: () => void
+  // Closes the underlying driver. ASYNC now (was sync on better-sqlite3):
+  // postgres-js drains its pool, PGlite shuts down the in-process engine.
+  close: () => Promise<void>
 }
 
-// Creates (or opens) the SQLite file at `dbPath`, applies any pending
-// migrations, and returns a ready-to-query drizzle instance. `dbPath`
-// defaults to DATABASE_PATH, falling back to ./dev.db for local dev.
-export function createClient(dbPath?: string): CuatroClient {
-  const resolvedPath = dbPath ?? process.env.DATABASE_PATH ?? './dev.db'
-  const sqlite = new Database(resolvedPath)
-  sqlite.pragma('journal_mode = WAL')
+// Connects to Postgres at `databaseUrl` (default DATABASE_URL, falling back to
+// the local Supabase stack), applies any pending migrations under an advisory
+// lock, and returns a ready-to-query drizzle instance. ASYNC now — migrations
+// run at boot and postgres-js migrate() is async.
+export async function createClient(databaseUrl?: string): Promise<CuatroClient> {
+  const url =
+    databaseUrl ??
+    process.env.DATABASE_URL ??
+    'postgresql://postgres:postgres@127.0.0.1:54422/postgres'
 
-  const db = drizzle(sqlite, { schema })
-  // Migrations must run with foreign keys OFF: SQLite column changes are
-  // table-recreates (e.g. 0005 rebuilds `users`), and DROP TABLE on a
-  // referenced table fails under foreign_keys=ON even inside a transaction.
-  sqlite.pragma('foreign_keys = OFF')
-  migrate(db, { migrationsFolder })
-  const violations = sqlite.pragma('foreign_key_check') as unknown[]
-  if (violations.length > 0) {
-    sqlite.close()
-    throw new Error(
-      `migrations left ${violations.length} foreign key violation(s): ${JSON.stringify(violations.slice(0, 3))}`,
-    )
+  const sql = postgres(url)
+  const db = drizzle(sql, { schema })
+
+  // Serialize concurrent boots. Take the advisory lock on a single reserved
+  // session (lock/unlock MUST share a connection), then run migrate() — the
+  // lock is database-global, so it still fences every other booter even
+  // though migrate() runs on the pool.
+  const lockConn = await sql.reserve()
+  try {
+    await lockConn`select pg_advisory_lock(${MIGRATION_LOCK_KEY})`
+    await migrate(db, { migrationsFolder })
+  } finally {
+    await lockConn`select pg_advisory_unlock(${MIGRATION_LOCK_KEY})`
+    lockConn.release()
   }
-  sqlite.pragma('foreign_keys = ON')
 
   return {
     db,
-    sqlite,
-    close: () => sqlite.close(),
+    close: async () => {
+      await sql.end({ timeout: 5 })
+    },
+  }
+}
+
+// Test-only client: a fresh in-memory PGlite (in-process Postgres) with all
+// migrations applied. Returns the SAME CuatroClient shape as createClient, so
+// test code is driver-agnostic. Replaces every `createClient(':memory:')`.
+//
+//   const client = await createTestClient()
+//   await client.db.insert(users).values({ ... })
+//   ...
+//   await client.close()
+//
+// Each call is a brand-new isolated database (nothing shared between calls),
+// matching the old better-sqlite3 `:memory:` isolation.
+export async function createTestClient(): Promise<CuatroClient> {
+  // Imported lazily so production bundles that only ever call createClient()
+  // don't pull PGlite (and its wasm) into the graph.
+  const { PGlite } = await import('@electric-sql/pglite')
+  const { drizzle: drizzlePglite } = await import('drizzle-orm/pglite')
+  const { migrate: migratePglite } = await import('drizzle-orm/pglite/migrator')
+
+  const pg = new PGlite()
+  const db = drizzlePglite(pg, { schema })
+  await migratePglite(db, { migrationsFolder })
+
+  return {
+    db,
+    close: async () => {
+      await pg.close()
+    },
   }
 }

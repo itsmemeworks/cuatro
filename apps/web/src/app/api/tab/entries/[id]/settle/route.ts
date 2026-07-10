@@ -9,7 +9,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params;
   const { db } = await getDb();
-  const outcome = proposeOrConfirmSettle(db, id, user.id);
+  const outcome = await proposeOrConfirmSettle(db, id, user.id);
 
   if (!outcome.ok) {
     const status = outcome.error === "not_found" ? 404 : 403;

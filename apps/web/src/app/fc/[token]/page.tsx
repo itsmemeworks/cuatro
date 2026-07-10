@@ -31,10 +31,10 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   if (!parsed) return { title: "CUATRO invite" };
 
   const { db } = await getGamesClient();
-  const summary = getSessionSummary(db, parsed.sessionId, "");
+  const summary = await getSessionSummary(db, parsed.sessionId, "");
   const title = summary ? `${summary.circleName} needs a fourth` : "CUATRO invite";
   const description = summary
-    ? `A game is short a player for ${summary.session.startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}. Tap in if you can make it.`
+    ? `A game is short a player for ${new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}. Tap in if you can make it.`
     : "This invite link is invalid or has expired.";
 
   return { title, description };
@@ -57,9 +57,9 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
 
   const user = await getSessionUser();
   const { db } = await getGamesClient();
-  const summary = getSessionSummary(db, parsed.sessionId, user?.id ?? "");
+  const summary = await getSessionSummary(db, parsed.sessionId, user?.id ?? "");
 
-  if (!summary || summary.session.status !== "upcoming" || Date.now() >= summary.session.startsAt.getTime()) {
+  if (!summary || summary.session.status !== "upcoming" || Date.now() >= summary.session.startsAt) {
     return (
       <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-3 bg-ground text-ink">
         <h1 className="text-cu-title">This game&apos;s kicked off</h1>
@@ -82,7 +82,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
     levelMatchLabel = min === max ? `their level ${min}` : `their level ${min}–${max}`;
   }
 
-  const whenLabel = summary.session.startsAt.toLocaleString("en-GB", {
+  const whenLabel = new Date(summary.session.startsAt).toLocaleString("en-GB", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -102,7 +102,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
   let guestFlow: GuestFlowInitial | null = null;
   if (!user) {
     const guestToken = await getGuestToken();
-    const guestUserId = guestToken ? getGuestUserId(db, guestToken) : null;
+    const guestUserId = guestToken ? await getGuestUserId(db, guestToken) : null;
     const guestConfirmed = guestUserId ? summary.confirmed.find((p) => p.userId === guestUserId) : undefined;
     const guestReserved = guestUserId ? summary.reserves.find((p) => p.userId === guestUserId) : undefined;
     const guestPlayer = guestConfirmed ?? guestReserved;

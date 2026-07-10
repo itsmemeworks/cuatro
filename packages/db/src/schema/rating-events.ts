@@ -1,4 +1,4 @@
-import { index, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, jsonb, real, pgTable, text } from 'drizzle-orm/pg-core'
 import { createdAtColumn, idColumn } from './_columns.js'
 import { matches } from './matches.js'
 import { users } from './users.js'
@@ -16,7 +16,7 @@ export type RatingEventFactors = {
   isFirstMeeting: boolean
 }
 
-export const ratingEvents = sqliteTable(
+export const ratingEvents = pgTable(
   'rating_events',
   {
     id: idColumn(),
@@ -34,7 +34,7 @@ export const ratingEvents = sqliteTable(
     ratingAfter: real('rating_after').notNull(),
     confidenceBefore: real('confidence_before').notNull(),
     confidenceAfter: real('confidence_after').notNull(),
-    factors: text('factors', { mode: 'json' }).$type<RatingEventFactors>().notNull(),
+    factors: jsonb('factors').$type<RatingEventFactors>().notNull(),
     explanation: text('explanation').notNull(),
     createdAt: createdAtColumn(),
   },

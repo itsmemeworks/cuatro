@@ -39,28 +39,28 @@ export interface CommentView {
 
 export type CommentGateError = "match_not_found" | "match_not_verified" | "not_a_circle_member";
 
-function isMember(db: CuatroDb, circleId: string, userId: string): boolean {
-  return !!db
+async function isMember(db: CuatroDb, circleId: string, userId: string): Promise<boolean> {
+  const [row] = await db
     .select({ userId: circleMembers.userId })
     .from(circleMembers)
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)))
-    .get();
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+  return !!row;
 }
 
 /** Loads the match + its circle, applying the shared verified+member gate. Returns the gate error, or the match and circleId on success. */
-function loadGated(
+async function loadGated(
   db: CuatroDb,
   matchId: string,
   userId: string,
-): { ok: true; match: Match; circleId: string } | { ok: false; error: CommentGateError } {
-  const match = db.select().from(matches).where(eq(matches.id, matchId)).get();
+): Promise<{ ok: true; match: Match; circleId: string } | { ok: false; error: CommentGateError }> {
+  const [match] = await db.select().from(matches).where(eq(matches.id, matchId));
   if (!match) return { ok: false, error: "match_not_found" };
   if (match.status !== "verified") return { ok: false, error: "match_not_verified" };
 
-  const session = db.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, match.sessionId)).get();
+  const [session] = await db.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, match.sessionId));
   if (!session) return { ok: false, error: "match_not_found" };
 
-  if (!isMember(db, session.circleId, userId)) return { ok: false, error: "not_a_circle_member" };
+  if (!(await isMember(db, session.circleId, userId))) return { ok: false, error: "not_a_circle_member" };
   return { ok: true, match, circleId: session.circleId };
 }
 
@@ -79,25 +79,31 @@ export type AddCommentOutcome =
  * who's seen the thread notification once (mirrors tab.ts's nudgeEntry
  * "fires once" posture, just keyed on thread-empty rather than a column).
  */
-export function addComment(db: CuatroDb, matchId: string, userId: string, body: string): AddCommentOutcome {
+export async function addComment(db: CuatroDb, matchId: string, userId: string, body: string): Promise<AddCommentOutcome> {
   const trimmed = body.trim();
   if (!trimmed) return { ok: false, error: "empty_body" };
   if (trimmed.length > MAX_COMMENT_LENGTH) return { ok: false, error: "too_long" };
 
-  const gated = loadGated(db, matchId, userId);
+  const gated = await loadGated(db, matchId, userId);
   if (!gated.ok) return gated;
   const { match, circleId } = gated;
 
-  const outcome = db.transaction((tx) => {
-    const existingCount = tx.select({ id: matchComments.id }).from(matchComments).where(eq(matchComments.matchId, matchId)).all().length;
+  const outcome = await db.transaction(async (tx) => {
+    // Lock the match row so the "first comment on this match" decision (which
+    // fires the participant notifications) serializes — two racing first
+    // comments must not both see an empty thread and double-notify.
+    await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, matchId)).for("update");
 
-    const row = tx.insert(matchComments).values({ matchId, userId, body: trimmed }).returning().get();
-    const author = tx.select({ displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).get();
+    const existing = await tx.select({ id: matchComments.id }).from(matchComments).where(eq(matchComments.matchId, matchId));
+    const existingCount = existing.length;
+
+    const [row] = await tx.insert(matchComments).values({ matchId, userId, body: trimmed }).returning();
+    const [author] = await tx.select({ displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId));
 
     if (existingCount === 0) {
       for (const participantId of fourPlayerIds(match)) {
         if (participantId === userId) continue;
-        insertNotification(tx, { userId: participantId, type: "match_comment", payload: { matchId, commenterId: userId } });
+        await insertNotification(tx, { userId: participantId, type: "match_comment", payload: { matchId, commenterId: userId } });
       }
     }
 
@@ -108,7 +114,7 @@ export function addComment(db: CuatroDb, matchId: string, userId: string, body: 
       displayName: author?.displayName ?? "Unknown",
       avatarUrl: author?.avatarUrl ?? null,
       body: row.body,
-      createdAt: row.createdAt,
+      createdAt: new Date(row.createdAt),
     };
     return { ok: true as const, comment, count: existingCount + 1 };
   });
@@ -120,11 +126,11 @@ export function addComment(db: CuatroDb, matchId: string, userId: string, body: 
 export type ListCommentsOutcome = { ok: true; comments: CommentView[] } | { ok: false; error: CommentGateError };
 
 /** The full thread for a match's result post, oldest first (composer appends at the bottom). */
-export function listComments(db: CuatroDb, matchId: string, viewerUserId: string): ListCommentsOutcome {
-  const gated = loadGated(db, matchId, viewerUserId);
+export async function listComments(db: CuatroDb, matchId: string, viewerUserId: string): Promise<ListCommentsOutcome> {
+  const gated = await loadGated(db, matchId, viewerUserId);
   if (!gated.ok) return gated;
 
-  const rows = db
+  const rows = await db
     .select({
       id: matchComments.id,
       matchId: matchComments.matchId,
@@ -137,10 +143,11 @@ export function listComments(db: CuatroDb, matchId: string, viewerUserId: string
     .from(matchComments)
     .innerJoin(users, eq(matchComments.userId, users.id))
     .where(eq(matchComments.matchId, matchId))
-    .orderBy(asc(matchComments.createdAt))
-    .all();
+    // created_at then id: a stable order within the same millisecond (Postgres
+    // has no rowid tiebreak). match_comments has no monotonic seq column.
+    .orderBy(asc(matchComments.createdAt), asc(matchComments.id));
 
-  return { ok: true, comments: rows };
+  return { ok: true, comments: rows.map((row) => ({ ...row, createdAt: new Date(row.createdAt) })) };
 }
 
 /**
@@ -148,11 +155,11 @@ export function listComments(db: CuatroDb, matchId: string, viewerUserId: string
  * server/feed.ts), same shape as that module's own reactionsByMatch
  * aggregation over match_reactions.
  */
-export function getCommentCounts(db: CuatroDb, matchIds: string[]): Map<string, number> {
+export async function getCommentCounts(db: CuatroDb, matchIds: string[]): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (matchIds.length === 0) return counts;
 
-  const rows = db.select({ matchId: matchComments.matchId }).from(matchComments).where(inArray(matchComments.matchId, matchIds)).all();
+  const rows = await db.select({ matchId: matchComments.matchId }).from(matchComments).where(inArray(matchComments.matchId, matchIds));
   for (const row of rows) {
     counts.set(row.matchId, (counts.get(row.matchId) ?? 0) + 1);
   }

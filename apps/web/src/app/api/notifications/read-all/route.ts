@@ -8,6 +8,6 @@ export async function POST() {
   if (!user) return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
 
   const { db } = await getGamesClient();
-  const count = markAllNotificationsRead(db, user.id);
+  const count = await markAllNotificationsRead(db, user.id);
   return NextResponse.json({ ok: true, count });
 }

@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestClient, type CuatroClient } from "@cuatro/db";
 import { createDrizzleAuthStore, type AuthStore } from "@/lib/auth-store";
 
 describe("drizzle auth store (@cuatro/db)", () => {
+  let client: CuatroClient;
   let store: AuthStore;
 
-  beforeEach(() => {
-    store = createDrizzleAuthStore(":memory:");
+  beforeEach(async () => {
+    client = await createTestClient();
+    store = createDrizzleAuthStore(client);
+  });
+
+  afterEach(async () => {
+    await client.close();
   });
 
   it("creates a user with a display name derived from the email local-part", async () => {
@@ -69,10 +76,16 @@ describe("drizzle auth store (@cuatro/db)", () => {
 });
 
 describe("findOrCreateUserBySupabase (Supabase Auth provisioning)", () => {
+  let client: CuatroClient;
   let store: AuthStore;
 
-  beforeEach(() => {
-    store = createDrizzleAuthStore(":memory:");
+  beforeEach(async () => {
+    client = await createTestClient();
+    store = createDrizzleAuthStore(client);
+  });
+
+  afterEach(async () => {
+    await client.close();
   });
 
   it("creates a brand-new user, using user_metadata.name for the display name", async () => {

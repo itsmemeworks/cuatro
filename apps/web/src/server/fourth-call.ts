@@ -129,35 +129,33 @@ export type Ring3LinkResult =
   | { ok: false; error: "session_not_found" | "session_started" };
 
 /** Ring 3's "Copy" action (organiser, fourth-call-send.tsx) — mints (or re-derives) the public claim link for a still-open, not-yet-started session. */
-export function getRing3ClaimLink(db: CuatroDb, sessionId: string, now: Date = new Date()): Ring3LinkResult {
-  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+export async function getRing3ClaimLink(db: CuatroDb, sessionId: string, now: Date = new Date()): Promise<Ring3LinkResult> {
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
   if (!session) return { ok: false, error: "session_not_found" };
-  if (session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+  if (session.status !== "upcoming" || now.getTime() >= session.startsAt) {
     return { ok: false, error: "session_started" };
   }
 
-  const expiresAt = session.startsAt;
+  // startsAt is epoch-ms now; the token/crypto layer works in Date, so wrap it.
+  const expiresAt = new Date(session.startsAt);
   const token = mintRing3ClaimToken(sessionId, expiresAt);
   return { ok: true, value: { sessionId, token, expiresAt, path: `/fc/${token}` } };
 }
 
-function countConfirmed(tx: CuatroDb, sessionId: string): number {
-  return (
-    tx
-      .select({ n: sql<number>`count(*)` })
-      .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")))
-      .get()?.n ?? 0
-  );
+async function countConfirmed(tx: CuatroDb, sessionId: string): Promise<number> {
+  const [row] = await tx
+    .select({ n: sql<number>`count(*)` })
+    .from(rsvps)
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+  return Number(row?.n ?? 0);
 }
 
-function confirmedParticipantIds(tx: CuatroDb, sessionId: string): string[] {
-  return tx
+async function confirmedParticipantIds(tx: CuatroDb, sessionId: string): Promise<string[]> {
+  const rows = await tx
     .select({ userId: rsvps.userId })
     .from(rsvps)
-    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")))
-    .all()
-    .map((r) => r.userId);
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+  return rows.map((r) => r.userId);
 }
 
 export type ClaimOutcome =
@@ -165,18 +163,17 @@ export type ClaimOutcome =
   | { ok: false; error: "no_fourth_call_invite" | "session_not_found" | "session_started" | "already_full" };
 
 /** Does `userId` hold ANY fourth_call invite (level 1 or 2) for this session? Shared by claimFourthCallSlot's gate and the /games/[sessionId] page's "I can play" button visibility. */
-export function hasFourthCallInvite(db: CuatroDb, sessionId: string, userId: string): boolean {
-  const invited = db
+export async function hasFourthCallInvite(db: CuatroDb, sessionId: string, userId: string): Promise<boolean> {
+  const [invited] = await db
     .select({ id: notifications.id })
     .from(notifications)
     .where(
       and(
         eq(notifications.userId, userId),
         eq(notifications.type, "fourth_call"),
-        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+        sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
       ),
-    )
-    .get();
+    );
   return !!invited;
 }
 
@@ -197,54 +194,56 @@ export interface ClaimFourthCallOptions {
  * "claimed via Fourth Call" signal fourth-call-send.tsx's banner now reads,
  * replacing the old hasFourthCallInvite heuristic.
  */
-export function claimFourthCallSlot(
+export async function claimFourthCallSlot(
   db: CuatroDb,
   sessionId: string,
   userId: string,
   now: Date = new Date(),
   options: ClaimFourthCallOptions = {},
-): ClaimOutcome {
+): Promise<ClaimOutcome> {
   let circleId: string | undefined;
 
-  const outcome = db.transaction((tx): ClaimOutcome => {
-    const holdsInvite = hasFourthCallInvite(tx, sessionId, userId);
+  const outcome = await db.transaction(async (tx): Promise<ClaimOutcome> => {
+    const holdsInvite = await hasFourthCallInvite(tx, sessionId, userId);
     const ring3Valid = options.ring3Token ? parseRing3ClaimToken(options.ring3Token, now)?.sessionId === sessionId : false;
     if (!holdsInvite && !ring3Valid) return { ok: false, error: "no_fourth_call_invite" };
 
-    const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    // Lock the session row: the capacity check (confirmedCount >= slots) then the
+    // slot write is a read-decide-write that must serialise against rsvpIn and
+    // other claimants racing the same last open slot. FOR UPDATE guarantees the
+    // second claimant sees the first's commit and reads already_full.
+    const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
     if (!session) return { ok: false, error: "session_not_found" };
     circleId = session.circleId;
-    if (session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+    if (session.status !== "upcoming" || now.getTime() >= session.startsAt) {
       return { ok: false, error: "session_started" };
     }
 
-    const existing = tx.select().from(rsvps).where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId))).get();
+    const [existing] = await tx.select().from(rsvps).where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)));
     if (existing?.status === "in") return { ok: true, status: "in", alreadyIn: true };
 
     const standingGame = session.standingGameId
-      ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+      ? ((await tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
       : null;
     const slots = slotsForSession(standingGame);
-    const confirmedCount = countConfirmed(tx, sessionId);
+    const confirmedCount = await countConfirmed(tx, sessionId);
     if (confirmedCount >= slots) return { ok: false, error: "already_full" };
 
     if (existing) {
-      tx.update(rsvps)
-        .set({ status: "in", position: null, respondedAt: now, cancelledAt: null, promotedAt: null, source: "fourth_call" })
-        .where(eq(rsvps.id, existing.id))
-        .run();
+      await tx.update(rsvps)
+        .set({ status: "in", position: null, respondedAt: now.getTime(), cancelledAt: null, promotedAt: null, source: "fourth_call" })
+        .where(eq(rsvps.id, existing.id));
     } else {
-      tx.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt: now, source: "fourth_call" }).run();
+      await tx.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt: now.getTime(), source: "fourth_call" });
     }
 
-    tx.update(users)
+    await tx.update(users)
       .set({ rsvpInCount: sql`${users.rsvpInCount} + 1` })
-      .where(eq(users.id, userId))
-      .run();
+      .where(eq(users.id, userId));
 
     if (confirmedCount + 1 === slots) {
-      for (const uid of confirmedParticipantIds(tx, sessionId)) {
-        insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
+      for (const uid of await confirmedParticipantIds(tx, sessionId)) {
+        await insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
       }
     }
 
@@ -269,11 +268,10 @@ export function claimFourthCallSlot(
  * fourth_call notification from an earlier escalation that they didn't
  * actually claim through.
  */
-export function findFourthCallClaimant(db: CuatroDb, sessionId: string): string | null {
-  const row = db
+export async function findFourthCallClaimant(db: CuatroDb, sessionId: string): Promise<string | null> {
+  const [row] = await db
     .select({ userId: rsvps.userId })
     .from(rsvps)
-    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in"), eq(rsvps.source, "fourth_call")))
-    .get();
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in"), eq(rsvps.source, "fourth_call")));
   return row?.userId ?? null;
 }

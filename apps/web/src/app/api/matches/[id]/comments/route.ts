@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const { db } = await getGamesClient();
-  const outcome = listComments(db, id, user.id);
+  const outcome = await listComments(db, id, user.id);
 
   if (!outcome.ok) return NextResponse.json({ ok: false, error: outcome.error }, { status: statusFor(outcome.error) });
   return NextResponse.json({ ok: true, comments: outcome.comments });
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const { db } = await getGamesClient();
-  const outcome = addComment(db, id, user.id, text);
+  const outcome = await addComment(db, id, user.id, text);
 
   if (!outcome.ok) return NextResponse.json({ ok: false, error: outcome.error }, { status: statusFor(outcome.error) });
   return NextResponse.json({ ok: true, comment: outcome.comment, count: outcome.count });

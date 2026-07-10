@@ -31,9 +31,13 @@ A change is not done because the types pass. Claims have to be shown.
 These are load-bearing. Each one has bitten this codebase before. A pull request
 that breaks one will be sent back.
 
-1. **better-sqlite3 transactions are synchronous.** No `await` inside a
-   `db.transaction()` callback: an async callback commits before the awaited
-   writes run.
+1. **Transactions are async, and every read-decide-write must lock its
+   anchoring row.** `await db.transaction(async (tx) => { ... })`, and awaits
+   inside the callback are required. Postgres does not serialize writers the
+   way the old SQLite driver did, so any check-then-write (RSVP capacity,
+   reserve promotion, Fourth Call holds and claims, rotation picks, tab settle,
+   match seal) must take `SELECT ... FOR UPDATE` (`.for('update')`) on the
+   parent row before deciding. When in doubt, lock the parent row.
 2. **Realtime emits fire after the transaction commits, never inside it.**
    Server-side emits use the REST broadcast endpoint; payloads are minimal
    signals (`{type, ids, ts}`), never entity data. Clients refetch through the
@@ -72,8 +76,8 @@ is venue-anchored, never device GPS.
 ## Tests and the lint bar
 
 - Run the full suite before opening a pull request: `npm test` from the repo
-  root runs every workspace (around 626 tests). It uses better-sqlite3 and does
-  not need the Supabase stack running.
+  root runs every workspace. Tests run against in-memory PGlite (an embedded
+  Postgres) and mock Supabase, so no local stack needs to be running.
 - New behaviour needs tests. Bug fixes should come with a test that fails
   without the fix.
 - There is no ESLint config. `tsc --noEmit` is the lint bar: run it for

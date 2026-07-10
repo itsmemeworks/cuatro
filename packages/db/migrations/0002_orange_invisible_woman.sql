@@ -1,1 +1,0 @@
-ALTER TABLE `matches` ADD `outcome` text DEFAULT 'completed' NOT NULL;

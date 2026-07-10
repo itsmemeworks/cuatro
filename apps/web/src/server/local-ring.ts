@@ -25,7 +25,7 @@
  * a separate function from the escalation, not folded into its transaction.
  */
 import { and, eq, gte, isNotNull, isNull, lte, notInArray, or } from "drizzle-orm";
-import { alias } from "drizzle-orm/sqlite-core";
+import { alias } from "drizzle-orm/pg-core";
 import { rsvps, sessions, users, venues, type CuatroDb } from "@cuatro/db";
 import {
   boundingBox,

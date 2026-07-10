@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createClient } from '../src/client.js'
+import { createTestClient } from '../src/client.js'
 import type { CuatroClient } from '../src/client.js'
 import { circles, ratingEvents, users } from '../src/schema/index.js'
 import { seed } from '../src/seed.js'
@@ -9,12 +9,12 @@ describe('seed', () => {
   let client: CuatroClient
 
   beforeEach(async () => {
-    client = createClient(':memory:')
+    client = await createTestClient()
     await seed(client.db)
   })
 
-  afterEach(() => {
-    client.close()
+  afterEach(async () => {
+    await client.close()
   })
 
   it('inserts 12 users and 2 circles', async () => {

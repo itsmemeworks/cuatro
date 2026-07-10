@@ -2,12 +2,12 @@
  * Standing Game CRUD (organiser-only) + the shared venue create-or-pick
  * helper reused by one-off session creation in games-service.ts.
  *
- * All DB access here is synchronous (`.get()/.all()/.run()`, no
- * `await`) — see games-db.ts for why that matters for the transactional
- * paths in games-service.ts. These functions don't need transactions
- * themselves (no read-then-write race that matters for CRUD), but stay
- * synchronous for consistency and because CuatroDb's better-sqlite3 driver
- * executes every query synchronously under the hood regardless.
+ * All DB access here is ASYNC (Postgres via drizzle/postgres-js): every query
+ * is awaited and returns an array (no better-sqlite3 `.get()/.all()/.run()`
+ * terminals). These functions don't need explicit transactions themselves (no
+ * read-then-write race that matters for plain CRUD); the concurrency-critical
+ * paths that DO (session materialisation, RSVP) live in games-service.ts and
+ * take row locks there.
  */
 import { and, eq } from "drizzle-orm";
 import {
@@ -65,12 +65,11 @@ export type StandingGamePatch = Partial<
 
 const START_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export function isOrganiser(db: CuatroDb, circleId: string, userId: string): boolean {
-  const row = db
+export async function isOrganiser(db: CuatroDb, circleId: string, userId: string): Promise<boolean> {
+  const [row] = await db
     .select({ role: circleMembers.role })
     .from(circleMembers)
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)))
-    .get();
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
   return row?.role === "organiser";
 }
 
@@ -82,13 +81,13 @@ export function isOrganiser(db: CuatroDb, circleId: string, userId: string): boo
  * resolves to — an existing venue's address is editable this way too, not
  * just a freshly-created one's.
  */
-export function resolveVenue(
+export async function resolveVenue(
   db: CuatroDb,
   circleId: string,
   venueId?: string | null,
   venueName?: string | null,
   venueAddress?: string | null,
-): string | null {
+): Promise<string | null> {
   let resolvedId: string | null;
 
   if (venueId) {
@@ -97,12 +96,12 @@ export function resolveVenue(
     const name = venueName?.trim();
     if (!name) return null;
 
-    const existing = db.select().from(venues).where(eq(venues.name, name)).get();
+    const [existing] = await db.select().from(venues).where(eq(venues.name, name));
     if (existing) {
       resolvedId = existing.id;
     } else {
-      const circle = db.select().from(circles).where(eq(circles.id, circleId)).get();
-      const created = db
+      const [circle] = await db.select().from(circles).where(eq(circles.id, circleId));
+      const [created] = await db
         .insert(venues)
         .values({
           name,
@@ -110,14 +109,13 @@ export function resolveVenue(
           countryCode: circle?.countryCode ?? "GB",
           timezone: circle?.timezone ?? "Europe/London",
         })
-        .returning()
-        .get();
+        .returning();
       return created.id;
     }
   }
 
   if (venueAddress !== undefined) {
-    db.update(venues).set({ address: venueAddress?.trim() || null }).where(eq(venues.id, resolvedId)).run();
+    await db.update(venues).set({ address: venueAddress?.trim() || null }).where(eq(venues.id, resolvedId));
   }
   return resolvedId;
 }
@@ -128,19 +126,19 @@ function validateWeekdayAndTime(weekday: number, startTime: string): string | nu
   return null;
 }
 
-export function createStandingGame(
+export async function createStandingGame(
   db: CuatroDb,
   userId: string,
   input: StandingGameInput,
-): ServiceResult<StandingGame> {
-  if (!isOrganiser(db, input.circleId, userId)) return { ok: false, error: "not_an_organiser" };
+): Promise<ServiceResult<StandingGame>> {
+  if (!(await isOrganiser(db, input.circleId, userId))) return { ok: false, error: "not_an_organiser" };
 
   const validationError = validateWeekdayAndTime(input.weekday, input.startTime);
   if (validationError) return { ok: false, error: validationError };
 
-  const venueId = resolveVenue(db, input.circleId, input.venueId, input.venueName, input.venueAddress);
+  const venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName, input.venueAddress);
 
-  const created = db
+  const [created] = await db
     .insert(standingGames)
     .values({
       circleId: input.circleId,
@@ -157,29 +155,29 @@ export function createStandingGame(
       rotationCutoffHours: input.rotationCutoffHours ?? 24,
       rotationMode: input.rotationMode ?? "limited",
     })
-    .returning()
-    .get();
+    .returning();
 
   return { ok: true, value: created };
 }
 
-export function getStandingGame(db: CuatroDb, id: string): StandingGame | null {
-  return db.select().from(standingGames).where(eq(standingGames.id, id)).get() ?? null;
+export async function getStandingGame(db: CuatroDb, id: string): Promise<StandingGame | null> {
+  const [row] = await db.select().from(standingGames).where(eq(standingGames.id, id));
+  return row ?? null;
 }
 
-export function listStandingGamesForCircle(db: CuatroDb, circleId: string): StandingGame[] {
-  return db.select().from(standingGames).where(eq(standingGames.circleId, circleId)).all();
+export async function listStandingGamesForCircle(db: CuatroDb, circleId: string): Promise<StandingGame[]> {
+  return db.select().from(standingGames).where(eq(standingGames.circleId, circleId));
 }
 
-export function updateStandingGame(
+export async function updateStandingGame(
   db: CuatroDb,
   userId: string,
   id: string,
   patch: StandingGamePatch,
-): ServiceResult<StandingGame> {
-  const existing = getStandingGame(db, id);
+): Promise<ServiceResult<StandingGame>> {
+  const existing = await getStandingGame(db, id);
   if (!existing) return { ok: false, error: "not_found" };
-  if (!isOrganiser(db, existing.circleId, userId)) return { ok: false, error: "not_an_organiser" };
+  if (!(await isOrganiser(db, existing.circleId, userId))) return { ok: false, error: "not_an_organiser" };
 
   if (patch.weekday !== undefined || patch.startTime !== undefined) {
     const validationError = validateWeekdayAndTime(
@@ -197,12 +195,12 @@ export function updateStandingGame(
   // has nowhere for a bare address to go.
   let venueId: string | null | undefined;
   if (patch.venueId !== undefined || patch.venueName !== undefined) {
-    venueId = resolveVenue(db, existing.circleId, patch.venueId, patch.venueName, patch.venueAddress);
+    venueId = await resolveVenue(db, existing.circleId, patch.venueId, patch.venueName, patch.venueAddress);
   } else if (patch.venueAddress !== undefined && existing.venueId) {
-    venueId = resolveVenue(db, existing.circleId, existing.venueId, undefined, patch.venueAddress);
+    venueId = await resolveVenue(db, existing.circleId, existing.venueId, undefined, patch.venueAddress);
   }
 
-  const updated = db
+  const [updated] = await db
     .update(standingGames)
     .set({
       ...(patch.weekday !== undefined ? { weekday: patch.weekday } : {}),
@@ -219,21 +217,19 @@ export function updateStandingGame(
       ...(patch.rotationMode !== undefined ? { rotationMode: patch.rotationMode } : {}),
     })
     .where(eq(standingGames.id, id))
-    .returning()
-    .get();
+    .returning();
 
   return { ok: true, value: updated };
 }
 
 /** Circles the user belongs to, with their role — used to populate "which circle?" pickers. */
-export function listCirclesForUser(
+export async function listCirclesForUser(
   db: CuatroDb,
   userId: string,
-): { circleId: string; circleName: string; role: "organiser" | "member" }[] {
+): Promise<{ circleId: string; circleName: string; role: "organiser" | "member" }[]> {
   return db
     .select({ circleId: circles.id, circleName: circles.name, role: circleMembers.role })
     .from(circleMembers)
     .innerJoin(circles, eq(circleMembers.circleId, circles.id))
-    .where(eq(circleMembers.userId, userId))
-    .all();
+    .where(eq(circleMembers.userId, userId));
 }

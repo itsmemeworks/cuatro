@@ -1,4 +1,4 @@
-import { index, real, sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { index, real, pgTable, text, integer } from 'drizzle-orm/pg-core'
 import { booleanColumn, createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { venues } from './venues.js'
 
@@ -6,7 +6,7 @@ import { venues } from './venues.js'
 // GLASS fields start empty — `rating` is null until the Placement Trio (first
 // 3 verified matches) resolves it; see rating_events for the append-only ledger
 // that explains every subsequent movement.
-export const users = sqliteTable(
+export const users = pgTable(
   'users',
   {
     id: idColumn(),

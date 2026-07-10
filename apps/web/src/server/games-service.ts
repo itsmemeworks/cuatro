@@ -4,17 +4,16 @@
  * level-1 (T-48h) trigger.
  *
  * Concurrency: every mutating function below runs its critical section
- * inside a single `db.transaction((tx) => { ... })` using ONLY synchronous
- * drizzle calls (`.get()/.all()/.run()`, never `await`). better-sqlite3's
- * `Database#transaction()` wrapper requires a fully synchronous callback —
- * if it were async, better-sqlite3 throws. That constraint is what buys us
- * safety: given the single shared connection from games-db.ts, a
- * transaction body runs start-to-finish with no opportunity for another
- * call into this module to interleave (there's no `await` point for the
- * event loop to preempt), so "confirmed player cancels while another
- * cancels at the same moment" can never double-promote the same reserve.
- * This relies on all games-server code sharing one connection/process
- * (getGamesClient()'s singleton) — see games-db.ts.
+ * inside an ASYNC `await db.transaction(async (tx) => { ... })` (Postgres via
+ * postgres-js). Postgres MVCC does NOT serialize writers the way better-sqlite3
+ * did, so each read-decide-write transaction takes an explicit row lock on its
+ * anchoring row FIRST — the session row (`.for('update')`) for RSVP / rotation
+ * / Fourth Call paths, or the standing_games row for session materialisation /
+ * reschedule. That lock is what now guarantees "confirmed player cancels while
+ * another cancels at the same moment" can't double-promote the same reserve:
+ * the second transaction blocks on the FOR UPDATE until the first commits, then
+ * re-reads the post-commit state. Realtime emits STILL fire only AFTER the
+ * transaction commits, never inside it (see lib/realtime/broadcast.ts).
  */
 import { and, asc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import {
@@ -116,30 +115,34 @@ function effectiveTimezone(venue: Venue | null, circle: { timezone: string }): s
  * duplicate. Once that occurrence's start time has passed, the next call
  * naturally advances to the following week's occurrence — no cron needed.
  */
-export function ensureUpcomingSessionForStandingGame(
+export async function ensureUpcomingSessionForStandingGame(
   db: CuatroDb,
   standingGameId: string,
   now: Date = new Date(),
-): Session {
-  return db.transaction((tx) => {
-    const sg = tx.select().from(standingGames).where(eq(standingGames.id, standingGameId)).get();
+): Promise<Session> {
+  return db.transaction(async (tx) => {
+    // Lock the standing_games row FIRST: materialisation is a read-decide-insert
+    // (is there already a session on this occurrence? if not, insert one) with
+    // no unique constraint on (standing_game_id, starts_at), so two concurrent
+    // views/boots could otherwise both miss the existing row and insert a
+    // duplicate. FOR UPDATE on the parent serialises them.
+    const [sg] = await tx.select().from(standingGames).where(eq(standingGames.id, standingGameId)).for("update");
     if (!sg) throw new Error(`ensureUpcomingSessionForStandingGame: no such standing game ${standingGameId}`);
 
-    const circle = tx.select().from(circles).where(eq(circles.id, sg.circleId)).get();
+    const [circle] = await tx.select().from(circles).where(eq(circles.id, sg.circleId));
     if (!circle) throw new Error(`ensureUpcomingSessionForStandingGame: no such circle ${sg.circleId}`);
-    const venue = sg.venueId ? (tx.select().from(venues).where(eq(venues.id, sg.venueId)).get() ?? null) : null;
+    const venue = sg.venueId ? ((await tx.select().from(venues).where(eq(venues.id, sg.venueId)))[0] ?? null) : null;
 
     const tz = effectiveTimezone(venue, circle);
-    const nextStart = computeNextOccurrence(sg.weekday, sg.startTime, tz, now);
+    const nextStart = computeNextOccurrence(sg.weekday, sg.startTime, tz, now).getTime();
 
-    const existing = tx
+    const [existing] = await tx
       .select()
       .from(sessions)
-      .where(and(eq(sessions.standingGameId, sg.id), eq(sessions.startsAt, nextStart)))
-      .get();
+      .where(and(eq(sessions.standingGameId, sg.id), eq(sessions.startsAt, nextStart)));
     if (existing) return existing;
 
-    return tx
+    const [created] = await tx
       .insert(sessions)
       .values({
         standingGameId: sg.id,
@@ -148,19 +151,20 @@ export function ensureUpcomingSessionForStandingGame(
         startsAt: nextStart,
         status: "upcoming",
       })
-      .returning()
-      .get();
+      .returning();
+    return created;
   });
 }
 
 /** Ensures every active standing game in a circle has its next session generated. */
-export function ensureUpcomingSessionsForCircle(db: CuatroDb, circleId: string, now: Date = new Date()): Session[] {
-  const active = db
+export async function ensureUpcomingSessionsForCircle(db: CuatroDb, circleId: string, now: Date = new Date()): Promise<Session[]> {
+  const active = await db
     .select()
     .from(standingGames)
-    .where(and(eq(standingGames.circleId, circleId), eq(standingGames.active, true)))
-    .all();
-  return active.map((sg) => ensureUpcomingSessionForStandingGame(db, sg.id, now));
+    .where(and(eq(standingGames.circleId, circleId), eq(standingGames.active, true)));
+  const result: Session[] = [];
+  for (const sg of active) result.push(await ensureUpcomingSessionForStandingGame(db, sg.id, now));
+  return result;
 }
 
 export type RescheduleResult = {
@@ -195,27 +199,29 @@ export type RescheduleResult = {
  * Returns what moved + who was told so the caller can fire realtime signals
  * AFTER the transaction commits — never inside it (see lib/realtime/broadcast.ts).
  */
-export function rescheduleUpcomingSessionsForStandingGame(
+export async function rescheduleUpcomingSessionsForStandingGame(
   db: CuatroDb,
   standingGameId: string,
   now: Date = new Date(),
-): RescheduleResult {
-  return db.transaction((tx): RescheduleResult => {
-    const sg = tx.select().from(standingGames).where(eq(standingGames.id, standingGameId)).get();
+): Promise<RescheduleResult> {
+  return db.transaction(async (tx): Promise<RescheduleResult> => {
+    // Lock the standing_games row: we re-slot its future session(s) based on a
+    // read of the game's current weekday/time/venue, so serialise against a
+    // concurrent materialisation/edit on the same game.
+    const [sg] = await tx.select().from(standingGames).where(eq(standingGames.id, standingGameId)).for("update");
     if (!sg) return { circleId: null, movedSessionIds: [], notifiedUserIds: [] };
-    const circle = tx.select().from(circles).where(eq(circles.id, sg.circleId)).get();
+    const [circle] = await tx.select().from(circles).where(eq(circles.id, sg.circleId));
     if (!circle) return { circleId: null, movedSessionIds: [], notifiedUserIds: [] };
-    const venue = sg.venueId ? (tx.select().from(venues).where(eq(venues.id, sg.venueId)).get() ?? null) : null;
+    const venue = sg.venueId ? ((await tx.select().from(venues).where(eq(venues.id, sg.venueId)))[0] ?? null) : null;
 
     const tz = effectiveTimezone(venue, circle);
-    const target = computeNextOccurrence(sg.weekday, sg.startTime, tz, now);
+    const target = computeNextOccurrence(sg.weekday, sg.startTime, tz, now).getTime();
 
-    const future = tx
+    const future = await tx
       .select()
       .from(sessions)
-      .where(and(eq(sessions.standingGameId, sg.id), eq(sessions.status, "upcoming"), gt(sessions.startsAt, now)))
-      .orderBy(asc(sessions.startsAt))
-      .all();
+      .where(and(eq(sessions.standingGameId, sg.id), eq(sessions.status, "upcoming"), gt(sessions.startsAt, now.getTime())))
+      .orderBy(asc(sessions.startsAt));
 
     const movedSessionIds: string[] = [];
     const notifiedUserIds: string[] = [];
@@ -226,24 +232,22 @@ export function rescheduleUpcomingSessionsForStandingGame(
       // any others (not normally present) keep their date and just follow the
       // venue, so two rows never land on the same instant.
       const newStartsAt = i === 0 ? target : session.startsAt;
-      const startChanged = newStartsAt.getTime() !== session.startsAt.getTime();
+      const startChanged = newStartsAt !== session.startsAt;
       const venueChanged = (session.venueId ?? null) !== (sg.venueId ?? null);
       if (!startChanged && !venueChanged) continue;
 
-      tx.update(sessions)
+      await tx.update(sessions)
         .set({ startsAt: newStartsAt, venueId: sg.venueId })
-        .where(eq(sessions.id, session.id))
-        .run();
+        .where(eq(sessions.id, session.id));
       movedSessionIds.push(session.id);
 
       // One notification per RSVP'd player (held slot or reserve).
-      const attendees = tx
+      const attendees = await tx
         .select({ userId: rsvps.userId })
         .from(rsvps)
-        .where(and(eq(rsvps.sessionId, session.id), inArray(rsvps.status, ["in", "reserve"])))
-        .all();
+        .where(and(eq(rsvps.sessionId, session.id), inArray(rsvps.status, ["in", "reserve"])));
       for (const a of attendees) {
-        insertNotification(tx, { userId: a.userId, type: "session_rescheduled", payload: { sessionId: session.id } });
+        await insertNotification(tx, { userId: a.userId, type: "session_rescheduled", payload: { sessionId: session.id } });
         notifiedUserIds.push(a.userId);
       }
     }
@@ -262,20 +266,19 @@ export type OneOffSessionInput = {
 export type ServiceResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 /** A one-off session has no standing_game_id — organiser-created, single occurrence. */
-export function createOneOffSession(db: CuatroDb, userId: string, input: OneOffSessionInput): ServiceResult<Session> {
-  if (!isOrganiser(db, input.circleId, userId)) return { ok: false, error: "not_an_organiser" };
+export async function createOneOffSession(db: CuatroDb, userId: string, input: OneOffSessionInput): Promise<ServiceResult<Session>> {
+  if (!(await isOrganiser(db, input.circleId, userId))) return { ok: false, error: "not_an_organiser" };
 
-  const venueId = resolveVenue(db, input.circleId, input.venueId, input.venueName);
-  const created = db
+  const venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName);
+  const [created] = await db
     .insert(sessions)
     .values({
       circleId: input.circleId,
       venueId,
-      startsAt: input.startsAt,
+      startsAt: input.startsAt.getTime(),
       status: "upcoming",
     })
-    .returning()
-    .get();
+    .returning();
 
   return { ok: true, value: created };
 }
@@ -291,44 +294,49 @@ export type RsvpOutcome =
       error: "session_not_found" | "not_a_circle_member" | "window_not_open" | "session_started";
     };
 
-function loadSessionContext(
+/**
+ * Loads the session (+ its standing game). Pass `{ lock: true }` from inside a
+ * transaction that will read-decide-write on this session to take a
+ * `SELECT ... FOR UPDATE` row lock on the session row FIRST — every concurrent
+ * writer then serialises behind it. Read-only callers omit it (and MUST NOT
+ * lock outside a transaction).
+ */
+async function loadSessionContext(
   tx: CuatroDb,
   sessionId: string,
-): { session: Session; standingGame: StandingGame | null } | null {
-  const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+  opts: { lock?: boolean } = {},
+): Promise<{ session: Session; standingGame: StandingGame | null } | null> {
+  const base = tx.select().from(sessions).where(eq(sessions.id, sessionId));
+  const [session] = await (opts.lock ? base.for("update") : base);
   if (!session) return null;
   const standingGame = session.standingGameId
-    ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+    ? ((await tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
     : null;
   return { session, standingGame };
 }
 
-function isCircleMember(tx: CuatroDb, circleId: string, userId: string): boolean {
-  const row = tx
+async function isCircleMember(tx: CuatroDb, circleId: string, userId: string): Promise<boolean> {
+  const [row] = await tx
     .select({ userId: circleMembers.userId })
     .from(circleMembers)
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)))
-    .get();
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
   return !!row;
 }
 
-function circleOrganiserIds(tx: CuatroDb, circleId: string): string[] {
-  return tx
+async function circleOrganiserIds(tx: CuatroDb, circleId: string): Promise<string[]> {
+  const rows = await tx
     .select({ userId: circleMembers.userId })
     .from(circleMembers)
-    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.role, "organiser")))
-    .all()
-    .map((r) => r.userId);
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.role, "organiser")));
+  return rows.map((r) => r.userId);
 }
 
-function countConfirmed(tx: CuatroDb, sessionId: string): number {
-  return (
-    tx
-      .select({ n: sql<number>`count(*)` })
-      .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")))
-      .get()?.n ?? 0
-  );
+async function countConfirmed(tx: CuatroDb, sessionId: string): Promise<number> {
+  const [row] = await tx
+    .select({ n: sql<number>`count(*)` })
+    .from(rsvps)
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+  return Number(row?.n ?? 0);
 }
 
 /**
@@ -337,30 +345,33 @@ function countConfirmed(tx: CuatroDb, sessionId: string): number {
  * 'in' or 'reserve'. Rejected outside the RSVP window (before it opens, or
  * once the session has started).
  */
-export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): RsvpOutcome {
+export async function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): Promise<RsvpOutcome> {
   // Captured inside the transaction below so the realtime emit after it
   // (see this function's end) can fire outside the transaction — never
   // from inside `db.transaction(...)`, per lib/realtime/broadcast.ts's
   // contract — while still knowing which circle to notify.
   let circleId: string | undefined;
 
-  const outcome = db.transaction((tx): RsvpOutcome => {
-    const ctx = loadSessionContext(tx, sessionId);
+  const outcome = await db.transaction(async (tx): Promise<RsvpOutcome> => {
+    // Lock the session row: the capacity check (confirmedCount < slots) then the
+    // slot/reserve write is a classic read-decide-write that Postgres MVCC would
+    // otherwise let two tappers run against the same pre-write count, oversubscribing
+    // the last slot. FOR UPDATE serialises them so the second sees the first's commit.
+    const ctx = await loadSessionContext(tx, sessionId, { lock: true });
     if (!ctx) return { ok: false, error: "session_not_found" };
     const { session, standingGame } = ctx;
     circleId = session.circleId;
 
-    if (!isCircleMember(tx, session.circleId, userId)) return { ok: false, error: "not_a_circle_member" };
-    if (now.getTime() >= session.startsAt.getTime()) return { ok: false, error: "session_started" };
+    if (!(await isCircleMember(tx, session.circleId, userId))) return { ok: false, error: "not_a_circle_member" };
+    if (now.getTime() >= session.startsAt) return { ok: false, error: "session_started" };
 
-    const windowOpensAt = session.startsAt.getTime() - rsvpWindowDaysFor(standingGame) * DAY_MS;
+    const windowOpensAt = session.startsAt - rsvpWindowDaysFor(standingGame) * DAY_MS;
     if (now.getTime() < windowOpensAt) return { ok: false, error: "window_not_open" };
 
-    const existing = tx
+    const [existing] = await tx
       .select()
       .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)))
-      .get();
+      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)));
     // Already holding a slot or queued — idempotent no-op. ('available' is a
     // rotation-only state; in the plain first-come path it's treated as not-yet
     // committed and falls through to a normal slot/reserve assignment.)
@@ -369,7 +380,7 @@ export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Dat
     }
 
     const slots = slotsForSession(standingGame);
-    const confirmedCount = countConfirmed(tx, sessionId);
+    const confirmedCount = await countConfirmed(tx, sessionId);
 
     let newStatus: "in" | "reserve";
     let position: number | null = null;
@@ -377,13 +388,11 @@ export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Dat
       newStatus = "in";
     } else {
       newStatus = "reserve";
-      const maxPos =
-        tx
-          .select({ n: sql<number>`coalesce(max(${rsvps.position}), 0)` })
-          .from(rsvps)
-          .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "reserve")))
-          .get()?.n ?? 0;
-      position = maxPos + 1;
+      const [maxRow] = await tx
+        .select({ n: sql<number>`coalesce(max(${rsvps.position}), 0)` })
+        .from(rsvps)
+        .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "reserve")));
+      position = Number(maxRow?.n ?? 0) + 1;
     }
 
     if (existing) {
@@ -392,29 +401,25 @@ export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Dat
       // from an earlier claim on this same row (see fourth-call.ts's
       // findFourthCallClaimant) — once someone RSVPs the ordinary way,
       // that's the accurate story for how the slot is filled now.
-      tx.update(rsvps)
-        .set({ status: newStatus, position, respondedAt: now, cancelledAt: null, promotedAt: null, source: "rsvp" })
-        .where(eq(rsvps.id, existing.id))
-        .run();
+      await tx.update(rsvps)
+        .set({ status: newStatus, position, respondedAt: now.getTime(), cancelledAt: null, promotedAt: null, source: "rsvp" })
+        .where(eq(rsvps.id, existing.id));
     } else {
-      tx.insert(rsvps).values({ sessionId, userId, status: newStatus, position, respondedAt: now, source: "rsvp" }).run();
+      await tx.insert(rsvps).values({ sessionId, userId, status: newStatus, position, respondedAt: now.getTime(), source: "rsvp" });
     }
 
     if (newStatus === "in") {
-      tx.update(users)
+      await tx.update(users)
         .set({ rsvpInCount: sql`${users.rsvpInCount} + 1` })
-        .where(eq(users.id, userId))
-        .run();
+        .where(eq(users.id, userId));
 
       if (confirmedCount + 1 === slots) {
-        const confirmedIds = tx
+        const confirmedRows = await tx
           .select({ userId: rsvps.userId })
           .from(rsvps)
-          .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")))
-          .all()
-          .map((r) => r.userId);
-        for (const uid of confirmedIds) {
-          insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
+          .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "in")));
+        for (const { userId: uid } of confirmedRows) {
+          await insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
         }
       }
     }
@@ -438,49 +443,50 @@ export function rsvpIn(db: CuatroDb, sessionId: string, userId: string, now: Dat
  * notification (promotion, or — if there's no reserve to promote —
  * a dropout notice to the circle's organisers so they know a slot is open).
  */
-export function rsvpOut(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): RsvpOutcome {
+export async function rsvpOut(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): Promise<RsvpOutcome> {
   let circleId: string | undefined;
   // Set when a LOCKED rotation game lost a starter: promotion is consent-based
   // there (see offerRotationSlotIfNeeded), so we skip the auto-promote below
   // and kick off the offer cascade AFTER the transaction commits.
   let rotationOfferNeeded = false;
 
-  const outcome = db.transaction((tx): RsvpOutcome => {
-    const ctx = loadSessionContext(tx, sessionId);
+  const outcome = await db.transaction(async (tx): Promise<RsvpOutcome> => {
+    // Lock the session row: the reserve auto-promotion (find reserve #1 → make
+    // them 'in' → close the gap) is a read-decide-write that two simultaneous
+    // dropouts would otherwise race, both promoting the SAME reserve. FOR UPDATE
+    // forces the second dropout to wait, then promote reserve #2.
+    const ctx = await loadSessionContext(tx, sessionId, { lock: true });
     if (!ctx) return { ok: false, error: "session_not_found" };
     const { session, standingGame } = ctx;
     circleId = session.circleId;
 
-    if (!isCircleMember(tx, session.circleId, userId)) return { ok: false, error: "not_a_circle_member" };
-    if (now.getTime() >= session.startsAt.getTime()) return { ok: false, error: "session_started" };
+    if (!(await isCircleMember(tx, session.circleId, userId))) return { ok: false, error: "not_a_circle_member" };
+    if (now.getTime() >= session.startsAt) return { ok: false, error: "session_started" };
 
-    const existing = tx
+    const [existing] = await tx
       .select()
       .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)))
-      .get();
+      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)));
     if (!existing || existing.status === "out") {
       return { ok: true, status: "out" };
     }
 
     if (existing.status === "reserve") {
-      tx.update(rsvps)
-        .set({ status: "out", position: null, cancelledAt: now })
-        .where(eq(rsvps.id, existing.id))
-        .run();
-      closeReserveGap(tx, sessionId, existing.position ?? 0);
+      await tx.update(rsvps)
+        .set({ status: "out", position: null, cancelledAt: now.getTime() })
+        .where(eq(rsvps.id, existing.id));
+      await closeReserveGap(tx, sessionId, existing.position ?? 0);
       return { ok: true, status: "out" };
     }
 
     // existing.status === "in": a confirmed dropout.
-    const msToStart = session.startsAt.getTime() - now.getTime();
+    const msToStart = session.startsAt - now.getTime();
     if (msToStart < LATE_CANCEL_WINDOW_MS) {
-      tx.update(users)
+      await tx.update(users)
         .set({ lateCancelCount: sql`${users.lateCancelCount} + 1` })
-        .where(eq(users.id, userId))
-        .run();
+        .where(eq(users.id, userId));
     }
-    tx.update(rsvps).set({ status: "out", position: null, cancelledAt: now }).where(eq(rsvps.id, existing.id)).run();
+    await tx.update(rsvps).set({ status: "out", position: null, cancelledAt: now.getTime() }).where(eq(rsvps.id, existing.id));
 
     // Rotation, post-lock: a sit-out was TOLD to sit out and may have made
     // other plans, so they get a consent OFFER (post-commit), never a silent
@@ -491,39 +497,36 @@ export function rsvpOut(db: CuatroDb, sessionId: string, userId: string, now: Da
       return { ok: true, status: "out" };
     }
 
-    const nextReserve: Rsvp | undefined = tx
+    const [nextReserve] = await tx
       .select()
       .from(rsvps)
       .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "reserve")))
       .orderBy(asc(rsvps.position))
-      .limit(1)
-      .get();
+      .limit(1);
 
     if (nextReserve) {
-      tx.update(rsvps)
-        .set({ status: "in", position: null, promotedAt: now })
-        .where(eq(rsvps.id, nextReserve.id))
-        .run();
-      tx.update(users)
+      await tx.update(rsvps)
+        .set({ status: "in", position: null, promotedAt: now.getTime() })
+        .where(eq(rsvps.id, nextReserve.id));
+      await tx.update(users)
         .set({ rsvpInCount: sql`${users.rsvpInCount} + 1` })
-        .where(eq(users.id, nextReserve.userId))
-        .run();
-      closeReserveGap(tx, sessionId, nextReserve.position ?? 0);
-      insertNotification(tx, { userId: nextReserve.userId, type: "slot_promoted", payload: { sessionId } });
+        .where(eq(users.id, nextReserve.userId));
+      await closeReserveGap(tx, sessionId, nextReserve.position ?? 0);
+      await insertNotification(tx, { userId: nextReserve.userId, type: "slot_promoted", payload: { sessionId } });
       return { ok: true, status: "out", promotedUserId: nextReserve.userId };
     }
 
     // No reserve to promote — the slot goes empty. Let the organiser(s) know
     // (this is the signal that a Fourth Call may be needed before T-48h).
-    for (const organiserId of circleOrganiserIds(tx, session.circleId)) {
-      insertNotification(tx, { userId: organiserId, type: "dropout", payload: { sessionId, userId } });
+    for (const organiserId of await circleOrganiserIds(tx, session.circleId)) {
+      await insertNotification(tx, { userId: organiserId, type: "dropout", payload: { sessionId, userId } });
     }
     return { ok: true, status: "out" };
   });
 
   // Consent offer for a locked rotation game runs its own transaction, so it
   // must fire AFTER this one commits (the dropped 'in' row must already be out).
-  if (outcome.ok && rotationOfferNeeded) offerRotationSlotIfNeeded(db, sessionId, now);
+  if (outcome.ok && rotationOfferNeeded) await offerRotationSlotIfNeeded(db, sessionId, now);
 
   if (outcome.ok && circleId) {
     emitSessionEvent(sessionId, "rsvp", { circleId });
@@ -533,11 +536,10 @@ export function rsvpOut(db: CuatroDb, sessionId: string, userId: string, now: Da
 }
 
 /** Shifts every reserve position greater than `vacatedPosition` down by one, closing the gap. */
-function closeReserveGap(tx: CuatroDb, sessionId: string, vacatedPosition: number): void {
-  tx.update(rsvps)
+async function closeReserveGap(tx: CuatroDb, sessionId: string, vacatedPosition: number): Promise<void> {
+  await tx.update(rsvps)
     .set({ position: sql`${rsvps.position} - 1` })
-    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "reserve"), gt(rsvps.position, vacatedPosition)))
-    .run();
+    .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "reserve"), gt(rsvps.position, vacatedPosition)));
 }
 
 // ---------------------------------------------------------------------------
@@ -555,58 +557,56 @@ export type FourthCallCheckResult =
  * for this session (via json_extract on the payload) as the "already
  * fired" marker, so repeat views don't spam duplicate notifications.
  */
-export function checkFourthCallLevel1(
+export async function checkFourthCallLevel1(
   db: CuatroDb,
   sessionId: string,
   now: Date = new Date(),
-): FourthCallCheckResult {
+): Promise<FourthCallCheckResult> {
   let circleId: string | undefined;
 
-  const result = db.transaction((tx): FourthCallCheckResult => {
-    const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+  const result = await db.transaction(async (tx): Promise<FourthCallCheckResult> => {
+    // Lock the session row: the "already fired?" idempotency check then the
+    // invite insert is a read-decide-write two concurrent views could race,
+    // double-firing the Fourth Call. FOR UPDATE serialises them.
+    const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
     if (!session || session.status !== "upcoming") return { fired: false, reason: "session_not_upcoming" };
     circleId = session.circleId;
 
-    const msToStart = session.startsAt.getTime() - now.getTime();
+    const msToStart = session.startsAt - now.getTime();
     if (msToStart < 0) return { fired: false, reason: "session_not_upcoming" };
     if (msToStart > FOURTH_CALL_WINDOW_MS) return { fired: false, reason: "not_yet" };
 
     const standingGame = session.standingGameId
-      ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+      ? ((await tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
       : null;
-    if (countConfirmed(tx, sessionId) >= slotsForSession(standingGame)) {
+    if ((await countConfirmed(tx, sessionId)) >= slotsForSession(standingGame)) {
       return { fired: false, reason: "already_full" };
     }
 
-    const alreadyFired = tx
+    const [alreadyFired] = await tx
       .select({ id: notifications.id })
       .from(notifications)
       .where(
         and(
           eq(notifications.type, "fourth_call"),
-          sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+          sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
         ),
-      )
-      .get();
+      );
     if (alreadyFired) return { fired: false, reason: "already_notified" };
 
-    const members = tx
+    const members = await tx
       .select({ userId: circleMembers.userId })
       .from(circleMembers)
-      .where(eq(circleMembers.circleId, session.circleId))
-      .all();
-    const responded = new Set(
-      tx
-        .select({ userId: rsvps.userId })
-        .from(rsvps)
-        .where(eq(rsvps.sessionId, sessionId))
-        .all()
-        .map((r) => r.userId),
-    );
+      .where(eq(circleMembers.circleId, session.circleId));
+    const respondedRows = await tx
+      .select({ userId: rsvps.userId })
+      .from(rsvps)
+      .where(eq(rsvps.sessionId, sessionId));
+    const responded = new Set(respondedRows.map((r) => r.userId));
     const targets = members.map((m) => m.userId).filter((id) => !responded.has(id));
 
     for (const userId of targets) {
-      insertNotification(tx, { userId, type: "fourth_call", payload: { sessionId, level: 1 } });
+      await insertNotification(tx, { userId, type: "fourth_call", payload: { sessionId, level: 1 } });
     }
 
     return { fired: true, notifiedUserIds: targets };
@@ -641,21 +641,20 @@ export interface FourthCallLocalRingOptions {
   forceEscalate?: boolean;
 }
 
-/** When did ring 1's first fourth_call notification for this session go out? Null if it never has. */
-function fourthCallLevel1FiredAt(db: CuatroDb, sessionId: string): Date | null {
-  const row = db
+/** When did ring 1's first fourth_call notification for this session go out (epoch ms)? Null if it never has. */
+async function fourthCallLevel1FiredAt(db: CuatroDb, sessionId: string): Promise<number | null> {
+  const [row] = await db
     .select({ createdAt: notifications.createdAt })
     .from(notifications)
     .where(
       and(
         eq(notifications.type, "fourth_call"),
-        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
-        sql`json_extract(${notifications.payload}, '$.level') = 1`,
+        sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
+        sql`${notifications.payload} ->> 'level' = '1'`,
       ),
     )
     .orderBy(asc(notifications.createdAt))
-    .limit(1)
-    .get();
+    .limit(1);
   return row?.createdAt ?? null;
 }
 
@@ -667,67 +666,64 @@ function fourthCallLevel1FiredAt(db: CuatroDb, sessionId: string): Date | null {
  * ring's own invites are `$.via IS NULL`). Without this the played-with ring
  * firing first would wrongly mark the geo ring as already-done.
  */
-function fourthCallLevel2AlreadyFired(db: CuatroDb, sessionId: string): boolean {
-  return !!db
+async function fourthCallLevel2AlreadyFired(db: CuatroDb, sessionId: string): Promise<boolean> {
+  const [row] = await db
     .select({ id: notifications.id })
     .from(notifications)
     .where(
       and(
         eq(notifications.type, "fourth_call"),
-        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
-        sql`json_extract(${notifications.payload}, '$.level') = 2`,
-        sql`json_extract(${notifications.payload}, '$.via') IS NULL`,
+        sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
+        sql`${notifications.payload} ->> 'level' = '2'`,
+        sql`${notifications.payload} ->> 'via' IS NULL`,
       ),
-    )
-    .get();
+    );
+  return !!row;
 }
 
-/** When did the played-with ring (via="played_with") first fire for this session? Null if it never has — used to order the geo ring strictly after it. */
-function fourthCallPlayedWithFiredAt(db: CuatroDb, sessionId: string): Date | null {
-  const row = db
+/** When did the played-with ring (via="played_with") first fire for this session (epoch ms)? Null if it never has — used to order the geo ring strictly after it. */
+async function fourthCallPlayedWithFiredAt(db: CuatroDb, sessionId: string): Promise<number | null> {
+  const [row] = await db
     .select({ createdAt: notifications.createdAt })
     .from(notifications)
     .where(
       and(
         eq(notifications.type, "fourth_call"),
-        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
-        sql`json_extract(${notifications.payload}, '$.via') = 'played_with'`,
+        sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
+        sql`${notifications.payload} ->> 'via' = 'played_with'`,
       ),
     )
     .orderBy(asc(notifications.createdAt))
-    .limit(1)
-    .get();
+    .limit(1);
   return row?.createdAt ?? null;
 }
 
 /** Everyone already invited through the played-with ring for this session — the page reads this for its "sent to N" count and per-person invited state. */
-export function playedWithInvitedUserIds(db: CuatroDb, sessionId: string): string[] {
-  return db
+export async function playedWithInvitedUserIds(db: CuatroDb, sessionId: string): Promise<string[]> {
+  const rows = await db
     .select({ userId: notifications.userId })
     .from(notifications)
     .where(
       and(
         eq(notifications.type, "fourth_call"),
-        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
-        sql`json_extract(${notifications.payload}, '$.via') = 'played_with'`,
+        sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
+        sql`${notifications.payload} ->> 'via' = 'played_with'`,
       ),
-    )
-    .all()
-    .map((r) => r.userId);
+    );
+  return rows.map((r) => r.userId);
 }
 
 /** Everyone already sent a fourth_call notification (any level) for this session — the never-nag-twice set. */
-function fourthCallNotifiedUserIds(db: CuatroDb, sessionId: string): Set<string> {
-  const rows = db
+async function fourthCallNotifiedUserIds(db: CuatroDb, sessionId: string): Promise<Set<string>> {
+  const rows = await db
     .select({ userId: notifications.userId })
     .from(notifications)
     .where(
       and(
         eq(notifications.type, "fourth_call"),
-        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
+        sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
       ),
-    )
-    .all();
+    );
   return new Set(rows.map((r) => r.userId));
 }
 
@@ -756,19 +752,19 @@ export async function checkFourthCallLocalRing(
   options: FourthCallLocalRingOptions = {},
 ): Promise<FourthCallLocalRingResult> {
   // --- Phase A: async gates + candidate computation (no transaction) --------
-  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-  if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+  if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt) {
     return { fired: false, reason: "session_not_upcoming" };
   }
 
   const standingGame = session.standingGameId
-    ? (db.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+    ? ((await db.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
     : null;
-  if (countConfirmed(db, sessionId) >= slotsForSession(standingGame)) {
+  if ((await countConfirmed(db, sessionId)) >= slotsForSession(standingGame)) {
     return { fired: false, reason: "already_full" };
   }
 
-  if (fourthCallLevel2AlreadyFired(db, sessionId)) {
+  if (await fourthCallLevel2AlreadyFired(db, sessionId)) {
     return { fired: false, reason: "already_notified" };
   }
 
@@ -780,46 +776,46 @@ export async function checkFourthCallLocalRing(
     // window, as before. This relies on the send page running played-with
     // before this on the same view (see the fourth-call page component);
     // the organiser's manual "Reach nearby players" bypasses it via forceEscalate.
-    const gateFrom = fourthCallPlayedWithFiredAt(db, sessionId) ?? fourthCallLevel1FiredAt(db, sessionId);
-    if (!gateFrom || now.getTime() - gateFrom.getTime() < FOURTH_CALL_LOCAL_RING_DELAY_MS) {
+    const gateFrom = (await fourthCallPlayedWithFiredAt(db, sessionId)) ?? (await fourthCallLevel1FiredAt(db, sessionId));
+    if (!gateFrom || now.getTime() - gateFrom < FOURTH_CALL_LOCAL_RING_DELAY_MS) {
       return { fired: false, reason: "not_yet" };
     }
   }
 
-  const alreadyNotified = fourthCallNotifiedUserIds(db, sessionId);
+  const alreadyNotified = await fourthCallNotifiedUserIds(db, sessionId);
   const candidates = await localRingCandidates(db, sessionId, {
     limit: LOCAL_RING_FANOUT_CAP,
     excludeUserIds: [...alreadyNotified],
   });
   if (candidates.length === 0) return { fired: false, reason: "no_candidates" };
 
-  // --- Phase B: synchronous transaction — re-validate + write invites -------
+  // --- Phase B: transaction — re-validate under a session lock + write invites -
   let circleId: string | undefined;
-  const result = db.transaction((tx): FourthCallLocalRingResult => {
-    const s = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-    if (!s || s.status !== "upcoming" || now.getTime() >= s.startsAt.getTime()) {
+  const result = await db.transaction(async (tx): Promise<FourthCallLocalRingResult> => {
+    const [s] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
+    if (!s || s.status !== "upcoming" || now.getTime() >= s.startsAt) {
       return { fired: false, reason: "session_not_upcoming" };
     }
     circleId = s.circleId;
 
     const sg = s.standingGameId
-      ? (tx.select().from(standingGames).where(eq(standingGames.id, s.standingGameId)).get() ?? null)
+      ? ((await tx.select().from(standingGames).where(eq(standingGames.id, s.standingGameId)))[0] ?? null)
       : null;
-    if (countConfirmed(tx, sessionId) >= slotsForSession(sg)) {
+    if ((await countConfirmed(tx, sessionId)) >= slotsForSession(sg)) {
       return { fired: false, reason: "already_full" };
     }
-    if (fourthCallLevel2AlreadyFired(tx, sessionId)) {
+    if (await fourthCallLevel2AlreadyFired(tx, sessionId)) {
       return { fired: false, reason: "already_notified" };
     }
 
     // Re-read the notified set inside the transaction so a concurrent
     // escalation can't cause a double-invite (never nag twice).
-    const notifiedNow = fourthCallNotifiedUserIds(tx, sessionId);
+    const notifiedNow = await fourthCallNotifiedUserIds(tx, sessionId);
     const chosen = candidates.filter((c) => !notifiedNow.has(c.userId));
     if (chosen.length === 0) return { fired: false, reason: "no_candidates" };
 
     for (const c of chosen) {
-      insertNotification(tx, { userId: c.userId, type: "fourth_call", payload: { sessionId, level: 2 } });
+      await insertNotification(tx, { userId: c.userId, type: "fourth_call", payload: { sessionId, level: 2 } });
     }
     return { fired: true, notifiedUserIds: chosen.map((c) => c.userId) };
   });
@@ -890,26 +886,26 @@ export async function checkFourthCallPlayedWith(
   options: FourthCallPlayedWithOptions = {},
 ): Promise<FourthCallPlayedWithResult> {
   // --- Phase A: async gates + candidate computation (no transaction) --------
-  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-  if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+  if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt) {
     return { fired: false, reason: "session_not_upcoming" };
   }
 
   const standingGame = session.standingGameId
-    ? (db.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+    ? ((await db.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
     : null;
-  if (countConfirmed(db, sessionId) >= slotsForSession(standingGame)) {
+  if ((await countConfirmed(db, sessionId)) >= slotsForSession(standingGame)) {
     return { fired: false, reason: "already_full" };
   }
 
   if (!options.forceEscalate) {
-    const firedAt = fourthCallLevel1FiredAt(db, sessionId);
-    if (!firedAt || now.getTime() - firedAt.getTime() < FOURTH_CALL_LOCAL_RING_DELAY_MS) {
+    const firedAt = await fourthCallLevel1FiredAt(db, sessionId);
+    if (!firedAt || now.getTime() - firedAt < FOURTH_CALL_LOCAL_RING_DELAY_MS) {
       return { fired: false, reason: "not_yet" };
     }
   }
 
-  const alreadyNotified = fourthCallNotifiedUserIds(db, sessionId);
+  const alreadyNotified = await fourthCallNotifiedUserIds(db, sessionId);
   let candidates = await playedWithCandidates(db, sessionId, {
     limit: PLAYED_WITH_FANOUT_CAP,
     excludeUserIds: [...alreadyNotified],
@@ -932,30 +928,30 @@ export async function checkFourthCallPlayedWith(
     return { fired: false, reason: universe.length > 0 ? "already_notified" : "no_candidates" };
   }
 
-  // --- Phase B: synchronous transaction — re-validate + write invites -------
+  // --- Phase B: transaction — re-validate under a session lock + write invites -
   let circleId: string | undefined;
-  const result = db.transaction((tx): FourthCallPlayedWithResult => {
-    const s = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-    if (!s || s.status !== "upcoming" || now.getTime() >= s.startsAt.getTime()) {
+  const result = await db.transaction(async (tx): Promise<FourthCallPlayedWithResult> => {
+    const [s] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
+    if (!s || s.status !== "upcoming" || now.getTime() >= s.startsAt) {
       return { fired: false, reason: "session_not_upcoming" };
     }
     circleId = s.circleId;
 
     const sg = s.standingGameId
-      ? (tx.select().from(standingGames).where(eq(standingGames.id, s.standingGameId)).get() ?? null)
+      ? ((await tx.select().from(standingGames).where(eq(standingGames.id, s.standingGameId)))[0] ?? null)
       : null;
-    if (countConfirmed(tx, sessionId) >= slotsForSession(sg)) {
+    if ((await countConfirmed(tx, sessionId)) >= slotsForSession(sg)) {
       return { fired: false, reason: "already_full" };
     }
 
     // Re-read the notified set inside the transaction so a concurrent
     // escalation can't cause a double-invite (never nag twice, per person).
-    const notifiedNow = fourthCallNotifiedUserIds(tx, sessionId);
+    const notifiedNow = await fourthCallNotifiedUserIds(tx, sessionId);
     const chosen = candidates.filter((c) => !notifiedNow.has(c.userId));
     if (chosen.length === 0) return { fired: false, reason: "already_notified" };
 
     for (const c of chosen) {
-      insertNotification(tx, {
+      await insertNotification(tx, {
         userId: c.userId,
         type: "fourth_call",
         payload: { sessionId, level: 2, via: "played_with" },
@@ -994,20 +990,19 @@ export async function checkFourthCallPlayedWith(
  * was 'in'. Capped at the window the fairness math actually reads, so an
  * ancient game doesn't drag in unbounded rows.
  */
-function loadRotationHistory(tx: CuatroDb, standingGameId: string, beforeStartsAt: Date): RotationPastSession[] {
-  const pastSessions = tx
+async function loadRotationHistory(tx: CuatroDb, standingGameId: string, beforeStartsAt: number): Promise<RotationPastSession[]> {
+  const pastSessions = await tx
     .select({ id: sessions.id, startsAt: sessions.startsAt })
     .from(sessions)
     .where(and(eq(sessions.standingGameId, standingGameId), lt(sessions.startsAt, beforeStartsAt)))
     .orderBy(sql`${sessions.startsAt} desc`)
-    .limit(ROTATION_RECENT_WINDOW)
-    .all();
+    .limit(ROTATION_RECENT_WINDOW);
   if (pastSessions.length === 0) return [];
 
   const ids = pastSessions.map((s) => s.id);
 
   // Verified match rosters keyed by session (the source of truth for "played").
-  const matchRows = tx
+  const matchRows = await tx
     .select({
       sessionId: matches.sessionId,
       a1: matches.teamAPlayer1Id,
@@ -1016,8 +1011,7 @@ function loadRotationHistory(tx: CuatroDb, standingGameId: string, beforeStartsA
       b2: matches.teamBPlayer2Id,
     })
     .from(matches)
-    .where(and(inArray(matches.sessionId, ids), eq(matches.status, "verified")))
-    .all();
+    .where(and(inArray(matches.sessionId, ids), eq(matches.status, "verified")));
   const rosterBySession = new Map<string, string[]>();
   for (const m of matchRows) {
     const existing = rosterBySession.get(m.sessionId) ?? [];
@@ -1025,11 +1019,10 @@ function loadRotationHistory(tx: CuatroDb, standingGameId: string, beforeStartsA
   }
 
   // Fallback: who was 'in' (selected to play) where no match was recorded.
-  const inRows = tx
+  const inRows = await tx
     .select({ sessionId: rsvps.sessionId, userId: rsvps.userId })
     .from(rsvps)
-    .where(and(inArray(rsvps.sessionId, ids), eq(rsvps.status, "in")))
-    .all();
+    .where(and(inArray(rsvps.sessionId, ids), eq(rsvps.status, "in")));
   const inBySession = new Map<string, string[]>();
   for (const r of inRows) {
     const existing = inBySession.get(r.sessionId) ?? [];
@@ -1037,7 +1030,7 @@ function loadRotationHistory(tx: CuatroDb, standingGameId: string, beforeStartsA
   }
 
   return pastSessions.map((s) => ({
-    startsAt: s.startsAt.getTime(),
+    startsAt: s.startsAt,
     playedUserIds: rosterBySession.get(s.id) ?? inBySession.get(s.id) ?? [],
   }));
 }
@@ -1048,14 +1041,13 @@ function loadRotationHistory(tx: CuatroDb, standingGameId: string, beforeStartsA
  * still produce a stable, deterministic availabilityOrder — determinism is the
  * whole promise of the feature, so ties can never be resolved by DB row order.
  */
-function rotationCandidates(tx: CuatroDb, sessionId: string): RotationCandidate[] {
-  return tx
+async function rotationCandidates(tx: CuatroDb, sessionId: string): Promise<RotationCandidate[]> {
+  const rows = await tx
     .select({ userId: rsvps.userId, respondedAt: rsvps.respondedAt })
     .from(rsvps)
     .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "available")))
-    .orderBy(asc(rsvps.respondedAt), asc(rsvps.userId))
-    .all()
-    .map((r, i) => ({ userId: r.userId, availabilityOrder: i }));
+    .orderBy(asc(rsvps.respondedAt), asc(rsvps.userId));
+  return rows.map((r, i) => ({ userId: r.userId, availabilityOrder: i }));
 }
 
 export type RotationRsvpOutcome =
@@ -1083,48 +1075,48 @@ export type RotationRsvpOutcome =
  * join the sit-out queue if the four is already full — filling remaining spots
  * "by the next player in" as the brief requires.
  */
-export function markAvailable(
+export async function markAvailable(
   db: CuatroDb,
   sessionId: string,
   userId: string,
   now: Date = new Date(),
-): RotationRsvpOutcome | RsvpOutcome {
+): Promise<RotationRsvpOutcome | RsvpOutcome> {
   // Post-lock late fill: read the lock state first (outside the txn), then hand
   // off to rsvpIn (which opens its own transaction).
-  const locked = loadSessionContext(db, sessionId);
+  const locked = await loadSessionContext(db, sessionId);
   if (locked?.standingGame?.rotationEnabled && locked.session.rotationLockedAt && locked.standingGame.rotationMode === "limited") {
     return rsvpIn(db, sessionId, userId, now);
   }
 
   let circleId: string | undefined;
-  const outcome = db.transaction((tx): RotationRsvpOutcome => {
-    const ctx = loadSessionContext(tx, sessionId);
+  const outcome = await db.transaction(async (tx): Promise<RotationRsvpOutcome> => {
+    // Lock the session row: 'available' upsert is gated on rotationLockedAt being
+    // null, a read-decide-write that must not race the lazy lock (lockRotationIfDue).
+    const ctx = await loadSessionContext(tx, sessionId, { lock: true });
     if (!ctx) return { ok: false, error: "session_not_found" };
     const { session, standingGame } = ctx;
     circleId = session.circleId;
 
     if (!standingGame?.rotationEnabled) return { ok: false, error: "rotation_not_enabled" };
     if (session.rotationLockedAt) return { ok: false, error: "rotation_locked" };
-    if (!isCircleMember(tx, session.circleId, userId)) return { ok: false, error: "not_a_circle_member" };
-    if (now.getTime() >= session.startsAt.getTime()) return { ok: false, error: "session_started" };
+    if (!(await isCircleMember(tx, session.circleId, userId))) return { ok: false, error: "not_a_circle_member" };
+    if (now.getTime() >= session.startsAt) return { ok: false, error: "session_started" };
 
-    const windowOpensAt = session.startsAt.getTime() - rsvpWindowDaysFor(standingGame) * DAY_MS;
+    const windowOpensAt = session.startsAt - rsvpWindowDaysFor(standingGame) * DAY_MS;
     if (now.getTime() < windowOpensAt) return { ok: false, error: "window_not_open" };
 
-    const existing = tx
+    const [existing] = await tx
       .select()
       .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)))
-      .get();
+      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)));
     if (existing && existing.status === "available") return { ok: true, status: "available" };
 
     if (existing) {
-      tx.update(rsvps)
-        .set({ status: "available", position: null, respondedAt: now, cancelledAt: null, promotedAt: null, source: "rsvp" })
-        .where(eq(rsvps.id, existing.id))
-        .run();
+      await tx.update(rsvps)
+        .set({ status: "available", position: null, respondedAt: now.getTime(), cancelledAt: null, promotedAt: null, source: "rsvp" })
+        .where(eq(rsvps.id, existing.id));
     } else {
-      tx.insert(rsvps).values({ sessionId, userId, status: "available", respondedAt: now, source: "rsvp" }).run();
+      await tx.insert(rsvps).values({ sessionId, userId, status: "available", respondedAt: now.getTime(), source: "rsvp" });
     }
     return { ok: true, status: "available" };
   });
@@ -1142,27 +1134,28 @@ export function markAvailable(
  * (a locked-in player who drops goes through rsvpOut, which auto-promotes the
  * first sit-out), so this is rejected once locked.
  */
-export function markUnavailable(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): RotationRsvpOutcome {
+export async function markUnavailable(db: CuatroDb, sessionId: string, userId: string, now: Date = new Date()): Promise<RotationRsvpOutcome> {
   let circleId: string | undefined;
-  const outcome = db.transaction((tx): RotationRsvpOutcome => {
-    const ctx = loadSessionContext(tx, sessionId);
+  const outcome = await db.transaction(async (tx): Promise<RotationRsvpOutcome> => {
+    // Lock the session row: gated on rotationLockedAt null (read-decide-write vs
+    // the lazy lock).
+    const ctx = await loadSessionContext(tx, sessionId, { lock: true });
     if (!ctx) return { ok: false, error: "session_not_found" };
     const { session, standingGame } = ctx;
     circleId = session.circleId;
 
     if (!standingGame?.rotationEnabled) return { ok: false, error: "rotation_not_enabled" };
     if (session.rotationLockedAt) return { ok: false, error: "rotation_locked" };
-    if (!isCircleMember(tx, session.circleId, userId)) return { ok: false, error: "not_a_circle_member" };
-    if (now.getTime() >= session.startsAt.getTime()) return { ok: false, error: "session_started" };
+    if (!(await isCircleMember(tx, session.circleId, userId))) return { ok: false, error: "not_a_circle_member" };
+    if (now.getTime() >= session.startsAt) return { ok: false, error: "session_started" };
 
-    const existing = tx
+    const [existing] = await tx
       .select()
       .from(rsvps)
-      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)))
-      .get();
+      .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)));
     if (!existing || existing.status === "out") return { ok: true, status: "out" };
 
-    tx.update(rsvps).set({ status: "out", position: null, cancelledAt: now }).where(eq(rsvps.id, existing.id)).run();
+    await tx.update(rsvps).set({ status: "out", position: null, cancelledAt: now.getTime() }).where(eq(rsvps.id, existing.id));
     return { ok: true, status: "out" };
   });
 
@@ -1189,54 +1182,54 @@ export type RotationLockResult =
  * this is a no-op (`unlimited_no_lock`). Fewer available than slots: everyone
  * available is 'in', no sit-out list, and the Fourth Call fills the gap.
  */
-export function lockRotationIfDue(db: CuatroDb, sessionId: string, now: Date = new Date()): RotationLockResult {
+export async function lockRotationIfDue(db: CuatroDb, sessionId: string, now: Date = new Date()): Promise<RotationLockResult> {
   let circleId: string | undefined;
-  const result = db.transaction((tx): RotationLockResult => {
-    const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+  const result = await db.transaction(async (tx): Promise<RotationLockResult> => {
+    // Lock the session row: rotationLockedAt is the idempotency marker (checked
+    // then stamped), a read-decide-write two concurrent views could otherwise
+    // race, locking the same session twice / double-incrementing rsvpInCount.
+    const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
     if (!session || session.status !== "upcoming") return { locked: false, reason: "session_not_upcoming" };
     if (session.rotationLockedAt) return { locked: false, reason: "already_locked" };
     circleId = session.circleId;
 
     const standingGame = session.standingGameId
-      ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+      ? ((await tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
       : null;
     if (!standingGame?.rotationEnabled) return { locked: false, reason: "not_rotation" };
     // Unlimited never resolves to a lock — the ranking stays live to kickoff.
     if (standingGame.rotationMode === "unlimited") return { locked: false, reason: "unlimited_no_lock" };
 
-    const msToStart = session.startsAt.getTime() - now.getTime();
+    const msToStart = session.startsAt - now.getTime();
     if (msToStart < 0) return { locked: false, reason: "session_not_upcoming" };
     if (msToStart > rotationCutoffMs(standingGame)) return { locked: false, reason: "not_yet" };
 
     const slots = slotsForSession(standingGame);
     const selection = computeRotation(
-      rotationCandidates(tx, sessionId),
-      loadRotationHistory(tx, standingGame.id, session.startsAt),
+      await rotationCandidates(tx, sessionId),
+      await loadRotationHistory(tx, standingGame.id, session.startsAt),
       slots,
     );
 
     for (const userId of selection.inUserIds) {
-      tx.update(rsvps)
-        .set({ status: "in", position: null, promotedAt: now })
-        .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)))
-        .run();
-      tx.update(users)
+      await tx.update(rsvps)
+        .set({ status: "in", position: null, promotedAt: now.getTime() })
+        .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)));
+      await tx.update(users)
         .set({ rsvpInCount: sql`${users.rsvpInCount} + 1` })
-        .where(eq(users.id, userId))
-        .run();
+        .where(eq(users.id, userId));
     }
-    selection.sittingUserIds.forEach((userId, i) => {
-      tx.update(rsvps)
+    for (const [i, userId] of selection.sittingUserIds.entries()) {
+      await tx.update(rsvps)
         .set({ status: "reserve", position: i + 1, promotedAt: null })
-        .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)))
-        .run();
-    });
+        .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.userId, userId)));
+    }
 
-    tx.update(sessions).set({ rotationLockedAt: now }).where(eq(sessions.id, sessionId)).run();
+    await tx.update(sessions).set({ rotationLockedAt: now.getTime() }).where(eq(sessions.id, sessionId));
 
     // Notifications last in the transaction (see notify.ts's push-after-commit note).
-    for (const userId of selection.inUserIds) notifyRotationSelected(tx, userId, sessionId);
-    for (const userId of selection.sittingUserIds) notifyRotationSittingOut(tx, userId, sessionId);
+    for (const userId of selection.inUserIds) await notifyRotationSelected(tx, userId, sessionId);
+    for (const userId of selection.sittingUserIds) await notifyRotationSittingOut(tx, userId, sessionId);
 
     return { locked: true, inUserIds: selection.inUserIds, sittingUserIds: selection.sittingUserIds };
   });
@@ -1278,20 +1271,19 @@ type RotationOfferResult =
   | { state: "offered"; userId: string } // just handed the offer to the next sit-out
   | { state: "exhausted" }; // every sit-out has had first refusal — Fourth Call may proceed
 
-/** fourth_call notifications tagged as rotation offers for this session, newest first. */
-function rotationOfferNotifs(tx: CuatroDb, sessionId: string): { userId: string; createdAt: Date; readAt: Date | null }[] {
+/** fourth_call notifications tagged as rotation offers for this session, newest first. Timestamps are epoch ms. */
+async function rotationOfferNotifs(tx: CuatroDb, sessionId: string): Promise<{ userId: string; createdAt: number; readAt: number | null }[]> {
   return tx
     .select({ userId: notifications.userId, createdAt: notifications.createdAt, readAt: notifications.readAt })
     .from(notifications)
     .where(
       and(
         eq(notifications.type, "fourth_call"),
-        sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
-        sql`json_extract(${notifications.payload}, '$.via') = 'rotation_offer'`,
+        sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
+        sql`${notifications.payload} ->> 'via' = 'rotation_offer'`,
       ),
     )
-    .orderBy(sql`${notifications.createdAt} desc`)
-    .all();
+    .orderBy(sql`${notifications.createdAt} desc`);
 }
 
 /**
@@ -1300,39 +1292,41 @@ function rotationOfferNotifs(tx: CuatroDb, sessionId: string): { userId: string;
  * safe to call on every view. Returns what it did so the caller can decide
  * whether the ordinary Fourth Call should also run (only once `exhausted`).
  */
-export function offerRotationSlotIfNeeded(db: CuatroDb, sessionId: string, now: Date = new Date()): RotationOfferResult {
+export async function offerRotationSlotIfNeeded(db: CuatroDb, sessionId: string, now: Date = new Date()): Promise<RotationOfferResult> {
   let circleId: string | undefined;
   let offeredUserId: string | undefined;
 
-  const result = db.transaction((tx): RotationOfferResult => {
-    const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-    if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt.getTime()) {
+  const result = await db.transaction(async (tx): Promise<RotationOfferResult> => {
+    // Lock the session row: advancing the offer (is one live? if not, insert the
+    // next sit-out's offer) is a read-decide-write two concurrent views must not
+    // race, or the same opened spot gets offered to two sit-outs at once.
+    const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
+    if (!session || session.status !== "upcoming" || now.getTime() >= session.startsAt) {
       return { state: "not_applicable" };
     }
     circleId = session.circleId;
     const standingGame = session.standingGameId
-      ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+      ? ((await tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
       : null;
     if (!standingGame?.rotationEnabled || standingGame.rotationMode !== "limited" || !session.rotationLockedAt) {
       return { state: "not_applicable" };
     }
-    if (countConfirmed(tx, sessionId) >= slotsForSession(standingGame)) return { state: "not_applicable" };
+    if ((await countConfirmed(tx, sessionId)) >= slotsForSession(standingGame)) return { state: "not_applicable" };
 
-    const offers = rotationOfferNotifs(tx, sessionId);
+    const offers = await rotationOfferNotifs(tx, sessionId);
     const offeredUserIds = new Set(offers.map((o) => o.userId));
 
     // Is an offer still live? Held by a current sit-out ('reserve'), unread, and
     // inside the window. A read (passed) or aged-out offer is spent → advance.
-    const reserves = tx
+    const reserves = await tx
       .select({ userId: rsvps.userId, position: rsvps.position })
       .from(rsvps)
       .where(and(eq(rsvps.sessionId, sessionId), eq(rsvps.status, "reserve")))
-      .orderBy(asc(rsvps.position))
-      .all();
+      .orderBy(asc(rsvps.position));
     const reserveIds = new Set(reserves.map((r) => r.userId));
 
     const liveOffer = offers.find(
-      (o) => reserveIds.has(o.userId) && o.readAt == null && now.getTime() - o.createdAt.getTime() < ROTATION_OFFER_WINDOW_MS,
+      (o) => reserveIds.has(o.userId) && o.readAt == null && now.getTime() - o.createdAt < ROTATION_OFFER_WINDOW_MS,
     );
     if (liveOffer) return { state: "waiting", userId: liveOffer.userId };
 
@@ -1345,11 +1339,10 @@ export function offerRotationSlotIfNeeded(db: CuatroDb, sessionId: string, now: 
     // order its own offers. Inserted directly (not through insertNotification,
     // whose typed payload doesn't carry this tag); the fourth_call render path
     // shows the honest "your circle needs a fourth" copy.
-    tx.insert(notifications)
+    await tx.insert(notifications)
       // createdAt is set explicitly to `now` (not the column default) because the
       // offer window is measured from it — the caller's clock is the source of truth.
-      .values({ userId: next.userId, type: "fourth_call", payload: { sessionId, level: 1, via: "rotation_offer" }, createdAt: now })
-      .run();
+      .values({ userId: next.userId, type: "fourth_call", payload: { sessionId, level: 1, via: "rotation_offer" }, createdAt: now.getTime() });
     offeredUserId = next.userId;
     return { state: "offered", userId: next.userId };
   });
@@ -1374,18 +1367,22 @@ export function offerRotationSlotIfNeeded(db: CuatroDb, sessionId: string, now: 
  * session that isn't "upcoming" (already "played", or "cancelled") is
  * returned untouched.
  */
-export function ensureSessionPlayedTransition(db: CuatroDb, sessionId: string, now: Date = new Date()): Session | null {
-  return db.transaction((tx) => {
-    const session = tx.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+export async function ensureSessionPlayedTransition(db: CuatroDb, sessionId: string, now: Date = new Date()): Promise<Session | null> {
+  return db.transaction(async (tx) => {
+    // Lock the session row: the status check then flip is a read-decide-write;
+    // FOR UPDATE keeps two concurrent viewers from both flipping (idempotent, but
+    // avoids a redundant double-write) and orders it against RSVP mutations.
+    const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
     if (!session || session.status !== "upcoming") return session ?? null;
 
     const standingGame = session.standingGameId
-      ? (tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+      ? ((await tx.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
       : null;
-    const endsAt = session.startsAt.getTime() + durationMinutesFor(standingGame) * 60_000;
+    const endsAt = session.startsAt + durationMinutesFor(standingGame) * 60_000;
     if (now.getTime() < endsAt) return session;
 
-    return tx.update(sessions).set({ status: "played" }).where(eq(sessions.id, sessionId)).returning().get();
+    const [updated] = await tx.update(sessions).set({ status: "played" }).where(eq(sessions.id, sessionId)).returning();
+    return updated;
   });
 }
 
@@ -1464,22 +1461,22 @@ export function computeSessionCostPerHead(costMinor: number | null, slots: numbe
   return computeEqualSplit(costMinor, slots - 1).shareMinor;
 }
 
-export function getSessionSummary(
+export async function getSessionSummary(
   db: CuatroDb,
   sessionId: string,
   viewerUserId: string,
   now: Date = new Date(),
-): SessionSummary | null {
-  const session = ensureSessionPlayedTransition(db, sessionId, now);
+): Promise<SessionSummary | null> {
+  const session = await ensureSessionPlayedTransition(db, sessionId, now);
   if (!session) return null;
 
   const standingGame = session.standingGameId
-    ? (db.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)).get() ?? null)
+    ? ((await db.select().from(standingGames).where(eq(standingGames.id, session.standingGameId)))[0] ?? null)
     : null;
-  const venue = session.venueId ? (db.select().from(venues).where(eq(venues.id, session.venueId)).get() ?? null) : null;
-  const circle = db.select().from(circles).where(eq(circles.id, session.circleId)).get();
+  const venue = session.venueId ? ((await db.select().from(venues).where(eq(venues.id, session.venueId)))[0] ?? null) : null;
+  const [circle] = await db.select().from(circles).where(eq(circles.id, session.circleId));
 
-  const rows = db
+  const rows = await db
     .select({
       status: rsvps.status,
       position: rsvps.position,
@@ -1492,8 +1489,7 @@ export function getSessionSummary(
     })
     .from(rsvps)
     .innerJoin(users, eq(rsvps.userId, users.id))
-    .where(eq(rsvps.sessionId, sessionId))
-    .all();
+    .where(eq(rsvps.sessionId, sessionId));
 
   // Confirmed slots fill (and must keep displaying) in RSVP order — see
   // design/HANDOFF.md's "slots fill in order" — but rsvpIn() never assigns
@@ -1501,7 +1497,7 @@ export function getSessionSummary(
   // must sort by `respondedAt` rather than rely on the row's DB order.
   const confirmed = rows
     .filter((r) => r.status === "in")
-    .sort((a, b) => (a.respondedAt?.getTime() ?? 0) - (b.respondedAt?.getTime() ?? 0))
+    .sort((a, b) => (a.respondedAt ?? 0) - (b.respondedAt ?? 0))
     .map(toPlayerRef);
   const reserves = rows
     .filter((r) => r.status === "reserve")
@@ -1511,7 +1507,7 @@ export function getSessionSummary(
   const slots = slotsForSession(standingGame);
   const costMinor = standingGame?.costMinor ?? null;
 
-  const rotation = buildRotationView(db, session, standingGame, rows, slots, viewerUserId);
+  const rotation = await buildRotationView(db, session, standingGame, rows, slots, viewerUserId);
 
   return {
     session,
@@ -1531,7 +1527,7 @@ export function getSessionSummary(
         ? viewerRow.status
         : null,
     rotation,
-    rsvpWindowOpensAt: new Date(session.startsAt.getTime() - rsvpWindowDaysFor(standingGame) * DAY_MS),
+    rsvpWindowOpensAt: new Date(session.startsAt - rsvpWindowDaysFor(standingGame) * DAY_MS),
     costMinor,
     costCurrency: standingGame?.costCurrency ?? "GBP",
     costPerHeadMinor: computeSessionCostPerHead(costMinor, slots),
@@ -1541,7 +1537,7 @@ export function getSessionSummary(
 type RsvpRow = {
   status: string;
   position: number | null;
-  respondedAt: Date | null;
+  respondedAt: number | null;
   userId: string;
   displayName: string;
   avatarUrl: string | null;
@@ -1557,27 +1553,27 @@ type RsvpRow = {
  * of last 4") are computed the same way in both states so the "why" is always
  * on show.
  */
-function buildRotationView(
+async function buildRotationView(
   db: CuatroDb,
   session: Session,
   standingGame: StandingGame | null,
   rows: RsvpRow[],
   slots: number,
   viewerUserId: string,
-): SessionRotationView | null {
+): Promise<SessionRotationView | null> {
   if (!standingGame?.rotationEnabled) return null;
 
   const refByUser = new Map<string, PlayerRef>(rows.map((r) => [r.userId, toPlayerRef(r)]));
   const refs = (ids: string[]): PlayerRef[] => ids.map((id) => refByUser.get(id)).filter((r): r is PlayerRef => !!r);
-  const history = loadRotationHistory(db, standingGame.id, session.startsAt);
-  const locksAt = new Date(session.startsAt.getTime() - rotationCutoffMs(standingGame));
+  const history = await loadRotationHistory(db, standingGame.id, session.startsAt);
+  const locksAt = new Date(session.startsAt - rotationCutoffMs(standingGame));
   const mode = standingGame.rotationMode;
 
   // userId secondary keeps the derived availabilityOrder deterministic when
   // replies share a timestamp (matches rotationCandidates' ordering exactly, so
   // the provisional view and the eventual lock agree).
   const byResponded = (a: RsvpRow, b: RsvpRow) =>
-    (a.respondedAt?.getTime() ?? 0) - (b.respondedAt?.getTime() ?? 0) ||
+    (a.respondedAt ?? 0) - (b.respondedAt ?? 0) ||
     (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0);
 
   if (!session.rotationLockedAt) {
@@ -1613,7 +1609,7 @@ function buildRotationView(
   const selection = computeRotation(reasonCandidates, history, slots);
   return {
     mode,
-    lockedAt: session.rotationLockedAt,
+    lockedAt: session.rotationLockedAt != null ? new Date(session.rotationLockedAt) : null,
     locksAt,
     coldStart: selection.coldStart,
     available: availableRows.map(toPlayerRef),
@@ -1645,7 +1641,7 @@ export function isFourthCallActive(
   summary: Pick<SessionSummary, "session" | "slots" | "confirmed">,
   now: Date = new Date(),
 ): boolean {
-  const msToStart = summary.session.startsAt.getTime() - now.getTime();
+  const msToStart = summary.session.startsAt - now.getTime();
   return (
     summary.session.status === "upcoming" &&
     msToStart >= 0 &&
@@ -1659,13 +1655,12 @@ export function isFourthCallActive(
  * page's data source. Ensures lazy generation and the Fourth Call check
  * happen on this view, per the "no cron in v0" design.
  */
-export function listUpcomingSessionsForUser(db: CuatroDb, userId: string, now: Date = new Date()): SessionSummary[] {
-  const memberCircleIds = db
+export async function listUpcomingSessionsForUser(db: CuatroDb, userId: string, now: Date = new Date()): Promise<SessionSummary[]> {
+  const memberRows = await db
     .select({ circleId: circleMembers.circleId })
     .from(circleMembers)
-    .where(eq(circleMembers.userId, userId))
-    .all()
-    .map((r) => r.circleId);
+    .where(eq(circleMembers.userId, userId));
+  const memberCircleIds = memberRows.map((r) => r.circleId);
   if (memberCircleIds.length === 0) return [];
 
   return listUpcomingSessionsForCircles(db, memberCircleIds, userId, now);
@@ -1677,51 +1672,52 @@ export function listUpcomingSessionsForUser(db: CuatroDb, userId: string, now: D
  * listUpcomingSessionsForUser, just scoped to a single circle instead of
  * every circle a user belongs to).
  */
-export function listUpcomingSessionsForCircle(
+export async function listUpcomingSessionsForCircle(
   db: CuatroDb,
   circleId: string,
   viewerUserId: string,
   now: Date = new Date(),
-): SessionSummary[] {
+): Promise<SessionSummary[]> {
   return listUpcomingSessionsForCircles(db, [circleId], viewerUserId, now);
 }
 
-function listUpcomingSessionsForCircles(
+async function listUpcomingSessionsForCircles(
   db: CuatroDb,
   circleIds: string[],
   viewerUserId: string,
   now: Date,
-): SessionSummary[] {
+): Promise<SessionSummary[]> {
   for (const circleId of circleIds) {
-    ensureUpcomingSessionsForCircle(db, circleId, now);
+    await ensureUpcomingSessionsForCircle(db, circleId, now);
   }
 
-  const upcoming = db
+  const upcoming = await db
     .select()
     .from(sessions)
-    .where(and(inArray(sessions.circleId, circleIds), eq(sessions.status, "upcoming"), gt(sessions.startsAt, now)))
-    .orderBy(asc(sessions.startsAt))
-    .all();
+    .where(and(inArray(sessions.circleId, circleIds), eq(sessions.status, "upcoming"), gt(sessions.startsAt, now.getTime())))
+    .orderBy(asc(sessions.startsAt));
 
   // Lock any due rotation game BEFORE building its summary, so the locked
   // lineup (not the provisional one) is what this view returns — same
   // lazy-on-view contract as the Fourth Call. No-op for non-rotation games and
   // for rotation games still gathering availability.
   for (const s of upcoming) {
-    lockRotationIfDue(db, s.id, now);
+    await lockRotationIfDue(db, s.id, now);
   }
 
-  const summaries = upcoming
-    .map((s) => getSessionSummary(db, s.id, viewerUserId, now))
-    .filter((s): s is SessionSummary => s !== null);
+  const summaries: SessionSummary[] = [];
+  for (const s of upcoming) {
+    const summary = await getSessionSummary(db, s.id, viewerUserId, now);
+    if (summary !== null) summaries.push(summary);
+  }
 
   for (const summary of summaries) {
     // Rotation sit-outs get first refusal (offerRotationSlotIfNeeded); the
     // ordinary Fourth Call only broadcasts once that chain is exhausted or the
     // game isn't a locked rotation game (not_applicable). Same lazy-on-view point.
-    const offer = offerRotationSlotIfNeeded(db, summary.session.id, now);
+    const offer = await offerRotationSlotIfNeeded(db, summary.session.id, now);
     if (offer.state === "exhausted" || offer.state === "not_applicable") {
-      checkFourthCallLevel1(db, summary.session.id, now);
+      await checkFourthCallLevel1(db, summary.session.id, now);
     }
   }
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { circleMembers, circles, matches, notifications, ratingEvents, rsvps, sessions, users, type CuatroDb } from "@cuatro/db";
+import { circleMembers, circles, createTestClient, matches, notifications, ratingEvents, rsvps, sessions, users, type CuatroDb } from "@cuatro/db";
 import {
   clampRating,
   confidenceMultiplier,
@@ -12,73 +12,71 @@ import {
   DEFAULT_STARTING_RATING,
   PLACEMENT_TRIO_SIZE,
 } from "@cuatro/glass";
-import { createMatchesStore, type MatchesStore } from "@/server/matches-db";
+import { createMatchesStoreFromClient, type MatchesStore } from "@/server/matches-db";
 import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
 import { circleChannel, sessionChannel, userChannel } from "@/lib/realtime/channels";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function insertUser(db: CuatroDb, email: string, displayName: string) {
-  return db.insert(users).values({ email, displayName }).returning().get();
+async function insertUser(db: CuatroDb, email: string, displayName: string) {
+  const [row] = await db.insert(users).values({ email, displayName }).returning();
+  return row;
 }
 
-function insertCircleAndSession(db: CuatroDb, createdBy: string, startsAt: Date) {
-  const circle = db
+async function insertCircleAndSession(db: CuatroDb, createdBy: string, startsAt: Date) {
+  const [circle] = await db
     .insert(circles)
     .values({ name: "Test Circle", inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy })
-    .returning()
-    .get();
-  const session = db
+    .returning();
+  const [session] = await db
     .insert(sessions)
-    .values({ circleId: circle.id, startsAt, status: "played" })
-    .returning()
-    .get();
+    .values({ circleId: circle.id, startsAt: startsAt.getTime(), status: "played" })
+    .returning();
   return session.id;
 }
 
-function insertCircleWithSession(db: CuatroDb, createdBy: string, startsAt: Date) {
-  const circle = db
+async function insertCircleWithSession(db: CuatroDb, createdBy: string, startsAt: Date) {
+  const [circle] = await db
     .insert(circles)
     .values({ name: "Test Circle", inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy })
-    .returning()
-    .get();
-  const session = db.insert(sessions).values({ circleId: circle.id, startsAt, status: "played" }).returning().get();
+    .returning();
+  const [session] = await db.insert(sessions).values({ circleId: circle.id, startsAt: startsAt.getTime(), status: "played" }).returning();
   return { circleId: circle.id, sessionId: session.id };
 }
 
-function addMember(db: CuatroDb, circleId: string, userId: string, role: "organiser" | "member" = "member") {
-  db.insert(circleMembers).values({ circleId, userId, role }).run();
+async function addMember(db: CuatroDb, circleId: string, userId: string, role: "organiser" | "member" = "member") {
+  await db.insert(circleMembers).values({ circleId, userId, role });
 }
 
-function rsvpIn(
+async function rsvpIn(
   db: CuatroDb,
   sessionId: string,
   userId: string,
   respondedAt: Date,
   source: "rsvp" | "fourth_call" = "rsvp",
 ) {
-  db.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt, source }).run();
+  await db.insert(rsvps).values({ sessionId, userId, status: "in", respondedAt: respondedAt.getTime(), source });
 }
 
 describe("result entry + Glass verification flow", () => {
   let store: MatchesStore;
   let db: CuatroDb;
 
-  beforeEach(() => {
-    store = createMatchesStore(":memory:");
+  beforeEach(async () => {
+    store = createMatchesStoreFromClient(await createTestClient());
     db = store.db;
   });
 
-  afterEach(() => {
-    store.close();
+  afterEach(async () => {
+    await store.close();
   });
 
   it("record -> opposing confirm moves ratings by an independently-computed delta", async () => {
-    const alex = insertUser(db, "alex@example.com", "Alex");
-    const priya = insertUser(db, "priya@example.com", "Priya");
-    const jordan = insertUser(db, "jordan@example.com", "Jordan");
-    const kwame = insertUser(db, "kwame@example.com", "Kwame");
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+    const alex = await insertUser(db, "alex@example.com", "Alex");
+    const priya = await insertUser(db, "priya@example.com", "Priya");
+    const jordan = await insertUser(db, "jordan@example.com", "Jordan");
+    const kwame = await insertUser(db, "kwame@example.com", "Kwame");
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -141,15 +139,15 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("transitions Unrated -> Rated exactly at the 3rd verified match", async () => {
-    const player = insertUser(db, "player@example.com", "Player");
-    const partner = insertUser(db, "partner@example.com", "Partner");
+    const player = await insertUser(db, "player@example.com", "Player");
+    const partner = await insertUser(db, "partner@example.com", "Partner");
     const start = Date.now() - 10 * DAY_MS;
 
     let lastMatchId = "";
     for (let i = 0; i < 3; i++) {
-      const opp1 = insertUser(db, `opp1-${i}@example.com`, `Opp1-${i}`);
-      const opp2 = insertUser(db, `opp2-${i}@example.com`, `Opp2-${i}`);
-      const sessionId = insertCircleAndSession(db, player.id, new Date(start + i * DAY_MS));
+      const opp1 = await insertUser(db, `opp1-${i}@example.com`, `Opp1-${i}`);
+      const opp2 = await insertUser(db, `opp2-${i}@example.com`, `Opp2-${i}`);
+      const sessionId = await insertCircleAndSession(db, player.id, new Date(start + i * DAY_MS));
       const { matchId } = await store.recordMatch({
         sessionId,
         reporterId: player.id,
@@ -184,13 +182,13 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("damps a repeat fixture within 30 days (Echo Damping)", async () => {
-    const a = insertUser(db, "a@example.com", "A");
-    const b = insertUser(db, "b@example.com", "B");
-    const c = insertUser(db, "c@example.com", "C");
-    const d = insertUser(db, "d@example.com", "D");
+    const a = await insertUser(db, "a@example.com", "A");
+    const b = await insertUser(db, "b@example.com", "B");
+    const c = await insertUser(db, "c@example.com", "C");
+    const d = await insertUser(db, "d@example.com", "D");
     const now = Date.now();
 
-    const session1 = insertCircleAndSession(db, a.id, new Date(now - 5 * DAY_MS));
+    const session1 = await insertCircleAndSession(db, a.id, new Date(now - 5 * DAY_MS));
     const { matchId: match1Id } = await store.recordMatch({
       sessionId: session1,
       reporterId: a.id,
@@ -200,7 +198,7 @@ describe("result entry + Glass verification flow", () => {
     });
     await store.confirmMatch(match1Id, c.id);
 
-    const session2 = insertCircleAndSession(db, a.id, new Date(now - 1 * DAY_MS));
+    const session2 = await insertCircleAndSession(db, a.id, new Date(now - 1 * DAY_MS));
     const { matchId: match2Id } = await store.recordMatch({
       sessionId: session2,
       reporterId: a.id,
@@ -228,11 +226,11 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("a dispute blocks all rating movement", async () => {
-    const a = insertUser(db, "a2@example.com", "A2");
-    const b = insertUser(db, "b2@example.com", "B2");
-    const c = insertUser(db, "c2@example.com", "C2");
-    const d = insertUser(db, "d2@example.com", "D2");
-    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+    const a = await insertUser(db, "a2@example.com", "A2");
+    const b = await insertUser(db, "b2@example.com", "B2");
+    const c = await insertUser(db, "c2@example.com", "C2");
+    const d = await insertUser(db, "d2@example.com", "D2");
+    const sessionId = await insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -259,11 +257,11 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("double-confirming (or a teammate re-confirming) does not double-apply Glass", async () => {
-    const a = insertUser(db, "a3@example.com", "A3");
-    const b = insertUser(db, "b3@example.com", "B3");
-    const c = insertUser(db, "c3@example.com", "C3");
-    const d = insertUser(db, "d3@example.com", "D3");
-    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+    const a = await insertUser(db, "a3@example.com", "A3");
+    const b = await insertUser(db, "b3@example.com", "B3");
+    const c = await insertUser(db, "c3@example.com", "C3");
+    const d = await insertUser(db, "d3@example.com", "D3");
+    const sessionId = await insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -299,11 +297,11 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("defaults a match's outcome to 'completed'", async () => {
-    const a = insertUser(db, "a4@example.com", "A4");
-    const b = insertUser(db, "b4@example.com", "B4");
-    const c = insertUser(db, "c4@example.com", "C4");
-    const d = insertUser(db, "d4@example.com", "D4");
-    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+    const a = await insertUser(db, "a4@example.com", "A4");
+    const b = await insertUser(db, "b4@example.com", "B4");
+    const c = await insertUser(db, "c4@example.com", "C4");
+    const d = await insertUser(db, "d4@example.com", "D4");
+    const sessionId = await insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -318,11 +316,11 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("records a retired match with zero games, and verifying it moves no one's Glass", async () => {
-    const a = insertUser(db, "a5@example.com", "A5");
-    const b = insertUser(db, "b5@example.com", "B5");
-    const c = insertUser(db, "c5@example.com", "C5");
-    const d = insertUser(db, "d5@example.com", "D5");
-    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+    const a = await insertUser(db, "a5@example.com", "A5");
+    const b = await insertUser(db, "b5@example.com", "B5");
+    const c = await insertUser(db, "c5@example.com", "C5");
+    const d = await insertUser(db, "d5@example.com", "D5");
+    const sessionId = await insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -352,11 +350,11 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("rejects a completed match recorded with no sets", async () => {
-    const a = insertUser(db, "a6@example.com", "A6");
-    const b = insertUser(db, "b6@example.com", "B6");
-    const c = insertUser(db, "c6@example.com", "C6");
-    const d = insertUser(db, "d6@example.com", "D6");
-    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+    const a = await insertUser(db, "a6@example.com", "A6");
+    const b = await insertUser(db, "b6@example.com", "B6");
+    const c = await insertUser(db, "c6@example.com", "C6");
+    const d = await insertUser(db, "d6@example.com", "D6");
+    const sessionId = await insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
 
     await expect(
       store.recordMatch({
@@ -370,11 +368,11 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("getMatchForSession finds the most recently recorded match, or null before one exists", async () => {
-    const a = insertUser(db, "a7@example.com", "A7");
-    const b = insertUser(db, "b7@example.com", "B7");
-    const c = insertUser(db, "c7@example.com", "C7");
-    const d = insertUser(db, "d7@example.com", "D7");
-    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+    const a = await insertUser(db, "a7@example.com", "A7");
+    const b = await insertUser(db, "b7@example.com", "B7");
+    const c = await insertUser(db, "c7@example.com", "C7");
+    const d = await insertUser(db, "d7@example.com", "D7");
+    const sessionId = await insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
 
     expect(await store.getMatchForSession(sessionId)).toBeNull();
 
@@ -392,11 +390,11 @@ describe("result entry + Glass verification flow", () => {
   });
 
   it("getPendingConfirmationsForUser lists matches awaiting the viewer's own team, and drops off once that team has confirmed", async () => {
-    const a = insertUser(db, "a8@example.com", "A8");
-    const b = insertUser(db, "b8@example.com", "B8");
-    const c = insertUser(db, "c8@example.com", "C8");
-    const d = insertUser(db, "d8@example.com", "D8");
-    const sessionId = insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
+    const a = await insertUser(db, "a8@example.com", "A8");
+    const b = await insertUser(db, "b8@example.com", "B8");
+    const c = await insertUser(db, "c8@example.com", "C8");
+    const d = await insertUser(db, "d8@example.com", "D8");
+    const sessionId = await insertCircleAndSession(db, a.id, new Date(Date.now() - DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -427,21 +425,21 @@ describe("one match per session (v1 audit blocker B1)", () => {
   let store: MatchesStore;
   let db: CuatroDb;
 
-  beforeEach(() => {
-    store = createMatchesStore(":memory:");
+  beforeEach(async () => {
+    store = createMatchesStoreFromClient(await createTestClient());
     db = store.db;
   });
 
-  afterEach(() => {
-    store.close();
+  afterEach(async () => {
+    await store.close();
   });
 
   it("a second record for the same session throws MatchAlreadyRecordedError pointing at the first match", async () => {
-    const alex = insertUser(db, "alex@example.com", "Alex");
-    const priya = insertUser(db, "priya@example.com", "Priya");
-    const jordan = insertUser(db, "jordan@example.com", "Jordan");
-    const kwame = insertUser(db, "kwame@example.com", "Kwame");
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+    const alex = await insertUser(db, "alex@example.com", "Alex");
+    const priya = await insertUser(db, "priya@example.com", "Priya");
+    const jordan = await insertUser(db, "jordan@example.com", "Jordan");
+    const kwame = await insertUser(db, "kwame@example.com", "Kwame");
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -474,27 +472,27 @@ describe("substitutes at result entry — record who PLAYED, not who RSVP'd", ()
   let store: MatchesStore;
   let db: CuatroDb;
 
-  beforeEach(() => {
-    store = createMatchesStore(":memory:");
+  beforeEach(async () => {
+    store = createMatchesStoreFromClient(await createTestClient());
     db = store.db;
   });
 
-  afterEach(() => {
-    store.close();
+  afterEach(async () => {
+    await store.close();
   });
 
   it("getRosterContext returns the confirmed four in RSVP order, plus subbable Circle members", async () => {
-    const alex = insertUser(db, "ra1@example.com", "Alex");
-    const priya = insertUser(db, "rp1@example.com", "Priya");
-    const jordan = insertUser(db, "rj1@example.com", "Jordan"); // a member who didn't RSVP
+    const alex = await insertUser(db, "ra1@example.com", "Alex");
+    const priya = await insertUser(db, "rp1@example.com", "Priya");
+    const jordan = await insertUser(db, "rj1@example.com", "Jordan"); // a member who didn't RSVP
     const now = Date.now();
-    const { circleId, sessionId } = insertCircleWithSession(db, alex.id, new Date(now - DAY_MS));
-    addMember(db, circleId, alex.id, "organiser");
-    addMember(db, circleId, priya.id);
-    addMember(db, circleId, jordan.id);
+    const { circleId, sessionId } = await insertCircleWithSession(db, alex.id, new Date(now - DAY_MS));
+    await addMember(db, circleId, alex.id, "organiser");
+    await addMember(db, circleId, priya.id);
+    await addMember(db, circleId, jordan.id);
     // Priya RSVP'd first, Alex second — confirmed order must follow respondedAt.
-    rsvpIn(db, sessionId, priya.id, new Date(now - 3 * DAY_MS));
-    rsvpIn(db, sessionId, alex.id, new Date(now - 2 * DAY_MS));
+    await rsvpIn(db, sessionId, priya.id, new Date(now - 3 * DAY_MS));
+    await rsvpIn(db, sessionId, alex.id, new Date(now - 2 * DAY_MS));
 
     const roster = (await store.getRosterContext(sessionId, alex.id))!;
     expect(roster.confirmed.map((p) => p.displayName)).toEqual(["Priya", "Alex"]);
@@ -506,21 +504,21 @@ describe("substitutes at result entry — record who PLAYED, not who RSVP'd", ()
   });
 
   it("surfaces the viewer as a candidate even when they aren't a Circle member, so they can add themselves", async () => {
-    const organiser = insertUser(db, "ro2@example.com", "Org");
-    const viewer = insertUser(db, "rv2@example.com", "Viewer");
-    const { circleId, sessionId } = insertCircleWithSession(db, organiser.id, new Date(Date.now() - DAY_MS));
-    addMember(db, circleId, organiser.id, "organiser");
+    const organiser = await insertUser(db, "ro2@example.com", "Org");
+    const viewer = await insertUser(db, "rv2@example.com", "Viewer");
+    const { circleId, sessionId } = await insertCircleWithSession(db, organiser.id, new Date(Date.now() - DAY_MS));
+    await addMember(db, circleId, organiser.id, "organiser");
 
     const roster = (await store.getRosterContext(sessionId, viewer.id))!;
     expect(roster.candidates.map((p) => p.id)).toContain(viewer.id);
   });
 
   it("subs in a Circle member who never RSVP'd, and Glass moves for all four who played", async () => {
-    const alex = insertUser(db, "sa@example.com", "Alex");
-    const priya = insertUser(db, "sp@example.com", "Priya");
-    const jordan = insertUser(db, "sj@example.com", "Jordan");
-    const sub = insertUser(db, "ss@example.com", "Sub"); // never tapped "I'm in"
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+    const alex = await insertUser(db, "sa@example.com", "Alex");
+    const priya = await insertUser(db, "sp@example.com", "Priya");
+    const jordan = await insertUser(db, "sj@example.com", "Jordan");
+    const sub = await insertUser(db, "ss@example.com", "Sub"); // never tapped "I'm in"
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -537,10 +535,10 @@ describe("substitutes at result entry — record who PLAYED, not who RSVP'd", ()
   });
 
   it("subs in a brand-new named guest: mints a guest users row, seals via the guest's real teammate, and moves Glass for all four", async () => {
-    const alex = insertUser(db, "ga@example.com", "Alex");
-    const priya = insertUser(db, "gp@example.com", "Priya");
-    const jordan = insertUser(db, "gj@example.com", "Jordan");
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+    const alex = await insertUser(db, "ga@example.com", "Alex");
+    const priya = await insertUser(db, "gp@example.com", "Priya");
+    const jordan = await insertUser(db, "gj@example.com", "Jordan");
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
 
     // The fourth was a mate off the street who never had an account — the
     // reporter names them at entry time as a `guest:` token.
@@ -582,10 +580,10 @@ describe("substitutes at result entry — record who PLAYED, not who RSVP'd", ()
   });
 
   it("rejects a substitute with a blank name, and a guest token that isn't one of the four slots", async () => {
-    const alex = insertUser(db, "ba@example.com", "Alex");
-    const priya = insertUser(db, "bp@example.com", "Priya");
-    const jordan = insertUser(db, "bj@example.com", "Jordan");
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+    const alex = await insertUser(db, "ba@example.com", "Alex");
+    const priya = await insertUser(db, "bp@example.com", "Priya");
+    const jordan = await insertUser(db, "bj@example.com", "Jordan");
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
 
     await expect(
       store.recordMatch({
@@ -618,26 +616,26 @@ describe("Reliability — show-up crediting on verification (the who-PLAYED loop
   let store: MatchesStore;
   let db: CuatroDb;
 
-  beforeEach(() => {
-    store = createMatchesStore(":memory:");
+  beforeEach(async () => {
+    store = createMatchesStoreFromClient(await createTestClient());
     db = store.db;
   });
 
-  afterEach(() => {
-    store.close();
+  afterEach(async () => {
+    await store.close();
   });
 
   const showUpOf = async (userId: string) =>
     (await db.select().from(users).where(eq(users.id, userId)))[0]!.showUpCount;
 
   it("credits showUp exactly once to each RSVP'd-in player who played the verified match", async () => {
-    const alex = insertUser(db, "su-a@example.com", "Alex");
-    const priya = insertUser(db, "su-p@example.com", "Priya");
-    const jordan = insertUser(db, "su-j@example.com", "Jordan");
-    const kwame = insertUser(db, "su-k@example.com", "Kwame");
+    const alex = await insertUser(db, "su-a@example.com", "Alex");
+    const priya = await insertUser(db, "su-p@example.com", "Priya");
+    const jordan = await insertUser(db, "su-j@example.com", "Jordan");
+    const kwame = await insertUser(db, "su-k@example.com", "Kwame");
     const now = Date.now();
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
-    for (const u of [alex, priya, jordan, kwame]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, kwame]) await rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -659,15 +657,15 @@ describe("Reliability — show-up crediting on verification (the who-PLAYED loop
   });
 
   it("credits a ring-3 claimant (rsvp status=in, source=fourth_call) who turned up", async () => {
-    const alex = insertUser(db, "su-fa@example.com", "Alex");
-    const priya = insertUser(db, "su-fp@example.com", "Priya");
-    const jordan = insertUser(db, "su-fj@example.com", "Jordan");
-    const claimant = insertUser(db, "su-fc@example.com", "Claimant");
+    const alex = await insertUser(db, "su-fa@example.com", "Alex");
+    const priya = await insertUser(db, "su-fp@example.com", "Priya");
+    const jordan = await insertUser(db, "su-fj@example.com", "Jordan");
+    const claimant = await insertUser(db, "su-fc@example.com", "Claimant");
     const now = Date.now();
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
-    for (const u of [alex, priya, jordan]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan]) await rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
     // The fourth was filled through the Fourth Call — a real "in" commitment.
-    rsvpIn(db, sessionId, claimant.id, new Date(now - DAY_MS), "fourth_call");
+    await rsvpIn(db, sessionId, claimant.id, new Date(now - DAY_MS), "fourth_call");
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -682,14 +680,14 @@ describe("Reliability — show-up crediting on verification (the who-PLAYED loop
   });
 
   it("a no-show (rsvp'd in but absent from the played roster) gets no show-up", async () => {
-    const alex = insertUser(db, "ns-a@example.com", "Alex");
-    const priya = insertUser(db, "ns-p@example.com", "Priya");
-    const jordan = insertUser(db, "ns-j@example.com", "Jordan");
-    const noShow = insertUser(db, "ns-x@example.com", "NoShow"); // said "in", never turned up
-    const sub = insertUser(db, "ns-s@example.com", "Sub"); // turned up in their place, never RSVP'd
+    const alex = await insertUser(db, "ns-a@example.com", "Alex");
+    const priya = await insertUser(db, "ns-p@example.com", "Priya");
+    const jordan = await insertUser(db, "ns-j@example.com", "Jordan");
+    const noShow = await insertUser(db, "ns-x@example.com", "NoShow"); // said "in", never turned up
+    const sub = await insertUser(db, "ns-s@example.com", "Sub"); // turned up in their place, never RSVP'd
     const now = Date.now();
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
-    for (const u of [alex, priya, jordan, noShow]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, noShow]) await rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
 
     // The roster records who PLAYED: the no-show is replaced by the sub.
     const { matchId } = await store.recordMatch({
@@ -710,13 +708,13 @@ describe("Reliability — show-up crediting on verification (the who-PLAYED loop
   });
 
   it("a sub who played without any rsvp row gets nothing", async () => {
-    const alex = insertUser(db, "sub-a@example.com", "Alex");
-    const priya = insertUser(db, "sub-p@example.com", "Priya");
-    const jordan = insertUser(db, "sub-j@example.com", "Jordan");
-    const sub = insertUser(db, "sub-s@example.com", "Sub"); // no rsvp row at all
+    const alex = await insertUser(db, "sub-a@example.com", "Alex");
+    const priya = await insertUser(db, "sub-p@example.com", "Priya");
+    const jordan = await insertUser(db, "sub-j@example.com", "Jordan");
+    const sub = await insertUser(db, "sub-s@example.com", "Sub"); // no rsvp row at all
     const now = Date.now();
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
-    for (const u of [alex, priya, jordan]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan]) await rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -731,13 +729,13 @@ describe("Reliability — show-up crediting on verification (the who-PLAYED loop
   });
 
   it("does not credit a show-up for a match that never reaches verified (still pending, or disputed)", async () => {
-    const alex = insertUser(db, "pv-a@example.com", "Alex");
-    const priya = insertUser(db, "pv-p@example.com", "Priya");
-    const jordan = insertUser(db, "pv-j@example.com", "Jordan");
-    const kwame = insertUser(db, "pv-k@example.com", "Kwame");
+    const alex = await insertUser(db, "pv-a@example.com", "Alex");
+    const priya = await insertUser(db, "pv-p@example.com", "Priya");
+    const jordan = await insertUser(db, "pv-j@example.com", "Jordan");
+    const kwame = await insertUser(db, "pv-k@example.com", "Kwame");
     const now = Date.now();
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
-    for (const u of [alex, priya, jordan, kwame]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, kwame]) await rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -753,13 +751,13 @@ describe("Reliability — show-up crediting on verification (the who-PLAYED loop
   });
 
   it("re-verification (double / teammate re-confirm) never double-credits a show-up", async () => {
-    const alex = insertUser(db, "dc-a@example.com", "Alex");
-    const priya = insertUser(db, "dc-p@example.com", "Priya");
-    const jordan = insertUser(db, "dc-j@example.com", "Jordan");
-    const kwame = insertUser(db, "dc-k@example.com", "Kwame");
+    const alex = await insertUser(db, "dc-a@example.com", "Alex");
+    const priya = await insertUser(db, "dc-p@example.com", "Priya");
+    const jordan = await insertUser(db, "dc-j@example.com", "Jordan");
+    const kwame = await insertUser(db, "dc-k@example.com", "Kwame");
     const now = Date.now();
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
-    for (const u of [alex, priya, jordan, kwame]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, kwame]) await rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -779,13 +777,13 @@ describe("Reliability — show-up crediting on verification (the who-PLAYED loop
   });
 
   it("credits show-ups even for a skipped (retired, zero-games) verified match — the players still turned up", async () => {
-    const alex = insertUser(db, "rt-a@example.com", "Alex");
-    const priya = insertUser(db, "rt-p@example.com", "Priya");
-    const jordan = insertUser(db, "rt-j@example.com", "Jordan");
-    const kwame = insertUser(db, "rt-k@example.com", "Kwame");
+    const alex = await insertUser(db, "rt-a@example.com", "Alex");
+    const priya = await insertUser(db, "rt-p@example.com", "Priya");
+    const jordan = await insertUser(db, "rt-j@example.com", "Jordan");
+    const kwame = await insertUser(db, "rt-k@example.com", "Kwame");
     const now = Date.now();
-    const sessionId = insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
-    for (const u of [alex, priya, jordan, kwame]) rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
+    const sessionId = await insertCircleAndSession(db, alex.id, new Date(now - DAY_MS));
+    for (const u of [alex, priya, jordan, kwame]) await rsvpIn(db, sessionId, u.id, new Date(now - 2 * DAY_MS));
 
     const { matchId } = await store.recordMatch({
       sessionId,
@@ -810,13 +808,13 @@ describe("realtime — match events", () => {
   let store: MatchesStore;
   let db: CuatroDb;
 
-  beforeEach(() => {
-    store = createMatchesStore(":memory:");
+  beforeEach(async () => {
+    store = createMatchesStoreFromClient(await createTestClient());
     db = store.db;
   });
 
-  afterEach(() => {
-    store.close();
+  afterEach(async () => {
+    await store.close();
     __setRealtimeSenderForTests(null);
   });
 
@@ -828,22 +826,21 @@ describe("realtime — match events", () => {
     return calls;
   }
 
-  function insertCircleAndSessionWithId(startsAt: Date, createdBy: { id: string }) {
-    const circle = db
+  async function insertCircleAndSessionWithId(startsAt: Date, createdBy: { id: string }) {
+    const [circle] = await db
       .insert(circles)
       .values({ name: "Test Circle", inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy: createdBy.id })
-      .returning()
-      .get();
-    const session = db.insert(sessions).values({ circleId: circle.id, startsAt, status: "played" }).returning().get();
+      .returning();
+    const [session] = await db.insert(sessions).values({ circleId: circle.id, startsAt: startsAt.getTime(), status: "played" }).returning();
     return { circleId: circle.id, sessionId: session.id };
   }
 
   it("recordMatch broadcasts 'match' (recorded) to the session, its circle, and all four players", async () => {
-    const a = insertUser(db, "ra@example.com", "RA");
-    const b = insertUser(db, "rb@example.com", "RB");
-    const c = insertUser(db, "rc@example.com", "RC");
-    const d = insertUser(db, "rd@example.com", "RD");
-    const { circleId, sessionId } = insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
+    const a = await insertUser(db, "ra@example.com", "RA");
+    const b = await insertUser(db, "rb@example.com", "RB");
+    const c = await insertUser(db, "rc@example.com", "RC");
+    const d = await insertUser(db, "rd@example.com", "RD");
+    const { circleId, sessionId } = await insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
 
     const calls = capture();
     const { matchId } = await store.recordMatch({
@@ -863,11 +860,11 @@ describe("realtime — match events", () => {
   });
 
   it("confirmMatch broadcasts 'match' with the resulting status, only on an actual state change", async () => {
-    const a = insertUser(db, "ca@example.com", "CA");
-    const b = insertUser(db, "cb@example.com", "CB");
-    const c = insertUser(db, "cc@example.com", "CC");
-    const d = insertUser(db, "cd@example.com", "CD");
-    const { sessionId } = insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
+    const a = await insertUser(db, "ca@example.com", "CA");
+    const b = await insertUser(db, "cb@example.com", "CB");
+    const c = await insertUser(db, "cc@example.com", "CC");
+    const d = await insertUser(db, "cd@example.com", "CD");
+    const { sessionId } = await insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
     const { matchId } = await store.recordMatch({
       sessionId,
       reporterId: a.id,
@@ -895,11 +892,11 @@ describe("realtime — match events", () => {
   });
 
   it("disputeMatch broadcasts 'match' (disputed) once, not on a repeat dispute call", async () => {
-    const a = insertUser(db, "da@example.com", "DA");
-    const b = insertUser(db, "db@example.com", "DB");
-    const c = insertUser(db, "dc@example.com", "DC");
-    const d = insertUser(db, "dd@example.com", "DD");
-    const { sessionId } = insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
+    const a = await insertUser(db, "da@example.com", "DA");
+    const b = await insertUser(db, "db@example.com", "DB");
+    const c = await insertUser(db, "dc@example.com", "DC");
+    const d = await insertUser(db, "dd@example.com", "DD");
+    const { sessionId } = await insertCircleAndSessionWithId(new Date(Date.now() - DAY_MS), a);
     const { matchId } = await store.recordMatch({
       sessionId,
       reporterId: a.id,

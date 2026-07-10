@@ -30,12 +30,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { db } = await getGamesClient();
   const outcome =
     action === "in"
-      ? rsvpIn(db, id, user.id)
+      ? await rsvpIn(db, id, user.id)
       : action === "out"
-        ? rsvpOut(db, id, user.id)
+        ? await rsvpOut(db, id, user.id)
         : action === "available"
-          ? markAvailable(db, id, user.id)
-          : markUnavailable(db, id, user.id);
+          ? await markAvailable(db, id, user.id)
+          : await markUnavailable(db, id, user.id);
 
   if (!outcome.ok) {
     const status = outcome.error === "session_not_found" ? 404 : outcome.error === "not_a_circle_member" ? 403 : 400;

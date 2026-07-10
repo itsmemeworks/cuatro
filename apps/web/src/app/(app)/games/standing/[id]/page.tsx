@@ -47,13 +47,13 @@ export default async function EditStandingGamePage({
   const { id } = await params;
   const { created, matched } = await searchParams;
   const { db } = await getGamesClient();
-  const standingGame = getStandingGame(db, id);
+  const standingGame = await getStandingGame(db, id);
   if (!standingGame) notFound();
 
-  const venueOptions = listVenuesForCircle(db, standingGame.circleId);
+  const venueOptions = await listVenuesForCircle(db, standingGame.circleId);
   const currentCostLabel = standingGame.costMinor != null ? (standingGame.costMinor / 100).toFixed(2) : "";
 
-  const canManage = isOrganiser(db, standingGame.circleId, user.id);
+  const canManage = await isOrganiser(db, standingGame.circleId, user.id);
   const boundUpdate = updateStandingGameAction.bind(null, id);
   const boundToggle = toggleStandingGameActiveAction.bind(null, id, !standingGame.active);
 
@@ -62,9 +62,9 @@ export default async function EditStandingGamePage({
   // the organiser exactly when it is and when RSVPs open.
   let firstSession: { whenLabel: string; rsvpLabel: string } | null = null;
   if (created && canManage) {
-    const session = ensureUpcomingSessionForStandingGame(db, id);
+    const session = await ensureUpcomingSessionForStandingGame(db, id);
     const weekdayLabel = WEEKDAYS.find((w) => w.value === standingGame.weekday)?.label ?? "";
-    const opensAt = session.startsAt.getTime() - standingGame.rsvpWindowDays * DAY_MS;
+    const opensAt = session.startsAt - standingGame.rsvpWindowDays * DAY_MS;
     const daysUntilOpen = Math.ceil((opensAt - Date.now()) / DAY_MS);
     firstSession = {
       whenLabel: `${weekdayLabel} ${formatStartTime(standingGame.startTime)}`,

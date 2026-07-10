@@ -1,10 +1,10 @@
-import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, pgTable, text } from 'drizzle-orm/pg-core'
 import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { users } from './users.js'
 
 // Phone-agnostic auth (email magic link + Apple/Google OAuth) — no SMS
 // dependency that breaks abroad. Tokens are stored hashed, never in the clear.
-export const magicLinkTokens = sqliteTable(
+export const magicLinkTokens = pgTable(
   'magic_link_tokens',
   {
     id: idColumn(),
@@ -21,7 +21,7 @@ export const magicLinkTokens = sqliteTable(
 
 // Cookie session store. Table name is `sessions_auth` (not `sessions`) to
 // avoid colliding with the game-instance `sessions` table.
-export const authSessions = sqliteTable(
+export const authSessions = pgTable(
   'sessions_auth',
   {
     id: idColumn(),

@@ -29,7 +29,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // No logged-in viewer for a public share image — an id that can never
   // match a real user keeps viewerStatus resolving to null rather than
   // leaking anyone's specific RSVP state into a link anyone can open.
-  const summary = getSessionSummary(db, id, "__og_viewer__");
+  const summary = await getSessionSummary(db, id, "__og_viewer__");
 
   if (!summary) {
     return new ImageResponse(
@@ -57,7 +57,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const faces = summary.confirmed.slice(0, 3);
   const openSlots = Math.max(0, summary.slots - summary.confirmed.length);
-  const timeLabel = summary.session.startsAt.toLocaleString("en-GB", {
+  const timeLabel = new Date(summary.session.startsAt).toLocaleString("en-GB", {
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",

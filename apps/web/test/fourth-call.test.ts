@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  createClient,
+  createTestClient,
   circleMembers,
   circles,
   notifications,
@@ -27,20 +27,20 @@ let client: CuatroClient;
 let db: CuatroDb;
 let n = 0;
 
-beforeEach(() => {
-  client = createClient(":memory:");
+beforeEach(async () => {
+  client = await createTestClient();
   db = client.db;
   n = 0;
 });
 
-afterEach(() => {
-  client.close();
+afterEach(async () => {
+  await client.close();
   __setRealtimeSenderForTests(null);
 });
 
-function seedUser(opts: { rating?: number | null; countryCode?: string } = {}) {
+async function seedUser(opts: { rating?: number | null; countryCode?: string } = {}) {
   n += 1;
-  return db
+  const [row] = await db
     .insert(users)
     .values({
       email: `u${n}@example.com`,
@@ -50,196 +50,195 @@ function seedUser(opts: { rating?: number | null; countryCode?: string } = {}) {
       verifiedMatchCount: opts.rating != null ? 5 : 0,
       countryCode: opts.countryCode ?? "GB",
     })
-    .returning()
-    .get();
+    .returning();
+  return row;
 }
 
-function seedCircle(createdBy: string, countryCode = "GB") {
-  return db
+async function seedCircle(createdBy: string, countryCode = "GB") {
+  const [row] = await db
     .insert(circles)
     .values({ name: `Circle ${++n}`, inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy, countryCode })
-    .returning()
-    .get();
+    .returning();
+  return row;
 }
 
-function addMember(circleId: string, userId: string, role: "organiser" | "member" = "member") {
-  db.insert(circleMembers).values({ circleId, userId, role }).run();
+async function addMember(circleId: string, userId: string, role: "organiser" | "member" = "member") {
+  await db.insert(circleMembers).values({ circleId, userId, role });
 }
 
-function seedSession(circleId: string, opts: { slots?: number; startsAt?: Date; status?: "upcoming" | "played" } = {}) {
+async function seedSession(circleId: string, opts: { slots?: number; startsAt?: Date; status?: "upcoming" | "played" } = {}) {
   let standingGameId: string | undefined;
   if (opts.slots) {
-    const sg = db.insert(standingGames).values({ circleId, weekday: 2, startTime: "20:00", slots: opts.slots }).returning().get();
+    const [sg] = await db.insert(standingGames).values({ circleId, weekday: 2, startTime: "20:00", slots: opts.slots }).returning();
     standingGameId = sg.id;
   }
-  return db
+  const [row] = await db
     .insert(sessions)
     .values({
       circleId,
       standingGameId,
-      startsAt: opts.startsAt ?? new Date("2026-08-04T20:00:00.000Z"),
+      startsAt: (opts.startsAt ?? new Date("2026-08-04T20:00:00.000Z")).getTime(),
       status: opts.status ?? "upcoming",
     })
-    .returning()
-    .get();
+    .returning();
+  return row;
 }
 
-function rsvpConfirmed(sessionId: string, userId: string) {
-  db.insert(rsvps).values({ sessionId, userId, status: "in" }).run();
+async function rsvpConfirmed(sessionId: string, userId: string) {
+  await db.insert(rsvps).values({ sessionId, userId, status: "in" });
 }
 
-function seedFourthCallNotification(userId: string, sessionId: string, level: 1 | 2, createdAt?: Date) {
-  const row = db.insert(notifications).values({ userId, type: "fourth_call", payload: { sessionId, level } }).returning().get();
-  if (createdAt) db.update(notifications).set({ createdAt }).where(eq(notifications.id, row.id)).run();
+async function seedFourthCallNotification(userId: string, sessionId: string, level: 1 | 2, createdAt?: Date) {
+  const [row] = await db.insert(notifications).values({ userId, type: "fourth_call", payload: { sessionId, level } }).returning();
+  if (createdAt) await db.update(notifications).set({ createdAt: createdAt.getTime() }).where(eq(notifications.id, row.id));
   return row;
 }
 
 describe("claimFourthCallSlot", () => {
-  it("lets an invited non-member fill an open slot without joining the circle", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser({ rating: 4 });
-    addMember(circleA.id, p1.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    rsvpConfirmed(session.id, p1.id);
+  it("lets an invited non-member fill an open slot without joining the circle", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser({ rating: 4 });
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    await rsvpConfirmed(session.id, p1.id);
 
-    const invitee = seedUser({ rating: 4.1 });
-    seedFourthCallNotification(invitee.id, session.id, 2);
+    const invitee = await seedUser({ rating: 4.1 });
+    await seedFourthCallNotification(invitee.id, session.id, 2);
 
-    const outcome = claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    const outcome = await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
 
     expect(outcome).toEqual({ ok: true, status: "in", alreadyIn: false });
-    const [rsvp] = db.select().from(rsvps).where(eq(rsvps.userId, invitee.id)).all();
+    const [rsvp] = await db.select().from(rsvps).where(eq(rsvps.userId, invitee.id));
     expect(rsvp?.status).toBe("in");
-    const membership = db
+    const membership = await db
       .select()
       .from(circleMembers)
-      .where(eq(circleMembers.userId, invitee.id))
-      .all();
+      .where(eq(circleMembers.userId, invitee.id));
     expect(membership).toHaveLength(0); // claiming does NOT enrol them in the circle
   });
 
-  it("rejects a claim with no matching fourth_call invite", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    const stranger = seedUser();
+  it("rejects a claim with no matching fourth_call invite", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    const stranger = await seedUser();
 
-    const outcome = claimFourthCallSlot(db, session.id, stranger.id);
+    const outcome = await claimFourthCallSlot(db, session.id, stranger.id);
     expect(outcome).toEqual({ ok: false, error: "no_fourth_call_invite" });
   });
 
-  it("is idempotent — claiming twice returns alreadyIn on the second call", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    const invitee = seedUser();
-    seedFourthCallNotification(invitee.id, session.id, 2);
+  it("is idempotent — claiming twice returns alreadyIn on the second call", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    const invitee = await seedUser();
+    await seedFourthCallNotification(invitee.id, session.id, 2);
 
-    claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
-    const second = claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    const second = await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
 
     expect(second).toEqual({ ok: true, status: "in", alreadyIn: true });
   });
 
-  it("rejects a claim once the session is already full", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser();
-    const p2 = seedUser();
-    addMember(circleA.id, p1.id);
-    addMember(circleA.id, p2.id);
-    const session = seedSession(circleA.id, { slots: 2 });
-    rsvpConfirmed(session.id, p1.id);
-    rsvpConfirmed(session.id, p2.id);
+  it("rejects a claim once the session is already full", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser();
+    const p2 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    await addMember(circleA.id, p2.id);
+    const session = await seedSession(circleA.id, { slots: 2 });
+    await rsvpConfirmed(session.id, p1.id);
+    await rsvpConfirmed(session.id, p2.id);
 
-    const invitee = seedUser();
-    seedFourthCallNotification(invitee.id, session.id, 2);
+    const invitee = await seedUser();
+    await seedFourthCallNotification(invitee.id, session.id, 2);
 
-    const outcome = claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    const outcome = await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
     expect(outcome).toEqual({ ok: false, error: "already_full" });
   });
 
-  it("fires game_filled notifications for the whole four once a claim completes the last slot", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser();
-    addMember(circleA.id, p1.id);
-    const session = seedSession(circleA.id, { slots: 2 });
-    rsvpConfirmed(session.id, p1.id);
+  it("fires game_filled notifications for the whole four once a claim completes the last slot", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 2 });
+    await rsvpConfirmed(session.id, p1.id);
 
-    const invitee = seedUser();
-    seedFourthCallNotification(invitee.id, session.id, 2);
+    const invitee = await seedUser();
+    await seedFourthCallNotification(invitee.id, session.id, 2);
 
-    claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
 
-    const filledNotifs = db.select().from(notifications).where(eq(notifications.type, "game_filled")).all();
+    const filledNotifs = await db.select().from(notifications).where(eq(notifications.type, "game_filled"));
     expect(filledNotifs.map((n) => n.userId).sort()).toEqual([p1.id, invitee.id].sort());
   });
 
-  it("records source: 'fourth_call' on the rsvps row for both a fresh claim and a re-claim of an existing row", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser();
-    addMember(circleA.id, p1.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    rsvpConfirmed(session.id, p1.id);
+  it("records source: 'fourth_call' on the rsvps row for both a fresh claim and a re-claim of an existing row", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    await rsvpConfirmed(session.id, p1.id);
 
-    const invitee = seedUser();
-    seedFourthCallNotification(invitee.id, session.id, 2);
-    claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    const invitee = await seedUser();
+    await seedFourthCallNotification(invitee.id, session.id, 2);
+    await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
 
-    const [freshRow] = db.select().from(rsvps).where(eq(rsvps.userId, invitee.id)).all();
+    const [freshRow] = await db.select().from(rsvps).where(eq(rsvps.userId, invitee.id));
     expect(freshRow?.source).toBe("fourth_call");
 
     // Drop out, then re-claim through Fourth Call again — the update path
     // (existing row) must also record source: "fourth_call", not just the
     // insert path.
-    db.update(rsvps).set({ status: "out" }).where(eq(rsvps.id, freshRow!.id)).run();
-    claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
-    const [reclaimedRow] = db.select().from(rsvps).where(eq(rsvps.userId, invitee.id)).all();
+    await db.update(rsvps).set({ status: "out" }).where(eq(rsvps.id, freshRow!.id));
+    await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    const [reclaimedRow] = await db.select().from(rsvps).where(eq(rsvps.userId, invitee.id));
     expect(reclaimedRow?.source).toBe("fourth_call");
   });
 });
 
 describe("findFourthCallClaimant", () => {
-  it("returns null when every confirmed slot was filled the ordinary way", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser();
-    addMember(circleA.id, p1.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    rsvpConfirmed(session.id, p1.id); // ordinary rsvpConfirmed test helper — source defaults to "rsvp"
+  it("returns null when every confirmed slot was filled the ordinary way", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    await rsvpConfirmed(session.id, p1.id); // ordinary rsvpConfirmed test helper — source defaults to "rsvp"
 
-    expect(findFourthCallClaimant(db, session.id)).toBeNull();
+    expect(await findFourthCallClaimant(db, session.id)).toBeNull();
   });
 
-  it("returns the userId of whoever claimed the slot via Fourth Call", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser();
-    addMember(circleA.id, p1.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    rsvpConfirmed(session.id, p1.id);
+  it("returns the userId of whoever claimed the slot via Fourth Call", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    await rsvpConfirmed(session.id, p1.id);
 
-    const invitee = seedUser();
-    seedFourthCallNotification(invitee.id, session.id, 2);
-    claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    const invitee = await seedUser();
+    await seedFourthCallNotification(invitee.id, session.id, 2);
+    await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
 
-    expect(findFourthCallClaimant(db, session.id)).toBe(invitee.id);
+    expect(await findFourthCallClaimant(db, session.id)).toBe(invitee.id);
   });
 
-  it("is not fooled by a circle member who merely holds a stale fourth_call notification but never claimed through it", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser();
-    addMember(circleA.id, p1.id);
-    const session = seedSession(circleA.id, { slots: 4 });
+  it("is not fooled by a circle member who merely holds a stale fourth_call notification but never claimed through it", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
     // p1 RSVPs the ordinary way despite also holding a (level-1) invite.
-    seedFourthCallNotification(p1.id, session.id, 1);
-    rsvpConfirmed(session.id, p1.id);
+    await seedFourthCallNotification(p1.id, session.id, 1);
+    await rsvpConfirmed(session.id, p1.id);
 
-    expect(findFourthCallClaimant(db, session.id)).toBeNull();
+    expect(await findFourthCallClaimant(db, session.id)).toBeNull();
   });
 });
 
@@ -300,95 +299,95 @@ describe("Ring 3 — signed public claim link", () => {
     expect(verifyRing3Token("", SECRET)).toBeNull();
   });
 
-  it("getRing3ClaimLink mints a link for an upcoming, not-yet-started session", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const session = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
+  it("getRing3ClaimLink mints a link for an upcoming, not-yet-started session", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const session = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
 
-    const result = getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:00:00.000Z"));
+    const result = await getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:00:00.000Z"));
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.value.path).toBe(`/fc/${result.value.token}`);
-    expect(result.value.expiresAt).toEqual(session.startsAt);
+    expect(result.value.expiresAt).toEqual(new Date(session.startsAt));
   });
 
-  it("getRing3ClaimLink is idempotent — repeat calls mint the identical token", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const session = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
+  it("getRing3ClaimLink is idempotent — repeat calls mint the identical token", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const session = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
 
-    const first = getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:00:00.000Z"));
-    const second = getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:30:00.000Z"));
+    const first = await getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:00:00.000Z"));
+    const second = await getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:30:00.000Z"));
     if (!first.ok || !second.ok) throw new Error("unreachable");
     expect(second.value.token).toBe(first.value.token);
   });
 
-  it("getRing3ClaimLink errors for an unknown session", () => {
-    const result = getRing3ClaimLink(db, "no-such-session");
+  it("getRing3ClaimLink errors for an unknown session", async () => {
+    const result = await getRing3ClaimLink(db, "no-such-session");
     expect(result).toEqual({ ok: false, error: "session_not_found" });
   });
 
-  it("getRing3ClaimLink errors once the session has started", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const session = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
+  it("getRing3ClaimLink errors once the session has started", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const session = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
 
-    const result = getRing3ClaimLink(db, session.id, new Date("2026-08-04T20:00:00.000Z"));
+    const result = await getRing3ClaimLink(db, session.id, new Date("2026-08-04T20:00:00.000Z"));
     expect(result).toEqual({ ok: false, error: "session_started" });
   });
 
-  it("claimFourthCallSlot accepts a valid ring-3 token in lieu of a fourth_call notification", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser();
-    addMember(circleA.id, p1.id);
-    const session = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
-    rsvpConfirmed(session.id, p1.id);
+  it("claimFourthCallSlot accepts a valid ring-3 token in lieu of a fourth_call notification", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
+    await rsvpConfirmed(session.id, p1.id);
 
-    const linkResult = getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:00:00.000Z"));
+    const linkResult = await getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:00:00.000Z"));
     if (!linkResult.ok) throw new Error("unreachable");
 
-    const stranger = seedUser(); // holds no fourth_call notification at all
-    const outcome = claimFourthCallSlot(db, session.id, stranger.id, new Date("2026-08-04T18:05:00.000Z"), {
+    const stranger = await seedUser(); // holds no fourth_call notification at all
+    const outcome = await claimFourthCallSlot(db, session.id, stranger.id, new Date("2026-08-04T18:05:00.000Z"), {
       ring3Token: linkResult.value.token,
     });
 
     expect(outcome).toEqual({ ok: true, status: "in", alreadyIn: false });
-    const [row] = db.select().from(rsvps).where(eq(rsvps.userId, stranger.id)).all();
+    const [row] = await db.select().from(rsvps).where(eq(rsvps.userId, stranger.id));
     expect(row?.source).toBe("fourth_call");
-    expect(findFourthCallClaimant(db, session.id)).toBe(stranger.id);
+    expect(await findFourthCallClaimant(db, session.id)).toBe(stranger.id);
   });
 
-  it("claimFourthCallSlot rejects a ring-3 token minted for a different session", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const sessionA = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
-    const sessionB = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-05T20:00:00.000Z") });
+  it("claimFourthCallSlot rejects a ring-3 token minted for a different session", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const sessionA = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
+    const sessionB = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-05T20:00:00.000Z") });
 
-    const linkForA = getRing3ClaimLink(db, sessionA.id, new Date("2026-08-04T18:00:00.000Z"));
+    const linkForA = await getRing3ClaimLink(db, sessionA.id, new Date("2026-08-04T18:00:00.000Z"));
     if (!linkForA.ok) throw new Error("unreachable");
 
-    const stranger = seedUser();
-    const outcome = claimFourthCallSlot(db, sessionB.id, stranger.id, new Date("2026-08-04T18:05:00.000Z"), {
+    const stranger = await seedUser();
+    const outcome = await claimFourthCallSlot(db, sessionB.id, stranger.id, new Date("2026-08-04T18:05:00.000Z"), {
       ring3Token: linkForA.value.token,
     });
 
     expect(outcome).toEqual({ ok: false, error: "no_fourth_call_invite" });
   });
 
-  it("claimFourthCallSlot rejects an expired ring-3 token (session already started)", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const session = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
+  it("claimFourthCallSlot rejects an expired ring-3 token (session already started)", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const session = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
 
-    const linkResult = getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:00:00.000Z"));
+    const linkResult = await getRing3ClaimLink(db, session.id, new Date("2026-08-04T18:00:00.000Z"));
     if (!linkResult.ok) throw new Error("unreachable");
 
-    const stranger = seedUser();
+    const stranger = await seedUser();
     // Past the session's kickoff — the token's own embedded expiry (=
     // session.startsAt) has passed, independent of the session_started
     // check that would also catch this.
-    const outcome = claimFourthCallSlot(db, session.id, stranger.id, new Date("2026-08-04T20:00:01.000Z"), {
+    const outcome = await claimFourthCallSlot(db, session.id, stranger.id, new Date("2026-08-04T20:00:01.000Z"), {
       ring3Token: linkResult.value.token,
     });
 
@@ -397,26 +396,26 @@ describe("Ring 3 — signed public claim link", () => {
 });
 
 describe("hasFourthCallInvite", () => {
-  it("is true once a fourth_call notification (any level) exists for that user/session", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    const invitee = seedUser();
+  it("is true once a fourth_call notification (any level) exists for that user/session", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    const invitee = await seedUser();
 
-    expect(hasFourthCallInvite(db, session.id, invitee.id)).toBe(false);
-    seedFourthCallNotification(invitee.id, session.id, 2);
-    expect(hasFourthCallInvite(db, session.id, invitee.id)).toBe(true);
+    expect(await hasFourthCallInvite(db, session.id, invitee.id)).toBe(false);
+    await seedFourthCallNotification(invitee.id, session.id, 2);
+    expect(await hasFourthCallInvite(db, session.id, invitee.id)).toBe(true);
   });
 
-  it("is scoped per session — an invite for a different session doesn't count", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const sessionA = seedSession(circleA.id, { slots: 4 });
-    const sessionB = seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-09-01T18:00:00.000Z") });
-    const invitee = seedUser();
-    seedFourthCallNotification(invitee.id, sessionA.id, 1);
+  it("is scoped per session — an invite for a different session doesn't count", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const sessionA = await seedSession(circleA.id, { slots: 4 });
+    const sessionB = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-09-01T18:00:00.000Z") });
+    const invitee = await seedUser();
+    await seedFourthCallNotification(invitee.id, sessionA.id, 1);
 
-    expect(hasFourthCallInvite(db, sessionB.id, invitee.id)).toBe(false);
+    expect(await hasFourthCallInvite(db, sessionB.id, invitee.id)).toBe(false);
   });
 });
 
@@ -429,18 +428,18 @@ describe("realtime — fourth_call and rsvp events", () => {
     return calls;
   }
 
-  it("claimFourthCallSlot broadcasts 'fourth_call' (claimed) and 'rsvp' to session and circle", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const p1 = seedUser();
-    addMember(circleA.id, p1.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    rsvpConfirmed(session.id, p1.id);
-    const invitee = seedUser();
-    seedFourthCallNotification(invitee.id, session.id, 2);
+  it("claimFourthCallSlot broadcasts 'fourth_call' (claimed) and 'rsvp' to session and circle", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const p1 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    await rsvpConfirmed(session.id, p1.id);
+    const invitee = await seedUser();
+    await seedFourthCallNotification(invitee.id, session.id, 2);
 
     const calls = capture();
-    const outcome = claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    const outcome = await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
     expect(outcome).toEqual({ ok: true, status: "in", alreadyIn: false });
 
     const claimedCalls = calls.filter((c) => c.type === "fourth_call" && c.fields.claimed === true);
@@ -452,16 +451,16 @@ describe("realtime — fourth_call and rsvp events", () => {
     );
   });
 
-  it("a second (already-in) claim does not re-broadcast", () => {
-    const organiser = seedUser();
-    const circleA = seedCircle(organiser.id);
-    const session = seedSession(circleA.id, { slots: 4 });
-    const invitee = seedUser();
-    seedFourthCallNotification(invitee.id, session.id, 2);
-    claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+  it("a second (already-in) claim does not re-broadcast", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+    const invitee = await seedUser();
+    await seedFourthCallNotification(invitee.id, session.id, 2);
+    await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
 
     const calls = capture();
-    const second = claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
+    const second = await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
     expect(second).toEqual({ ok: true, status: "in", alreadyIn: true });
     expect(calls).toHaveLength(0);
   });

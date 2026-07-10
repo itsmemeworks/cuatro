@@ -1,10 +1,10 @@
-import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, jsonb, pgTable, text } from 'drizzle-orm/pg-core'
 import { createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { users } from './users.js'
 
 // The product's heartbeat: RSVP opens, promotions, Fourth Calls, result
 // confirmations. `payload` is a free-form JSON blob shaped per `type`.
-export const notifications = sqliteTable(
+export const notifications = pgTable(
   'notifications',
   {
     id: idColumn(),
@@ -12,7 +12,7 @@ export const notifications = sqliteTable(
       .notNull()
       .references(() => users.id),
     type: text('type').notNull(),
-    payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>(),
+    payload: jsonb('payload').$type<Record<string, unknown>>(),
     readAt: timestampColumn('read_at'),
     createdAt: createdAtColumn(),
   },

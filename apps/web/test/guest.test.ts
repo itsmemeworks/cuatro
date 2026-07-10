@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
-  createClient,
+  createTestClient,
   circleMembers,
   circles,
   matches,
@@ -13,7 +13,7 @@ import {
   type CuatroClient,
   type CuatroDb,
 } from "@cuatro/db";
-import { createMatchesStore, type MatchesStore } from "@/server/matches-db";
+import { createMatchesStoreFromClient, type MatchesStore } from "@/server/matches-db";
 import { getRing3ClaimLink, mintRing3ClaimToken } from "@/server/fourth-call";
 import {
   GUEST_HOLD_MS,
@@ -35,87 +35,88 @@ let client: CuatroClient;
 let db: CuatroDb;
 let n = 0;
 
-beforeEach(() => {
-  client = createClient(":memory:");
+beforeEach(async () => {
+  client = await createTestClient();
   db = client.db;
   n = 0;
 });
 
-afterEach(() => {
-  client.close();
+afterEach(async () => {
+  await client.close();
   __setRealtimeSenderForTests(null);
 });
 
-function seedUser(displayName = "Member") {
+async function seedUser(displayName = "Member") {
   n += 1;
-  return db.insert(users).values({ email: `u${n}@example.com`, displayName }).returning().get();
+  const [row] = await db.insert(users).values({ email: `u${n}@example.com`, displayName }).returning();
+  return row;
 }
 
-function seedCircle(createdBy: string) {
-  return db
+async function seedCircle(createdBy: string) {
+  const [row] = await db
     .insert(circles)
     .values({ name: `Circle ${++n}`, inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy })
-    .returning()
-    .get();
+    .returning();
+  return row;
 }
 
-function seedSession(circleId: string, opts: { slots?: number; startsAt?: Date } = {}) {
+async function seedSession(circleId: string, opts: { slots?: number; startsAt?: Date } = {}) {
   let standingGameId: string | undefined;
   if (opts.slots) {
-    const sg = db.insert(standingGames).values({ circleId, weekday: 2, startTime: "20:00", slots: opts.slots }).returning().get();
+    const [sg] = await db.insert(standingGames).values({ circleId, weekday: 2, startTime: "20:00", slots: opts.slots }).returning();
     standingGameId = sg.id;
   }
-  return db
+  const [row] = await db
     .insert(sessions)
-    .values({ circleId, standingGameId, startsAt: opts.startsAt ?? new Date("2026-08-04T20:00:00.000Z"), status: "upcoming" })
-    .returning()
-    .get();
+    .values({ circleId, standingGameId, startsAt: (opts.startsAt ?? new Date("2026-08-04T20:00:00.000Z")).getTime(), status: "upcoming" })
+    .returning();
+  return row;
 }
 
-function rsvpConfirmed(sessionId: string, userId: string) {
-  db.insert(rsvps).values({ sessionId, userId, status: "in" }).run();
+async function rsvpConfirmed(sessionId: string, userId: string) {
+  await db.insert(rsvps).values({ sessionId, userId, status: "in" });
 }
 
 describe("claimGuestSlot", () => {
-  it("mints a fresh guest user and soft-holds the slot for GUEST_HOLD_MS", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    rsvpConfirmed(session.id, organiser.id);
-    const link = getRing3ClaimLink(db, session.id);
+  it("mints a fresh guest user and soft-holds the slot for GUEST_HOLD_MS", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    await rsvpConfirmed(session.id, organiser.id);
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
 
     const now = new Date("2026-08-01T00:00:00.000Z");
-    const outcome = claimGuestSlot(db, session.id, link.value.token, now);
+    const outcome = await claimGuestSlot(db, session.id, link.value.token, now);
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.status).toBe("in");
     expect(outcome.holdExpiresAt.getTime()).toBe(now.getTime() + GUEST_HOLD_MS);
 
-    const guest = db.select().from(users).where(eq(users.id, outcome.guestUserId)).get();
+    const [guest] = await db.select().from(users).where(eq(users.id, outcome.guestUserId));
     expect(guest?.isGuest).toBe(true);
     expect(guest?.email).toBeNull();
     expect(guest?.displayName).toBe(GUEST_PLACEHOLDER_NAME);
 
-    const rsvp = db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, outcome.guestUserId))).get();
+    const [rsvp] = await db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, outcome.guestUserId)));
     expect(rsvp?.status).toBe("in");
     expect(rsvp?.source).toBe("guest_link");
-    expect(rsvp?.holdExpiresAt?.getTime()).toBe(now.getTime() + GUEST_HOLD_MS);
+    expect(rsvp?.holdExpiresAt).toBe(now.getTime() + GUEST_HOLD_MS);
   });
 
-  it("rejects a token signed for a different session", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    const otherSession = seedSession(circle.id, { slots: 4 });
-    const wrongToken = mintRing3ClaimToken(otherSession.id, session.startsAt);
+  it("rejects a token signed for a different session", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const otherSession = await seedSession(circle.id, { slots: 4 });
+    const wrongToken = mintRing3ClaimToken(otherSession.id, new Date(session.startsAt));
 
-    const outcome = claimGuestSlot(db, session.id, wrongToken);
+    const outcome = await claimGuestSlot(db, session.id, wrongToken);
     expect(outcome).toEqual({ ok: false, error: "invalid_link" });
   });
 
-  it("rejects a claim on a session that's no longer upcoming", () => {
+  it("rejects a claim on a session that's no longer upcoming", async () => {
     // A ring-3 token's own expiry is always the session's startsAt (see
     // getRing3ClaimLink's comment in server/fourth-call.ts), so "the
     // session has started" reads as an expired (invalid_link) token before
@@ -123,362 +124,362 @@ describe("claimGuestSlot", () => {
     // is true of claimFourthCallSlot's ring3Token path. A cancelled session
     // still within its token's validity window is what actually exercises
     // that branch.
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4, startsAt: new Date("2026-08-01T20:00:00.000Z") });
-    db.update(sessions).set({ status: "cancelled" }).where(eq(sessions.id, session.id)).run();
-    const token = mintRing3ClaimToken(session.id, session.startsAt);
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4, startsAt: new Date("2026-08-01T20:00:00.000Z") });
+    await db.update(sessions).set({ status: "cancelled" }).where(eq(sessions.id, session.id));
+    const token = mintRing3ClaimToken(session.id, new Date(session.startsAt));
 
-    const outcome = claimGuestSlot(db, session.id, token, new Date("2026-08-01T00:00:00.000Z"));
+    const outcome = await claimGuestSlot(db, session.id, token, new Date("2026-08-01T00:00:00.000Z"));
     expect(outcome).toEqual({ ok: false, error: "session_started" });
   });
 
-  it("the race: two claim attempts on the last open slot — one wins, the other loses", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    rsvpConfirmed(session.id, organiser.id);
-    rsvpConfirmed(session.id, seedUser().id);
-    rsvpConfirmed(session.id, seedUser().id); // 3 of 4 held — one slot left
-    const link = getRing3ClaimLink(db, session.id);
+  it("the race: two claim attempts on the last open slot — one wins, the other loses", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    await rsvpConfirmed(session.id, organiser.id);
+    await rsvpConfirmed(session.id, (await seedUser()).id);
+    await rsvpConfirmed(session.id, (await seedUser()).id); // 3 of 4 held — one slot left
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
 
-    const first = claimGuestSlot(db, session.id, link.value.token);
-    const second = claimGuestSlot(db, session.id, link.value.token);
+    const first = await claimGuestSlot(db, session.id, link.value.token);
+    const second = await claimGuestSlot(db, session.id, link.value.token);
 
     expect(first.ok).toBe(true);
     expect(second).toEqual({ ok: false, error: "already_full" });
   });
 
-  it("an expired hold frees the slot for the next claimant", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 1 });
-    const link = getRing3ClaimLink(db, session.id);
+  it("an expired hold frees the slot for the next claimant", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 1 });
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
 
     const claimedAt = new Date("2026-08-01T00:00:00.000Z");
-    const first = claimGuestSlot(db, session.id, link.value.token, claimedAt);
+    const first = await claimGuestSlot(db, session.id, link.value.token, claimedAt);
     expect(first.ok).toBe(true);
 
     // Still within the 5:00 hold — the slot reads as taken.
-    const stillHeld = claimGuestSlot(db, session.id, link.value.token, new Date(claimedAt.getTime() + GUEST_HOLD_MS - 1000));
+    const stillHeld = await claimGuestSlot(db, session.id, link.value.token, new Date(claimedAt.getTime() + GUEST_HOLD_MS - 1000));
     expect(stillHeld).toEqual({ ok: false, error: "already_full" });
 
     // Past the hold — a fresh claimant sweeps the abandoned hold and takes it.
     const afterExpiry = new Date(claimedAt.getTime() + GUEST_HOLD_MS + 1000);
-    const second = claimGuestSlot(db, session.id, link.value.token, afterExpiry);
+    const second = await claimGuestSlot(db, session.id, link.value.token, afterExpiry);
     expect(second.ok).toBe(true);
     if (!first.ok || !second.ok) return;
     expect(second.guestUserId).not.toBe(first.guestUserId);
 
-    const abandonedRsvp = db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, first.guestUserId))).get();
+    const [abandonedRsvp] = await db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, first.guestUserId)));
     expect(abandonedRsvp?.status).toBe("out");
   });
 });
 
 describe("lockGuestName", () => {
-  it("sets the guest's real first name and clears the hold", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    const link = getRing3ClaimLink(db, session.id);
+  it("sets the guest's real first name and clears the hold", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
-    const claim = claimGuestSlot(db, session.id, link.value.token);
+    const claim = await claimGuestSlot(db, session.id, link.value.token);
     if (!claim.ok) throw new Error("expected claim");
 
-    const outcome = lockGuestName(db, claim.guestUserId, session.id, "  Alex  ");
+    const outcome = await lockGuestName(db, claim.guestUserId, session.id, "  Alex  ");
     expect(outcome).toEqual({ ok: true, displayName: "Alex" });
 
-    const guest = db.select().from(users).where(eq(users.id, claim.guestUserId)).get();
+    const [guest] = await db.select().from(users).where(eq(users.id, claim.guestUserId));
     expect(guest?.displayName).toBe("Alex");
 
-    const rsvp = db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, claim.guestUserId))).get();
+    const [rsvp] = await db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, claim.guestUserId)));
     expect(rsvp?.holdExpiresAt).toBeNull();
     expect(rsvp?.status).toBe("in");
   });
 
-  it("rejects an empty name", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    const link = getRing3ClaimLink(db, session.id);
+  it("rejects an empty name", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
-    const claim = claimGuestSlot(db, session.id, link.value.token);
+    const claim = await claimGuestSlot(db, session.id, link.value.token);
     if (!claim.ok) throw new Error("expected claim");
 
-    expect(lockGuestName(db, claim.guestUserId, session.id, "   ")).toEqual({ ok: false, error: "invalid_name" });
+    expect(await lockGuestName(db, claim.guestUserId, session.id, "   ")).toEqual({ ok: false, error: "invalid_name" });
   });
 
-  it("reports slot_lost once a contending claim has swept the expired hold away", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 1 });
-    const link = getRing3ClaimLink(db, session.id);
+  it("reports slot_lost once a contending claim has swept the expired hold away", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 1 });
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
 
     const claimedAt = new Date("2026-08-01T00:00:00.000Z");
-    const first = claimGuestSlot(db, session.id, link.value.token, claimedAt);
+    const first = await claimGuestSlot(db, session.id, link.value.token, claimedAt);
     if (!first.ok) throw new Error("expected claim");
 
     // A second claimant shows up after the hold lapsed and takes the slot.
-    claimGuestSlot(db, session.id, link.value.token, new Date(claimedAt.getTime() + GUEST_HOLD_MS + 1000));
+    await claimGuestSlot(db, session.id, link.value.token, new Date(claimedAt.getTime() + GUEST_HOLD_MS + 1000));
 
     // The original (slow-typing) guest now tries to lock in — too late.
-    const outcome = lockGuestName(db, first.guestUserId, session.id, "Alex");
+    const outcome = await lockGuestName(db, first.guestUserId, session.id, "Alex");
     expect(outcome).toEqual({ ok: false, error: "slot_lost" });
   });
 });
 
 describe("joinGuestReserveQueue", () => {
-  it("queues a fresh guest behind any existing reserves", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    db.insert(rsvps).values({ sessionId: session.id, userId: seedUser().id, status: "reserve", position: 1 }).run();
-    const link = getRing3ClaimLink(db, session.id);
+  it("queues a fresh guest behind any existing reserves", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    await db.insert(rsvps).values({ sessionId: session.id, userId: (await seedUser()).id, status: "reserve", position: 1 });
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
 
-    const outcome = joinGuestReserveQueue(db, session.id, link.value.token);
+    const outcome = await joinGuestReserveQueue(db, session.id, link.value.token);
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.position).toBe(2);
 
-    const rsvp = db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, outcome.guestUserId))).get();
+    const [rsvp] = await db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, outcome.guestUserId)));
     expect(rsvp?.status).toBe("reserve");
     expect(rsvp?.source).toBe("guest_link");
   });
 });
 
 describe("getGuestUserId", () => {
-  it("resolves a raw token to its guest user id, and rejects a wrong token", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    const link = getRing3ClaimLink(db, session.id);
+  it("resolves a raw token to its guest user id, and rejects a wrong token", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
-    const claim = claimGuestSlot(db, session.id, link.value.token);
+    const claim = await claimGuestSlot(db, session.id, link.value.token);
     if (!claim.ok) throw new Error("expected claim");
 
-    expect(getGuestUserId(db, claim.token)).toBe(claim.guestUserId);
-    expect(getGuestUserId(db, "not-a-real-token")).toBeNull();
+    expect(await getGuestUserId(db, claim.token)).toBe(claim.guestUserId);
+    expect(await getGuestUserId(db, "not-a-real-token")).toBeNull();
   });
 
-  it("stores only the hash, never the raw token", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    const link = getRing3ClaimLink(db, session.id);
+  it("stores only the hash, never the raw token", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
-    const claim = claimGuestSlot(db, session.id, link.value.token);
+    const claim = await claimGuestSlot(db, session.id, link.value.token);
     if (!claim.ok) throw new Error("expected claim");
 
-    const guest = db.select().from(users).where(eq(users.id, claim.guestUserId)).get();
+    const [guest] = await db.select().from(users).where(eq(users.id, claim.guestUserId));
     expect(guest?.guestClaimTokenHash).toBe(hashGuestToken(claim.token));
     expect(guest?.guestClaimTokenHash).not.toBe(claim.token);
   });
 });
 
 describe("convertGuestOnAuth", () => {
-  it("flips a guest row to a real account in place when there's no pre-existing account", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    const link = getRing3ClaimLink(db, session.id);
+  it("flips a guest row to a real account in place when there's no pre-existing account", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
-    const claim = claimGuestSlot(db, session.id, link.value.token);
+    const claim = await claimGuestSlot(db, session.id, link.value.token);
     if (!claim.ok) throw new Error("expected claim");
-    lockGuestName(db, claim.guestUserId, session.id, "Alex");
+    await lockGuestName(db, claim.guestUserId, session.id, "Alex");
 
-    const result = convertGuestOnAuth(db, claim.guestUserId, claim.guestUserId);
+    const result = await convertGuestOnAuth(db, claim.guestUserId, claim.guestUserId);
     expect(result).toEqual({ converted: true, merged: false, carriedName: "Alex" });
 
-    const converted = db.select().from(users).where(eq(users.id, claim.guestUserId)).get();
+    const [converted] = await db.select().from(users).where(eq(users.id, claim.guestUserId));
     expect(converted?.isGuest).toBe(false);
     expect(converted?.guestClaimTokenHash).toBeNull();
     expect(converted?.displayName).toBe("Alex");
 
     // The stale device cookie can never resolve to this row again.
-    expect(getGuestUserId(db, claim.token)).toBeNull();
+    expect(await getGuestUserId(db, claim.token)).toBeNull();
   });
 
-  it("email conflict: re-points the guest's rsvps onto the pre-existing account", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    const existingAccount = seedUser("Alex (existing)");
-    const link = getRing3ClaimLink(db, session.id);
+  it("email conflict: re-points the guest's rsvps onto the pre-existing account", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const existingAccount = await seedUser("Alex (existing)");
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
-    const claim = claimGuestSlot(db, session.id, link.value.token);
+    const claim = await claimGuestSlot(db, session.id, link.value.token);
     if (!claim.ok) throw new Error("expected claim");
-    lockGuestName(db, claim.guestUserId, session.id, "Alex");
+    await lockGuestName(db, claim.guestUserId, session.id, "Alex");
 
-    const result = convertGuestOnAuth(db, claim.guestUserId, existingAccount.id);
+    const result = await convertGuestOnAuth(db, claim.guestUserId, existingAccount.id);
     // The pre-existing account already has a real (non-derived) chosen name,
     // so the guest's name is NOT carried over — carriedName stays null.
     expect(result).toEqual({ converted: true, merged: true, carriedName: null });
 
-    const rsvp = db.select().from(rsvps).where(eq(rsvps.sessionId, session.id)).all().find((r) => r.userId === existingAccount.id);
+    const rsvp = (await db.select().from(rsvps).where(eq(rsvps.sessionId, session.id))).find((r) => r.userId === existingAccount.id);
     expect(rsvp?.status).toBe("in");
 
-    const guestRow = db.select().from(users).where(eq(users.id, claim.guestUserId)).get();
+    const [guestRow] = await db.select().from(users).where(eq(users.id, claim.guestUserId));
     expect(guestRow?.guestClaimTokenHash).toBeNull();
     // The merge rule scopes to rsvps only — the now-inert guest row is left
     // in place, not deleted (see server/guest.ts's convertGuestOnAuth doc).
     expect(guestRow).not.toBeNull();
   });
 
-  it("email conflict with a session the resolved account already holds: the resolved account's row wins, the guest's is dropped", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const session = seedSession(circle.id, { slots: 4 });
-    const existingAccount = seedUser("Alex (existing)");
-    rsvpConfirmed(session.id, existingAccount.id);
+  it("email conflict with a session the resolved account already holds: the resolved account's row wins, the guest's is dropped", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const session = await seedSession(circle.id, { slots: 4 });
+    const existingAccount = await seedUser("Alex (existing)");
+    await rsvpConfirmed(session.id, existingAccount.id);
 
-    const link = getRing3ClaimLink(db, session.id);
+    const link = await getRing3ClaimLink(db, session.id);
     if (!link.ok) throw new Error("expected link");
     // A second slot for the guest to have claimed independently before converting.
-    const secondSession = seedSession(circle.id, { slots: 4 });
-    const secondLink = getRing3ClaimLink(db, secondSession.id);
+    const secondSession = await seedSession(circle.id, { slots: 4 });
+    const secondLink = await getRing3ClaimLink(db, secondSession.id);
     if (!secondLink.ok) throw new Error("expected link");
 
-    const claimA = claimGuestSlot(db, session.id, link.value.token);
+    const claimA = await claimGuestSlot(db, session.id, link.value.token);
     if (!claimA.ok) throw new Error("expected claim");
     // Same guest device also claims the OTHER session before converting —
     // simulated here by reusing the same guest user id for a second rsvp.
-    db.insert(rsvps).values({ sessionId: secondSession.id, userId: claimA.guestUserId, status: "in", source: "guest_link" }).run();
+    await db.insert(rsvps).values({ sessionId: secondSession.id, userId: claimA.guestUserId, status: "in", source: "guest_link" });
 
-    convertGuestOnAuth(db, claimA.guestUserId, existingAccount.id);
+    await convertGuestOnAuth(db, claimA.guestUserId, existingAccount.id);
 
-    const rowsForSession = db.select().from(rsvps).where(eq(rsvps.sessionId, session.id)).all();
+    const rowsForSession = await db.select().from(rsvps).where(eq(rsvps.sessionId, session.id));
     // The guest's own rsvp for `session` was dropped (existingAccount already had one).
     expect(rowsForSession.find((r) => r.userId === claimA.guestUserId)).toBeUndefined();
     expect(rowsForSession.find((r) => r.userId === existingAccount.id)?.status).toBe("in");
 
     // The guest's OTHER rsvp (no clash there) was re-pointed onto the resolved account.
-    const rowsForSecondSession = db.select().from(rsvps).where(eq(rsvps.sessionId, secondSession.id)).all();
+    const rowsForSecondSession = await db.select().from(rsvps).where(eq(rsvps.sessionId, secondSession.id));
     expect(rowsForSecondSession.find((r) => r.userId === existingAccount.id)).toBeTruthy();
   });
 
-  it("reports not_a_guest for a normal user id", () => {
-    const alex = seedUser("Alex");
-    const bob = seedUser("Bob");
-    expect(convertGuestOnAuth(db, alex.id, bob.id)).toEqual({ converted: false, reason: "not_a_guest" });
+  it("reports not_a_guest for a normal user id", async () => {
+    const alex = await seedUser("Alex");
+    const bob = await seedUser("Bob");
+    expect(await convertGuestOnAuth(db, alex.id, bob.id)).toEqual({ converted: false, reason: "not_a_guest" });
   });
 
-  it("carries the guest's chosen name onto a freshly provisioned (email-derived) account", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const join = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
+  it("carries the guest's chosen name onto a freshly provisioned (email-derived) account", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const join = await joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
     if (!join.ok) throw new Error("expected join");
 
     // A brand-new magic-link account whose displayName is still the email
     // local-part (auth-store's deriveDisplayName) — the exact case F6 targets.
-    const fresh = db.insert(users).values({ email: "pete@example.com", displayName: "pete" }).returning().get();
+    const [fresh] = await db.insert(users).values({ email: "pete@example.com", displayName: "pete" }).returning();
 
-    const result = convertGuestOnAuth(db, join.guestUserId, fresh.id);
+    const result = await convertGuestOnAuth(db, join.guestUserId, fresh.id);
     expect(result).toEqual({ converted: true, merged: true, carriedName: "Pete" });
 
-    const account = db.select().from(users).where(eq(users.id, fresh.id)).get();
+    const [account] = await db.select().from(users).where(eq(users.id, fresh.id));
     expect(account?.displayName).toBe("Pete");
   });
 
-  it("re-points a circle-join guest's membership onto the resolved account (move, no clash)", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const join = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
+  it("re-points a circle-join guest's membership onto the resolved account (move, no clash)", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const join = await joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
     if (!join.ok) throw new Error("expected join");
-    const account = seedUser("Pete (existing)");
+    const account = await seedUser("Pete (existing)");
 
-    convertGuestOnAuth(db, join.guestUserId, account.id);
+    await convertGuestOnAuth(db, join.guestUserId, account.id);
 
     // The membership moved to the resolved account; the guest no longer holds one.
-    const accountMembership = db
+    const [accountMembership] = await db
       .select()
       .from(circleMembers)
       .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, account.id)))
-      .get();
+      ;
     expect(accountMembership).toBeTruthy();
-    const guestMembership = db
+    const [guestMembership] = await db
       .select()
       .from(circleMembers)
       .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, join.guestUserId)))
-      .get();
+      ;
     expect(guestMembership).toBeUndefined();
   });
 
-  it("drops the guest's membership when the resolved account is already in that circle", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const account = seedUser("Pete (existing)");
-    db.insert(circleMembers).values({ circleId: circle.id, userId: account.id, role: "member" }).run();
+  it("drops the guest's membership when the resolved account is already in that circle", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const account = await seedUser("Pete (existing)");
+    await db.insert(circleMembers).values({ circleId: circle.id, userId: account.id, role: "member" });
 
-    const join = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
+    const join = await joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Pete" });
     if (!join.ok) throw new Error("expected join");
 
-    convertGuestOnAuth(db, join.guestUserId, account.id);
+    await convertGuestOnAuth(db, join.guestUserId, account.id);
 
     // Exactly one membership for this circle+account (no PK collision thrown),
     // and the guest's row is gone.
-    const guestMembership = db
+    const [guestMembership] = await db
       .select()
       .from(circleMembers)
       .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, join.guestUserId)))
-      .get();
+      ;
     expect(guestMembership).toBeUndefined();
-    const accountMembership = db
+    const [accountMembership] = await db
       .select()
       .from(circleMembers)
       .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, account.id)))
-      .get();
+      ;
     expect(accountMembership?.role).toBe("member");
   });
 });
 
 describe("joinGuestCircle", () => {
-  it("mints a guest user with the chosen name and a real circle_members row", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
+  it("mints a guest user with the chosen name and a real circle_members row", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
 
-    const outcome = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "  Alex  " });
+    const outcome = await joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "  Alex  " });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.displayName).toBe("Alex");
     expect(outcome.token).toBeTruthy();
     expect(outcome.circleId).toBe(circle.id);
 
-    const guest = db.select().from(users).where(eq(users.id, outcome.guestUserId)).get();
+    const [guest] = await db.select().from(users).where(eq(users.id, outcome.guestUserId));
     expect(guest?.isGuest).toBe(true);
     expect(guest?.email).toBeNull();
     expect(guest?.displayName).toBe("Alex");
 
     // The device cookie resolves to this guest, and they're a real member.
-    expect(getGuestUserId(db, outcome.token!)).toBe(outcome.guestUserId);
-    const membership = db
+    expect(await getGuestUserId(db, outcome.token!)).toBe(outcome.guestUserId);
+    const [membership] = await db
       .select()
       .from(circleMembers)
       .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, outcome.guestUserId)))
-      .get();
+      ;
     expect(membership?.role).toBe("member");
   });
 
-  it("rejects an empty name and an unknown invite code", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    expect(joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "   " })).toEqual({ ok: false, error: "invalid_name" });
-    expect(joinGuestCircle(db, { inviteCode: "NOPE", rawName: "Alex" })).toEqual({ ok: false, error: "circle_not_found" });
+  it("rejects an empty name and an unknown invite code", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    expect(await joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "   " })).toEqual({ ok: false, error: "invalid_name" });
+    expect(await joinGuestCircle(db, { inviteCode: "NOPE", rawName: "Alex" })).toEqual({ ok: false, error: "circle_not_found" });
   });
 
-  it("reuses an existing guest identity for the device rather than minting a second row", () => {
-    const organiser = seedUser("Organiser");
-    const circleA = seedCircle(organiser.id);
-    const circleB = seedCircle(organiser.id);
+  it("reuses an existing guest identity for the device rather than minting a second row", async () => {
+    const organiser = await seedUser("Organiser");
+    const circleA = await seedCircle(organiser.id);
+    const circleB = await seedCircle(organiser.id);
 
-    const first = joinGuestCircle(db, { inviteCode: circleA.inviteCode, rawName: "Alex" });
+    const first = await joinGuestCircle(db, { inviteCode: circleA.inviteCode, rawName: "Alex" });
     if (!first.ok) throw new Error("expected first join");
 
     // Same device (existingGuestUserId) opens a second circle invite.
-    const second = joinGuestCircle(db, {
+    const second = await joinGuestCircle(db, {
       inviteCode: circleB.inviteCode,
       rawName: "Alex",
       existingGuestUserId: first.guestUserId,
@@ -490,30 +491,30 @@ describe("joinGuestCircle", () => {
     expect(second.token).toBeNull();
 
     // One guest identity, member of BOTH circles.
-    expect(getGuestMembership(db, first.guestUserId, circleA.id)?.displayName).toBe("Alex");
-    expect(getGuestMembership(db, first.guestUserId, circleB.id)?.displayName).toBe("Alex");
+    expect((await getGuestMembership(db, first.guestUserId, circleA.id))?.displayName).toBe("Alex");
+    expect((await getGuestMembership(db, first.guestUserId, circleB.id))?.displayName).toBe("Alex");
   });
 });
 
 describe("getGuestMembership", () => {
-  it("returns the guest's name when a member, null otherwise", () => {
-    const organiser = seedUser("Organiser");
-    const circle = seedCircle(organiser.id);
-    const otherCircle = seedCircle(organiser.id);
-    const join = joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Alex" });
+  it("returns the guest's name when a member, null otherwise", async () => {
+    const organiser = await seedUser("Organiser");
+    const circle = await seedCircle(organiser.id);
+    const otherCircle = await seedCircle(organiser.id);
+    const join = await joinGuestCircle(db, { inviteCode: circle.inviteCode, rawName: "Alex" });
     if (!join.ok) throw new Error("expected join");
 
-    expect(getGuestMembership(db, join.guestUserId, circle.id)).toEqual({ displayName: "Alex" });
-    expect(getGuestMembership(db, join.guestUserId, otherCircle.id)).toBeNull();
+    expect(await getGuestMembership(db, join.guestUserId, circle.id)).toEqual({ displayName: "Alex" });
+    expect(await getGuestMembership(db, join.guestUserId, otherCircle.id)).toBeNull();
     // A normal (non-guest) member of the circle never resolves through this
     // guest-only helper (the isGuest filter, not just an absent membership row).
-    db.insert(circleMembers).values({ circleId: circle.id, userId: organiser.id, role: "organiser" }).run();
-    expect(getGuestMembership(db, organiser.id, circle.id)).toBeNull();
+    await db.insert(circleMembers).values({ circleId: circle.id, userId: organiser.id, role: "organiser" });
+    expect(await getGuestMembership(db, organiser.id, circle.id)).toBeNull();
   });
 });
 
 describe("normalizeGuestName", () => {
-  it("trims and caps length, rejecting empty-after-trim", () => {
+  it("trims and caps length, rejecting empty-after-trim", async () => {
     expect(normalizeGuestName("  Alex  ")).toBe("Alex");
     expect(normalizeGuestName("   ")).toBeNull();
     expect(normalizeGuestName("a".repeat(100))).toHaveLength(40);
@@ -522,28 +523,28 @@ describe("normalizeGuestName", () => {
 
 describe("a guest in a verified match", () => {
   it("flows through the Glass/Placement Trio pipeline exactly like any other player", async () => {
-    const store: MatchesStore = createMatchesStore(":memory:");
+    const store: MatchesStore = createMatchesStoreFromClient(await createTestClient());
     try {
       const guestDb = store.db;
-      const organiser = guestDb.insert(users).values({ email: "organiser@example.com", displayName: "Organiser" }).returning().get();
-      const circle = guestDb
+      const [organiser] = await guestDb.insert(users).values({ email: "organiser@example.com", displayName: "Organiser" }).returning();
+      const [circle] = await guestDb
         .insert(circles)
         .values({ name: "Guest Test Circle", inviteCode: `INV-${Math.random().toString(36).slice(2, 10)}`, createdBy: organiser.id })
         .returning()
-        .get();
+        ;
 
       // A guest row exactly as claimGuestSlot would create one — no email,
       // isGuest true, still Unrated.
-      const guest = guestDb.insert(users).values({ displayName: "Guest", isGuest: true, guestClaimTokenHash: "abc" }).returning().get();
-      const partner = guestDb.insert(users).values({ email: "partner@example.com", displayName: "Partner" }).returning().get();
-      const opp1 = guestDb.insert(users).values({ email: "opp1@example.com", displayName: "Opp1" }).returning().get();
-      const opp2 = guestDb.insert(users).values({ email: "opp2@example.com", displayName: "Opp2" }).returning().get();
+      const [guest] = await guestDb.insert(users).values({ displayName: "Guest", isGuest: true, guestClaimTokenHash: "abc" }).returning();
+      const [partner] = await guestDb.insert(users).values({ email: "partner@example.com", displayName: "Partner" }).returning();
+      const [opp1] = await guestDb.insert(users).values({ email: "opp1@example.com", displayName: "Opp1" }).returning();
+      const [opp2] = await guestDb.insert(users).values({ email: "opp2@example.com", displayName: "Opp2" }).returning();
 
-      const session = guestDb
+      const [session] = await guestDb
         .insert(sessions)
-        .values({ circleId: circle.id, startsAt: new Date("2026-08-01T18:00:00.000Z"), status: "played" })
+        .values({ circleId: circle.id, startsAt: new Date("2026-08-01T18:00:00.000Z").getTime(), status: "played" })
         .returning()
-        .get();
+        ;
 
       const { matchId } = await store.recordMatch({
         sessionId: session.id,
@@ -567,7 +568,7 @@ describe("a guest in a verified match", () => {
       expect(verifiedNotifs.map((n) => n.userId)).toContain(guest.id);
       expect(guestRow!.verifiedMatchCount).toBeLessThan(PLACEMENT_TRIO_SIZE);
     } finally {
-      store.close();
+      await store.close();
     }
   });
 });

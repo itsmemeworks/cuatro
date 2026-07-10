@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { createClient, users, venues } from "@cuatro/db";
+import { createTestClient, users, venues } from "@cuatro/db";
 import type { CuatroClient } from "@cuatro/db";
 import {
   createCirclesStore,
@@ -28,7 +28,7 @@ describe("circles store (@cuatro/db)", () => {
   let outsider: { id: string };
 
   beforeEach(async () => {
-    client = createClient(":memory:");
+    client = await createTestClient();
     store = createCirclesStore(client.db);
 
     [organiser] = await client.db
@@ -45,8 +45,8 @@ describe("circles store (@cuatro/db)", () => {
       .returning();
   });
 
-  afterEach(() => {
-    client.close();
+  afterEach(async () => {
+    await client.close();
     __setRealtimeSenderForTests(null);
   });
 

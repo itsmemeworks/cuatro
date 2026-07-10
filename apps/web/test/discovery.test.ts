@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
-  createClient,
+  createTestClient,
   circleMembers,
   circles,
   knocks,
@@ -37,74 +37,72 @@ const IN_5_DAYS = new Date(NOW.getTime() + 5 * DAY_MS);
 let client: CuatroClient;
 let db: CuatroDb;
 
-beforeEach(() => {
-  client = createClient(":memory:");
+beforeEach(async () => {
+  client = await createTestClient();
   db = client.db;
   __setRealtimeSenderForTests(null);
 });
 
-afterEach(() => {
-  client.close();
+afterEach(async () => {
+  await client.close();
   __setRealtimeSenderForTests(null);
 });
 
-function mkUser(overrides: Partial<typeof users.$inferInsert> = {}) {
-  return db
+async function mkUser(overrides: Partial<typeof users.$inferInsert> = {}) {
+  const [u] = await db
     .insert(users)
     .values({ displayName: "U", email: `u${Math.random()}@e.com`, ...overrides })
-    .returning()
-    .get();
+    .returning();
+  return u;
 }
 
-function mkVenue(name: string, pin: { lat: number; lng: number } | null) {
-  return db
+async function mkVenue(name: string, pin: { lat: number; lng: number } | null) {
+  const [v] = await db
     .insert(venues)
     .values({ name, lat: pin?.lat ?? null, lng: pin?.lng ?? null })
-    .returning()
-    .get();
+    .returning();
+  return v;
 }
 
-function mkCircle(createdBy: string, overrides: Partial<typeof circles.$inferInsert> = {}) {
-  return db
+async function mkCircle(createdBy: string, overrides: Partial<typeof circles.$inferInsert> = {}) {
+  const [c] = await db
     .insert(circles)
     .values({ name: "C", inviteCode: `INV${Math.random()}`.slice(0, 12), createdBy, ...overrides })
-    .returning()
-    .get();
+    .returning();
+  return c;
 }
 
 /** A circle with one organiser + an upcoming standing-game session at `venueId`, `confirmedRatings.length` players already in. */
-function mkBoardCircle(opts: {
+async function mkBoardCircle(opts: {
   venueId: string;
   confirmedRatings: (number | null)[];
   boardEnabled?: boolean;
   slots?: number;
   startsAt?: Date;
 }) {
-  const organiser = mkUser({ displayName: "Org" });
-  const circle = mkCircle(organiser.id, { boardEnabled: opts.boardEnabled ?? true });
-  db.insert(circleMembers).values({ circleId: circle.id, userId: organiser.id, role: "organiser" }).run();
+  const organiser = await mkUser({ displayName: "Org" });
+  const circle = await mkCircle(organiser.id, { boardEnabled: opts.boardEnabled ?? true });
+  await db.insert(circleMembers).values({ circleId: circle.id, userId: organiser.id, role: "organiser" });
 
-  const sg = db
+  const [sg] = await db
     .insert(standingGames)
     .values({ circleId: circle.id, venueId: opts.venueId, weekday: 2, startTime: "20:00", slots: opts.slots ?? 4 })
-    .returning()
-    .get();
-  const session = db
+    .returning();
+  const [session] = await db
     .insert(sessions)
     .values({
       standingGameId: sg.id,
       circleId: circle.id,
       venueId: opts.venueId,
-      startsAt: opts.startsAt ?? IN_5_DAYS,
+      startsAt: (opts.startsAt ?? IN_5_DAYS).getTime(),
       status: "upcoming",
     })
-    .returning()
-    .get();
+    .returning();
 
   for (const rating of opts.confirmedRatings) {
-    const p = mkUser({ displayName: "P", rating });
-    db.insert(circleMembers).values({ circleId: circle.id, userId: p.id, role: "member" }).run();
-    db.insert(rsvps).values({ sessionId: session.id, userId: p.id, status: "in" }).run();
+    const p = await mkUser({ displayName: "P", rating });
+    await db.insert(circleMembers).values({ circleId: circle.id, userId: p.id, role: "member" });
+    await db.insert(rsvps).values({ sessionId: session.id, userId: p.id, status: "in" });
   }
 
   return { organiserId: organiser.id, circleId: circle.id, sessionId: session.id, standingGameId: sg.id };
@@ -112,14 +110,14 @@ function mkBoardCircle(opts: {
 
 describe("boardGames — the 10 km boundary", () => {
   it("shows the Stratford game (5 km) but not the Wandsworth one (11 km) for a Shoreditch viewer", async () => {
-    const shoreditch = mkVenue("Powerleague Shoreditch", SHOREDITCH);
-    const stratford = mkVenue("Padel Social Club Stratford", STRATFORD);
-    const wandsworth = mkVenue("Rocket Padel Wandsworth", WANDSWORTH);
+    const shoreditch = await mkVenue("Powerleague Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Padel Social Club Stratford", STRATFORD);
+    const wandsworth = await mkVenue("Rocket Padel Wandsworth", WANDSWORTH);
 
-    const viewer = mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id, findable: true });
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id, findable: true });
 
-    const near = mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1, 3.8] });
-    mkBoardCircle({ venueId: wandsworth.id, confirmedRatings: [3.0, 3.2] });
+    const near = await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1, 3.8] });
+    await mkBoardCircle({ venueId: wandsworth.id, confirmedRatings: [3.0, 3.2] });
 
     const board = await boardGames(db, viewer.id, { now: NOW });
 
@@ -133,36 +131,36 @@ describe("boardGames — the 10 km boundary", () => {
   });
 
   it("returns [] when the viewer has no resolvable patch", async () => {
-    const stratford = mkVenue("Stratford", STRATFORD);
-    const viewer = mkUser({ displayName: "Viewer" }); // no home venue, no patch
-    mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1] });
+    const stratford = await mkVenue("Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer" }); // no home venue, no patch
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1] });
 
     expect(await boardGames(db, viewer.id, { now: NOW })).toEqual([]);
   });
 
   it("excludes full games, board-disabled circles, and circles the viewer belongs to", async () => {
-    const shoreditch = mkVenue("Shoreditch", SHOREDITCH);
-    const stratford = mkVenue("Stratford", STRATFORD);
-    const viewer = mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
+    const shoreditch = await mkVenue("Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
 
     // full (4/4) — excluded
-    mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3, 3, 3, 3] });
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3, 3, 3, 3] });
     // board disabled — excluded
-    mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3], boardEnabled: false });
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3], boardEnabled: false });
     // viewer is a member — excluded
-    const mine = mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3] });
-    db.insert(circleMembers).values({ circleId: mine.circleId, userId: viewer.id, role: "member" }).run();
+    const mine = await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3] });
+    await db.insert(circleMembers).values({ circleId: mine.circleId, userId: viewer.id, role: "member" });
 
     expect(await boardGames(db, viewer.id, { now: NOW })).toEqual([]);
   });
 
   it("excludes a game whose RSVP window has not opened yet", async () => {
-    const shoreditch = mkVenue("Shoreditch", SHOREDITCH);
-    const stratford = mkVenue("Stratford", STRATFORD);
-    const viewer = mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
+    const shoreditch = await mkVenue("Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
 
     // startsAt far enough out that the 6-day window is still shut at NOW.
-    mkBoardCircle({
+    await mkBoardCircle({
       venueId: stratford.id,
       confirmedRatings: [3.1],
       startsAt: new Date(NOW.getTime() + 20 * DAY_MS),
@@ -172,10 +170,10 @@ describe("boardGames — the 10 km boundary", () => {
   });
 
   it("labels an all-unrated confirmed set as still forming", async () => {
-    const shoreditch = mkVenue("Shoreditch", SHOREDITCH);
-    const stratford = mkVenue("Stratford", STRATFORD);
-    const viewer = mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
-    mkBoardCircle({ venueId: stratford.id, confirmedRatings: [null, null] });
+    const shoreditch = await mkVenue("Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id });
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [null, null] });
 
     const board = await boardGames(db, viewer.id, { now: NOW });
     expect(board[0].levelLine).toBe("New group, still unrated");
@@ -183,154 +181,149 @@ describe("boardGames — the 10 km boundary", () => {
 });
 
 describe("session knock flow", () => {
-  function scenario() {
-    const shoreditch = mkVenue("Shoreditch", SHOREDITCH);
-    const stratford = mkVenue("Stratford", STRATFORD);
-    const viewer = mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id, rating: 3.4 });
-    const game = mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1, 3.8] });
+  async function scenario() {
+    const shoreditch = await mkVenue("Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id, rating: 3.4 });
+    const game = await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1, 3.8] });
     return { viewer, game };
   }
 
-  it("creates a pending knock and notifies the organiser (knock_received)", () => {
-    const { viewer, game } = scenario();
+  it("creates a pending knock and notifies the organiser (knock_received)", async () => {
+    const { viewer, game } = await scenario();
 
-    const res = createSessionKnock(db, game.sessionId, viewer.id, "Can I join?", NOW);
+    const res = await createSessionKnock(db, game.sessionId, viewer.id, "Can I join?", NOW);
     expect(res.ok).toBe(true);
 
-    const knock = db.select().from(knocks).where(eq(knocks.userId, viewer.id)).get();
+    const [knock] = await db.select().from(knocks).where(eq(knocks.userId, viewer.id));
     expect(knock?.status).toBe("pending");
     expect(knock?.kind).toBe("session");
     expect(knock?.targetId).toBe(game.sessionId);
 
-    const notif = db
+    const [notif] = await db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.userId, game.organiserId), eq(notifications.type, "knock_received")))
-      .get();
+      .where(and(eq(notifications.userId, game.organiserId), eq(notifications.type, "knock_received")));
     expect(notif).toBeTruthy();
   });
 
-  it("enforces one open knock per target (second create rejected)", () => {
-    const { viewer, game } = scenario();
-    expect(createSessionKnock(db, game.sessionId, viewer.id, null, NOW).ok).toBe(true);
+  it("enforces one open knock per target (second create rejected)", async () => {
+    const { viewer, game } = await scenario();
+    expect((await createSessionKnock(db, game.sessionId, viewer.id, null, NOW)).ok).toBe(true);
 
-    const second = createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
+    const second = await createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
     expect(second).toEqual({ ok: false, error: "already_knocked" });
 
     // exactly one row survived
-    expect(db.select().from(knocks).where(eq(knocks.userId, viewer.id)).all()).toHaveLength(1);
+    expect(await db.select().from(knocks).where(eq(knocks.userId, viewer.id))).toHaveLength(1);
   });
 
-  it("rejects a knock from an existing circle member", () => {
-    const { viewer, game } = scenario();
-    db.insert(circleMembers).values({ circleId: game.circleId, userId: viewer.id, role: "member" }).run();
+  it("rejects a knock from an existing circle member", async () => {
+    const { viewer, game } = await scenario();
+    await db.insert(circleMembers).values({ circleId: game.circleId, userId: viewer.id, role: "member" });
 
-    expect(createSessionKnock(db, game.sessionId, viewer.id, null, NOW)).toEqual({
+    expect(await createSessionKnock(db, game.sessionId, viewer.id, null, NOW)).toEqual({
       ok: false,
       error: "already_member",
     });
   });
 
-  it("accepts a knock: knocker is RSVP'd in as a non-member participant and notified", () => {
-    const { viewer, game } = scenario();
-    createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
+  it("accepts a knock: knocker is RSVP'd in as a non-member participant and notified", async () => {
+    const { viewer, game } = await scenario();
+    await createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
 
-    const before = db.select({ n: users.rsvpInCount }).from(users).where(eq(users.id, viewer.id)).get();
-    const knock = db.select().from(knocks).where(eq(knocks.userId, viewer.id)).get()!;
+    const [before] = await db.select({ n: users.rsvpInCount }).from(users).where(eq(users.id, viewer.id));
+    const [knock] = await db.select().from(knocks).where(eq(knocks.userId, viewer.id));
 
-    const res = decideSessionKnock(db, knock.id, game.organiserId, "accept", NOW);
+    const res = await decideSessionKnock(db, knock.id, game.organiserId, "accept", NOW);
     expect(res).toMatchObject({ ok: true, decision: "accepted", knockerId: viewer.id });
 
-    const updated = db.select().from(knocks).where(eq(knocks.id, knock.id)).get();
+    const [updated] = await db.select().from(knocks).where(eq(knocks.id, knock.id));
     expect(updated?.status).toBe("accepted");
     expect(updated?.decidedBy).toBe(game.organiserId);
     expect(updated?.decidedAt).toBeTruthy();
 
-    const rsvp = db
+    const [rsvp] = await db
       .select()
       .from(rsvps)
-      .where(and(eq(rsvps.sessionId, game.sessionId), eq(rsvps.userId, viewer.id)))
-      .get();
+      .where(and(eq(rsvps.sessionId, game.sessionId), eq(rsvps.userId, viewer.id)));
     expect(rsvp?.status).toBe("in");
     expect(rsvp?.source).toBe("fourth_call"); // non-member session participant, never a circle member
 
     // NOT added to the circle
-    const membership = db
+    const [membership] = await db
       .select()
       .from(circleMembers)
-      .where(and(eq(circleMembers.circleId, game.circleId), eq(circleMembers.userId, viewer.id)))
-      .get();
+      .where(and(eq(circleMembers.circleId, game.circleId), eq(circleMembers.userId, viewer.id)));
     expect(membership).toBeUndefined();
 
-    const after = db.select({ n: users.rsvpInCount }).from(users).where(eq(users.id, viewer.id)).get();
+    const [after] = await db.select({ n: users.rsvpInCount }).from(users).where(eq(users.id, viewer.id));
     expect(after!.n).toBe(before!.n + 1);
 
-    const accepted = db
+    const [accepted] = await db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.userId, viewer.id), eq(notifications.type, "knock_accepted")))
-      .get();
+      .where(and(eq(notifications.userId, viewer.id), eq(notifications.type, "knock_accepted")));
     expect(accepted).toBeTruthy();
   });
 
-  it("declines a knock: marked declined, knocker notified, no RSVP created", () => {
-    const { viewer, game } = scenario();
-    createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
-    const knock = db.select().from(knocks).where(eq(knocks.userId, viewer.id)).get()!;
+  it("declines a knock: marked declined, knocker notified, no RSVP created", async () => {
+    const { viewer, game } = await scenario();
+    await createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
+    const [knock] = await db.select().from(knocks).where(eq(knocks.userId, viewer.id));
 
-    const res = decideSessionKnock(db, knock.id, game.organiserId, "decline", NOW);
+    const res = await decideSessionKnock(db, knock.id, game.organiserId, "decline", NOW);
     expect(res).toMatchObject({ ok: true, decision: "declined" });
 
-    expect(db.select().from(knocks).where(eq(knocks.id, knock.id)).get()?.status).toBe("declined");
-    expect(
-      db
-        .select()
-        .from(rsvps)
-        .where(and(eq(rsvps.sessionId, game.sessionId), eq(rsvps.userId, viewer.id)))
-        .get(),
-    ).toBeUndefined();
-    expect(
-      db
-        .select()
-        .from(notifications)
-        .where(and(eq(notifications.userId, viewer.id), eq(notifications.type, "knock_declined")))
-        .get(),
-    ).toBeTruthy();
+    const [declined] = await db.select().from(knocks).where(eq(knocks.id, knock.id));
+    expect(declined?.status).toBe("declined");
+    const [rsvp] = await db
+      .select()
+      .from(rsvps)
+      .where(and(eq(rsvps.sessionId, game.sessionId), eq(rsvps.userId, viewer.id)));
+    expect(rsvp).toBeUndefined();
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.userId, viewer.id), eq(notifications.type, "knock_declined")));
+    expect(notif).toBeTruthy();
   });
 
-  it("only an organiser can decide", () => {
-    const { viewer, game } = scenario();
-    const stranger = mkUser({ displayName: "Stranger" });
-    createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
-    const knock = db.select().from(knocks).where(eq(knocks.userId, viewer.id)).get()!;
+  it("only an organiser can decide", async () => {
+    const { viewer, game } = await scenario();
+    const stranger = await mkUser({ displayName: "Stranger" });
+    await createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
+    const [knock] = await db.select().from(knocks).where(eq(knocks.userId, viewer.id));
 
-    expect(decideSessionKnock(db, knock.id, stranger.id, "accept", NOW)).toEqual({
+    expect(await decideSessionKnock(db, knock.id, stranger.id, "accept", NOW)).toEqual({
       ok: false,
       error: "not_an_organiser",
     });
-    expect(db.select().from(knocks).where(eq(knocks.id, knock.id)).get()?.status).toBe("pending");
+    const [still] = await db.select().from(knocks).where(eq(knocks.id, knock.id));
+    expect(still?.status).toBe("pending");
   });
 
   it("a withdrawn knock frees a re-knock and clears the Board pending flag", async () => {
-    const { viewer, game } = scenario();
-    createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
+    const { viewer, game } = await scenario();
+    await createSessionKnock(db, game.sessionId, viewer.id, null, NOW);
 
     let board = await boardGames(db, viewer.id, { now: NOW });
     expect(board[0].viewerHasPendingKnock).toBe(true);
 
-    expect(withdrawSessionKnock(db, game.sessionId, viewer.id, NOW)).toEqual({ ok: true });
-    expect(db.select().from(knocks).where(eq(knocks.userId, viewer.id)).get()?.status).toBe("withdrawn");
+    expect(await withdrawSessionKnock(db, game.sessionId, viewer.id, NOW)).toEqual({ ok: true });
+    const [withdrawn] = await db.select().from(knocks).where(eq(knocks.userId, viewer.id));
+    expect(withdrawn?.status).toBe("withdrawn");
 
     board = await boardGames(db, viewer.id, { now: NOW });
     expect(board[0].viewerHasPendingKnock).toBe(false);
 
     // re-knock allowed after withdrawal
-    expect(createSessionKnock(db, game.sessionId, viewer.id, null, NOW).ok).toBe(true);
+    expect((await createSessionKnock(db, game.sessionId, viewer.id, null, NOW)).ok).toBe(true);
   });
 
   it("surfaces pending knocks to the organiser with Glass, reliability and distance", async () => {
-    const { viewer, game } = scenario();
-    createSessionKnock(db, game.sessionId, viewer.id, "keen", NOW);
+    const { viewer, game } = await scenario();
+    await createSessionKnock(db, game.sessionId, viewer.id, "keen", NOW);
 
     const rows = await sessionKnocks(db, game.sessionId);
     expect(rows).toHaveLength(1);

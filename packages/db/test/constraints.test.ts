@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createClient } from '../src/client.js'
+import { createTestClient } from '../src/client.js'
 import type { CuatroClient } from '../src/client.js'
 import { circles, rsvps, sessions, users } from '../src/schema/index.js'
 
 describe('unique constraints', () => {
   let client: CuatroClient
 
-  beforeEach(() => {
-    client = createClient(':memory:')
+  beforeEach(async () => {
+    client = await createTestClient()
   })
 
-  afterEach(() => {
-    client.close()
+  afterEach(async () => {
+    await client.close()
   })
 
   it('rejects a duplicate circle invite_code', async () => {
@@ -46,7 +46,7 @@ describe('unique constraints', () => {
       .returning()
     const [session] = await client.db
       .insert(sessions)
-      .values({ circleId: circle.id, startsAt: new Date(), status: 'upcoming' })
+      .values({ circleId: circle.id, startsAt: Date.now(), status: 'upcoming' })
       .returning()
 
     await client.db.insert(rsvps).values({ sessionId: session.id, userId: player.id, status: 'in' })

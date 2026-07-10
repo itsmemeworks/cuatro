@@ -33,9 +33,9 @@ export async function POST(request: Request) {
 
   const { db } = await getGamesClient();
   const existingToken = await getGuestToken();
-  const existingGuestUserId = existingToken ? getGuestUserId(db, existingToken) : null;
+  const existingGuestUserId = existingToken ? await getGuestUserId(db, existingToken) : null;
 
-  const outcome = joinGuestCircle(db, { inviteCode: code, rawName: name, existingGuestUserId });
+  const outcome = await joinGuestCircle(db, { inviteCode: code, rawName: name, existingGuestUserId });
   if (!outcome.ok) {
     return NextResponse.json({ ok: false, error: outcome.error }, { status: STATUS_FOR_ERROR[outcome.error] ?? 400 });
   }

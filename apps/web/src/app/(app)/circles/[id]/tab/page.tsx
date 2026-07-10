@@ -50,7 +50,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
   if (!user) return null; // the (app) layout already redirects unauthenticated users to /login
 
   const { db } = await getDb();
-  const view = getTabView(db, circleId, user.id);
+  const view = await getTabView(db, circleId, user.id);
   // Not a member (or the Circle doesn't exist) — treat identically, same
   // posture as circles/[id]/page.tsx: a guessed id shouldn't confirm
   // anything to an outsider.

@@ -5,7 +5,7 @@
  * insertNotification() used at write time, so a row here always matches
  * what its push notification said.
  */
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { notifications, type CuatroDb, type Notification } from "@cuatro/db";
 import { deepLinkFor, renderNotificationCopy, type NotificationInput, type NotificationType } from "./notify";
 
@@ -35,9 +35,9 @@ function asNotificationInput(row: Pick<Notification, "type" | "payload">): Notif
   return { type: row.type, payload: row.payload } as NotificationInput;
 }
 
-function toView(row: Notification, tx: CuatroDb): NotificationView {
+async function toView(row: Notification, tx: CuatroDb): Promise<NotificationView> {
   const input = asNotificationInput(row);
-  const copy = renderNotificationCopy(tx, input);
+  const copy = await renderNotificationCopy(tx, input);
   return {
     id: row.id,
     type: input.type,
@@ -45,7 +45,9 @@ function toView(row: Notification, tx: CuatroDb): NotificationView {
     body: copy.body,
     href: deepLinkFor(input),
     read: row.readAt !== null,
-    createdAt: row.createdAt,
+    // createdAt is epoch-ms (Postgres bigint) now — surface a Date to the UI,
+    // which is the shape every notification-list consumer already formats.
+    createdAt: new Date(row.createdAt),
   };
 }
 
@@ -62,59 +64,57 @@ function formatDayLabel(date: Date, now: Date): string {
 }
 
 /** Every notification for `userId`, newest first, grouped into day buckets ("Today", "Yesterday", then calendar dates). */
-export function listNotificationsForUser(
+export async function listNotificationsForUser(
   db: CuatroDb,
   userId: string,
   now: Date = new Date(),
   limit = DEFAULT_LIST_LIMIT,
-): NotificationDayGroup[] {
-  const rows = db
+): Promise<NotificationDayGroup[]> {
+  const rows = await db
     .select()
     .from(notifications)
     .where(eq(notifications.userId, userId))
     .orderBy(desc(notifications.createdAt))
-    .limit(limit)
-    .all();
+    .limit(limit);
 
   const groups: NotificationDayGroup[] = [];
   let currentKey: string | null = null;
   for (const row of rows) {
-    const key = dayKey(row.createdAt);
+    const createdAt = new Date(row.createdAt);
+    const key = dayKey(createdAt);
     if (key !== currentKey) {
-      groups.push({ label: formatDayLabel(row.createdAt, now), notifications: [] });
+      groups.push({ label: formatDayLabel(createdAt, now), notifications: [] });
       currentKey = key;
     }
-    groups[groups.length - 1]!.notifications.push(toView(row, db));
+    groups[groups.length - 1]!.notifications.push(await toView(row, db));
   }
   return groups;
 }
 
-export function getUnreadCount(db: CuatroDb, userId: string): number {
-  return (
-    db
-      .select({ n: sql<number>`count(*)` })
-      .from(notifications)
-      .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
-      .get()?.n ?? 0
-  );
+export async function getUnreadCount(db: CuatroDb, userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
+  return row?.n ?? 0;
 }
 
 /** Returns true if this call actually flipped an unread notification to read (false if already read, or not this user's). */
-export function markNotificationRead(db: CuatroDb, notificationId: string, userId: string, now: Date = new Date()): boolean {
-  const result = db
+export async function markNotificationRead(db: CuatroDb, notificationId: string, userId: string, now: Date = new Date()): Promise<boolean> {
+  const changed = await db
     .update(notifications)
-    .set({ readAt: now })
+    .set({ readAt: now.getTime() })
     .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId), isNull(notifications.readAt)))
-    .run();
-  return result.changes > 0;
+    .returning({ id: notifications.id });
+  return changed.length > 0;
 }
 
 /** Returns how many notifications this call flipped to read. */
-export function markAllNotificationsRead(db: CuatroDb, userId: string, now: Date = new Date()): number {
-  const result = db
+export async function markAllNotificationsRead(db: CuatroDb, userId: string, now: Date = new Date()): Promise<number> {
+  const changed = await db
     .update(notifications)
-    .set({ readAt: now })
+    .set({ readAt: now.getTime() })
     .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
-    .run();
-  return result.changes;
+    .returning({ id: notifications.id });
+  return changed.length;
 }

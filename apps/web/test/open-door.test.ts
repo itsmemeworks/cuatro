@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
-  createClient,
+  createTestClient,
   circleMembers,
   circles,
   knocks,
@@ -91,7 +91,7 @@ describe("Open Door", () => {
         standingGameId: sg.id,
         circleId,
         venueId,
-        startsAt: opts.startsAt ?? new Date(Date.now() + 3 * DAY_MS),
+        startsAt: (opts.startsAt ?? new Date(Date.now() + 3 * DAY_MS)).getTime(),
         status: "upcoming",
       })
       .returning();
@@ -103,16 +103,16 @@ describe("Open Door", () => {
     return { standingGameId: sg.id, sessionId: session.id };
   };
 
-  beforeEach(() => {
-    client = createClient(":memory:");
+  beforeEach(async () => {
+    client = await createTestClient();
     db = client.db;
     __setRealtimeSenderForTests(null);
     __resetCirclesStoreForTests();
     inviteSeq = 0;
   });
 
-  afterEach(() => {
-    client.close();
+  afterEach(async () => {
+    await client.close();
     __setRealtimeSenderForTests(null);
     __resetCirclesStoreForTests();
   });
@@ -236,7 +236,7 @@ describe("Open Door", () => {
     await addMember(c.id, organiser.id, "organiser"); // 1 of 1 → full
 
     const before = (await db.select().from(users)).length;
-    const res = joinGuestCircle(db, { inviteCode: c.inviteCode, rawName: "Gina Guest" });
+    const res = await joinGuestCircle(db, { inviteCode: c.inviteCode, rawName: "Gina Guest" });
     expect(res).toEqual({ ok: false, error: "circle_full" });
     // The transaction rolled back — no freshly-minted guest user left behind.
     const after = (await db.select().from(users)).length;
@@ -461,7 +461,7 @@ describe("Open Door", () => {
     });
 
     // But asking into the GAME works via the session-knock flow.
-    expect(createSessionKnock(db, sessionId, viewer.id, null).ok).toBe(true);
+    expect((await createSessionKnock(db, sessionId, viewer.id, null)).ok).toBe(true);
   });
 
   it("never lists a private circle (both flags off)", async () => {
