@@ -81,7 +81,7 @@ export function GlassProfile({
             <p className="text-cu-card-title text-ink">The Ledger</p>
             <p className="text-cu-secondary text-ink-muted mt-0.5">{ledgerBlurb}</p>
           </div>
-          <span className="text-cu-card-title font-bold text-action">→</span>
+          <span className="text-cu-card-title font-bold text-ink-muted">→</span>
         </Card>
       </Link>
 

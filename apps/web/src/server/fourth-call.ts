@@ -18,6 +18,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import {
+  circleMembers,
   notifications,
   rsvps,
   sessions,
@@ -28,6 +29,7 @@ import {
 import { slotsForSession } from "./games-service";
 import { insertNotification } from "./notify";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
+import { captureEvent } from "@/lib/analytics";
 
 // Startup check (not the lazy per-call warn() below): fail loudly, once, at
 // module load in production if the real secret was never set, rather than
@@ -202,11 +204,22 @@ export async function claimFourthCallSlot(
   options: ClaimFourthCallOptions = {},
 ): Promise<ClaimOutcome> {
   let circleId: string | undefined;
+  // §9 metric 3 telemetry, captured inside the transaction so the fourth_call
+  // events can fire AFTER commit (never inside it) with the right facts.
+  let ringUsed = 2; // network invite (ring 2) unless a ring-3 public link is the sole grant.
+  let filledLastSlot = false; // this claim filled the session's final open slot.
+  let isNewToCircle = false; // the claimant wasn't already a Circle member (a growth signal).
+  let isGuestClaimant = false;
 
   const outcome = await db.transaction(async (tx): Promise<ClaimOutcome> => {
     const holdsInvite = await hasFourthCallInvite(tx, sessionId, userId);
     const ring3Valid = options.ring3Token ? parseRing3ClaimToken(options.ring3Token, now)?.sessionId === sessionId : false;
     if (!holdsInvite && !ring3Valid) return { ok: false, error: "no_fourth_call_invite" };
+    // A claim backed only by a public link is ring 3; anything holding a
+    // fourth_call notification is a ring-1/2 invite. The exact 1-vs-2 split
+    // isn't distinguished here (the notification level isn't re-read) — see
+    // metrics-manifest.md; ring 3 is the growth-story-critical one.
+    ringUsed = ring3Valid && !holdsInvite ? 3 : 2;
 
     // Lock the session row: the capacity check (confirmedCount >= slots) then the
     // slot write is a read-decide-write that must serialise against rsvpIn and
@@ -241,7 +254,18 @@ export async function claimFourthCallSlot(
       .set({ rsvpInCount: sql`${users.rsvpInCount} + 1` })
       .where(eq(users.id, userId));
 
+    // Growth-signal facts for the §9 fourth_call events (captured here, fired
+    // after commit): was the claimant already in the Circle, are they a guest.
+    const [membership] = await tx
+      .select({ userId: circleMembers.userId })
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, session.circleId), eq(circleMembers.userId, userId)));
+    isNewToCircle = !membership;
+    const [claimant] = await tx.select({ isGuest: users.isGuest }).from(users).where(eq(users.id, userId));
+    isGuestClaimant = Boolean(claimant?.isGuest);
+
     if (confirmedCount + 1 === slots) {
+      filledLastSlot = true;
       for (const uid of await confirmedParticipantIds(tx, sessionId)) {
         await insertNotification(tx, { userId: uid, type: "game_filled", payload: { sessionId } });
       }
@@ -255,6 +279,38 @@ export async function claimFourthCallSlot(
     emitCircleEvent(circleId, "fourth_call", { sessionId, claimed: true });
     emitSessionEvent(sessionId, "rsvp", { circleId });
     emitCircleEvent(circleId, "rsvp", { sessionId });
+
+    // §9 metric 3: fourth_call_answered (a slot was claimed via the call).
+    // call_id = session_id (no discrete call entity — see metrics-manifest.md).
+    captureEvent("fourth_call_answered", {
+      distinctId: userId,
+      circleId,
+      sessionId,
+      timestamp: now.getTime(),
+      properties: {
+        call_id: sessionId,
+        filled_by: userId,
+        ring_that_filled: ringUsed,
+        is_new_to_circle: isNewToCircle,
+        is_guest: isGuestClaimant,
+        answered_at: now.getTime(),
+      },
+    });
+
+    // §9 metric 3: fourth_call_resolved with outcome=filled — the anchor for the
+    // median fill-time query (fired_at → this). The expired_short and cancelled
+    // outcomes are NOT emitted here (they happen at rotation-lock / session-start
+    // in the scheduler path, out of this callsite's reach); fill rate is still
+    // computable as resolved-filled / distinct-fired call_ids — see manifest.
+    if (filledLastSlot) {
+      captureEvent("fourth_call_resolved", {
+        distinctId: userId,
+        circleId,
+        sessionId,
+        timestamp: now.getTime(),
+        properties: { call_id: sessionId, outcome: "filled", resolved_at: now.getTime() },
+      });
+    }
   }
   return outcome;
 }

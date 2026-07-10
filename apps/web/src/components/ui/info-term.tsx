@@ -36,6 +36,11 @@ export const GLOSSARY = {
     plain: "When it's on, you tap 'I'm available' instead of grabbing a slot, and CUATRO picks a fair four each week, rotating who sits out.",
     why: "Working out who sits out is the quiet weekly puzzle in every five-strong group. This makes it automatic and explainable, so it's never personal: fewest recent games plays first.",
   },
+  playedWith: {
+    term: "Played with",
+    plain: "The people you've shared a court with in a confirmed game. When your Circle is short, the Fourth Call reaches them before it looks any wider.",
+    why: "The four you already know comes first. Only games both teams confirmed count, so it's people you've genuinely played with, not passing strangers.",
+  },
   localRing: {
     term: "Local Ring",
     plain: "When your Circle can't fill a game, the Fourth Call reaches nearby players at your level who've said they're up for games.",

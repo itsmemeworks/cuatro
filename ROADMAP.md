@@ -11,15 +11,14 @@ The standing promises, before the list:
 
 ## Now: finishing v1.0
 
-The core loop (circle, standing game, RSVP, Fourth Call, result, seal, Ledger, Tab) already runs end to end at [padelcuatro.com](https://padelcuatro.com). What remains before we invite groups beyond our own:
+The core loop (circle, standing game, RSVP, Fourth Call, result, seal, Ledger, Tab) already runs end to end at [padelcuatro.com](https://padelcuatro.com).
 
-- Proper email delivery, so magic-link sign-in works for everyone, not just the team
-- Push notifications, and the scheduler that sends them on time
-- Error monitoring, and a health check that actually exercises the database
-- Moving the database to managed Postgres with continuous backup. An append-only record deserves a durable home
-- The known journey bugs (an RSVP that does nothing from the feed, a deep link that lands wrong, a standing game reschedule edge, and friends)
-- Circle housekeeping: leave a circle, remove a member, hand over the keys
-- A consistency pass on copy and design details
+Recently shipped: a branded magic-link email and the delivery to send it; push notifications and the scheduler that fires them on time; error monitoring and a health check that actually reads the database; a durable home for the append-only record on managed Postgres with backups; Friendlies, games that keep the score but leave your rating alone; guest history that follows you when you sign up; circle housekeeping (leave a circle, remove a member, hand over the keys); and the known journey bugs.
+
+What remains before we invite groups beyond our own:
+
+- A consistency pass on the last copy and design details
+- The instrumentation to see how a pilot is actually going, so we can learn from it honestly rather than guess
 
 ## Next: the first real circles
 

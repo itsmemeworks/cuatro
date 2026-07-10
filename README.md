@@ -23,7 +23,8 @@ Full product spec: [docs/DESIGN.md](docs/DESIGN.md). Market research lives at [p
 ## The mechanics
 
 - **Glass, and the Ledger.** A 1.00 to 7.00 rating you can see through. It only moves when you play, and every point of movement is written down in plain English and never edited. You start Unrated and play three games first, so there is no questionnaire and no rounding up. The Ledger is the storage model, not a screen bolted on: it is append-only by design. The full methodology, in plain English: [docs/GLASS.md](docs/GLASS.md).
-- **Circles.** Your group's home screen: members, chat, history, streaks, rivalries. Join by link or QR, no phone numbers exchanged.
+- **Friendlies.** Not every game is for the record. Mark one friendly and it still keeps the score, still confirms the same way, and still counts for Reliability and who you played with, it just never moves anyone's Glass. Set it for a whole circle or one game at a time, so a knockabout stays a knockabout.
+- **Circles.** Your group's home screen: members, chat, history, streaks, rivalries. Join by link or QR, no phone numbers exchanged. Leave when you need to, remove a member, or hand over the keys, so no group is ever stranded by an organiser who has moved on.
 - **The Standing Game.** Your weekly fixture runs itself. It opens the RSVP, holds the four, queues the reserves, and promotes the next person in the moment someone drops.
 - **The Rotation.** When your crew is bigger than four, the Rotation picks the fairest four: fewest recent games go on first, whoever sat out last week is due, and every pick shows its reason. No racing for a slot, no polite dance.
 - **The Fourth Call.** One spot, filled from the inside out through widening rings: your circle, then people you have played with, then players nearby at your level, then anyone with the link. Closest people first, strangers never, unless you choose it.

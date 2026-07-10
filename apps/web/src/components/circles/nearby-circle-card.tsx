@@ -256,7 +256,7 @@ function OpenCircleCard({ data, showGlassInfo }: { data: NearbyCircleData; showG
           </Button>
         )}
 
-        {error && <Meta tone="loss">{KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}</Meta>}
+        {error && <Meta tone="action">{KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}</Meta>}
       </div>
 
       <Sheet open={previewOpen} onClose={() => setPreviewOpen(false)} title={data.name}>

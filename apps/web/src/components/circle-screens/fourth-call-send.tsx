@@ -238,7 +238,7 @@ export function FourthCallSend({
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-cu-body font-bold text-ink">
-                People you&apos;ve played with{" "}
+                <InfoTerm term="playedWith" label="People you've played with" className="text-cu-body font-bold text-ink" />{" "}
                 {playedWithState === "sent" && <span className="text-action-strong font-extrabold">· live</span>}
               </p>
               <Meta as="p" className="mt-0.5">

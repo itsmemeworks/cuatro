@@ -52,6 +52,7 @@ import { getDb } from "./db";
 import { normalizeGuestName } from "./guest";
 import { insertNotification } from "./notify";
 import { emitCircleEvent, emitSessionEvent, emitUserEvent } from "@/lib/realtime/broadcast";
+import { captureEvent } from "@/lib/analytics";
 
 export type Team = "A" | "B";
 
@@ -221,6 +222,30 @@ async function emitMatchEvent(db: CuatroDb, match: Match, status: string): Promi
   for (const uid of fourPlayerIds(match)) {
     emitUserEvent(uid, "match", { matchId: match.id, sessionId: match.sessionId, status });
   }
+}
+
+/** The circle a match belongs to (matches carry only sessionId — same one extra lookup emitMatchEvent does). */
+async function matchCircleId(db: CuatroDb, match: Match): Promise<string | undefined> {
+  const [session] = await db.select({ circleId: sessions.circleId }).from(sessions).where(eq(sessions.id, match.sessionId));
+  return session?.circleId;
+}
+
+/**
+ * Confirmability facts for §9 metric 2 (both-team seal rate). A team that is
+ * ALL guests cannot confirm (rule 13), so an all-guest-team match stays
+ * legitimately pending forever and must be excluded from the seal-rate
+ * denominator — `is_confirmable` = neither team all-guest.
+ */
+async function matchConfirmability(
+  db: CuatroDb,
+  match: Match,
+): Promise<{ teamAAllGuest: boolean; teamBAllGuest: boolean; isConfirmable: boolean }> {
+  const ids = fourPlayerIds(match);
+  const rows = await db.select({ id: users.id, isGuest: users.isGuest }).from(users).where(inArray(users.id, ids));
+  const guestById = new Map(rows.map((r) => [r.id, Boolean(r.isGuest)]));
+  const teamAAllGuest = Boolean(guestById.get(match.teamAPlayer1Id)) && Boolean(guestById.get(match.teamAPlayer2Id));
+  const teamBAllGuest = Boolean(guestById.get(match.teamBPlayer1Id)) && Boolean(guestById.get(match.teamBPlayer2Id));
+  return { teamAAllGuest, teamBAllGuest, isConfirmable: !teamAAllGuest && !teamBAllGuest };
 }
 
 /**
@@ -726,12 +751,43 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         return { matchId: created.id };
       });
 
-      if (createdMatch) await emitMatchEvent(db, createdMatch, "recorded");
+      if (createdMatch) {
+        await emitMatchEvent(db, createdMatch, "recorded");
+        // §9 metric 2: match_recorded. Carries game_type (so seal rate filters
+        // to competitive) and the confirmability flags (so all-guest-team
+        // matches, which can never seal, are excluded from the denominator).
+        const [circleId, confirmability] = await Promise.all([
+          matchCircleId(db, createdMatch),
+          matchConfirmability(db, createdMatch),
+        ]);
+        if (circleId) {
+          captureEvent("match_recorded", {
+            distinctId: input.reporterId,
+            circleId,
+            sessionId: createdMatch.sessionId,
+            timestamp: createdMatch.createdAt,
+            properties: {
+              match_id: createdMatch.id,
+              game_type: createdMatch.gameType,
+              team_a_all_guest: confirmability.teamAAllGuest,
+              team_b_all_guest: confirmability.teamBAllGuest,
+              is_confirmable: confirmability.isConfirmable,
+              recorded_by: input.reporterId,
+              ts: createdMatch.createdAt,
+            },
+          });
+        }
+      }
       return result;
     },
 
     async confirmMatch(matchId, userId) {
       let touchedMatch: Match | undefined;
+      // §9 metric 2 facts, hoisted so the events fire after commit: the team
+      // this call confirmed for, and whether it was a NEW confirmation (a
+      // duplicate same-team confirm is a no-op that must not emit match_confirmed).
+      let confirmingTeam: Team | undefined;
+      let newConfirmation = false;
       const outcome = await db.transaction(async (tx): Promise<ConfirmOutcome> => {
         // LOCK: the double-seal race. Seal = any real member of a team confirms
         // for it (rule 13). Two members (one per team) confirming at the same
@@ -745,6 +801,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
         const team = teamOf(match, userId);
         if (!team) throw new Error("Only a match participant can confirm it");
+        confirmingTeam = team;
 
         // Idempotency: once a match is final, further confirm calls (e.g. a
         // double-click, or a teammate confirming again) are no-ops.
@@ -758,6 +815,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
           .where(and(eq(matchConfirmations.matchId, matchId), eq(matchConfirmations.team, team)));
         if (!existing) {
           await tx.insert(matchConfirmations).values({ matchId, team, confirmedByUserId: userId });
+          newConfirmation = true;
         }
 
         const confirmations = await tx.select().from(matchConfirmations).where(eq(matchConfirmations.matchId, matchId));
@@ -775,7 +833,40 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       // Only broadcast on an actual state change — a no-op confirm on an
       // already-final match (see the idempotency branch above) leaves
       // touchedMatch unset and nothing for clients to refetch.
-      if (touchedMatch) await emitMatchEvent(db, touchedMatch, outcome.status);
+      if (touchedMatch) {
+        await emitMatchEvent(db, touchedMatch, outcome.status);
+        const circleId = await matchCircleId(db, touchedMatch);
+        if (circleId) {
+          // §9 metric 2: match_confirmed fires only on a genuinely new team
+          // confirmation; match_sealed fires when this confirm was the second
+          // team (status became verified). Both carry game_type so the seal
+          // rate can filter to competitive.
+          if (newConfirmation && confirmingTeam) {
+            captureEvent("match_confirmed", {
+              distinctId: userId,
+              circleId,
+              sessionId: touchedMatch.sessionId,
+              timestamp: Date.now(),
+              properties: {
+                match_id: touchedMatch.id,
+                game_type: touchedMatch.gameType,
+                confirming_team: confirmingTeam.toLowerCase(),
+                confirmed_by: userId,
+                ts: Date.now(),
+              },
+            });
+          }
+          if (outcome.status === "verified") {
+            captureEvent("match_sealed", {
+              distinctId: userId,
+              circleId,
+              sessionId: touchedMatch.sessionId,
+              timestamp: Date.now(),
+              properties: { match_id: touchedMatch.id, game_type: touchedMatch.gameType, ts: Date.now() },
+            });
+          }
+        }
+      }
       return outcome;
     },
 
@@ -807,7 +898,22 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         return { status: "disputed", alreadyFinal: true };
       });
 
-      if (touchedMatch) await emitMatchEvent(db, touchedMatch, outcome.status);
+      if (touchedMatch) {
+        await emitMatchEvent(db, touchedMatch, outcome.status);
+        // §9 metric 2: match_disputed. Disputes are terminal in v1, so a rising
+        // count is a real problem even when the seal rate looks healthy
+        // (METRICS.md metric 2). touchedMatch is set only on the real transition.
+        const circleId = await matchCircleId(db, touchedMatch);
+        if (circleId) {
+          captureEvent("match_disputed", {
+            distinctId: userId,
+            circleId,
+            sessionId: touchedMatch.sessionId,
+            timestamp: Date.now(),
+            properties: { match_id: touchedMatch.id, game_type: touchedMatch.gameType, ts: Date.now() },
+          });
+        }
+      }
       return outcome;
     },
 
