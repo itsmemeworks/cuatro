@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.0](https://github.com/itsmemeworks/cuatro/compare/v0.1.1...v1.0.0) (2026-07-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* convert the system of record from SQLite to Supabase Postgres ([#8](https://github.com/itsmemeworks/cuatro/issues/8))
+
+### Features
+
+* add isolated staging environment (cuatro-staging) ([#3](https://github.com/itsmemeworks/cuatro/issues/3)) ([c8dfbc5](https://github.com/itsmemeworks/cuatro/commit/c8dfbc53f30fa28297ffc94297829eb9d1b88109))
+* convert the system of record from SQLite to Supabase Postgres ([#8](https://github.com/itsmemeworks/cuatro/issues/8)) ([328c8df](https://github.com/itsmemeworks/cuatro/commit/328c8dff910f39e287d867552730b11bbfcaa351))
+* wave 0 finisher — friendlies, circle lifecycle, guest merge, scheduler, sentry, branded email ([#9](https://github.com/itsmemeworks/cuatro/issues/9)) ([0bfe988](https://github.com/itsmemeworks/cuatro/commit/0bfe98891bf580d2681ef72f04e4ee8b51dc25fe))
+* wave 2 — pilot metrics, consistency batch, public story ([#10](https://github.com/itsmemeworks/cuatro/issues/10)) ([f5a2130](https://github.com/itsmemeworks/cuatro/commit/f5a2130695d1c4a308159d59e6f9fbcc6e6126e7))
+
+
+### Bug Fixes
+
+* make the landing page environment-aware ([#5](https://github.com/itsmemeworks/cuatro/issues/5)) ([f893ab1](https://github.com/itsmemeworks/cuatro/commit/f893ab1f6929d9b1955ea1fc5c6484983adbf08e))
+
 ## [0.1.1](https://github.com/itsmemeworks/cuatro/compare/cuatro-v0.1.0...cuatro-v0.1.1) (2026-07-10)
 
 
