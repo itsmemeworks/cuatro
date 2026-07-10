@@ -22,7 +22,7 @@ Full product spec: [docs/DESIGN.md](docs/DESIGN.md). Market research lives at [p
 
 ## The mechanics
 
-- **Glass, and the Ledger.** A 1.00 to 7.00 rating you can see through. It only moves when you play, and every point of movement is written down in plain English and never edited. You start Unrated and play three games first, so there is no questionnaire and no rounding up. The Ledger is the storage model, not a screen bolted on: it is append-only by design.
+- **Glass, and the Ledger.** A 1.00 to 7.00 rating you can see through. It only moves when you play, and every point of movement is written down in plain English and never edited. You start Unrated and play three games first, so there is no questionnaire and no rounding up. The Ledger is the storage model, not a screen bolted on: it is append-only by design. The full methodology, in plain English: [docs/GLASS.md](docs/GLASS.md).
 - **Circles.** Your group's home screen: members, chat, history, streaks, rivalries. Join by link or QR, no phone numbers exchanged.
 - **The Standing Game.** Your weekly fixture runs itself. It opens the RSVP, holds the four, queues the reserves, and promotes the next person in the moment someone drops.
 - **The Rotation.** When your crew is bigger than four, the Rotation picks the fairest four: fewest recent games go on first, whoever sat out last week is due, and every pick shows its reason. No racing for a slot, no polite dance.
@@ -30,6 +30,10 @@ Full product spec: [docs/DESIGN.md](docs/DESIGN.md). Market research lives at [p
 - **The Board and the Open Door.** Find open games and new groups near you, anchored to a venue and never your live location.
 - **Reliability.** Turning up, or not, is part of the record. A simple attendance badge, kept separate from skill. No fines, no debt-locking.
 - **The Tab.** Who owes what, in the open. Court split, running balances, and a one-tap nudge to the debtor's own bank app. Money never moves through us.
+
+## Roadmap and requests
+
+What is coming, and roughly in what order, lives in [ROADMAP.md](ROADMAP.md). If CUATRO should do something it does not, [file a feature request](https://github.com/itsmemeworks/cuatro/issues/new/choose). If it does something wrong, the bug form is behind the same door. We read everything, and a well-argued issue moves the roadmap.
 
 ## Stack
 
@@ -92,6 +96,8 @@ Realtime emits fire after the transaction commits and carry minimal signals only
 ## Documentation
 
 - [docs/DESIGN.md](docs/DESIGN.md) — the product spec: named mechanics, economics, scope.
+- [docs/GLASS.md](docs/GLASS.md), how Glass works: the principles, the Ledger, and the guarantees.
+- [ROADMAP.md](ROADMAP.md), the public roadmap: now, next, later, and the standing promises.
 - [CLAUDE.md](CLAUDE.md) — the canonical engineering context: architecture, hard conventions, dev environment, deploy shape.
 - [E2E-CHARTER.md](E2E-CHARTER.md) — the functional, realtime and multi-user test bar.
 - [V1-READINESS.md](V1-READINESS.md) — honest current state and the cut-line to v1.0.
