@@ -25,10 +25,16 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+// Baked at build time from fly.staging.toml's [build.args]; prod and local
+// dev leave it unset. Gates the STAGING badge and keeps staging out of
+// search indexes — staging must never compete with padelcuatro.com.
+const IS_STAGING = process.env.NEXT_PUBLIC_APP_ENV === "staging";
+
 export const metadata: Metadata = {
-  title: "CUATRO",
+  title: IS_STAGING ? "CUATRO (staging)" : "CUATRO",
   description: "The app your padel four runs on.",
   manifest: "/manifest.json",
+  ...(IS_STAGING ? { robots: { index: false, follow: false } } : {}),
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -74,6 +80,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
          */}
         <div className="min-h-dvh bg-ground">
           <div className="relative mx-auto min-h-dvh max-w-[448px] bg-ground text-ink">
+            {IS_STAGING && (
+              <div className="pointer-events-none fixed left-1/2 top-1 z-[100] -translate-x-1/2 rounded-full bg-ink/75 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-ground">
+                staging
+              </div>
+            )}
             <ToastProvider>{children}</ToastProvider>
           </div>
         </div>

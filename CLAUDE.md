@@ -42,6 +42,15 @@ npm-workspaces monorepo:
 - Tests: `npm test` from root (all workspaces, ~411). Build: `npm run build`. No eslint configured — `tsc --noEmit` is the lint bar.
 - Chrome MCP quirk: another extension sometimes blocks clicks/typing ("chrome-extension:// URL of different extension") — use `form_input`, JS-dispatched events, or pure-navigation flows instead.
 
+## Environments (strictly isolated — nothing crosses between them)
+| Env | URL | Data | Auth/realtime | Notes |
+|---|---|---|---|---|
+| local | localhost:3000 | ./dev.db | local Supabase stack (544xx) | Mailpit 54424 catches auth emails |
+| staging | **cuatro-staging.fly.dev** | own Fly volume `/data/cuatro.db` | own Supabase project `edususarvcwppascgnmf` | deploy ANY branch: `fly deploy -c fly.staging.toml --ha=false`; autostops when idle (first hit after sleep takes a few seconds); STAGING badge + noindex are gated on build arg `NEXT_PUBLIC_APP_ENV=staging`; staging auth email = Supabase built-in (team members only) until SMTP lands |
+| prod | **padelcuatro.com** (cuatro.fly.dev = same app) | Fly volume on app `cuatro` | Supabase `piaeeuyqqbtmbuqfkfun` | main branch only, after the gate |
+
+`supabase config push` targets the LINKED project (prod). To push auth config to staging: swap site_url/redirects to cuatro-staging.fly.dev in config.toml, `echo edususarvcwppascgnmf > supabase/.temp/project-ref`, push, then RESTORE both (config.toml back to prod values, project-ref back to `piaeeuyqqbtmbuqfkfun`) — never leave the repo linked to staging.
+
 ## Deploy (Fly app `cuatro`)
 - `fly deploy --ha=false` from repo root (root Dockerfile builds glass dist first; migrations COPY'd explicitly — Next tracing misses .sql; `CUATRO_DB_MIGRATIONS_PATH` env pins them).
 - Machine runs **always-warm** (min 1, autostop off) — cold starts read as "site doesn't load".
