@@ -20,6 +20,19 @@ export const standingGames = sqliteTable(
     slots: integer('slots').notNull().default(4),
     rsvpWindowDays: integer('rsvp_window_days').notNull().default(6),
     active: booleanColumn('active').notNull().default(true),
+    // THE ROTATION: when on, the weekly RSVP stops being first-come-holds-a-slot
+    // and becomes "I'm available" / "not this week" — CUATRO then picks a fair
+    // four from the available (fewest recent plays first) and locks it at the
+    // configured cutoff. Default OFF so existing games keep first-come behaviour.
+    rotationEnabled: booleanColumn('rotation_enabled').notNull().default(false),
+    // How long before kickoff the rotation lineup resolves/locks (organiser-set,
+    // e.g. "1 day"). Only meaningful when rotationEnabled and rotationMode =
+    // 'limited'. Default 24h before kickoff.
+    rotationCutoffHours: integer('rotation_cutoff_hours').notNull().default(24),
+    // 'limited' (default): the lineup LOCKS at the cutoff (startsAt −
+    // rotationCutoffHours). 'unlimited': it never locks — the fair-share
+    // ranking keeps re-applying to availability changes right up to kickoff.
+    rotationMode: text('rotation_mode', { enum: ['limited', 'unlimited'] }).notNull().default('limited'),
     // The court cost for one occurrence (design/DESIGN-AUDIT.md F4) — null
     // means the organiser hasn't set a price, so no "goes on the Tab" split
     // can be offered. World-ready rule: minor units + ISO 4217, never a

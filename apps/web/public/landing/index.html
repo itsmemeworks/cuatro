@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CUATRO · the app your padel four runs on</title>
+<meta name="description" content="CUATRO is the app your padel four runs on. When you're one short, it finds your fourth. A transparent rating, your group's home, and no fees, ads or dark patterns. Built by padel players, for padel players.">
+<meta name="theme-color" content="#131210">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23FF5C3D'/%3E%3Ctext x='50' y='50' font-family='Archivo,Arial,sans-serif' font-weight='900' font-size='62' fill='%23fff' text-anchor='middle' dominant-baseline='central'%3E4%3C/text%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:title" content="CUATRO · the app your padel four runs on">
+<meta property="og:description" content="When you're one short, it finds your fourth. A rating you can read, your group's home, no fees or dark patterns.">
+<meta property="og:url" content="https://cuatro.fly.dev">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* CUATRO dark tokens, verbatim from the app's globals.css / HANDOFF.md */
+    --ground: #131210;
+    --surface: #1e1c19;
+    --surface-feature: #221f1a;
+    --ink: #f5f2ec;
+    --ink-muted: rgba(245, 242, 236, 0.55);
+    --hair-1: rgba(245, 242, 236, 0.09);
+    --hair-2: rgba(245, 242, 236, 0.12);
+    --hair-3: rgba(245, 242, 236, 0.18);
+    --action: #ff5c3d;
+    --action-strong: #ff7a5c;
+    --action-text: #ff8a73;
+    --win: #4bc98b;
+    --win-tint: rgba(75, 201, 139, 0.13);
+    --loss: #e56b4f;
+    --streak: #f2b33d;
+    --streak-tint: rgba(242, 179, 61, 0.13);
+    --c1: #3e7bfa; --c2: #2fa05a; --c3: #e8a33d; --c5: #8c6bf0; --c6: #3bb8ce; --c7: #d65a9e;
+    --r-chip: 999px; --r-btn: 14px; --r-card: 20px;
+    --sans: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --gutter: 20px;
+    --maxw: 1120px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+  }
+  ::selection { background: var(--action); color: #fff; }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; display: block; }
+
+  /* ---- ambient texture (below the hero, behind all content) ----
+     Two fixed layers on the canvas: a slow-drifting warm/cool wash in the ink
+     palette, and a barely-there court-line grid. Sits at z-index -1 so it shows
+     only through the plain sections; the hero photo and the coral/band sections
+     paint over it. Taste bar: if you notice it immediately, it is too much. */
+  body::before, body::after {
+    content: ""; position: fixed; inset: -12%; z-index: -1;
+    pointer-events: none;
+  }
+  body::before {
+    background:
+      radial-gradient(46% 40% at 16% 22%, rgba(255,92,61,.05), transparent 68%),
+      radial-gradient(42% 42% at 84% 82%, rgba(75,201,139,.038), transparent 70%),
+      radial-gradient(60% 55% at 62% 38%, rgba(140,107,240,.028), transparent 72%);
+    animation: texDrift 46s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  body::after {
+    background-image:
+      linear-gradient(90deg, rgba(245,242,236,.022) 1px, transparent 1px),
+      linear-gradient(0deg, rgba(245,242,236,.022) 1px, transparent 1px);
+    background-size: 148px 148px;
+    -webkit-mask-image: radial-gradient(120% 100% at 50% 0%, #000 30%, transparent 82%);
+    mask-image: radial-gradient(120% 100% at 50% 0%, #000 30%, transparent 82%);
+    animation: texGrid 60s linear infinite alternate;
+  }
+  @keyframes texDrift {
+    0%   { transform: translate3d(0, 0, 0) scale(1.06); }
+    100% { transform: translate3d(-2.2%, -1.6%, 0) scale(1.12); }
+  }
+  @keyframes texGrid {
+    0%   { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-22px, -22px, 0); }
+  }
+
+  .wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding-inline: var(--gutter); }
+
+  /* ---- type helpers ---- */
+  .mono { font-family: var(--mono); }
+  .eyebrow {
+    font-family: var(--mono); font-weight: 500; font-size: 11px;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--action-text);
+  }
+  .eyebrow.dim { color: var(--ink-muted); }
+
+  /* Emphasis highlighter: bone-bright text over a faint coral pinstripe, so key
+     phrases POP and read MORE clearly than body text (replaces the old muted-grey
+     de-emphasis on emphasis lines). Static, wraps per-line via box-decoration-break. */
+  .pop {
+    color: var(--ink); font-weight: 700;
+    background-color: rgba(255,92,61,.07);
+    background-image: repeating-linear-gradient(-45deg,
+      rgba(255,92,61,.30) 0, rgba(255,92,61,.30) 2px,
+      rgba(255,92,61,.09) 2px, rgba(255,92,61,.09) 8px);
+    padding: 0.04em 0.28em; border-radius: 5px;
+    box-shadow: 0 0 0 1px rgba(255,92,61,.18);
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
+
+  /* ---- buttons ---- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: var(--sans); font-weight: 700; font-size: 16px;
+    padding: 15px 26px; border-radius: var(--r-btn); border: 0; cursor: pointer;
+    min-height: 52px; transition: background-color .25s ease, transform .12s ease;
+  }
+  .btn-coral { background: var(--action); color: #fff; }
+  .btn-coral:hover { background: var(--action-strong); }
+  .btn-coral:active { transform: translateY(1px); }
+  .btn .arrow { font-size: 18px; line-height: 1; }
+
+  /* ---- top bar ---- */
+  header.bar {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--hair-1);
+  }
+  .bar-in { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .wordmark {
+    font-family: var(--sans); font-weight: 900; letter-spacing: -.02em;
+    font-size: 21px; color: var(--ink);
+  }
+  .wordmark .four { color: var(--action); }
+  nav.links { display: flex; gap: 26px; }
+  nav.links a { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; color: var(--ink-muted); }
+  nav.links a:hover { color: var(--ink); }
+  @media (max-width: 640px) { nav.links { display: none; } }
+
+  /* ---- hero ---- */
+  .hero { position: relative; overflow: hidden; }
+  .hero .bg {
+    position: absolute; inset: 0;
+    background: url("/landing/img/hero.jpg") center 32% / cover no-repeat;
+  }
+  .hero .scrim {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, rgba(19,18,16,.72) 0%, rgba(19,18,16,.55) 40%, rgba(19,18,16,.82) 82%, var(--ground) 100%),
+      radial-gradient(120% 80% at 20% 20%, rgba(19,18,16,.15), transparent 60%);
+  }
+  .hero .wrap { position: relative; z-index: 1; padding-top: 78px; padding-bottom: 84px; }
+  .hero-grid { display: grid; gap: 40px; align-items: center; }
+  @media (min-width: 860px) { .hero-grid { grid-template-columns: 1.35fr 1fr; gap: 56px; } }
+
+  .hero h1 {
+    font-family: var(--sans); font-weight: 900; letter-spacing: -.03em; line-height: .92;
+    font-size: clamp(64px, 17vw, 132px); color: var(--ink); margin: 14px 0 22px;
+  }
+  .hero .tagline {
+    font-weight: 700; font-size: clamp(20px, 5vw, 27px); line-height: 1.25;
+    max-width: 28ch; color: var(--ink);
+  }
+  .hero .tagline .soft { color: var(--ink-muted); font-weight: 600; }
+  .hero-cta { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center; }
+  .hero .trust { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--ink-muted); }
+
+  /* ---- the four-stack (brand's dashed-circle motif) ---- */
+  .fourstack-card {
+    background: var(--surface-feature);
+    border: 1px solid var(--hair-2);
+    border-radius: var(--r-card);
+    padding: 24px 22px 20px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.4);
+  }
+  .fourstack-card .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted); }
+  .stack { display: flex; margin: 16px 0 14px; }
+  .av {
+    width: 62px; height: 62px; border-radius: 999px; margin-left: -12px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 20px; color: #fff;
+    box-shadow: 0 0 0 3px var(--surface-feature);
+  }
+  .av:first-child { margin-left: 0; }
+  .av img, .rot-av img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+  .av.dashed {
+    background: transparent; border: 2.5px dashed var(--action);
+    box-shadow: 0 0 0 3px var(--surface-feature);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 3px var(--surface-feature), 0 0 0 0 rgba(255,92,61,.5); }
+    100% { box-shadow: 0 0 0 3px var(--surface-feature), 0 0 0 18px rgba(255,92,61,0); }
+  }
+  .fourstack-card .status { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+  .fourstack-card .status .who { color: var(--action-text); }
+
+  /* ---- section scaffolding ---- */
+  section { padding-block: clamp(64px, 10vw, 108px); }
+  .sec-head { max-width: 42ch; margin-bottom: 40px; }
+  .sec-head h2 {
+    font-family: var(--sans); font-weight: 800; letter-spacing: -.02em; line-height: 1.06;
+    font-size: clamp(30px, 6vw, 46px); margin: 12px 0 0;
+  }
+  .sec-head p.lede { margin-top: 16px; font-size: 17px; color: var(--ink-muted); max-width: 52ch; }
+
+  /* ---- why we built it ---- */
+  .why { position: relative; }
+  .why .band {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, var(--ground), rgba(19,18,16,.86)), url("/landing/img/band-grip.jpg") center / cover no-repeat;
+    opacity: .5;
+  }
+  .why .wrap { position: relative; z-index: 1; }
+  .why-body { max-width: 62ch; display: grid; gap: 18px; }
+  .why-body p { font-size: 18px; line-height: 1.62; color: var(--ink); }
+  .why-body p .muted { color: var(--ink-muted); }
+  .why-sign { font-family: var(--mono); font-size: 13px; color: var(--action-text); margin-top: 4px; }
+
+  /* ---- problems / contrast ---- */
+  .rows { display: grid; gap: 16px; }
+  .row {
+    background: var(--surface); border: 1px solid var(--hair-1); border-radius: var(--r-card);
+    padding: 22px; display: grid; gap: 18px;
+  }
+  @media (min-width: 760px) { .row { grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; } }
+  .row .prob .tag, .row .ans .tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  }
+  .row .prob .tag { color: var(--loss); }
+  .row .ans .tag { color: var(--win); }
+  .row h3 { font-size: 19px; font-weight: 700; margin: 8px 0 8px; letter-spacing: -.01em; }
+  .row .ans h3 .name { color: var(--action-text); }
+  .row p { font-size: 14.5px; color: var(--ink-muted); line-height: 1.55; }
+  .row .ans p { color: var(--ink); }
+  .row .ans { border-left: 2px solid var(--hair-2); padding-left: 22px; }
+  @media (max-width: 759px) { .row .ans { border-left: 0; border-top: 1px solid var(--hair-2); padding-left: 0; padding-top: 18px; } }
+
+  /* ---- features ---- */
+  .feat-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 620px) { .feat-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 940px) { .feat-grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .card {
+    background: var(--surface); border: 1px solid var(--hair-1); border-radius: var(--r-card);
+    padding: 22px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .card .name { font-family: var(--sans); font-weight: 800; font-size: 17px; letter-spacing: -.01em; }
+  .card .line { font-size: 14.5px; color: var(--ink); line-height: 1.5; }
+  .card .wink { font-family: var(--mono); font-size: 12px; color: var(--ink-muted); line-height: 1.5; margin-top: 2px; }
+  /* Glass sits as a plain showcase row (no card container); only the Rotation block above it is a card. */
+  .card.glass { grid-column: 1 / -1; background: transparent; border: 0; border-radius: 0; padding: 0; margin-bottom: clamp(48px, 8vw, 88px); }
+  @media (min-width: 620px) { .card.glass { grid-column: 1 / -1; } }
+  .glass-inner { display: grid; gap: 22px; }
+  @media (min-width: 700px) { .glass-inner { grid-template-columns: 1fr 1.1fr; align-items: center; } }
+  .glass-num { font-family: var(--sans); font-weight: 800; font-size: 64px; line-height: 1; letter-spacing: -.02em; }
+  .glass-num .conf { display: block; font-family: var(--mono); font-weight: 400; font-size: 11px; letter-spacing: .06em; color: var(--ink-muted); margin-top: 8px; }
+  .ledger { border: 1px solid var(--hair-2); border-radius: var(--r-btn); overflow: hidden; }
+  .ledger .lg-row { padding: 12px 14px; border-bottom: 1px solid var(--hair-1); }
+  .ledger .lg-row:last-child { border-bottom: 0; }
+  .ledger .delta { font-family: var(--mono); font-weight: 500; font-size: 13px; color: var(--win); }
+  .ledger .why { font-family: var(--mono); font-size: 11.5px; color: var(--ink-muted); margin-top: 3px; line-height: 1.45; }
+  .ledger .head { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted); background: rgba(0,0,0,.15); }
+
+  /* ---- phone frame (real app screenshots) ---- */
+  .phone {
+    position: relative; width: 100%; border-radius: 30px;
+    border: 1px solid var(--hair-3); background: var(--surface);
+    box-shadow: 0 28px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(0,0,0,.3);
+    overflow: hidden; line-height: 0;
+  }
+  .phone img { width: 100%; height: auto; display: block; }
+
+  /* ---- feature showcase (alternating phone + copy rows) ---- */
+  .showcase { display: grid; gap: clamp(48px, 8vw, 88px); margin-bottom: clamp(48px, 8vw, 84px); }
+  .show { display: grid; gap: 28px; align-items: center; }
+  @media (min-width: 820px) {
+    .show { grid-template-columns: 1fr 1fr; gap: 60px; }
+    .show.rev .show-media { order: 2; }
+  }
+  .show-media { display: flex; justify-content: center; }
+  .show-media .phone { max-width: 268px; transform: rotate(-2.4deg); }
+  .show.rev .show-media .phone { transform: rotate(2.4deg); }
+  .show-copy .name { font-family: var(--sans); font-weight: 800; font-size: clamp(22px, 4vw, 28px); letter-spacing: -.02em; margin: 10px 0 12px; line-height: 1.1; }
+  .show-copy .line { font-size: 16px; color: var(--ink-muted); line-height: 1.6; max-width: 42ch; }
+  .show-copy .wink { font-family: var(--mono); font-size: 12.5px; color: var(--ink-muted); line-height: 1.5; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hair-1); max-width: 42ch; }
+
+  /* glass hero, now with a real phone on the right */
+  @media (min-width: 700px) { .glass-inner { grid-template-columns: 1.15fr .85fr; align-items: center; } }
+  /* Mobile: screenshot first, copy below, matching the showcase rows. Desktop order unchanged. */
+  @media (max-width: 699px) { .glass-media { order: -1; } }
+  .glass-copy .name { font-family: var(--sans); font-weight: 800; font-size: clamp(24px, 4.4vw, 30px); letter-spacing: -.02em; line-height: 1.08; margin: 12px 0 12px; }
+  .glass-media { display: flex; justify-content: center; }
+  .glass-media .phone { max-width: 250px; transform: rotate(2.4deg); }
+  /* One consistent feature-title format: every feature label uses the coral eyebrow accent
+     (matching Glass + Rotation), not the grey dim used elsewhere. Scoped to Features only. */
+  #features .eyebrow.dim { color: var(--action-text); }
+  /* Glass block gets the same divider above its summary line as the other feature blocks. */
+  .glass-copy .wink { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hair-1); }
+
+  /* ---- The Rotation: headline feature block (peer to the Glass hero) ---- */
+  .rotation {
+    position: relative; overflow: hidden;
+    background: var(--surface-feature); border: 1px solid var(--hair-2);
+    border-radius: var(--r-card); padding: clamp(26px, 5vw, 48px);
+    display: grid; gap: 36px; margin-bottom: clamp(44px, 7vw, 76px);
+  }
+  .rotation::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(58% 68% at 93% 4%, rgba(255,92,61,.11), transparent 60%);
+  }
+  .rotation > * { position: relative; z-index: 1; }
+  @media (min-width: 860px) { .rotation { grid-template-columns: 1.04fr .96fr; gap: 56px; align-items: center; } }
+  .rotation h2 {
+    font-family: var(--sans); font-weight: 900; letter-spacing: -.025em; line-height: 1.0;
+    font-size: clamp(34px, 6.6vw, 56px); margin: 12px 0 0; color: var(--ink);
+  }
+  .rotation .lede { margin-top: 18px; font-size: 18px; line-height: 1.6; color: var(--ink); max-width: 46ch; }
+  .rotation .lede .muted { color: var(--ink-muted); }
+  .rot-facts { margin-top: 22px; display: grid; gap: 13px; }
+  .rot-fact { display: grid; grid-template-columns: 128px 1fr; gap: 14px; align-items: baseline; }
+  @media (max-width: 460px) { .rot-fact { grid-template-columns: 1fr; gap: 3px; } }
+  .rot-fact .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--action-text); }
+  .rot-fact .v { font-size: 14.5px; color: var(--ink-muted); line-height: 1.5; }
+  .rotation .wink { font-family: var(--mono); font-size: 13px; color: var(--ink); line-height: 1.55; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--hair-2); }
+
+  .rot-visual { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .rot-lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted); }
+  .rot-stage { display: flex; gap: clamp(6px, 2vw, 12px); }
+  .rot-av {
+    width: clamp(48px, 13vw, 62px); height: clamp(48px, 13vw, 62px); border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: clamp(15px, 4vw, 19px); color: #fff;
+    box-shadow: 0 0 0 3px var(--surface-feature);
+    animation: sitout 16s ease-in-out infinite;
+  }
+  .rot-av:nth-child(1) { animation-delay: 0s; }
+  .rot-av:nth-child(2) { animation-delay: -3.2s; }
+  .rot-av:nth-child(3) { animation-delay: -6.4s; }
+  .rot-av:nth-child(4) { animation-delay: -9.6s; }
+  .rot-av:nth-child(5) { animation-delay: -12.8s; }
+  @keyframes sitout {
+    0%, 6%    { opacity: 1; filter: none; transform: none; }
+    13%, 27%  { opacity: .24; filter: grayscale(.85); transform: translateY(8px) scale(.85); }
+    34%, 100% { opacity: 1; filter: none; transform: none; }
+  }
+  .rot-cap { font-family: var(--mono); font-size: 11.5px; letter-spacing: .03em; color: var(--ink-muted); text-align: center; max-width: 30ch; }
+
+  /* ---- no dark patterns strip ---- */
+  .strip { background: var(--action); color: #fff; }
+  .strip .wrap { padding-block: clamp(48px, 8vw, 76px); text-align: center; }
+  .strip h2 {
+    font-family: var(--sans); font-weight: 900; letter-spacing: -.02em; line-height: 1.02;
+    font-size: clamp(30px, 6.4vw, 54px);
+  }
+  .strip p { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; margin-top: 16px; color: rgba(255,255,255,.85); }
+
+  /* ---- install ---- */
+  .install { position: relative; }
+  .install .band {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, var(--ground) 0%, rgba(19,18,16,.9) 60%, var(--ground) 100%), url("/landing/img/band-court.jpg") center / cover no-repeat;
+    opacity: .34;
+  }
+  .install .wrap { position: relative; z-index: 1; }
+  .install-grid { display: grid; gap: 40px; }
+  @media (min-width: 820px) { .install-grid { grid-template-columns: 1.2fr .8fr; gap: 56px; align-items: center; } }
+  .steps { display: grid; gap: 22px; margin-top: 30px; }
+  @media (min-width: 520px) { .steps { grid-template-columns: 1fr 1fr; } }
+  .step-col .os { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--action-text); margin-bottom: 12px; }
+  .step { display: flex; gap: 12px; align-items: baseline; padding: 7px 0; }
+  .step .n { font-family: var(--mono); font-size: 12px; color: var(--ink-muted); min-width: 18px; }
+  .step .t { font-size: 14.5px; color: var(--ink); }
+  .qr-card {
+    background: #fff; border-radius: var(--r-card); padding: 22px;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    max-width: 280px; margin-inline: auto;
+  }
+  .qr-card svg { width: 200px; height: 200px; }
+  .qr-card .cap { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: #4a463f; }
+  .install-cta { margin-top: 28px; }
+
+  /* ---- footer ---- */
+  footer.foot { border-top: 1px solid var(--hair-1); padding-block: 48px; }
+  footer .row-top { display: flex; flex-wrap: wrap; gap: 18px 32px; align-items: baseline; justify-content: space-between; }
+  footer .built { font-family: var(--sans); font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+  footer .promise { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--ink-muted); }
+  footer .credits { margin-top: 28px; font-family: var(--mono); font-size: 11px; line-height: 1.7; color: var(--ink-muted); max-width: 70ch; }
+  footer .credits a { color: var(--ink-muted); border-bottom: 1px solid var(--hair-3); }
+  footer .credits a:hover { color: var(--ink); }
+
+  /* ---- reveal ---- */
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .av.dashed { animation: none; }
+    body::before, body::after { animation: none; }
+    .rot-av { animation: none; }
+    .rot-av:nth-child(4) { opacity: .24; filter: grayscale(.85); transform: translateY(8px) scale(.85); }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar-in">
+    <a class="wordmark" href="#top">CUATR<span class="four">O</span></a>
+    <nav class="links">
+      <a href="#why">Why</a>
+      <a href="#problems">The other apps</a>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="bg" role="img" aria-label="Two padel players clasping hands across the net on a floodlit court"></div>
+    <div class="scrim"></div>
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Built by the four, for the four</p>
+          <h1>CUATR<span style="color:var(--action)">O</span></h1>
+          <p class="tagline">The app your padel four runs on. <span class="pop">One short, it finds your fourth. One over, it sorts who sits out.</span></p>
+          <div class="hero-cta">
+            <a class="btn btn-coral" href="https://cuatro.fly.dev/login?next=/home"><span>Open CUATRO</span><span class="arrow" aria-hidden="true">&rarr;</span></a>
+            <span class="trust">free · installs from the browser</span>
+          </div>
+        </div>
+        <div class="fourstack-card" aria-hidden="true">
+          <div class="lbl">Tuesday, 8pm · Powerleague</div>
+          <div class="stack">
+            <div class="av" style="background:var(--c1)"><img src="/landing/img/avatars/pm.webp" alt="" width="62" height="62" loading="lazy"></div>
+            <div class="av" style="background:var(--c2)"><img src="/landing/img/avatars/dr.webp" alt="" width="62" height="62" loading="lazy"></div>
+            <div class="av" style="background:var(--c5)"><img src="/landing/img/avatars/ts.webp" alt="" width="62" height="62" loading="lazy"></div>
+            <div class="av dashed"></div>
+          </div>
+          <div class="status">3 in, 1 to find. <span class="who">Fourth Call is out.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY WE BUILT IT -->
+  <section class="why" id="why">
+    <div class="band" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="sec-head reveal" style="max-width:none;">
+        <p class="eyebrow">Why we built it</p>
+        <h2 style="font-size:clamp(30px,5.6vw,44px);">A real four, tired of the alternatives.</h2>
+      </div>
+      <div class="why-body reveal">
+        <p>We are a padel four in the North East, plus a few who always want in. Nobody argues, we just could never cleanly settle who sits out.</p>
+        <p>The apps already out there never quite hit it. Playtomic got a lot of us into padel and books a court well, but it can be confusing, and finding and filling a game is harder than it should be.</p>
+        <p>When your crew is bigger than four, fairly filling that last spot is a game of Mastermind. The Rotation handles it automatically now, <span class="pop">instead of living on somebody's spreadsheet.</span></p>
+        <p>Ratings are open and transparent. Turning up, or not, is part of the record.</p>
+        <p>Circles let you draft in the players who raise the quality of a game, and make them easy to find again.</p>
+        <p class="why-sign">Still the same four. Still sorting who sits out, just without the ninety messages.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE PROBLEMS -->
+  <section id="problems">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow">What sent us looking</p>
+        <h2>The trouble with the other apps.</h2>
+        <p class="lede">Playtomic got a lot of us into padel, and it is genuinely good at booking a court. The friction starts with everything around the game.</p>
+      </div>
+      <div class="rows">
+
+        <div class="row reveal">
+          <div class="prob">
+            <span class="tag">The problem</span>
+            <h3>A rating nobody can explain</h3>
+            <p>Your number moves and you are not told why. Down 0.01 with no reason, win-or-lose maths that dings you for a partner's off night, and a coaching recalibration that can quietly set you back.</p>
+          </div>
+          <div class="ans">
+            <span class="tag">In CUATRO</span>
+            <h3><span class="name">Glass</span>, and the Ledger</h3>
+            <p>Every point of movement is written down in plain English and never edited. Beat a stronger pair 6-3 6-4 and you see exactly what that was worth, and who you played.</p>
+          </div>
+        </div>
+
+        <div class="row reveal">
+          <div class="prob">
+            <span class="tag">The problem</span>
+            <h3>Level anxiety, as standard</h3>
+            <p>Inflated numbers the moment you sign up, then a social feature that tells you what percentage of players reckon you are lower than your rating. Everyone is on edge before they have hit a ball.</p>
+          </div>
+          <div class="ans">
+            <span class="tag">In CUATRO</span>
+            <h3>No questionnaire, <span class="name">no rounding up</span></h3>
+            <p>You start Unrated and play three games first. Your number only ever comes from real, confirmed results. It is allowed to go up, and it is nobody's business but yours.</p>
+          </div>
+        </div>
+
+        <div class="row reveal">
+          <div class="prob">
+            <span class="tag">The problem</span>
+            <h3>A marketplace of strangers</h3>
+            <p>When you just want your usual four, you get open matches with people you have never met, and no easy way back to your own group.</p>
+          </div>
+          <div class="ans">
+            <span class="tag">In CUATRO</span>
+            <h3><span class="name">Circles</span> and the <span class="name">Fourth Call</span></h3>
+            <p>Your group is the home screen. Short a player, CUATRO asks the closest people first: your circle, then people you have played with, then players nearby at your level. Closest people first, strangers never, unless you choose it.</p>
+          </div>
+        </div>
+
+        <div class="row reveal">
+          <div class="prob">
+            <span class="tag">The problem</span>
+            <h3>The group chat where plans go to die</h3>
+            <p>The game invite is buried under off-topic noise, and nobody can actually tell who is coming until an hour before.</p>
+          </div>
+          <div class="ans">
+            <span class="tag">In CUATRO</span>
+            <h3>The <span class="name">Standing Game</span></h3>
+            <p>Your weekly fixture runs itself. It opens the RSVP, holds the four, queues the reserves, and promotes the next person in when someone drops. No poll, no chasing.</p>
+          </div>
+        </div>
+
+        <div class="row reveal">
+          <div class="prob">
+            <span class="tag">The problem</span>
+            <h3>Fees, ads, and the upsell</h3>
+            <p>Booking commission, service fees, a premium tier for things you expected to be free, and at one point a floated charge just for logging a match you played somewhere else.</p>
+          </div>
+          <div class="ans">
+            <span class="tag">In CUATRO</span>
+            <h3>None of that</h3>
+            <p>CUATRO is free. No ads, no upsell, no fees. We never touch your court money and never hold a penny of it. The Tab just keeps score.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow">The features</p>
+        <h2 style="color:var(--action-text);">Everything the four needs, nothing it doesn't.</h2>
+      </div>
+
+      <!-- THE ROTATION: headline feature, the answer to the origin story -->
+      <div class="rotation reveal">
+        <div class="rotation-copy">
+          <p class="eyebrow">The Rotation · now live</p>
+          <h2>So we ended the dance.</h2>
+          <p class="lede">The hard part was never an argument, it was working out who sits out. Turn the Rotation on for a game and nobody races for a slot. <span class="pop">Everyone marks that they are available, and CUATRO picks the fairest four.</span></p>
+          <div class="rot-facts">
+            <div class="rot-fact"><div class="k">Available</div><div class="v">Everyone taps that they are free for the game, instead of first come, first served.</div></div>
+            <div class="rot-fact"><div class="k">Fairest four</div><div class="v">Fewest recent games go on first, and whoever sat out last week is due. Early weeks run first come while the history builds.</div></div>
+            <div class="rot-fact"><div class="k">The cutoff</div><div class="v">The organiser sets how long the window runs. At the cutoff, four or fewer available means everyone plays, more and the Rotation decides.</div></div>
+            <div class="rot-fact"><div class="k">Every pick</div><div class="v">Comes with its reason shown, so it is plainly fair.</div></div>
+          </div>
+          <p class="wink">Nobody chases, nobody does the polite dance, everybody gets their turn.</p>
+        </div>
+        <div class="rot-visual" aria-hidden="true">
+          <div class="rot-lbl">Tuesday · 5 available · 4 play</div>
+          <div class="rot-stage">
+            <div class="rot-av" style="background:var(--c1)"><img src="/landing/img/avatars/pm.webp" alt="" width="62" height="62" loading="lazy"></div>
+            <div class="rot-av" style="background:var(--c2)"><img src="/landing/img/avatars/dr.webp" alt="" width="62" height="62" loading="lazy"></div>
+            <div class="rot-av" style="background:var(--c3)"><img src="/landing/img/avatars/ts.webp" alt="" width="62" height="62" loading="lazy"></div>
+            <div class="rot-av" style="background:var(--c5)"><img src="/landing/img/avatars/ko.webp" alt="" width="62" height="62" loading="lazy"></div>
+            <div class="rot-av" style="background:var(--c6)"><img src="/landing/img/avatars/sr.webp" alt="" width="62" height="62" loading="lazy"></div>
+          </div>
+          <div class="rot-cap">one sits out, then it is someone else's turn</div>
+        </div>
+      </div>
+
+      <!-- Glass: the crown-jewel feature, real profile screen alongside the claim -->
+      <div class="card glass reveal">
+        <div class="glass-inner">
+          <div class="glass-copy">
+            <p class="eyebrow">Glass · the rating you can see through</p>
+            <div class="name">A rating built to be read, not guessed at.</div>
+            <p class="line" style="color:var(--ink-muted);max-width:38ch;">It only moves when you play, and every move is written down in plain English and never edited.</p>
+            <p class="wink">No rounding up, no "I'm basically a 4".</p>
+          </div>
+          <div class="glass-media">
+            <div class="phone"><img src="/landing/img/screens/profile.webp" width="540" height="1109" alt="A CUATRO profile: a Glass rating of 4.10, a confidence bar and a link to the append-only Ledger" loading="lazy"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Showcase: each feature once, paired with its real screen -->
+      <div class="showcase">
+
+        <div class="show reveal">
+          <div class="show-media"><div class="phone"><img src="/landing/img/screens/circles.webp" width="460" height="945" alt="A CUATRO circle: header art, member avatars, a pinned game and match results with Glass movements" loading="lazy"></div></div>
+          <div class="show-copy">
+            <p class="eyebrow dim">Circles</p>
+            <div class="name">Your group's home</div>
+            <p class="line">Members, chat, history, streaks, rivalries, the lot. Join by link or QR, no phone numbers exchanged.</p>
+            <p class="wink">A padel four is just a group chat that occasionally plays padel.</p>
+          </div>
+        </div>
+
+        <div class="show rev reveal">
+          <div class="show-media"><div class="phone"><img src="/landing/img/screens/session.webp" width="460" height="945" alt="A CUATRO session roster: four players in with their ratings, and a reserve queued to auto-promote" loading="lazy"></div></div>
+          <div class="show-copy">
+            <p class="eyebrow dim">Standing Game</p>
+            <div class="name">The weekly fixture that runs itself</div>
+            <p class="line">Same time, same court. It opens the RSVP, holds the four, and queues the reserves, promoting the next person in the moment someone drops.</p>
+            <p class="wink">No more "who's in?" at 47 messages and counting.</p>
+          </div>
+        </div>
+
+        <div class="show reveal">
+          <div class="show-media"><div class="phone"><img src="/landing/img/screens/fourth-call.webp" width="460" height="606" alt="The Fourth Call ladder: the circle first, then people you have played with, then players nearby, then anyone with the link" loading="lazy"></div></div>
+          <div class="show-copy">
+            <p class="eyebrow dim">Fourth Call</p>
+            <div class="name">One spot, filled from the inside out</div>
+            <p class="line">Widening rings: your circle, then people you have played with, then players nearby at your level, then anyone with the link.</p>
+            <p class="wink">Closest people first, strangers never.</p>
+          </div>
+        </div>
+
+        <div class="show rev reveal">
+          <div class="show-media"><div class="phone"><img src="/landing/img/screens/tab.webp" width="460" height="945" alt="The Tab: who owes what in the open, with a one-tap nudge, money kept in your own bank app" loading="lazy"></div></div>
+          <div class="show-copy">
+            <p class="eyebrow dim">The Tab</p>
+            <div class="name">Who owes what, in the open</div>
+            <p class="line">Court split, running balances, a one-tap nudge to the debtor's own bank app. Money never moves through us.</p>
+            <p class="wink">Settled, and the friendship survives another booking.</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- The rest, in brief -->
+      <div class="feat-grid">
+
+        <div class="card reveal">
+          <p class="eyebrow dim">The Board · Open Door</p>
+          <div class="name">Games and circles near you</div>
+          <div class="line">Find open games and new groups on your terms, anchored to a venue, never your live location.</div>
+          <div class="wink">Level shown honestly. Turn up as you are.</div>
+        </div>
+
+        <div class="card reveal">
+          <p class="eyebrow dim">Reliability</p>
+          <div class="name">Turning up is a stat now</div>
+          <div class="line">A quiet show-up rate on every profile. Genuine early cancels are fine, no-shows are noticed.</div>
+          <div class="wink">Quietly noticed, never a fine, never a lock-out.</div>
+        </div>
+
+        <div class="card reveal">
+          <p class="eyebrow dim">Guest join · QR invites</p>
+          <div class="name">In a game in about ten seconds</div>
+          <div class="line">Tap the link or scan the code, add your first name, you are in. Make the account later, or not.</div>
+          <div class="wink">The hardest shot in padel is the first message in the group chat. This skips it.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- NO DARK PATTERNS -->
+  <section class="strip">
+    <div class="wrap reveal">
+      <h2>No fees. No ads. No upsell. No phone numbers.</h2>
+      <p>we never hold your money · we never sell your four</p>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="install" id="install">
+    <div class="band" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="install-grid">
+        <div class="reveal">
+          <p class="eyebrow">Get it on your phone</p>
+          <h2 style="font-family:var(--sans);font-weight:800;letter-spacing:-.02em;font-size:clamp(30px,6vw,46px);line-height:1.06;margin-top:12px;">CUATRO installs straight from the browser.</h2>
+          <p class="lede" style="font-size:17px;margin-top:16px;max-width:48ch;"><span class="pop">No app store, no download, no account to get started. Open it once and add it to your home screen.</span></p>
+          <div class="install-cta">
+            <a class="btn btn-coral" href="https://cuatro.fly.dev/login?next=/home"><span>Open CUATRO</span><span class="arrow" aria-hidden="true">&rarr;</span></a>
+          </div>
+          <div class="steps">
+            <div class="step-col">
+              <div class="os">iPhone · Safari</div>
+              <div class="step"><span class="n">1</span><span class="t">Open cuatro.fly.dev/login</span></div>
+              <div class="step"><span class="n">2</span><span class="t">Tap Share</span></div>
+              <div class="step"><span class="n">3</span><span class="t">Tap Add to Home Screen</span></div>
+            </div>
+            <div class="step-col">
+              <div class="os">Android · Chrome</div>
+              <div class="step"><span class="n">1</span><span class="t">Open cuatro.fly.dev/login</span></div>
+              <div class="step"><span class="n">2</span><span class="t">Tap the browser menu</span></div>
+              <div class="step"><span class="n">3</span><span class="t">Tap Install app</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="reveal">
+          <div class="qr-card">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 37 37" stroke="none" role="img" aria-label="QR code linking to cuatro.fly.dev/login"><rect width="100%" height="100%" fill="#ffffff"/><path d="M4,4h1v1h-1zM5,4h1v1h-1zM6,4h1v1h-1zM7,4h1v1h-1zM8,4h1v1h-1zM9,4h1v1h-1zM10,4h1v1h-1zM13,4h1v1h-1zM17,4h1v1h-1zM18,4h1v1h-1zM19,4h1v1h-1zM21,4h1v1h-1zM22,4h1v1h-1zM23,4h1v1h-1zM24,4h1v1h-1zM26,4h1v1h-1zM27,4h1v1h-1zM28,4h1v1h-1zM29,4h1v1h-1zM30,4h1v1h-1zM31,4h1v1h-1zM32,4h1v1h-1zM4,5h1v1h-1zM10,5h1v1h-1zM14,5h1v1h-1zM17,5h1v1h-1zM18,5h1v1h-1zM19,5h1v1h-1zM20,5h1v1h-1zM22,5h1v1h-1zM26,5h1v1h-1zM32,5h1v1h-1zM4,6h1v1h-1zM6,6h1v1h-1zM7,6h1v1h-1zM8,6h1v1h-1zM10,6h1v1h-1zM13,6h1v1h-1zM18,6h1v1h-1zM20,6h1v1h-1zM21,6h1v1h-1zM23,6h1v1h-1zM24,6h1v1h-1zM26,6h1v1h-1zM28,6h1v1h-1zM29,6h1v1h-1zM30,6h1v1h-1zM32,6h1v1h-1zM4,7h1v1h-1zM6,7h1v1h-1zM7,7h1v1h-1zM8,7h1v1h-1zM10,7h1v1h-1zM13,7h1v1h-1zM16,7h1v1h-1zM18,7h1v1h-1zM22,7h1v1h-1zM23,7h1v1h-1zM24,7h1v1h-1zM26,7h1v1h-1zM28,7h1v1h-1zM29,7h1v1h-1zM30,7h1v1h-1zM32,7h1v1h-1zM4,8h1v1h-1zM6,8h1v1h-1zM7,8h1v1h-1zM8,8h1v1h-1zM10,8h1v1h-1zM13,8h1v1h-1zM14,8h1v1h-1zM16,8h1v1h-1zM18,8h1v1h-1zM19,8h1v1h-1zM20,8h1v1h-1zM21,8h1v1h-1zM22,8h1v1h-1zM26,8h1v1h-1zM28,8h1v1h-1zM29,8h1v1h-1zM30,8h1v1h-1zM32,8h1v1h-1zM4,9h1v1h-1zM10,9h1v1h-1zM12,9h1v1h-1zM15,9h1v1h-1zM17,9h1v1h-1zM19,9h1v1h-1zM20,9h1v1h-1zM22,9h1v1h-1zM23,9h1v1h-1zM26,9h1v1h-1zM32,9h1v1h-1zM4,10h1v1h-1zM5,10h1v1h-1zM6,10h1v1h-1zM7,10h1v1h-1zM8,10h1v1h-1zM9,10h1v1h-1zM10,10h1v1h-1zM12,10h1v1h-1zM14,10h1v1h-1zM16,10h1v1h-1zM18,10h1v1h-1zM20,10h1v1h-1zM22,10h1v1h-1zM24,10h1v1h-1zM26,10h1v1h-1zM27,10h1v1h-1zM28,10h1v1h-1zM29,10h1v1h-1zM30,10h1v1h-1zM31,10h1v1h-1zM32,10h1v1h-1zM18,11h1v1h-1zM21,11h1v1h-1zM24,11h1v1h-1zM4,12h1v1h-1zM7,12h1v1h-1zM9,12h1v1h-1zM10,12h1v1h-1zM12,12h1v1h-1zM14,12h1v1h-1zM17,12h1v1h-1zM18,12h1v1h-1zM19,12h1v1h-1zM20,12h1v1h-1zM25,12h1v1h-1zM27,12h1v1h-1zM6,13h1v1h-1zM7,13h1v1h-1zM8,13h1v1h-1zM15,13h1v1h-1zM17,13h1v1h-1zM24,13h1v1h-1zM26,13h1v1h-1zM29,13h1v1h-1zM32,13h1v1h-1zM4,14h1v1h-1zM5,14h1v1h-1zM6,14h1v1h-1zM10,14h1v1h-1zM11,14h1v1h-1zM17,14h1v1h-1zM20,14h1v1h-1zM21,14h1v1h-1zM23,14h1v1h-1zM24,14h1v1h-1zM28,14h1v1h-1zM29,14h1v1h-1zM30,14h1v1h-1zM31,14h1v1h-1zM4,15h1v1h-1zM6,15h1v1h-1zM8,15h1v1h-1zM9,15h1v1h-1zM14,15h1v1h-1zM15,15h1v1h-1zM17,15h1v1h-1zM19,15h1v1h-1zM20,15h1v1h-1zM22,15h1v1h-1zM23,15h1v1h-1zM25,15h1v1h-1zM26,15h1v1h-1zM27,15h1v1h-1zM30,15h1v1h-1zM31,15h1v1h-1zM4,16h1v1h-1zM5,16h1v1h-1zM7,16h1v1h-1zM8,16h1v1h-1zM9,16h1v1h-1zM10,16h1v1h-1zM11,16h1v1h-1zM13,16h1v1h-1zM14,16h1v1h-1zM16,16h1v1h-1zM18,16h1v1h-1zM19,16h1v1h-1zM21,16h1v1h-1zM24,16h1v1h-1zM25,16h1v1h-1zM26,16h1v1h-1zM27,16h1v1h-1zM29,16h1v1h-1zM31,16h1v1h-1zM32,16h1v1h-1zM4,17h1v1h-1zM5,17h1v1h-1zM6,17h1v1h-1zM7,17h1v1h-1zM8,17h1v1h-1zM11,17h1v1h-1zM12,17h1v1h-1zM15,17h1v1h-1zM16,17h1v1h-1zM17,17h1v1h-1zM20,17h1v1h-1zM21,17h1v1h-1zM23,17h1v1h-1zM24,17h1v1h-1zM25,17h1v1h-1zM4,18h1v1h-1zM6,18h1v1h-1zM7,18h1v1h-1zM9,18h1v1h-1zM10,18h1v1h-1zM15,18h1v1h-1zM17,18h1v1h-1zM18,18h1v1h-1zM20,18h1v1h-1zM25,18h1v1h-1zM28,18h1v1h-1zM29,18h1v1h-1zM30,18h1v1h-1zM31,18h1v1h-1zM32,18h1v1h-1zM5,19h1v1h-1zM11,19h1v1h-1zM12,19h1v1h-1zM13,19h1v1h-1zM14,19h1v1h-1zM15,19h1v1h-1zM19,19h1v1h-1zM20,19h1v1h-1zM21,19h1v1h-1zM22,19h1v1h-1zM24,19h1v1h-1zM26,19h1v1h-1zM27,19h1v1h-1zM29,19h1v1h-1zM31,19h1v1h-1zM4,20h1v1h-1zM5,20h1v1h-1zM6,20h1v1h-1zM7,20h1v1h-1zM9,20h1v1h-1zM10,20h1v1h-1zM11,20h1v1h-1zM13,20h1v1h-1zM14,20h1v1h-1zM16,20h1v1h-1zM17,20h1v1h-1zM20,20h1v1h-1zM21,20h1v1h-1zM24,20h1v1h-1zM31,20h1v1h-1zM5,21h1v1h-1zM6,21h1v1h-1zM11,21h1v1h-1zM13,21h1v1h-1zM14,21h1v1h-1zM17,21h1v1h-1zM18,21h1v1h-1zM20,21h1v1h-1zM21,21h1v1h-1zM24,21h1v1h-1zM25,21h1v1h-1zM26,21h1v1h-1zM27,21h1v1h-1zM29,21h1v1h-1zM32,21h1v1h-1zM4,22h1v1h-1zM6,22h1v1h-1zM8,22h1v1h-1zM9,22h1v1h-1zM10,22h1v1h-1zM11,22h1v1h-1zM12,22h1v1h-1zM13,22h1v1h-1zM18,22h1v1h-1zM20,22h1v1h-1zM22,22h1v1h-1zM25,22h1v1h-1zM27,22h1v1h-1zM28,22h1v1h-1zM31,22h1v1h-1zM32,22h1v1h-1zM11,23h1v1h-1zM12,23h1v1h-1zM13,23h1v1h-1zM16,23h1v1h-1zM18,23h1v1h-1zM19,23h1v1h-1zM20,23h1v1h-1zM21,23h1v1h-1zM22,23h1v1h-1zM25,23h1v1h-1zM31,23h1v1h-1zM32,23h1v1h-1zM4,24h1v1h-1zM6,24h1v1h-1zM7,24h1v1h-1zM9,24h1v1h-1zM10,24h1v1h-1zM11,24h1v1h-1zM13,24h1v1h-1zM14,24h1v1h-1zM15,24h1v1h-1zM16,24h1v1h-1zM19,24h1v1h-1zM23,24h1v1h-1zM24,24h1v1h-1zM25,24h1v1h-1zM26,24h1v1h-1zM27,24h1v1h-1zM28,24h1v1h-1zM30,24h1v1h-1zM12,25h1v1h-1zM13,25h1v1h-1zM14,25h1v1h-1zM18,25h1v1h-1zM20,25h1v1h-1zM24,25h1v1h-1zM28,25h1v1h-1zM30,25h1v1h-1zM31,25h1v1h-1zM32,25h1v1h-1zM4,26h1v1h-1zM5,26h1v1h-1zM6,26h1v1h-1zM7,26h1v1h-1zM8,26h1v1h-1zM9,26h1v1h-1zM10,26h1v1h-1zM14,26h1v1h-1zM15,26h1v1h-1zM16,26h1v1h-1zM20,26h1v1h-1zM21,26h1v1h-1zM24,26h1v1h-1zM26,26h1v1h-1zM28,26h1v1h-1zM31,26h1v1h-1zM4,27h1v1h-1zM10,27h1v1h-1zM12,27h1v1h-1zM13,27h1v1h-1zM16,27h1v1h-1zM18,27h1v1h-1zM19,27h1v1h-1zM20,27h1v1h-1zM24,27h1v1h-1zM28,27h1v1h-1zM29,27h1v1h-1zM30,27h1v1h-1zM32,27h1v1h-1zM4,28h1v1h-1zM6,28h1v1h-1zM7,28h1v1h-1zM8,28h1v1h-1zM10,28h1v1h-1zM14,28h1v1h-1zM15,28h1v1h-1zM20,28h1v1h-1zM21,28h1v1h-1zM22,28h1v1h-1zM24,28h1v1h-1zM25,28h1v1h-1zM26,28h1v1h-1zM27,28h1v1h-1zM28,28h1v1h-1zM31,28h1v1h-1zM32,28h1v1h-1zM4,29h1v1h-1zM6,29h1v1h-1zM7,29h1v1h-1zM8,29h1v1h-1zM10,29h1v1h-1zM12,29h1v1h-1zM13,29h1v1h-1zM14,29h1v1h-1zM16,29h1v1h-1zM17,29h1v1h-1zM22,29h1v1h-1zM26,29h1v1h-1zM28,29h1v1h-1zM29,29h1v1h-1zM30,29h1v1h-1zM31,29h1v1h-1zM4,30h1v1h-1zM6,30h1v1h-1zM7,30h1v1h-1zM8,30h1v1h-1zM10,30h1v1h-1zM13,30h1v1h-1zM14,30h1v1h-1zM17,30h1v1h-1zM18,30h1v1h-1zM20,30h1v1h-1zM23,30h1v1h-1zM24,30h1v1h-1zM28,30h1v1h-1zM29,30h1v1h-1zM30,30h1v1h-1zM32,30h1v1h-1zM4,31h1v1h-1zM10,31h1v1h-1zM14,31h1v1h-1zM15,31h1v1h-1zM20,31h1v1h-1zM21,31h1v1h-1zM22,31h1v1h-1zM23,31h1v1h-1zM24,31h1v1h-1zM28,31h1v1h-1zM31,31h1v1h-1zM4,32h1v1h-1zM5,32h1v1h-1zM6,32h1v1h-1zM7,32h1v1h-1zM8,32h1v1h-1zM9,32h1v1h-1zM10,32h1v1h-1zM12,32h1v1h-1zM13,32h1v1h-1zM16,32h1v1h-1zM18,32h1v1h-1zM19,32h1v1h-1zM21,32h1v1h-1zM24,32h1v1h-1zM26,32h1v1h-1zM28,32h1v1h-1zM29,32h1v1h-1zM31,32h1v1h-1z" fill="#131210"/></svg>
+            <span class="cap">scan to open the app</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="foot">
+    <div class="wrap">
+      <div class="row-top">
+        <div class="built">Built by padel players, for padel players.</div>
+        <div class="promise">no fees · no ads · no dark patterns</div>
+      </div>
+      <div class="credits">
+        Court photography from Unsplash, used under the Unsplash License. Thanks to
+        <a href="https://unsplash.com/photos/ZO4pHKtpn4c">Vincenzo Morelli</a>,
+        <a href="https://unsplash.com/photos/sZKLku0YnFM">Oliver Sjöström</a> and
+        <a href="https://unsplash.com/photos/NtiZoP2CKOs">José Alejandro Cuffia</a>.
+        Full credits in ATTRIBUTIONS.md. CUATRO and the Glass rating are a work in progress. Come and break them.
+      </div>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+  // Reveal-on-scroll, reduced-motion safe (falls back to visible if unsupported).
+  (function () {
+    var els = document.querySelectorAll('.reveal');
+    if (!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      els.forEach(function (el) { el.classList.add('in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    els.forEach(function (el) { io.observe(el); });
+  })();
+</script>
+
+</body>
+</html>

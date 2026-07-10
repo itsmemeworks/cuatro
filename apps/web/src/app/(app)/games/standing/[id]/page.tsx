@@ -7,6 +7,7 @@ import { listVenuesForCircle } from "@/server/venues";
 import { ensureUpcomingSessionForStandingGame } from "@/server/games-service";
 import { toggleStandingGameActiveAction, updateStandingGameAction } from "@/server/games-actions";
 import { Button, Meta } from "@/components/ui";
+import { InfoTerm } from "@/components/ui/info-term";
 import { VenuePicker } from "../venue-picker";
 
 const WEEKDAYS = [
@@ -161,6 +162,41 @@ export default async function EditStandingGamePage({
                 max={21}
                 className={fieldClass}
               />
+            </label>
+
+            <label className="flex items-start gap-3 rounded-button p-3 bg-surface border border-ink-hairline-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="rotationEnabled"
+                defaultChecked={standingGame.rotationEnabled}
+                className="mt-0.5 size-4 accent-ink"
+              />
+              <span className="flex flex-col gap-1 text-cu-body font-semibold text-ink">
+                Turn on <InfoTerm term="rotation" label="The Rotation" />
+                <Meta as="span" className="font-normal leading-relaxed">
+                  Members say if they&apos;re available, then CUATRO picks a fair four and rotates who sits out. It runs first-come for the first few weeks, then picks the fairest four once your game has some history.
+                </Meta>
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
+              Rotation locks
+              <Meta as="span" className="font-normal">how long before kickoff the four is settled (rotation games only)</Meta>
+              <select name="rotationCutoffHours" defaultValue={standingGame.rotationCutoffHours} className={fieldClass}>
+                <option value={12}>12 hours before</option>
+                <option value={24}>1 day before</option>
+                <option value={48}>2 days before</option>
+                <option value={72}>3 days before</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
+              Rotation mode
+              <Meta as="span" className="font-normal">Limited settles the four at the cutoff. Unlimited keeps re-picking the fairest four right up to kickoff.</Meta>
+              <select name="rotationMode" defaultValue={standingGame.rotationMode} className={fieldClass}>
+                <option value="limited">Limited, locks at the cutoff</option>
+                <option value="unlimited">Unlimited, re-picks until kickoff</option>
+              </select>
             </label>
 
             <VenuePicker venues={venueOptions} defaultVenueId={standingGame.venueId} />

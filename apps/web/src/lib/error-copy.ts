@@ -31,6 +31,9 @@ const ERROR_COPY: Record<string, string> = {
   no_open_knock: "There's no open ask to withdraw.",
   knock_not_found: "That ask isn't around any more.",
   not_pending: "That ask has already been answered.",
+  // The Rotation.
+  rotation_not_enabled: "This game isn't on rotation, so just tap in.",
+  rotation_locked: "This week's four is already set. Tap in or out on the game itself.",
 };
 
 const FALLBACK = "Something didn't go through. Give it another tap.";

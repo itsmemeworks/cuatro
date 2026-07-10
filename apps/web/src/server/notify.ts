@@ -47,7 +47,7 @@ export type NotificationInput =
       type: "fourth_call";
       // level 1 = own circle; level 2 = beyond it. `via: "played_with"` marks the
       // played-with ring (people from your verified matches) vs the geo Local Ring.
-      payload: { sessionId: string; level: 1 | 2; via?: "played_with" };
+      payload: { sessionId: string; level: 1 | 2; via?: "played_with" | "rotation_offer" };
     }
   | { type: "placement_complete"; payload: { matchId: string; rating: number | null } }
   | { type: "result_verified"; payload: { matchId: string; delta: number; explanation: string } }
@@ -59,6 +59,8 @@ export type NotificationInput =
       payload: { circleId: string; tabEntryId: string; amountMinor: number; currency: string };
     }
   | { type: "session_rescheduled"; payload: { sessionId: string } }
+  | { type: "rotation_selected"; payload: { sessionId: string } }
+  | { type: "rotation_sitting_out"; payload: { sessionId: string } }
   | { type: "knock_received"; payload: { knockId: string; kind: "circle" | "session"; targetId: string; userId: string } }
   | { type: "knock_accepted"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } }
   | { type: "knock_declined"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } };
@@ -130,6 +132,14 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
     }
     case "fourth_call": {
       const ctx = sessionContext(tx, input.payload.sessionId);
+      if (input.payload.via === "rotation_offer") {
+        return {
+          title: "A spot opened in your four",
+          body: ctx
+            ? `Someone dropped out of ${ctx.circleName}, ${ctx.when}. You're next in the rotation. Still good to play?`
+            : "Someone dropped out and you're next in the rotation. Still good to play?",
+        };
+      }
       if (input.payload.via === "played_with") {
         return {
           title: "A four you know needs a player",
@@ -188,6 +198,24 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
       return {
         title: "You've got a Tab nudge",
         body: `${input.payload.currency} ${amount} outstanding on the Tab. Settle when you can.`,
+      };
+    }
+    case "rotation_selected": {
+      const ctx = sessionContext(tx, input.payload.sessionId);
+      return {
+        title: "You're in this week",
+        body: ctx
+          ? `The Rotation picked this week's four for ${ctx.circleName}, ${ctx.when}. You're playing.`
+          : "The Rotation picked you to play this week.",
+      };
+    }
+    case "rotation_sitting_out": {
+      const ctx = sessionContext(tx, input.payload.sessionId);
+      return {
+        title: "You're sitting this one out",
+        body: ctx
+          ? `The Rotation has this week's four for ${ctx.circleName}, ${ctx.when}. You're first in if anyone drops, and first to play next week.`
+          : "You're sitting this week out. You're first in next week.",
       };
     }
     case "session_rescheduled": {
@@ -277,6 +305,8 @@ export function deepLinkFor(input: NotificationInput): string {
     case "tab_nudge":
       return `/circles/${input.payload.circleId}`;
     case "session_rescheduled":
+    case "rotation_selected":
+    case "rotation_sitting_out":
       return `/games/${input.payload.sessionId}`;
     case "knock_received":
       // The circle-knock accept UI lives on the Settings tab (organiser-only),

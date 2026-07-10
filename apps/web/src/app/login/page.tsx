@@ -1,25 +1,34 @@
 import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/session";
 import { isSafeRelativePath } from "@/lib/safe-redirect";
+import { OnboardingWelcome } from "@/components/entry/onboarding-welcome";
 
 /**
- * design/DESIGN-AUDIT.md L1: the onboarding welcome (Apple/Google/magic-link)
- * now lives at / itself — see app/page.tsx. This route is kept only because
- * (app)/layout.tsx's redirect-when-signed-out and auth/callback's
- * ?error=... failure path both still point at /login; it just forwards
- * both `next` and `error` through untouched.
+ * The auth entry screen (design/DESIGN-AUDIT.md L1: the prototype's "Onboarding
+ * welcome" — Apple/Google/magic-link directly on it, no intermediate "Get
+ * started" tap). This lived at / until the marketing site moved to the domain
+ * root (see app/route.ts); it now renders here at /login, which is where the
+ * (app) layout's signed-out redirect and auth/callback's ?error= failure path
+ * already point. `?next=` and `?error=` are threaded through unchanged
+ * (the callback's failure redirect target is /login?error=..., handled below).
  */
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const params = await searchParams;
-  const next = isSafeRelativePath(params.next) ? params.next : null;
+  // A signed-in user has no business on the auth screen — send them home.
+  const user = await getSessionUser();
+  if (user) redirect("/home");
 
-  const qs = new URLSearchParams();
-  if (next) qs.set("next", next);
-  if (params.error) qs.set("error", params.error);
+  const { next: rawNext, error: urlError } = await searchParams;
+  const next = isSafeRelativePath(rawNext) ? rawNext : null;
+  const initialErrorMessage =
+    urlError === "auth_failed"
+      ? "That sign-in link didn't work. Try again."
+      : urlError === "missing_code"
+        ? "That sign-in link looked broken. Try again."
+        : null;
 
-  const suffix = qs.toString();
-  redirect(suffix ? `/?${suffix}` : "/");
+  return <OnboardingWelcome next={next} initialErrorMessage={initialErrorMessage} />;
 }

@@ -3,18 +3,19 @@
  * working title can be renamed in exactly one place (design/HANDOFF.md's
  * "Fidelity" note). Change APP_NAME here — nowhere else in the app should
  * hardcode the product name in a heading.
+ *
+ * Brand lockup (Pete, 2026-07-10): the final letter renders in coral — the
+ * "coloured O" — matching the marketing site. The old ◆ mark above the
+ * wordmark was retired at the same time.
  */
 export const APP_NAME = "CUATRO";
 
 export function Wordmark({
   size = "hero",
-  showMark = true,
   onDark = true,
   className = "",
 }: {
   size?: "hero" | "md";
-  /** The small coral ◆ mark above the wordmark — omit when space is tight. */
-  showMark?: boolean;
   /**
    * The onboarding hero always sits on the dark ambient-court art regardless
    * of the visitor's OS theme (the art itself is an always-dark scene, per
@@ -27,16 +28,16 @@ export function Wordmark({
   className?: string;
 }) {
   const sizeClass = size === "hero" ? "text-[44px]" : "text-[22px]";
-  const markClass = onDark ? "text-action-on-feature-link" : "text-action";
   const wordClass = onDark ? "text-[#F5F2EC]" : "text-ink";
+  const accentClass = onDark ? "text-[#FF5C3D]" : "text-action";
+  const body = APP_NAME.slice(0, -1);
+  const accent = APP_NAME.slice(-1);
   return (
     <div className={className}>
-      {showMark && (
-        <div className={`font-extrabold text-[13px] leading-none mb-3 ${markClass}`} aria-hidden>
-          ◆
-        </div>
-      )}
-      <div className={`text-cu-wordmark ${sizeClass} ${wordClass}`}>{APP_NAME}</div>
+      <div className={`text-cu-wordmark ${sizeClass} ${wordClass}`}>
+        {body}
+        <span className={accentClass}>{accent}</span>
+      </div>
     </div>
   );
 }

@@ -158,7 +158,7 @@ export function OnboardingWelcome({
           <div className="inline-block rounded-2xl bg-[#131210]/45 backdrop-blur-[3px] px-4 py-3">
             <Wordmark />
             <p className="text-[15px] leading-snug mt-2.5 max-w-xs" style={{ color: "rgba(245,242,236,.78)" }}>
-              The app your padel four runs on. When you&apos;re one short, it finds your fourth.
+              The app your padel four runs on. One short, it finds your fourth. One over, it sorts who sits out.
             </p>
           </div>
         </div>

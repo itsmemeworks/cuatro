@@ -181,6 +181,10 @@ function TabRow({
 }
 
 function toSessionCardData(s: SessionSummary): SessionCardData {
+  // Rotation games carry their four/sit-out in `rotation` — show the
+  // provisional (pre-lock) or locked four in the slot grid, and suppress the
+  // Fourth Call chip until the lineup actually locks.
+  const rotationLocked = s.rotation?.lockedAt != null;
   return {
     sessionId: s.session.id,
     circleId: s.circleId,
@@ -190,11 +194,12 @@ function toSessionCardData(s: SessionSummary): SessionCardData {
     venueName: s.venue?.name ?? null,
     startsAt: s.session.startsAt,
     slots: s.slots,
-    confirmed: s.confirmed,
-    reserves: s.reserves,
+    confirmed: s.rotation ? s.rotation.lineup : s.confirmed,
+    reserves: s.rotation ? s.rotation.sitting : s.reserves,
     viewerStatus: s.viewerStatus,
     rsvpWindowOpensAt: s.rsvpWindowOpensAt,
-    fourthCallActive: isFourthCallActive(s),
+    fourthCallActive: s.rotation && !rotationLocked ? false : isFourthCallActive(s),
+    rotation: s.rotation ? { locked: rotationLocked, viewerAvailable: s.rotation.viewerAvailable } : null,
   };
 }
 

@@ -18,6 +18,12 @@ export const sessions = sqliteTable(
     status: text('status', { enum: ['upcoming', 'played', 'cancelled'] })
       .notNull()
       .default('upcoming'),
+    // THE ROTATION lock marker (null until locked). A rotation-enabled session
+    // computes a provisional four live from availability, then locks it lazily
+    // on the first view at/after T-24h (see server/games-service.ts
+    // lockRotationIfDue) — this records the instant that happened. Null on
+    // non-rotation sessions and on rotation sessions still gathering availability.
+    rotationLockedAt: timestampColumn('rotation_locked_at'),
     createdAt: createdAtColumn(),
   },
   (table) => ({

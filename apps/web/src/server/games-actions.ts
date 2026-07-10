@@ -12,6 +12,14 @@ import { geocodeVenueById } from "./geocode";
 import { parseAmountToMinor } from "@/components/tab/money";
 import type { CuatroClient } from "@cuatro/db";
 
+/** Rotation cutoff + mode from the form (both create and edit render them). Cutoff clamps to a sane 1..168h; mode is the strict enum. */
+function parseRotationFields(formData: FormData): { rotationCutoffHours: number; rotationMode: "limited" | "unlimited" } {
+  const rawHours = Number(formData.get("rotationCutoffHours"));
+  const rotationCutoffHours = Number.isFinite(rawHours) && rawHours >= 1 && rawHours <= 168 ? Math.round(rawHours) : 24;
+  const rotationMode = formData.get("rotationMode") === "unlimited" ? "unlimited" : "limited";
+  return { rotationCutoffHours, rotationMode };
+}
+
 /** "" -> null (leave/clear), a valid "32.00"-style string -> minor units, anything unparseable -> undefined (ignored) so a typo doesn't silently zero out an existing cost. */
 function parseCostField(raw: FormDataEntryValue | null): number | null | undefined {
   if (raw === null) return undefined;
@@ -70,6 +78,9 @@ export async function createStandingGameAction(formData: FormData): Promise<void
     rsvpWindowDays: Number(formData.get("rsvpWindowDays") ?? 6),
     ...venueFieldsFor(venue),
     costMinor: parseCostField(formData.get("costAmount")) ?? null,
+    // Unchecked checkboxes submit nothing, so absence = off.
+    rotationEnabled: formData.get("rotationEnabled") === "on",
+    ...parseRotationFields(formData),
   });
 
   revalidatePath("/games/standing");
@@ -108,6 +119,10 @@ export async function updateStandingGameAction(id: string, formData: FormData): 
     rsvpWindowDays: formData.get("rsvpWindowDays") ? Number(formData.get("rsvpWindowDays")) : undefined,
     ...venueFieldsFor(venue),
     costMinor: parseCostField(formData.get("costAmount")),
+    // The edit form always renders the rotation checkbox, so its absence is an
+    // explicit "off", not "leave unchanged".
+    rotationEnabled: formData.get("rotationEnabled") === "on",
+    ...parseRotationFields(formData),
   });
 
   if (result.ok) {

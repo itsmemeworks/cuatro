@@ -36,6 +36,12 @@ export type StandingGameInput = {
   /** The court cost for one occurrence (design/DESIGN-AUDIT.md F4). null/undefined leaves it unset — no "goes on the Tab" split can be offered until an organiser sets one. */
   costMinor?: number | null;
   costCurrency?: string;
+  /** THE ROTATION: when true, the weekly RSVP becomes an availability declaration and CUATRO picks a fair four. Defaults false (plain first-come). */
+  rotationEnabled?: boolean;
+  /** How long before kickoff a LIMITED rotation locks its four. Default 24. */
+  rotationCutoffHours?: number;
+  /** 'limited' locks at the cutoff (default); 'unlimited' re-ranks to kickoff, never locks. */
+  rotationMode?: "limited" | "unlimited";
 };
 
 export type StandingGamePatch = Partial<
@@ -51,6 +57,9 @@ export type StandingGamePatch = Partial<
     | "venueAddress"
     | "costMinor"
     | "costCurrency"
+    | "rotationEnabled"
+    | "rotationCutoffHours"
+    | "rotationMode"
   >
 > & { active?: boolean };
 
@@ -144,6 +153,9 @@ export function createStandingGame(
       active: true,
       costMinor: input.costMinor ?? null,
       costCurrency: input.costCurrency ?? "GBP",
+      rotationEnabled: input.rotationEnabled ?? false,
+      rotationCutoffHours: input.rotationCutoffHours ?? 24,
+      rotationMode: input.rotationMode ?? "limited",
     })
     .returning()
     .get();
@@ -202,6 +214,9 @@ export function updateStandingGame(
       ...(patch.active !== undefined ? { active: patch.active } : {}),
       ...(patch.costMinor !== undefined ? { costMinor: patch.costMinor } : {}),
       ...(patch.costCurrency !== undefined ? { costCurrency: patch.costCurrency } : {}),
+      ...(patch.rotationEnabled !== undefined ? { rotationEnabled: patch.rotationEnabled } : {}),
+      ...(patch.rotationCutoffHours !== undefined ? { rotationCutoffHours: patch.rotationCutoffHours } : {}),
+      ...(patch.rotationMode !== undefined ? { rotationMode: patch.rotationMode } : {}),
     })
     .where(eq(standingGames.id, id))
     .returning()

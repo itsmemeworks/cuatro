@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSessionLive } from "@/lib/realtime/hooks";
 import { Avatar, Button, Card, Chip, DashedSlot, Fact, Meta } from "@/components/ui";
 import { CircleEmblem } from "./roster";
+import { LateCancelSheet, isLateCancel } from "./late-cancel-sheet";
 import { errorCopy } from "@/lib/error-copy";
 
 export type SessionCardPlayer = {
@@ -34,6 +35,12 @@ export type SessionCardData = {
   /** UTC instant the RSVP window opens. */
   rsvpWindowOpensAt: Date;
   fourthCallActive: boolean;
+  /**
+   * Present iff this is a rotation game (see THE ROTATION). Flips the RSVP
+   * button to availability copy pre-lock; the `confirmed` slots already carry
+   * the provisional/locked four, so the tile grid needs no change.
+   */
+  rotation?: { locked: boolean; viewerAvailable: boolean } | null;
 };
 
 export function formatCountdown(msRemaining: number): string {
@@ -121,6 +128,8 @@ export function SessionCard({
   const [now, setNow] = useState<number>(() => Date.now());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // When set, a late-cancel confirm sheet is open; confirming runs this drop.
+  const [lateConfirm, setLateConfirm] = useState<null | "out" | "unavailable">(null);
 
   // No handler — the default is router.refresh(), which re-renders this
   // card (and everything else on the page) with fresh RSVP/fourth-call
@@ -150,12 +159,21 @@ export function SessionCard({
   const viewerHoldsSlot = data.viewerStatus === "in";
   const viewerReserved = data.viewerStatus === "reserve";
 
-  async function sendRsvp(event: React.MouseEvent, action: "in" | "out") {
+  function sendRsvp(event: React.MouseEvent, action: "in" | "out" | "available" | "unavailable") {
     // SessionCard is also used inline inside a Link (the /games list links
     // each card through to its detail page) — stop the tap from bubbling
     // into a navigation.
     event.preventDefault();
     event.stopPropagation();
+    // Dropping a slot you're holding inside 24h is a late cancel — confirm first.
+    if ((action === "out" || action === "unavailable") && viewerHoldsSlot && isLateCancel(startsAtMs, now)) {
+      setLateConfirm(action);
+      return;
+    }
+    void doRsvp(action);
+  }
+
+  async function doRsvp(action: "in" | "out" | "available" | "unavailable") {
     setPending(true);
     setError(null);
     try {
@@ -180,6 +198,11 @@ export function SessionCard({
 
   return (
     <Card className="flex flex-col gap-4">
+      {data.rotation && (
+        <Chip tone="neutral" className="self-start">
+          🔁 Rotation {data.rotation.locked ? "· this week's four" : "· availability open"}
+        </Chip>
+      )}
       {data.fourthCallActive && (
         <Chip tone="streak" className="self-start">
           🔔 Fourth Call, slots still open
@@ -243,7 +266,27 @@ export function SessionCard({
 
       {error && <Meta tone="action">{errorCopy(error)}</Meta>}
 
-      {!sessionStarted && windowOpen && (
+      {/* Rotation, pre-lock: the RSVP is a declaration of availability, not a slot grab. */}
+      {!sessionStarted && windowOpen && data.rotation && !data.rotation.locked && (
+        <div className="flex gap-2">
+          <Button
+            size="lg"
+            className="flex-[2]"
+            variant={data.rotation.viewerAvailable ? "strong" : "primary"}
+            disabled={pending}
+            onClick={(event) => sendRsvp(event, data.rotation!.viewerAvailable ? "unavailable" : "available")}
+          >
+            {data.rotation.viewerAvailable ? "You're available ✓" : "I'm available"}
+          </Button>
+          {data.rotation.viewerAvailable && (
+            <Button size="lg" variant="destructiveQuiet" className="flex-1" disabled={pending} onClick={(event) => sendRsvp(event, "unavailable")}>
+              Not this week
+            </Button>
+          )}
+        </div>
+      )}
+
+      {!sessionStarted && windowOpen && !(data.rotation && !data.rotation.locked) && (
         <div className="flex gap-2">
           <Button
             size="lg"
@@ -274,6 +317,17 @@ export function SessionCard({
           RSVPs open {formatCountdown(windowOpensMs - now)} from now
         </Meta>
       )}
+
+      <LateCancelSheet
+        open={lateConfirm !== null}
+        pending={pending}
+        onCancel={() => setLateConfirm(null)}
+        onConfirm={() => {
+          const action = lateConfirm;
+          setLateConfirm(null);
+          if (action) void doRsvp(action);
+        }}
+      />
     </Card>
   );
 }

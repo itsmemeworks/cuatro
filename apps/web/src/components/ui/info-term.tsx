@@ -26,6 +26,11 @@ export interface GlossaryEntry {
 }
 
 export const GLOSSARY = {
+  rotation: {
+    term: "The Rotation",
+    plain: "When it's on, you tap 'I'm available' instead of grabbing a slot, and CUATRO picks a fair four each week, rotating who sits out.",
+    why: "Working out who sits out is the quiet weekly puzzle in every five-strong group. This makes it automatic and explainable, so it's never personal: fewest recent games plays first.",
+  },
   localRing: {
     term: "Local Ring",
     plain: "When your Circle can't fill a game, the Fourth Call reaches nearby players at your level who've said they're up for games.",

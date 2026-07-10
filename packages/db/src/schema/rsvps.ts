@@ -15,7 +15,13 @@ export const rsvps = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    status: text('status', { enum: ['in', 'out', 'reserve'] }).notNull(),
+    // 'available' is THE ROTATION's pre-lock state: in a rotation-enabled game
+    // you declare availability rather than grabbing a slot, so an availability
+    // reply sits as 'available' until lock turns it into 'in' (selected to
+    // play) or 'reserve' (sitting out this week, first to auto-promote). Plain
+    // first-come games never use it. Text column, no DB CHECK constraint (see
+    // migration 0000) — adding the value is a schema-level change only.
+    status: text('status', { enum: ['in', 'out', 'reserve', 'available'] }).notNull(),
     position: integer('position'), // reserve queue order; null unless status = 'reserve'
     // How this row's slot was filled: the normal in-circle RSVP tap, a
     // Fourth Call claim (level 2's extended-network invite, or level 3's

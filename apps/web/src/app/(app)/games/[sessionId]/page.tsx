@@ -5,7 +5,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { notifications, users } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
-import { checkFourthCallLevel1, getSessionSummary, DEFAULT_SESSION_DURATION_MINUTES } from "@/server/games-service";
+import { checkFourthCallLevel1, getSessionSummary, lockRotationIfDue, offerRotationSlotIfNeeded, DEFAULT_SESSION_DURATION_MINUTES } from "@/server/games-service";
 import { hasFourthCallInvite } from "@/server/fourth-call";
 import { isOrganiser } from "@/server/standing-games-service";
 import { getMatchesStore } from "@/server/matches-db";
@@ -81,12 +81,20 @@ export default async function SessionDetailPage({
 
   const { sessionId } = await params;
   const { db } = await getGamesClient();
+  // Lazy trigger (no cron in v0): a rotation game at/after T-24h locks its four
+  // on this first view, before the summary is read, so the page shows the
+  // locked lineup and the lock notifications fire. No-op for non-rotation games.
+  lockRotationIfDue(db, sessionId);
   const summary = getSessionSummary(db, sessionId, user.id);
   if (!summary) notFound();
 
-  // Lazy trigger: viewing a session's detail page is one of the "views" the
-  // Fourth Call level-1 check runs on (see games-service.ts — no cron in v0).
-  checkFourthCallLevel1(db, sessionId);
+  // Lazy triggers (no cron in v0): a locked rotation game offers an open spot
+  // to the next sit-out first; the Fourth Call only broadcasts once that chain
+  // is exhausted (or the game isn't a locked rotation game).
+  const offer = offerRotationSlotIfNeeded(db, sessionId);
+  if (offer.state === "exhausted" || offer.state === "not_applicable") {
+    checkFourthCallLevel1(db, sessionId);
+  }
 
   // "Has this game already happened?" is judged by the session's own
   // status column, which getSessionSummary (via
@@ -204,7 +212,13 @@ export default async function SessionDetailPage({
   // flag (guests have no profile, so they render unlinked). Page-level reads
   // over the existing stores — small (a four plus a short reserve queue), and
   // Glass reuses the same getProfileGlassView the Fourth Call path above uses.
-  const rosterPlayers = [...summary.confirmed, ...summary.reserves];
+  const rosterPlayers = [
+    ...summary.confirmed,
+    ...summary.reserves,
+    // Rotation games carry their four/sit-out in `rotation` (confirmed/reserves
+    // are empty pre-lock), so include those players in the Glass enrichment too.
+    ...(summary.rotation ? [...summary.rotation.lineup, ...summary.rotation.sitting] : []),
+  ].filter((p, i, arr) => arr.findIndex((q) => q.userId === p.userId) === i);
   const glassByUserId: Record<string, number | null> = {};
   await Promise.all(
     [{ userId: user.id }, ...rosterPlayers].map(async (p) => {
@@ -225,9 +239,15 @@ export default async function SessionDetailPage({
   const rsvpWindowOpen = upcoming && Date.now() >= summary.rsvpWindowOpensAt.getTime();
   let viewerStatusLine: string | null = null;
   if (upcoming) {
-    if (summary.viewerStatus === "in") viewerStatusLine = `You're in ✓ · ${whenShort}`;
-    else if (summary.viewerStatus === "reserve") viewerStatusLine = `You're on the reserve list · ${whenShort}`;
-    else if (summary.viewerStatus === "out") viewerStatusLine = "You said you can't make this one";
+    const rotationLocked = summary.rotation?.lockedAt != null;
+    if (summary.viewerStatus === "in")
+      viewerStatusLine = summary.rotation && rotationLocked ? `You're in this week ✓ · ${whenShort}` : `You're in ✓ · ${whenShort}`;
+    else if (summary.viewerStatus === "reserve")
+      viewerStatusLine = summary.rotation && rotationLocked ? `You're sitting out this week, first in next · ${whenShort}` : `You're on the reserve list · ${whenShort}`;
+    else if (summary.rotation && !rotationLocked && summary.rotation.viewerAvailable)
+      viewerStatusLine = `You're available this week · ${whenShort}`;
+    else if (summary.viewerStatus === "out")
+      viewerStatusLine = summary.rotation ? "You said you're not available this week" : "You said you can't make this one";
     else if (rsvpWindowOpen) viewerStatusLine = "You haven't answered yet";
   }
 
@@ -286,6 +306,21 @@ export default async function SessionDetailPage({
           fourthCallHref={`/games/${sessionId}/fourth-call`}
           glassByUserId={glassByUserId}
           guestByUserId={guestByUserId}
+          rotation={
+            summary.rotation
+              ? {
+                  mode: summary.rotation.mode,
+                  locked: summary.rotation.lockedAt != null,
+                  coldStart: summary.rotation.coldStart,
+                  locksAtMs: summary.rotation.locksAt.getTime(),
+                  available: summary.rotation.available,
+                  lineup: summary.rotation.lineup,
+                  sitting: summary.rotation.sitting,
+                  reasons: summary.rotation.reasons,
+                  viewerAvailable: summary.rotation.viewerAvailable,
+                }
+              : null
+          }
         />
       </ToastBoundary>
 
