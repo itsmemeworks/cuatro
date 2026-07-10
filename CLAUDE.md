@@ -55,7 +55,7 @@ npm-workspaces monorepo:
 - **Single-owner files** (agents never edit; write the exact addition you need into your manifest and the lead applies it): `server/notify.ts`, `components/ui/info-term.tsx` (GLOSSARY), `lib/error-copy.ts` is lead-seeded but agents may add codes ONLY when no other agent is running.
 - **The gate** before every deploy: full `npm test` from root + `tsc --noEmit` + `npm run build`; schema changes additionally rehearse ALL migrations against a FRESH prod copy (`fly ssh sftp get`) with `PRAGMA foreign_key_check` = 0.
 - **Deploy order**: app (`fly deploy --ha=false` from repo root) THEN the marketing mirror (`../cuatro-site`, app `cuatro-site`). The landing page ships from TWO synced copies: `apps/web/public/landing/` (served at `/`) and `../cuatro-site/public/` — byte-identical bar the asset prefix.
-- **GitHub**: https://github.com/itsmemeworks/cuatro — push as gh account `conspirafi` (`gh auth switch -u conspirafi`). Conventional commits REQUIRED (release-please builds the changelog from them).
+- **GitHub**: https://github.com/itsmemeworks/cuatro (PUBLIC) — gh account `conspirafi` (`gh auth switch -u conspirafi`). Main is protected: NO direct pushes, everything lands via PR with the "Typecheck and test" check green, squash-merged with a Conventional Commit title (release-please cuts the tag + changelog from merged titles; feat/fix bump the version, chore does not).
 - **Decision records**: product decisions log = `../CLAUDE.md`; v1.0 cut line + blessed spec deviations = `V1-READINESS.md`; the shared dev server (:3000) + dev.db are SHARED across concurrent agents — never kill/reseed while others run.
 
 ## Verification bar (non-negotiable, learned the hard way)
