@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, DashedSlot, Fact, Meta, Sheet } from "@/components/ui";
-import { CircleEmblem, circleColour } from "./roster";
+import { CircleEmblem, RosterList, RosterNames, circleColour, type RosterPlayer } from "./roster";
 import { errorCopy } from "@/lib/error-copy";
 
 /**
@@ -19,11 +19,16 @@ export interface BoardCardProps {
   /** Stable seed for the Circle's colour + emblem. Optional: callers without the id fall back to seeding off the name. */
   circleId?: string;
   circleName: string;
+  /** The Circle's explicitly-chosen colour (palette hex) / emblem; null falls back to the deterministic seed colour + name initials. */
+  circleColour?: string | null;
+  circleEmblem?: string | null;
   venueName: string | null;
   whenLabel: string;
   distanceLabel: string;
   levelLine: string;
   slotsOpen: number;
+  /** Who's already confirmed — so the viewer can see who they'd be playing with before asking. */
+  confirmed?: RosterPlayer[];
   initialPending: boolean;
 }
 
@@ -83,14 +88,15 @@ export function BoardCard(props: BoardCardProps) {
 
   const slotsLabel = `${props.slotsOpen} ${props.slotsOpen === 1 ? "spot" : "spots"} open`;
   const colourSeed = props.circleId ?? props.circleName;
+  const confirmed = props.confirmed ?? [];
 
   return (
     <>
       <Card padded={false} className="overflow-hidden flex items-stretch">
-        <span aria-hidden className="w-1.5 shrink-0" style={{ background: circleColour(colourSeed) }} />
+        <span aria-hidden className="w-1.5 shrink-0" style={{ background: circleColour(colourSeed, props.circleColour) }} />
         <div className="flex flex-col gap-2 flex-1 min-w-0 px-3.5 py-3">
         <div className="flex items-start gap-3">
-          <CircleEmblem seed={colourSeed} name={props.circleName} px={20} />
+          <CircleEmblem seed={colourSeed} name={props.circleName} emblem={props.circleEmblem} colour={props.circleColour} px={20} />
           <div className="flex-1 min-w-0">
             <p className="text-cu-card-title text-[15px] truncate">{props.circleName}</p>
             <p className="text-cu-secondary text-ink-muted mt-0.5 truncate">
@@ -108,6 +114,11 @@ export function BoardCard(props: BoardCardProps) {
             <DashedSlot key={`open-${i}`} size="xs" label="" />
           ))}
         </div>
+        {confirmed.length > 0 && (
+          <p className="text-cu-secondary text-ink-muted truncate">
+            <RosterNames players={confirmed} showGlass prefix="with " />
+          </p>
+        )}
         <div className="flex items-center justify-between gap-3">
           <Meta as="p" className="min-w-0 truncate">
             {props.levelLine} · {slotsLabel}
@@ -137,6 +148,14 @@ export function BoardCard(props: BoardCardProps) {
             {props.circleName} · {props.whenLabel}
             {props.venueName ? ` · ${props.venueName}` : ""}
           </p>
+          {confirmed.length > 0 && (
+            <div className="flex flex-col gap-1.5 rounded-button bg-ink-hairline-1 px-3.5 py-3">
+              <Meta as="p" className="uppercase tracking-[0.12em]">
+                Who&apos;s in
+              </Meta>
+              <RosterList players={confirmed} />
+            </div>
+          )}
           <p className="text-cu-secondary text-ink-muted">
             The organiser decides. Nothing about you is shared until they say yes.
           </p>

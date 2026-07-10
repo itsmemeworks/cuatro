@@ -44,7 +44,7 @@ import {
 } from "@cuatro/db";
 import { boundingBox, coarseDistanceLabel, DEFAULT_RADIUS_KM, haversineKm, withinRadius } from "@/lib/geo";
 import { resolvePatch } from "@/server/patch";
-import { boardGames } from "@/server/discovery";
+import { boardGames, type BoardConfirmedPlayer } from "@/server/discovery";
 import { insertNotification } from "@/server/notify";
 import { CircleFullError, NotMemberError, NotOrganiserError, insertCircleMembership } from "@/server/circles";
 import { emitCircleEvent } from "@/lib/realtime/broadcast";
@@ -79,6 +79,8 @@ export interface NearbyCircleOpenGame {
   distanceLabel: string;
   levelLine: string;
   slotsOpen: number;
+  /** Who's already confirmed — so a viewer can see who they'd be playing with before asking. Same public facts The Board exposes. */
+  confirmed: BoardConfirmedPlayer[];
   /** The viewer already has an open ask on this session (card shows "Asked"). */
   viewerHasPendingKnock: boolean;
 }
@@ -387,6 +389,7 @@ export async function nearbyCircles(
       distanceLabel: g.distanceLabel,
       levelLine: g.levelLine,
       slotsOpen: g.slotsOpen,
+      confirmed: g.confirmed,
       viewerHasPendingKnock: g.viewerHasPendingKnock,
     });
     openGamesByCircle.set(g.circleId, list);

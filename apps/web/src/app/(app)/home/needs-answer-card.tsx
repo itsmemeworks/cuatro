@@ -11,6 +11,9 @@ export type NeedsAnswerSession = {
   sessionId: string;
   circleId: string;
   circleName: string;
+  /** The Circle's explicitly-chosen colour (palette hex) / emblem; null falls back to the deterministic seed colour + name initials. */
+  circleColour: string | null;
+  circleEmblem: string | null;
   venueName: string | null;
   startsAt: Date;
   slots: number;
@@ -94,7 +97,7 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
         </Link>
       </div>
       <div className="flex items-center gap-2 mt-2.5">
-        <CircleEmblem seed={session.circleId} name={session.circleName} px={22} />
+        <CircleEmblem seed={session.circleId} name={session.circleName} emblem={session.circleEmblem} colour={session.circleColour} px={22} />
         <p className="text-[11.5px] font-extrabold uppercase tracking-[0.08em] text-ink-on-feature-muted truncate">
           {session.circleName}
         </p>

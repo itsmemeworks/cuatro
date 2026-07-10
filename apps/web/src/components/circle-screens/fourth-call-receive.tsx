@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AvatarStack, Button, Fact, InfoTerm, Meta } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
 import { PresenceTracker } from "@/components/realtime/PresenceTracker";
-import type { SessionCardPlayer } from "@/components/games/SessionCard";
+import { RosterList, type RosterPlayer } from "@/components/games/roster";
 
 function formatCountdown(msRemaining: number): string {
   if (msRemaining <= 0) return "now";
@@ -47,7 +47,7 @@ export function FourthCallReceive({
   circleName: string;
   whenLabel: string;
   venueLabel: string | null;
-  confirmed: SessionCardPlayer[];
+  confirmed: RosterPlayer[];
   /** e.g. "their level 4.20–4.91 · yours 4.62" — null if there's not enough rating data to say. */
   levelMatchLabel: string | null;
   expiresAt: Date;
@@ -132,6 +132,15 @@ export function FourthCallReceive({
         </Meta>
       )}
       {levelMatchLabel && <Fact tone="muted">{levelMatchLabel}</Fact>}
+
+      {confirmed.length > 0 && (
+        <div className="w-full max-w-xs text-left">
+          <Meta as="p" className="uppercase tracking-[0.12em] mb-2">
+            Who&apos;s in
+          </Meta>
+          <RosterList players={confirmed} />
+        </div>
+      )}
 
       {error && <Meta tone="action">{errorCopy(error)}</Meta>}
 

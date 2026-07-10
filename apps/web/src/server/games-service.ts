@@ -874,7 +874,15 @@ export function ensureSessionPlayedTransition(db: CuatroDb, sessionId: string, n
 // Read models for the UI
 // ---------------------------------------------------------------------------
 
-export type PlayerRef = { userId: string; displayName: string; avatarUrl: string | null };
+export type PlayerRef = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  /** Public Glass rating; null while unrated (users.rating stays NULL until the Placement Trio verifies). */
+  rating: number | null;
+  /** Guests have no profile to link to — surfaces render them unlinked but still named. */
+  isGuest: boolean;
+};
 
 export type SessionSummary = {
   session: Session;
@@ -882,6 +890,9 @@ export type SessionSummary = {
   venue: Venue | null;
   circleId: string;
   circleName: string;
+  /** The Circle's explicitly-chosen colour (a palette hex) / emblem; null when the organiser hasn't set one (UI falls back to the deterministic seed colour + name initials). */
+  circleColour: string | null;
+  circleEmblem: string | null;
   slots: number;
   confirmed: PlayerRef[];
   reserves: PlayerRef[]; // ordered by position
@@ -923,6 +934,8 @@ export function getSessionSummary(
       userId: users.id,
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
+      rating: users.rating,
+      isGuest: users.isGuest,
     })
     .from(rsvps)
     .innerJoin(users, eq(rsvps.userId, users.id))
@@ -951,6 +964,8 @@ export function getSessionSummary(
     venue,
     circleId: session.circleId,
     circleName: circle?.name ?? "",
+    circleColour: circle?.colour ?? null,
+    circleEmblem: circle?.emblem ?? null,
     slots,
     confirmed,
     reserves,
@@ -962,8 +977,20 @@ export function getSessionSummary(
   };
 }
 
-function toPlayerRef(row: { userId: string; displayName: string; avatarUrl: string | null }): PlayerRef {
-  return { userId: row.userId, displayName: row.displayName, avatarUrl: row.avatarUrl };
+function toPlayerRef(row: {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rating: number | null;
+  isGuest: boolean;
+}): PlayerRef {
+  return {
+    userId: row.userId,
+    displayName: row.displayName,
+    avatarUrl: row.avatarUrl,
+    rating: row.rating,
+    isGuest: row.isGuest,
+  };
 }
 
 /** Live view condition for the "Fourth Call" banner — independent of whether the notification has fired. */

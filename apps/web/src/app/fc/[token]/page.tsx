@@ -7,6 +7,7 @@ import { parseRing3ClaimToken } from "@/server/fourth-call";
 import { getGuestUserId, GUEST_PLACEHOLDER_NAME } from "@/server/guest";
 import { getMatchesStore } from "@/server/matches-db";
 import { AvatarStack, Meta } from "@/components/ui";
+import { RosterList } from "@/components/games/roster";
 import { FourthCallLinkClaim } from "@/components/circle-screens/fourth-call-link-claim";
 import { GuestClaimFlow, type GuestFlowInitial } from "@/components/entry/guest-claim-flow";
 import { PresenceTracker } from "@/components/realtime/PresenceTracker";
@@ -152,6 +153,16 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
             </div>
             {levelMatchLabel && <Meta as="p">{levelMatchLabel}</Meta>}
           </div>
+
+          {summary.confirmed.length > 0 && (
+            <div className="w-full max-w-xs text-left">
+              <Meta as="p" className="uppercase tracking-[0.12em] mb-2">
+                Who&apos;s in
+              </Meta>
+              {/* Signed-in branch only (the guest flow renders separately) — profile links resolve for this viewer. */}
+              <RosterList players={summary.confirmed} />
+            </div>
+          )}
 
           <div className="w-full max-w-xs">
             {alreadyIn ? (

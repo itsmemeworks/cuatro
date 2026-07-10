@@ -71,6 +71,8 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
     sessionId: s.session.id,
     circleId: s.circleId,
     circleName: s.circleName,
+    circleColour: s.circleColour,
+    circleEmblem: s.circleEmblem,
     venueName: s.venue?.name ?? null,
     startsAt: s.session.startsAt,
     slots: s.slots,

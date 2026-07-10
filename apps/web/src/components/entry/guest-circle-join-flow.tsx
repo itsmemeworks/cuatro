@@ -212,7 +212,8 @@ export function GuestCircleJoinFlow({
                 <div className="flex items-center gap-2.5 mb-3.5">
                   <AvatarStack people={nextGame.confirmedPeople} size="sm" ring="surface-feature" max={3} />
                   <p className="text-[11px] leading-[1.4] text-ink-on-feature-muted flex-1">
-                    {nextGame.confirmedPeople.length === 1 ? "1 player in" : `${nextGame.confirmedPeople.length} players in`}
+                    {/* Names, not just a count, so you know who you'd be playing with. Plain text: this is logged-out. */}
+                    with {nextGame.confirmedPeople.map((p) => p.name.split(" ")[0]).join(", ")}
                   </p>
                 </div>
               )}

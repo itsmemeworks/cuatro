@@ -17,6 +17,15 @@ export interface CirclePreviewMemberData {
   role: "organiser" | "member";
 }
 
+/** A confirmed slot-holder shown on an invite-only Circle's open game; mirrors server/discovery.ts's BoardConfirmedPlayer. */
+export interface NearbyCircleConfirmedPlayer {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rating: number | null;
+  isGuest: boolean;
+}
+
 /** One open game an invite-only Circle carries; mirrors server/open-door.ts's NearbyCircleOpenGame. */
 export interface NearbyCircleOpenGameData {
   sessionId: string;
@@ -25,6 +34,7 @@ export interface NearbyCircleOpenGameData {
   distanceLabel: string;
   levelLine: string;
   slotsOpen: number;
+  confirmed: NearbyCircleConfirmedPlayer[];
   viewerHasPendingKnock: boolean;
 }
 
@@ -291,12 +301,16 @@ function InviteOnlyCircleCard({ data, showGlassInfo }: { data: NearbyCircleData;
 
   const boardProps = (g: NearbyCircleOpenGameData): BoardCardProps => ({
     sessionId: g.sessionId,
+    circleId: data.circleId,
     circleName: data.name,
+    circleColour: data.colour,
+    circleEmblem: data.emblem,
     venueName: g.venueName,
     whenLabel: whenLabelFor(g.startsAtMs),
     distanceLabel: g.distanceLabel,
     levelLine: g.levelLine,
     slotsOpen: g.slotsOpen,
+    confirmed: g.confirmed,
     initialPending: g.viewerHasPendingKnock,
   });
 

@@ -11,12 +11,19 @@ export type SessionCardPlayer = {
   userId: string;
   displayName: string;
   avatarUrl: string | null;
+  /** Public Glass rating; null while unrated, undefined when the surface doesn't carry it. */
+  rating?: number | null;
+  /** Guests have no profile to link to. */
+  isGuest?: boolean;
 };
 
 export type SessionCardData = {
   sessionId: string;
   circleId: string;
   circleName: string;
+  /** The Circle's explicitly-chosen colour (palette hex) / emblem; null falls back to the deterministic seed colour + name initials. */
+  circleColour: string | null;
+  circleEmblem: string | null;
   venueName: string | null;
   /** UTC instant. */
   startsAt: Date;
@@ -182,7 +189,7 @@ export function SessionCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <CircleEmblem seed={data.circleId} name={data.circleName} px={18} />
+            <CircleEmblem seed={data.circleId} name={data.circleName} emblem={data.circleEmblem} colour={data.circleColour} px={18} />
             <Meta as="p">{data.circleName}</Meta>
           </div>
           <p className="text-cu-card-title text-ink mt-0.5">

@@ -37,6 +37,8 @@ export function StandingGameWeekCard({
   sessionId,
   circleId,
   circleName,
+  circleColour: circleColourProp,
+  circleEmblem,
   weekLabel,
   slots,
   confirmed,
@@ -57,6 +59,9 @@ export function StandingGameWeekCard({
   /** Circle identity for the header emblem + colour accent (never coral). */
   circleId: string;
   circleName: string;
+  /** The Circle's explicitly-chosen colour (palette hex) / emblem; null falls back to the deterministic seed colour + name initials. */
+  circleColour?: string | null;
+  circleEmblem?: string | null;
   weekLabel: string;
   slots: number;
   confirmed: SessionCardPlayer[];
@@ -136,9 +141,9 @@ export function StandingGameWeekCard({
     <>
       <Card padded={false} className="overflow-hidden">
         {/* Circle-colour accent along the top — identity, not action. */}
-        <span aria-hidden className="block h-1" style={{ background: circleColour(circleId) }} />
+        <span aria-hidden className="block h-1" style={{ background: circleColour(circleId, circleColourProp) }} />
         <div className="flex items-center gap-2.5 px-4 py-3 bg-ink-hairline-1">
-          <CircleEmblem seed={circleId} name={circleName} px={28} />
+          <CircleEmblem seed={circleId} name={circleName} emblem={circleEmblem} colour={circleColourProp} px={28} />
           <div className="flex-1 min-w-0">
             <p className="text-cu-card-title text-ink truncate">{circleName}</p>
             <p className="text-cu-meta text-ink-muted">This week · {weekLabel}</p>

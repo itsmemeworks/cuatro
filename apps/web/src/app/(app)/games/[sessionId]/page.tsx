@@ -270,6 +270,8 @@ export default async function SessionDetailPage({
           sessionId={sessionId}
           circleId={summary.circleId}
           circleName={summary.circleName}
+          circleColour={summary.circleColour}
+          circleEmblem={summary.circleEmblem}
           weekLabel={summary.session.startsAt.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
           slots={summary.slots}
           confirmed={summary.confirmed}

@@ -10,7 +10,7 @@ import { formatMoney } from "@/components/tab/money";
 import { type SessionCardData } from "@/components/games/SessionCard";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { Card, Avatar, Meta, Fact } from "@/components/ui";
-import { CircleEmblem, RosterStack, circleColour } from "@/components/games/roster";
+import { CircleEmblem, RosterNames, RosterStack, circleColour } from "@/components/games/roster";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { NeedsAnswerCard, type NeedsAnswerSession } from "./needs-answer-card";
 import { FourthCallCard, type FourthCallHomeSession } from "./fourth-call-card";
@@ -102,7 +102,7 @@ function GameRow({ session }: { session: SessionCardData }) {
     <Link href={`/games/${session.sessionId}`} className="block">
       {/* padded={false} so the Circle-colour edge strip runs the full height flush to the card edge; the row pads itself. */}
       <Card padded={false} className="overflow-hidden flex items-stretch">
-        <span aria-hidden className="w-1.5 shrink-0" style={{ background: circleColour(session.circleId) }} />
+        <span aria-hidden className="w-1.5 shrink-0" style={{ background: circleColour(session.circleId, session.circleColour) }} />
         <div className="flex items-center gap-3 flex-1 min-w-0 px-3.5 py-3">
           <div className="w-11 text-center shrink-0">
             <p className="text-cu-card-title text-[15px] leading-none">{dayLabel}</p>
@@ -112,7 +112,7 @@ function GameRow({ session }: { session: SessionCardData }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <CircleEmblem seed={session.circleId} name={session.circleName} px={20} />
+              <CircleEmblem seed={session.circleId} name={session.circleName} emblem={session.circleEmblem} colour={session.circleColour} px={20} />
               <p className="text-cu-card-title text-[13px] truncate">
                 {session.circleName}
                 {session.venueName ? ` · ${session.venueName}` : ""}
@@ -125,6 +125,12 @@ function GameRow({ session }: { session: SessionCardData }) {
                 {reserveCount > 0 ? ` · ${reserveCount} waiting` : ""}
               </span>
             </div>
+            {session.confirmed.length > 0 && (
+              <p className="text-cu-secondary text-ink-muted truncate mt-1">
+                {/* linkPlayers off: the whole row is already a Link, so nested profile anchors would be invalid HTML. */}
+                <RosterNames players={session.confirmed} firstNameOnly linkPlayers={false} prefix="with " />
+              </p>
+            )}
           </div>
           {session.viewerStatus === "in" && (
             <span className="rounded-chip px-2.5 py-1.5 text-[10.5px] font-bold bg-win-tint text-win whitespace-nowrap">You&apos;re in ✓</span>
@@ -179,6 +185,8 @@ function toSessionCardData(s: SessionSummary): SessionCardData {
     sessionId: s.session.id,
     circleId: s.circleId,
     circleName: s.circleName,
+    circleColour: s.circleColour,
+    circleEmblem: s.circleEmblem,
     venueName: s.venue?.name ?? null,
     startsAt: s.session.startsAt,
     slots: s.slots,
@@ -234,6 +242,8 @@ export default async function HomePage() {
         sessionId: featured.session.id,
         circleId: featured.circleId,
         circleName: featured.circleName,
+        circleColour: featured.circleColour,
+        circleEmblem: featured.circleEmblem,
         venueName: featured.venue?.name ?? null,
         startsAt: featured.session.startsAt,
         slots: featured.slots,
@@ -354,6 +364,8 @@ export default async function HomePage() {
     sessionId: g.sessionId,
     circleId: g.circleId,
     circleName: g.circleName,
+    circleColour: g.circleColour,
+    circleEmblem: g.circleEmblem,
     venueName: g.venueName,
     whenLabel: g.startsAt.toLocaleString("en-GB", {
       weekday: "short",
@@ -365,6 +377,7 @@ export default async function HomePage() {
     distanceLabel: g.distanceLabel,
     levelLine: g.levelLine,
     slotsOpen: g.slotsOpen,
+    confirmed: g.confirmed,
     initialPending: g.viewerHasPendingKnock,
   }));
 

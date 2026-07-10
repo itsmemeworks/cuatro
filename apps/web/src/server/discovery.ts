@@ -61,15 +61,29 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // The Board — read model
 // ---------------------------------------------------------------------------
 
+/** A confirmed slot-holder as a Board card shows them — the same public facts every other surface uses; guests included but flagged so the UI leaves them unlinked. */
+export interface BoardConfirmedPlayer {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rating: number | null;
+  isGuest: boolean;
+}
+
 export interface BoardGame {
   sessionId: string;
   circleId: string;
   circleName: string;
+  /** The Circle's explicitly-chosen colour (palette hex) / emblem; null when unset (UI falls back to the deterministic seed colour + name initials). */
+  circleColour: string | null;
+  circleEmblem: string | null;
   venueName: string | null;
   startsAt: Date;
   slots: number;
   slotsOpen: number;
   confirmedCount: number;
+  /** Who's already in — so a viewer deciding whether to ask can see who they'd be playing with. Ordered by RSVP arrival. */
+  confirmed: BoardConfirmedPlayer[];
   /** Coarse, privacy-preserving distance label (never a raw km/coord). */
   distanceLabel: string;
   /** One warm line about who's already in — a Glass range, "mixed", or "levels still forming". */
@@ -143,6 +157,8 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
       sessionId: sessions.id,
       circleId: sessions.circleId,
       circleName: circles.name,
+      circleColour: circles.colour,
+      circleEmblem: circles.emblem,
       startsAt: sessions.startsAt,
       standingGameId: sessions.standingGameId,
       venueName: venues.name,
@@ -180,11 +196,29 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
     if (now.getTime() < windowOpensAt) continue; // RSVP window not open yet
 
     const confirmed = db
-      .select({ rating: users.rating })
+      .select({
+        userId: users.id,
+        displayName: users.displayName,
+        avatarUrl: users.avatarUrl,
+        rating: users.rating,
+        isGuest: users.isGuest,
+        respondedAt: rsvps.respondedAt,
+      })
       .from(rsvps)
       .innerJoin(users, eq(users.id, rsvps.userId))
       .where(and(eq(rsvps.sessionId, row.sessionId), eq(rsvps.status, "in")))
       .all();
+    // Slots fill (and display) in RSVP arrival order — same sort getSessionSummary uses.
+    const confirmedPlayers: BoardConfirmedPlayer[] = confirmed
+      .slice()
+      .sort((a, b) => (a.respondedAt?.getTime() ?? 0) - (b.respondedAt?.getTime() ?? 0))
+      .map((c) => ({
+        userId: c.userId,
+        displayName: c.displayName,
+        avatarUrl: c.avatarUrl,
+        rating: c.rating,
+        isGuest: c.isGuest,
+      }));
     const slots = slotsForSession(standingGame);
     const slotsOpen = slots - confirmed.length;
     if (slotsOpen <= 0) continue; // full — nothing to ask for
@@ -193,11 +227,14 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
       sessionId: row.sessionId,
       circleId: row.circleId,
       circleName: row.circleName,
+      circleColour: row.circleColour,
+      circleEmblem: row.circleEmblem,
       venueName: row.venueName,
       startsAt: row.startsAt,
       slots,
       slotsOpen,
       confirmedCount: confirmed.length,
+      confirmed: confirmedPlayers,
       distanceLabel: coarseDistanceLabel(km),
       levelLine: levelLineFor(confirmed.map((c) => c.rating)),
       viewerHasPendingKnock: pendingKnockTargets.has(row.sessionId),
