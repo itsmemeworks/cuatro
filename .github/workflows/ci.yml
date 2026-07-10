@@ -8,6 +8,10 @@ on:
 jobs:
   build-test:
     name: Typecheck and test
+    # Release-please PRs only bump versions/changelog over commits that were
+    # each tested on their own PR — skip the duplicate run. A skipped required
+    # check satisfies branch protection.
+    if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
