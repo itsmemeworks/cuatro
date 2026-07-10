@@ -423,6 +423,53 @@ describe("result entry + Glass verification flow", () => {
   });
 });
 
+describe("one match per session (v1 audit blocker B1)", () => {
+  let store: MatchesStore;
+  let db: CuatroDb;
+
+  beforeEach(() => {
+    store = createMatchesStore(":memory:");
+    db = store.db;
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  it("a second record for the same session throws MatchAlreadyRecordedError pointing at the first match", async () => {
+    const alex = insertUser(db, "alex@example.com", "Alex");
+    const priya = insertUser(db, "priya@example.com", "Priya");
+    const jordan = insertUser(db, "jordan@example.com", "Jordan");
+    const kwame = insertUser(db, "kwame@example.com", "Kwame");
+    const sessionId = insertCircleAndSession(db, alex.id, new Date(Date.now() - DAY_MS));
+
+    const { matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: alex.id,
+      teamA: [alex.id, priya.id],
+      teamB: [jordan.id, kwame.id],
+      sets: [{ a: 6, b: 3 }],
+    });
+
+    // A different reporter recording the SAME game must not mint a duplicate
+    // (both sealing would double-run Glass and push Reliability past 100%).
+    await expect(
+      store.recordMatch({
+        sessionId,
+        reporterId: jordan.id,
+        teamA: [jordan.id, kwame.id],
+        teamB: [alex.id, priya.id],
+        sets: [{ a: 6, b: 3 }],
+      }),
+    ).rejects.toMatchObject({ name: "MatchAlreadyRecordedError", existingMatchId: matchId });
+
+    // Exactly one match exists, and no second team-A auto-confirmation or
+    // guest/user rows leaked from the rejected attempt.
+    const all = await db.select().from(matches);
+    expect(all).toHaveLength(1);
+  });
+});
+
 describe("substitutes at result entry — record who PLAYED, not who RSVP'd", () => {
   let store: MatchesStore;
   let db: CuatroDb;

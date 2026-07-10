@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/session";
-import { getMatchesStore, type PendingGuest } from "@/server/matches-db";
+import { getMatchesStore, MatchAlreadyRecordedError, type PendingGuest } from "@/server/matches-db";
 import type { SetScore } from "@cuatro/db";
 
 /**
@@ -69,15 +69,27 @@ export async function recordMatchAction(formData: FormData): Promise<void> {
   const newGuests = parseGuests(formData);
 
   const store = await getMatchesStore();
-  const { matchId } = await store.recordMatch({
-    sessionId,
-    reporterId: user.id,
-    teamA: [teamA1, teamA2],
-    teamB: [teamB1, teamB2],
-    sets,
-    outcome: retired ? "retired" : "completed",
-    newGuests,
-  });
+  let matchId: string;
+  try {
+    ({ matchId } = await store.recordMatch({
+      sessionId,
+      reporterId: user.id,
+      teamA: [teamA1, teamA2],
+      teamB: [teamB1, teamB2],
+      sets,
+      outcome: retired ? "retired" : "completed",
+      newGuests,
+    }));
+  } catch (err) {
+    // One match per session: if someone beat this reporter to it, send them
+    // to the existing result to confirm it instead of minting a duplicate
+    // (which would double-run Glass and Reliability).
+    if (err instanceof MatchAlreadyRecordedError) {
+      revalidatePath("/home");
+      redirect(`/matches/${err.existingMatchId}?already=1`);
+    }
+    throw err;
+  }
 
   revalidatePath("/home");
   redirect(`/matches/${matchId}`);

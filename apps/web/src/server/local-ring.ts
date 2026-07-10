@@ -66,7 +66,7 @@ type CandidateRow = {
 };
 
 function reliabilityOf(row: { showUpCount: number; rsvpInCount: number }): number | null {
-  return row.rsvpInCount > 0 ? row.showUpCount / row.rsvpInCount : null;
+  return row.rsvpInCount > 0 ? Math.min(1, row.showUpCount / row.rsvpInCount) : null;
 }
 
 /**

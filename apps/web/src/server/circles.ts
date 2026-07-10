@@ -589,7 +589,7 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         joinedAt: row.joinedAt,
         rating: row.rating,
         confidence: row.confidence,
-        reliability: row.rsvpInCount > 0 ? row.showUpCount / row.rsvpInCount : null,
+        reliability: row.rsvpInCount > 0 ? Math.min(1, row.showUpCount / row.rsvpInCount) : null,
         verifiedMatchCount: row.verifiedMatchCount,
       }));
 

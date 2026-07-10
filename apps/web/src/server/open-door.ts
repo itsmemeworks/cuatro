@@ -520,7 +520,7 @@ export async function circleKnocks(db: CuatroDb, circleId: string, requestingUse
       displayName: row.displayName,
       avatarUrl: row.avatarUrl,
       rating: row.rating,
-      reliability: row.rsvpInCount > 0 ? row.showUpCount / row.rsvpInCount : null,
+      reliability: row.rsvpInCount > 0 ? Math.min(1, row.showUpCount / row.rsvpInCount) : null,
       distanceLabel,
       message: row.message,
       createdAt: row.createdAt,

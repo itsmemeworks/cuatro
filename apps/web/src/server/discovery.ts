@@ -305,7 +305,7 @@ export async function sessionKnocks(db: CuatroDb, sessionId: string): Promise<Se
       displayName: r.displayName,
       avatarUrl: r.avatarUrl,
       rating: r.rating,
-      reliabilityPct: r.rsvpInCount > 0 ? Math.round((r.showUpCount / r.rsvpInCount) * 100) : null,
+      reliabilityPct: r.rsvpInCount > 0 ? Math.min(100, Math.round((r.showUpCount / r.rsvpInCount) * 100)) : null,
       lateCancelCount: r.lateCancelCount,
       distanceLabel,
     });

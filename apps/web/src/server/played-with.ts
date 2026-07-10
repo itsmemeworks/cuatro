@@ -195,7 +195,7 @@ export async function playedWithCandidates(
         displayName: u.displayName,
         avatarUrl: u.avatarUrl,
         rating: u.rating,
-        reliability: u.rsvpInCount > 0 ? u.showUpCount / u.rsvpInCount : null,
+        reliability: u.rsvpInCount > 0 ? Math.min(1, u.showUpCount / u.rsvpInCount) : null,
         sharedMatchCount: a.count,
         lastPlayedWithMs: a.lastMs,
         lastPlayedWithLabel: playedWithLabel(a.count, a.lastMs, now),

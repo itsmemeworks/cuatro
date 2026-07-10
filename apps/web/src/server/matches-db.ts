@@ -119,6 +119,17 @@ export interface RecordMatchInput {
   newGuests?: PendingGuest[];
 }
 
+/** Thrown when a session already has a live (non-void) match — one game, one record. The second reporter should land on the existing match to confirm it, not mint a duplicate. */
+export class MatchAlreadyRecordedError extends Error {
+  constructor(
+    public readonly existingMatchId: string,
+    public readonly existingStatus: string,
+  ) {
+    super("This game's result has already been recorded");
+    this.name = "MatchAlreadyRecordedError";
+  }
+}
+
 export type ConfirmOutcome =
   | { status: "pending_confirmation"; alreadyFinal: false }
   | { status: "verified"; alreadyFinal: boolean; ledgerEvents?: readonly LedgerEvent[] }
@@ -624,6 +635,19 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
       let createdMatch: Match | undefined;
       const result = db.transaction((tx) => {
+        // ONE match per session (v1 audit blocker B1): without this guard two
+        // players can each record the same game, both get sealed, and Glass +
+        // Reliability double-count (verified live: 109% reliability). The
+        // check lives INSIDE the synchronous transaction so the classic race
+        // (both open the form, both submit) cannot interleave past it. A
+        // voided match doesn't block a re-record.
+        const existing = tx
+          .select({ id: matches.id, status: matches.status })
+          .from(matches)
+          .where(eq(matches.sessionId, input.sessionId))
+          .all()
+          .find((m) => m.status !== "void");
+        if (existing) throw new MatchAlreadyRecordedError(existing.id, existing.status);
         // Mint a guest `users` row per named substitute — same shape as
         // server/guest.ts's insertGuestUser (isGuest, no email, Circle's
         // country), but with the name already known so no placeholder/name
@@ -803,7 +827,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user) return null;
 
-      const reliabilityPct = user.rsvpInCount > 0 ? Math.round((user.showUpCount / user.rsvpInCount) * 100) : null;
+      const reliabilityPct = user.rsvpInCount > 0 ? Math.min(100, Math.round((user.showUpCount / user.rsvpInCount) * 100)) : null;
 
       return {
         displayName: user.displayName,
