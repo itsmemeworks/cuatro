@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { rsvps, sessions, standingGames, users } from "@cuatro/db";
+import { notifications, rsvps, sessions, standingGames, users, venues } from "@cuatro/db";
 import { seedCircle, type Fixture } from "./support/games-fixtures";
 import {
   DEFAULT_SESSION_DURATION_MINUTES,
@@ -11,9 +11,11 @@ import {
   ensureUpcomingSessionForStandingGame,
   ensureUpcomingSessionsForCircle,
   getSessionSummary,
+  rescheduleUpcomingSessionsForStandingGame,
   rsvpIn,
   rsvpOut,
 } from "@/server/games-service";
+import { updateStandingGame } from "@/server/standing-games-service";
 import { __setRealtimeSenderForTests } from "@/lib/realtime/broadcast";
 import { circleChannel, sessionChannel } from "@/lib/realtime/channels";
 
@@ -718,5 +720,108 @@ describe("standing-game cost read model (design/DESIGN-AUDIT.md F4)", () => {
     const summary = getSessionSummary(fixture.db, created.value.id, fixture.organiserId);
     expect(summary?.costMinor).toBeNull();
     expect(summary?.costPerHeadMinor).toBeNull();
+  });
+});
+
+describe("rescheduleUpcomingSessionsForStandingGame", () => {
+  const SUNDAY = new Date("2026-01-04T00:00:00.000Z"); // within the default 6-day RSVP window of the Tue session
+
+  it("moves the materialised session to the new day and tells every RSVP'd player once", () => {
+    fixture = seedCircle({ memberCount: 2, standingGame: { weekday: 2, startTime: "20:00" } }); // Tuesday
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+    expect(session.startsAt.toISOString()).toBe("2026-01-06T20:00:00.000Z"); // Tue 6 Jan
+    rsvpIn(fixture.db, session.id, fixture.organiserId, SUNDAY);
+    rsvpIn(fixture.db, session.id, fixture.memberIds[0], SUNDAY);
+
+    // Organiser moves the fixture to Saturday, then the edit reschedules.
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { weekday: 6 });
+    const result = rescheduleUpcomingSessionsForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+
+    // Same session row moved (RSVPs ride along), no duplicate minted.
+    const moved = fixture.db.select().from(sessions).where(eq(sessions.id, session.id)).get();
+    expect(moved?.startsAt.toISOString()).toBe("2026-01-10T20:00:00.000Z"); // Sat 10 Jan
+    const all = fixture.db.select().from(sessions).where(eq(sessions.standingGameId, fixture.standingGameId!)).all();
+    expect(all).toHaveLength(1);
+
+    expect(result.movedSessionIds).toEqual([session.id]);
+    expect(result.notifiedUserIds.sort()).toEqual([fixture.organiserId, fixture.memberIds[0]].sort());
+    // A four of 4 with only 2 in never fired a fill notification, so every
+    // session_rescheduled: the dedicated move notice, one per RSVP'd player.
+    const notifs = fixture.db.select().from(notifications).where(eq(notifications.type, "session_rescheduled")).all();
+    expect(notifs).toHaveLength(2);
+    expect(notifs.every((n) => (n.payload as { sessionId: string }).sessionId === session.id)).toBe(true);
+  });
+
+  it("notifies reserve players too, not just held slots", () => {
+    fixture = seedCircle({ memberCount: 2, standingGame: { weekday: 2, startTime: "20:00", slots: 2 } });
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, SUNDAY); // in
+    rsvpIn(fixture.db, session.id, fixture.memberIds[0], SUNDAY); // in (fills the two slots)
+    const reserve = rsvpIn(fixture.db, session.id, fixture.memberIds[1], SUNDAY); // reserve
+    expect(reserve).toMatchObject({ ok: true, status: "reserve" });
+
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { weekday: 6 });
+    const result = rescheduleUpcomingSessionsForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+
+    expect(result.notifiedUserIds.sort()).toEqual(
+      [fixture.organiserId, fixture.memberIds[0], fixture.memberIds[1]].sort(),
+    );
+  });
+
+  it("follows a venue change even when the day and time are unchanged", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, SUNDAY);
+
+    const newVenue = fixture.db.insert(venues).values({ name: "Other Court", timezone: "Europe/London" }).returning().get();
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { venueId: newVenue.id });
+    const result = rescheduleUpcomingSessionsForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+
+    const moved = fixture.db.select().from(sessions).where(eq(sessions.id, session.id)).get();
+    expect(moved?.venueId).toBe(newVenue.id);
+    expect(moved?.startsAt.toISOString()).toBe("2026-01-06T20:00:00.000Z"); // slot unchanged
+    expect(result.movedSessionIds).toEqual([session.id]);
+    expect(result.notifiedUserIds).toEqual([fixture.organiserId]);
+  });
+
+  it("is a no-op for an edit that leaves the slot and venue alone (e.g. a cost-only change)", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    const session = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+    rsvpIn(fixture.db, session.id, fixture.organiserId, SUNDAY);
+
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 3200 });
+    const result = rescheduleUpcomingSessionsForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+
+    expect(result.movedSessionIds).toEqual([]);
+    expect(result.notifiedUserIds).toEqual([]);
+    const still = fixture.db.select().from(sessions).where(eq(sessions.id, session.id)).get();
+    expect(still?.startsAt.toISOString()).toBe("2026-01-06T20:00:00.000Z");
+    const notifs = fixture.db.select().from(notifications).where(eq(notifications.type, "session_rescheduled")).all();
+    expect(notifs).toHaveLength(0);
+  });
+
+  it("never moves a past or played session", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    // A played instance from the previous week must stay put.
+    const past = fixture.db
+      .insert(sessions)
+      .values({
+        standingGameId: fixture.standingGameId!,
+        circleId: fixture.circleId,
+        venueId: fixture.venueId,
+        startsAt: new Date("2025-12-30T20:00:00.000Z"), // prev Tue, already played
+        status: "played",
+      })
+      .returning()
+      .get();
+    const upcoming = ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { weekday: 6 });
+    const result = rescheduleUpcomingSessionsForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+
+    const pastAfter = fixture.db.select().from(sessions).where(eq(sessions.id, past.id)).get();
+    expect(pastAfter?.startsAt.toISOString()).toBe("2025-12-30T20:00:00.000Z");
+    expect(pastAfter?.status).toBe("played");
+    expect(result.movedSessionIds).toEqual([upcoming.id]);
   });
 });

@@ -43,8 +43,21 @@ function serializeMessages(messages: CircleMessageView[]): ChatMessage[] {
   return messages.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }));
 }
 
-export default async function CircleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+/** Tabs CircleTabs understands — the deep-link `?tab=` param is validated against this before it's threaded through (an unknown value falls back to Feed). */
+const CIRCLE_TABS = ["feed", "chat", "members", "settings"] as const;
+type CircleTab = (typeof CIRCLE_TABS)[number];
+
+export default async function CircleDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
   const { id } = await params;
+  const { tab: tabParam } = await searchParams;
+  const rawTab = Array.isArray(tabParam) ? tabParam[0] : tabParam;
+  const initialTab: CircleTab = CIRCLE_TABS.includes(rawTab as CircleTab) ? (rawTab as CircleTab) : "feed";
   const user = await getSessionUser();
   if (!user) return null; // the (app) layout already redirects unauthenticated users to /login
 
@@ -237,6 +250,7 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           venueOptions={venueOptions}
           pendingKnocks={pendingKnocks}
           feedItems={feedItems}
+          initialTab={initialTab}
           rivalry={
             rivalry
               ? {

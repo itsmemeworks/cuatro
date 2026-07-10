@@ -36,7 +36,7 @@ export type SessionCardData = {
   fourthCallActive: boolean;
 };
 
-function formatCountdown(msRemaining: number): string {
+export function formatCountdown(msRemaining: number): string {
   if (msRemaining <= 0) return "now";
   const totalMinutes = Math.floor(msRemaining / 60_000);
   const days = Math.floor(totalMinutes / (60 * 24));

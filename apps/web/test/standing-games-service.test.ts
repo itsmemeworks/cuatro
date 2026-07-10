@@ -137,6 +137,29 @@ describe("updateStandingGame", () => {
     expect(result.value.costCurrency).toBe("EUR");
   });
 
+  it("preserves an existing cost when the edit doesn't submit one (design/DESIGN-AUDIT.md F4)", () => {
+    // Silent data loss guard (v1 audit, journeys finding 1): an edit that
+    // omits costMinor must never null an already-set cost, or the Tab split
+    // gated on that cost would be permanently disabled.
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 3200 });
+
+    const afterUnrelatedEdit = updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { slots: 6 });
+    if (!afterUnrelatedEdit.ok) throw new Error("unreachable");
+    expect(afterUnrelatedEdit.value.slots).toBe(6);
+    expect(afterUnrelatedEdit.value.costMinor).toBe(3200);
+    expect(afterUnrelatedEdit.value.costCurrency).toBe("GBP");
+  });
+
+  it("clears a cost only when an empty cost is explicitly submitted", () => {
+    fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 3200 });
+
+    const cleared = updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: null });
+    if (!cleared.ok) throw new Error("unreachable");
+    expect(cleared.value.costMinor).toBeNull();
+  });
+
   it("edits the resolved venue's address without needing to re-supply its name", () => {
     fixture = seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
     // seedCircle's venue has no address yet.

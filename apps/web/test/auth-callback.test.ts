@@ -188,6 +188,41 @@ describe("GET /auth/callback", () => {
     );
   });
 
+  it("a second user on the same device (their id not in the prompted cookie) is still routed through /welcome/name", async () => {
+    // The prompted cookie already records a DIFFERENT account (the first
+    // sign-up on this device). Because the flag is account-scoped, the new
+    // derived-name user must still get the step — the device-scoped bug was
+    // that this cookie silently skipped them.
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-second", email: "dana@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-second", email: "dana@example.com", displayName: "dana" });
+
+    const res = await GET(callbackRequest("?code=abc", { cuatro_named: "resolved-first" }));
+
+    expect(res.headers.get("location")).toBe(
+      `https://cuatro.fly.dev/welcome/name?next=${encodeURIComponent("/home")}`,
+    );
+  });
+
+  it("a returning user whose id IS in the prompted cookie skips the step (even with a still-derived name)", async () => {
+    // Same-account-same-device: they saw the step once (chose to skip, so the
+    // name is still derived). The account's id is in the cookie, so we never
+    // re-prompt — the never-nag-twice guarantee, now keyed on the account.
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-return", email: "sam@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-return", email: "sam@example.com", displayName: "sam" });
+
+    const res = await GET(
+      callbackRequest("?code=abc", { cuatro_named: "resolved-other,resolved-return" }),
+    );
+
+    expect(res.headers.get("location")).toBe("https://cuatro.fly.dev/home");
+  });
+
   it("a converting guest's carried name suppresses the /welcome/name step (F6 conversion fix)", async () => {
     exchangeCodeForSession.mockResolvedValue({
       data: { user: { id: "sb-carry", email: "pete@example.com", user_metadata: {} } },

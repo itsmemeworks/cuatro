@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "./games-db";
 import { createStandingGame, updateStandingGame } from "./standing-games-service";
+import { rescheduleUpcomingSessionsForStandingGame } from "./games-service";
+import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 import { resolveSubmittedVenue, type VenueResolution } from "./venues";
 import { geocodeVenueById } from "./geocode";
 import { parseAmountToMinor } from "@/components/tab/money";
@@ -108,7 +110,22 @@ export async function updateStandingGameAction(id: string, formData: FormData): 
     costMinor: parseCostField(formData.get("costAmount")),
   });
 
-  if (result.ok) await geocodeResolvedVenue(client, result.value.venueId);
+  if (result.ok) {
+    await geocodeResolvedVenue(client, result.value.venueId);
+
+    // A day/time (or venue) change leaves the already-materialised next
+    // session on its old slot — move it and tell anyone who RSVP'd (v1 audit,
+    // journeys finding 5). No-op for edits that don't touch the slot/venue
+    // (e.g. a cost-only change). Realtime signals fire AFTER the reschedule
+    // transaction commits, per lib/realtime/broadcast.ts's contract.
+    const reschedule = rescheduleUpcomingSessionsForStandingGame(db, id);
+    if (reschedule.circleId && reschedule.movedSessionIds.length > 0) {
+      for (const movedId of reschedule.movedSessionIds) {
+        emitSessionEvent(movedId, "rsvp", { circleId: reschedule.circleId });
+      }
+      emitCircleEvent(reschedule.circleId, "rsvp", { sessionIds: reschedule.movedSessionIds });
+    }
+  }
 
   revalidatePath("/games/standing");
   revalidatePath(`/games/standing/${id}`);

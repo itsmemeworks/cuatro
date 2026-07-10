@@ -58,6 +58,7 @@ export type NotificationInput =
       type: "tab_nudge";
       payload: { circleId: string; tabEntryId: string; amountMinor: number; currency: string };
     }
+  | { type: "session_rescheduled"; payload: { sessionId: string } }
   | { type: "knock_received"; payload: { knockId: string; kind: "circle" | "session"; targetId: string; userId: string } }
   | { type: "knock_accepted"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } }
   | { type: "knock_declined"; payload: { knockId: string; kind: "circle" | "session"; targetId: string } };
@@ -189,6 +190,15 @@ export function renderNotificationCopy(tx: CuatroDb, input: NotificationInput): 
         body: `${input.payload.currency} ${amount} outstanding on the Tab. Settle when you can.`,
       };
     }
+    case "session_rescheduled": {
+      const ctx = sessionContext(tx, input.payload.sessionId);
+      return {
+        title: "Your game moved",
+        body: ctx
+          ? `${ctx.circleName}'s game is now ${ctx.when}. Same game, new slot.`
+          : "The organiser moved your game to a new slot. Tap for the new time.",
+      };
+    }
     case "knock_received": {
       const knocker = tx
         .select({ displayName: users.displayName })
@@ -266,7 +276,13 @@ export function deepLinkFor(input: NotificationInput): string {
       return `/matches/${input.payload.matchId}`;
     case "tab_nudge":
       return `/circles/${input.payload.circleId}`;
+    case "session_rescheduled":
+      return `/games/${input.payload.sessionId}`;
     case "knock_received":
+      // The circle-knock accept UI lives on the Settings tab (organiser-only),
+      // so "tap to decide" must land there, not on the Feed (v1 audit,
+      // journeys finding 3). circle-tabs reads ?tab= as its initial tab.
+      return input.payload.kind === "circle" ? `/circles/${input.payload.targetId}?tab=settings` : `/games/${input.payload.targetId}`;
     case "knock_accepted":
       return input.payload.kind === "circle" ? `/circles/${input.payload.targetId}` : `/games/${input.payload.targetId}`;
     case "knock_declined":

@@ -65,6 +65,7 @@ export function CircleTabs({
   pendingKnocks,
   feedItems,
   rivalry,
+  initialTab = "feed",
 }: {
   circleId: string;
   circleColour: string;
@@ -89,9 +90,16 @@ export function CircleTabs({
   pendingKnocks: KnockPanelItem[];
   feedItems: FeedItemData[];
   rivalry: { opponentName: string; opponentAvatarUrl: string | null; count: number; direction: "beaten" | "lost_to" } | null;
+  /**
+   * The tab to open on first render (from the `?tab=` deep link — e.g. a
+   * circle-knock notification lands the organiser on Settings, where the
+   * "Asks to join" panel lives). The organiser guard below still applies, so
+   * a non-organiser deep-linked to `?tab=settings` falls back to Feed.
+   */
+  initialTab?: Tab;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("feed");
+  const [tab, setTab] = useState<Tab>(initialTab);
   // Settings is organiser-only, so guard the rendered surface too: a member who
   // somehow lands on it (a stale tab value, a future deep link) falls back to
   // the Feed rather than seeing an empty screen.
@@ -151,7 +159,8 @@ export function CircleTabs({
       slots={primary.slots}
       confirmedCount={primary.confirmed.length}
       viewerStatus={primary.viewerStatus}
-      rsvpOpen={Date.now() >= primary.rsvpWindowOpensAt.getTime() && Date.now() < primary.startsAt.getTime()}
+      rsvpWindowOpensAt={primary.rsvpWindowOpensAt}
+      startsAt={primary.startsAt}
     />
   );
 

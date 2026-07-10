@@ -142,6 +142,95 @@ export function ensureUpcomingSessionsForCircle(db: CuatroDb, circleId: string, 
   return active.map((sg) => ensureUpcomingSessionForStandingGame(db, sg.id, now));
 }
 
+export type RescheduleResult = {
+  circleId: string | null;
+  /** Sessions whose slot (start time) and/or venue moved. */
+  movedSessionIds: string[];
+  /** Every RSVP'd player (in or reserve) told once, across all moved sessions. */
+  notifiedUserIds: string[];
+};
+
+/**
+ * Move this standing game's future upcoming session(s) onto the game's
+ * CURRENT slot after an organiser edits its day/time (or venue), and tell
+ * every RSVP'd player once (v1 audit, journeys finding 5).
+ *
+ * Why this exists: the next-occurrence instant is a pure function of
+ * (weekday, startTime, timezone), so a slot change leaves the already-
+ * materialised session sitting on its old date. A plain re-read would just
+ * mint a SECOND session at the new slot (ensureUpcomingSessionForStandingGame
+ * matches by exact startsAt) and orphan the old one — the organiser sees "I
+ * moved it and nothing happened". Instead we move the existing row so its
+ * RSVPs ride along on the same session id.
+ *
+ * Honest semantics: past/played sessions never move (filtered to
+ * status=upcoming AND startsAt strictly in the future). No-op when nothing
+ * changed — a cost-only edit finds the session already on the right slot and
+ * with the right venue, so it moves nothing and notifies no one. Only the
+ * soonest future session is re-slotted (generation makes one at a time); any
+ * extra future rows only follow a venue change, never collapse onto one
+ * instant.
+ *
+ * Returns what moved + who was told so the caller can fire realtime signals
+ * AFTER the transaction commits — never inside it (see lib/realtime/broadcast.ts).
+ */
+export function rescheduleUpcomingSessionsForStandingGame(
+  db: CuatroDb,
+  standingGameId: string,
+  now: Date = new Date(),
+): RescheduleResult {
+  return db.transaction((tx): RescheduleResult => {
+    const sg = tx.select().from(standingGames).where(eq(standingGames.id, standingGameId)).get();
+    if (!sg) return { circleId: null, movedSessionIds: [], notifiedUserIds: [] };
+    const circle = tx.select().from(circles).where(eq(circles.id, sg.circleId)).get();
+    if (!circle) return { circleId: null, movedSessionIds: [], notifiedUserIds: [] };
+    const venue = sg.venueId ? (tx.select().from(venues).where(eq(venues.id, sg.venueId)).get() ?? null) : null;
+
+    const tz = effectiveTimezone(venue, circle);
+    const target = computeNextOccurrence(sg.weekday, sg.startTime, tz, now);
+
+    const future = tx
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.standingGameId, sg.id), eq(sessions.status, "upcoming"), gt(sessions.startsAt, now)))
+      .orderBy(asc(sessions.startsAt))
+      .all();
+
+    const movedSessionIds: string[] = [];
+    const notifiedUserIds: string[] = [];
+
+    for (let i = 0; i < future.length; i++) {
+      const session = future[i];
+      // Re-slot only the soonest future session to the recomputed occurrence;
+      // any others (not normally present) keep their date and just follow the
+      // venue, so two rows never land on the same instant.
+      const newStartsAt = i === 0 ? target : session.startsAt;
+      const startChanged = newStartsAt.getTime() !== session.startsAt.getTime();
+      const venueChanged = (session.venueId ?? null) !== (sg.venueId ?? null);
+      if (!startChanged && !venueChanged) continue;
+
+      tx.update(sessions)
+        .set({ startsAt: newStartsAt, venueId: sg.venueId })
+        .where(eq(sessions.id, session.id))
+        .run();
+      movedSessionIds.push(session.id);
+
+      // One notification per RSVP'd player (held slot or reserve).
+      const attendees = tx
+        .select({ userId: rsvps.userId })
+        .from(rsvps)
+        .where(and(eq(rsvps.sessionId, session.id), inArray(rsvps.status, ["in", "reserve"])))
+        .all();
+      for (const a of attendees) {
+        insertNotification(tx, { userId: a.userId, type: "session_rescheduled", payload: { sessionId: session.id } });
+        notifiedUserIds.push(a.userId);
+      }
+    }
+
+    return { circleId: sg.circleId, movedSessionIds, notifiedUserIds };
+  });
+}
+
 export type OneOffSessionInput = {
   circleId: string;
   startsAt: Date;
