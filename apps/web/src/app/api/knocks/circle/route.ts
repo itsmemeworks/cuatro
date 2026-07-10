@@ -2,14 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
 import { createCircleKnock, withdrawCircleKnock } from "@/server/open-door";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // Open Door knocks on a Circle. POST creates a knock (the player asks their way
 // in); DELETE withdraws the player's own open knock. The organiser's decision
 // lives at ./[knockId]/route.ts. All reads/writes go through server/open-door.ts.
 
+// Authed create surface — key on the user (join-request spam across Circles).
+const KNOCK_LIMIT = { max: 10, windowMs: 5 * 60_000 };
+
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+
+  const limited = enforceRateLimit([{ key: `knock:${user.id}`, ...KNOCK_LIMIT }]);
+  if (limited) return limited;
 
   let body: unknown;
   try {

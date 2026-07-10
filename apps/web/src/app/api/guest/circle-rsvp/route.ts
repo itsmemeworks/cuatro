@@ -3,6 +3,7 @@ import { getGamesClient } from "@/server/games-db";
 import { getGuestUserId } from "@/server/guest";
 import { rsvpIn, rsvpOut } from "@/server/games-service";
 import { getGuestToken } from "@/lib/guest-session";
+import { clientIp, enforceRateLimit } from "@/lib/rate-limit";
 
 const STATUS_FOR_ERROR: Record<string, number> = {
   session_not_found: 404,
@@ -10,6 +11,9 @@ const STATUS_FOR_ERROR: Record<string, number> = {
   window_not_open: 409,
   session_started: 410,
 };
+
+// Shared per-IP budget across all guest endpoints — see api/guest/claim.
+const GUEST_LIMIT = { max: 30, windowMs: 5 * 60_000 };
 
 /**
  * A guest circle member RSVPs to the circle's next game — cookie-identified,
@@ -20,6 +24,9 @@ const STATUS_FOR_ERROR: Record<string, number> = {
  * `not_a_circle_member`, exactly as a non-member signed-in user would.
  */
 export async function POST(request: Request) {
+  const limited = enforceRateLimit([{ key: `guest:${clientIp(request)}`, ...GUEST_LIMIT }]);
+  if (limited) return limited;
+
   let body: { sessionId?: string; direction?: "in" | "out" };
   try {
     body = await request.json();

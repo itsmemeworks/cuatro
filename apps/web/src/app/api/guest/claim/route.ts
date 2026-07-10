@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getGamesClient } from "@/server/games-db";
 import { claimGuestSlot } from "@/server/guest";
 import { setGuestCookie } from "@/lib/guest-session";
+import { clientIp, enforceRateLimit } from "@/lib/rate-limit";
 
 const STATUS_FOR_ERROR: Record<string, number> = {
   session_not_found: 404,
@@ -9,6 +10,11 @@ const STATUS_FOR_ERROR: Record<string, number> = {
   session_started: 410,
   already_full: 409,
 };
+
+// Anonymous surface: the only trustworthy identity is the source IP, so all
+// guest endpoints share one per-IP budget. A shared budget (not per-endpoint)
+// stops a scanner hopping between claim/reserve/name/circle-* to multiply it.
+const GUEST_LIMIT = { max: 30, windowMs: 5 * 60_000 };
 
 /**
  * Ring 3's guest claim — the anonymous counterpart to
@@ -20,6 +26,9 @@ const STATUS_FOR_ERROR: Record<string, number> = {
  * by.
  */
 export async function POST(request: Request) {
+  const limited = enforceRateLimit([{ key: `guest:${clientIp(request)}`, ...GUEST_LIMIT }]);
+  if (limited) return limited;
+
   let body: { sessionId?: string; token?: string };
   try {
     body = await request.json();

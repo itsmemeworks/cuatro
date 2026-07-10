@@ -3,6 +3,9 @@ import { getAuthStore } from "@/lib/auth-store";
 import { getMailer } from "@/lib/mailer";
 import { legacyAuthEnabled } from "@/lib/session";
 import { isSafeRelativePath, resolveRequestOrigin } from "@/lib/safe-redirect";
+import { clientIp, enforceRateLimit } from "@/lib/rate-limit";
+
+const FIFTEEN_MIN = 15 * 60_000;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,6 +33,15 @@ export async function POST(request: NextRequest) {
   if (typeof email !== "string" || !EMAIL_RE.test(email)) {
     return NextResponse.json({ ok: false, error: "invalid_email" }, { status: 400 });
   }
+
+  // Email flood guard: tight per-email cap (a single inbox can't be bombed),
+  // looser per-IP cap (one client can't enumerate many addresses). Keyed after
+  // validation so junk requests don't churn buckets.
+  const limited = enforceRateLimit([
+    { key: `auth:email:${email.toLowerCase()}`, max: 5, windowMs: FIFTEEN_MIN },
+    { key: `auth:ip:${clientIp(request)}`, max: 20, windowMs: FIFTEEN_MIN },
+  ]);
+  if (limited) return limited;
 
   const store = await getAuthStore();
   const user = await store.findOrCreateUserByEmail(email);

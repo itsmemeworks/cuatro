@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { getGamesClient } from "@/server/games-db";
 import { getGuestUserId, lockGuestName } from "@/server/guest";
 import { getGuestToken } from "@/lib/guest-session";
+import { clientIp, enforceRateLimit } from "@/lib/rate-limit";
 
 const STATUS_FOR_ERROR: Record<string, number> = {
   invalid_name: 400,
   not_found: 404,
   slot_lost: 409,
 };
+
+// Shared per-IP budget across all guest endpoints — see api/guest/claim.
+const GUEST_LIMIT = { max: 30, windowMs: 5 * 60_000 };
 
 /**
  * The name step: "Spot held. Who should we say is coming?" -> "Lock it in".
@@ -16,6 +20,9 @@ const STATUS_FOR_ERROR: Record<string, number> = {
  * from the client, which is the whole point of the guest flow.
  */
 export async function POST(request: Request) {
+  const limited = enforceRateLimit([{ key: `guest:${clientIp(request)}`, ...GUEST_LIMIT }]);
+  if (limited) return limited;
+
   let body: { sessionId?: string; name?: string };
   try {
     body = await request.json();

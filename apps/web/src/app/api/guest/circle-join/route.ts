@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { getGamesClient } from "@/server/games-db";
 import { getGuestUserId, joinGuestCircle } from "@/server/guest";
 import { getGuestToken, setGuestCookie } from "@/lib/guest-session";
+import { clientIp, enforceRateLimit } from "@/lib/rate-limit";
 
 const STATUS_FOR_ERROR: Record<string, number> = {
   invalid_name: 400,
   circle_not_found: 404,
   circle_full: 409,
 };
+
+// Shared per-IP budget across all guest endpoints — see api/guest/claim.
+const GUEST_LIMIT = { max: 30, windowMs: 5 * 60_000 };
 
 /**
  * The circle-invite counterpart to /api/guest/claim — a logged-out visitor on
@@ -20,6 +24,9 @@ const STATUS_FOR_ERROR: Record<string, number> = {
  * alone; otherwise a fresh guest row + device token is minted and set here.
  */
 export async function POST(request: Request) {
+  const limited = enforceRateLimit([{ key: `guest:${clientIp(request)}`, ...GUEST_LIMIT }]);
+  if (limited) return limited;
+
   let body: { code?: string; name?: string };
   try {
     body = await request.json();
