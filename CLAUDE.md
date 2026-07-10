@@ -52,7 +52,8 @@ npm-workspaces monorepo:
 
 `supabase config push` targets the LINKED project (prod). To push auth config to staging: swap site_url/redirects to cuatro-staging.fly.dev in config.toml, `echo cmqicxumhmthbuoehoju > supabase/.temp/project-ref`, push, then RESTORE both (config.toml back to prod values, project-ref back to `lkdnxrfddlodmjakhikw`) — never leave the repo linked to staging. Any push needs `RESEND_API_KEY` exported (config.toml references env(); key lives in ../.env, never committed).
 
-## Deploy (Fly app `cuatro`)
+## Deploy (Fly app `cuatro`) — DISCIPLINE (Pete, 2026-07-10)
+**Do NOT deploy manually as a default.** Staging deploys AUTOMATICALLY when a release-please release PR merges. Prod deploys ONLY when Pete explicitly asks. To verify latest code, run it LOCALLY (local stack + dev server / tests) — do not burn deploy cycles for verification. Manual `fly deploy` is the exception (Pete-requested prod ship, or an explicit staging hotfix), not the rhythm.
 - `fly deploy --ha=false` from repo root (root Dockerfile builds glass dist first; migrations COPY'd explicitly — Next tracing misses .sql; `CUATRO_DB_MIGRATIONS_PATH` env pins them).
 - Machine runs **always-warm** (min 1, autostop off) — cold starts read as "site doesn't load". The warmth also carries the **in-process scheduler** (`server/scheduler.ts`, started from `instrumentation.ts`): 60s ticks materialise standing-game sessions and fire rotation locks + ring-1 Fourth Calls without page loads. Sentry = instrumentation files only (no withSentryConfig — protects the webpack extensionAlias config); `/api/health` does a REAL DB read (503 = Supabase unreachable, Fly will restart the machine).
 - `entrypoint.mjs` chowns `/data` then drops root. `AVATAR_DIR=/data/avatars` (image fs is unwritable at runtime). The `/data` volume now holds ONLY avatars; the database moved to Supabase Postgres.
