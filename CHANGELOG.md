@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/itsmemeworks/cuatro/compare/v1.1.0...v1.1.1) (2026-07-11)
+
+
+### Bug Fixes
+
+* tab_settled notifications crashed /notifications; unrenderable rows now drop ([#16](https://github.com/itsmemeworks/cuatro/issues/16)) ([5998dd7](https://github.com/itsmemeworks/cuatro/commit/5998dd736e2740601d1dd5dcf3a2ee34d7308738))
+
 ## [1.1.0](https://github.com/itsmemeworks/cuatro/compare/v1.0.0...v1.1.0) (2026-07-11)
 
 
