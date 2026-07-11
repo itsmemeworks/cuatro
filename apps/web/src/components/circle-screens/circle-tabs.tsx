@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SegmentedControl, DashedSlot, Meta, QrShareSheet } from "@/components/ui";
+import { SegmentedControl, DashedSlot, Meta, QrShareSheet, Avatar, AvatarStack } from "@/components/ui";
 import { CircleChat, type ChatMessage } from "@/components/circles/circle-chat";
 import { MemberList, type MemberListItem } from "@/components/circles/member-list";
 import { MembersManager } from "@/components/circles/members-manager";
@@ -14,10 +14,13 @@ import { DoorControls } from "@/components/circles/door-controls";
 import { EditCircleSheet, type EditAnchor, type EditVenueOption } from "@/components/circles/edit-circle-sheet";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { useCircleLive } from "@/lib/realtime/hooks";
+import { formatGlass } from "@/lib/design";
+import type { PendingSealCardData } from "@/app/(app)/circles/[id]/load-circle";
 import { PinnedGameBar } from "./pinned-game-bar";
 import { ResultPost, type ResultPostData } from "./result-post";
 import { PlacementRevealPost, type PlacementRevealPostData } from "./placement-reveal-post";
 import { RivalryCallout } from "./rivalry-callout";
+import { memberStatusLine, memberBadge, memberHref, MemberBadge, GlassCell, MemberRowLink } from "./wide/member-bits";
 
 type Tab = "feed" | "chat" | "members" | "settings";
 
@@ -31,17 +34,16 @@ function formatWhen(startsAt: Date): string {
 }
 
 /**
- * The Feed / Chat / Members segmented view (prototype screen 4). Feed's
- * pinned bar and Chat's pinned bar are the same live session, so both read
- * from the same `sessionCards` prop rather than each fetching separately.
- *
- * Feed items (result posts + placement reveals) + the rivalry callout come
- * from server/feed.ts's listCircleFeed (design/DESIGN-AUDIT.md F2).
- *
- * `unreadChatBadge` is the server-rendered initial count (design/
- * DESIGN-AUDIT.md F3); it's kept live here — not just inside CircleChat,
- * which only mounts while the Chat segment is active — so the "Chat ·N"
- * label still updates while the viewer is looking at Feed/Members.
+ * The circle-context tab host (WEB-SHELL-SPEC.md Wave A + B). ONE responsive
+ * tree: below 900px it is the phone experience byte-for-byte (segmented pills +
+ * the active tab's phone layout); at 900px+ the pills hide (the sidebar owns
+ * nav), the phone header chrome hides (see CirclePhone), and the active tab
+ * renders its wide layout. The phone/wide difference is CSS-responsive around
+ * SINGLE component instances — one PinnedGameBar, one CircleChat, mounted once
+ * whatever the width — so nothing that subscribes or marks-read on mount is
+ * ever doubled (WEB-SHELL-SPEC Wave B, lead ruling). Wide-only blocks (members
+ * side card, pending-seal cards, per-tab headers) are `hidden min-[900px]:block`
+ * so the <900 render is unchanged.
  */
 export function CircleTabs({
   circleId,
@@ -67,6 +69,7 @@ export function CircleTabs({
   venueOptions,
   pendingKnocks,
   feedItems,
+  pendingSeals = [],
   rivalry,
   initialTab = "feed",
 }: {
@@ -93,42 +96,22 @@ export function CircleTabs({
   venueOptions: EditVenueOption[];
   pendingKnocks: KnockPanelItem[];
   feedItems: FeedItemData[];
+  /** Pending (unsealed) matches for the wide feed's "waiting on a confirm" card; the phone feed never shows these. */
+  pendingSeals?: PendingSealCardData[];
   rivalry: { opponentName: string; opponentAvatarUrl: string | null; count: number; direction: "beaten" | "lost_to" } | null;
-  /**
-   * The tab to open on first render (from the `?tab=` deep link — e.g. a
-   * circle-knock notification lands the organiser on Settings, where the
-   * "Asks to join" panel lives). The organiser guard below still applies, so
-   * a non-organiser deep-linked to `?tab=settings` falls back to Feed.
-   */
   initialTab?: Tab;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab);
-  // Settings is organiser-only, so guard the rendered surface too: a member who
-  // somehow lands on it (a stale tab value, a future deep link) falls back to
-  // the Feed rather than seeing an empty screen.
   const activeTab: Tab = tab === "settings" && !isOrganiser ? "feed" : tab;
   const [unread, setUnread] = useState(unreadChatBadge);
-  // The invite QR (shared by the solo-circle and Members invite blocks). The
-  // origin is resolved after mount — same reason as InviteLinkText — so the
-  // link rendered under the code matches what people read off the screen.
   const [qrOpen, setQrOpen] = useState(false);
   const [origin, setOrigin] = useState<string | null>(null);
   useEffect(() => setOrigin(window.location.origin), []);
   const inviteUrl = `${origin ?? ""}/join/${inviteCode}`;
   const inviteLinkReadable = `${origin ? origin.replace(/^https?:\/\//, "") : ""}/join/${inviteCode}`;
-  // The Feed's pinned bar (prototype screen 4) is a compact one-liner for
-  // whichever Standing Game session is next — never the full SessionCard
-  // (dashed-slot grid, full-width "I'm in"), which stays on the session's
-  // own page (games/[sessionId]/page.tsx renders it). A circle with more
-  // than one upcoming session only pins the soonest; Home already lists
-  // every upcoming game across circles.
   const primary = sessionCards[0] ?? null;
-  // A one-member Circle's most urgent action is inviting, not reading an empty
-  // Feed — surface it right at the top of the landing tab.
   const soloCircle = members.length <= 1;
-  // Roster-lifecycle flags for the Members tab. The sole organiser with members
-  // behind them must hand over before leaving; the server enforces this too.
   const organiserCount = members.filter((m) => m.role === "organiser").length;
   const myRole = members.find((m) => m.userId === currentUserId)?.role ?? "member";
   const mustTransferFirst = myRole === "organiser" && organiserCount === 1 && members.length > 1;
@@ -145,19 +128,13 @@ export function CircleTabs({
     }
   }, [circleId]);
 
-  // While the Chat segment is open, CircleChat itself marks the circle read
-  // on mount and on every new message — this listener exists so a viewer
-  // sitting on Feed/Members still sees "Chat ·N" tick up/down live.
   useCircleLive(tab === "chat" ? null : circleId, (event) => {
     if (event.type === "message" || event.type === "reconnect") refreshUnread();
-    // A knock arriving/withdrawing/being decided broadcasts a "notification"
-    // ping on the circle channel — reload so an organiser's pending-knocks
-    // panel stays live without a manual refresh.
     if (isOrganiser && event.type === "notification") router.refresh();
   });
 
   useEffect(() => {
-    if (tab === "chat") setUnread(0); // CircleChat's own mount-time markCircleRead call is about to zero this server-side
+    if (tab === "chat") setUnread(0);
   }, [tab]);
 
   const pinnedBar = primary && (
@@ -174,31 +151,184 @@ export function CircleTabs({
     />
   );
 
+  // Wide-only per-tab header (design "Desktop · Circle <tab>"): a 24px title, a
+  // muted subline, and (feed) the top-4 avatar stack. `hidden min-[900px]:block`
+  // so it never shows on phone.
+  const wideHeader = (title: string, subtitle: string, right?: React.ReactNode) => (
+    <div className="hidden min-[900px]:flex items-end gap-3.5">
+      <div className="flex-1 min-w-0">
+        <h1 className="font-sans font-extrabold text-[24px] leading-none text-ink">{title}</h1>
+        <p className="font-sans text-[12px] text-ink-muted mt-1">{subtitle}</p>
+      </div>
+      {right}
+    </div>
+  );
+
+  const membersSideCard = (
+    <div className="hidden min-[900px]:block bg-surface border border-ink-hairline-1 rounded-[20px] overflow-hidden self-start">
+      <Link href={`/circles/${circleId}/members`} className="flex items-center justify-between px-4 py-3 bg-ink-hairline-1">
+        <span className="font-sans font-extrabold text-[10px] tracking-[0.14em] text-ink-muted">MEMBERS · {members.length}</span>
+        <span className="font-sans font-bold text-[11px] text-action-strong">all →</span>
+      </Link>
+      {members.slice(0, 6).map((m, i, arr) => {
+        const isYou = m.userId === currentUserId;
+        return (
+          <MemberRowLink
+            key={m.userId}
+            href={memberHref(m, isYou)}
+            className={`flex items-center gap-2.5 px-4 py-3 ${i < arr.length - 1 ? "border-b border-ink-hairline-1" : ""}`}
+          >
+            <Avatar src={m.avatarUrl} name={m.displayName} size="sm" />
+            <div className="flex-1 min-w-0">
+              <div className="font-sans font-bold text-[12.5px] text-ink truncate">
+                {m.displayName}
+                {isYou && <span className="text-action-strong font-normal"> · you</span>}
+              </div>
+              <div className="font-mono text-[10px] text-ink-muted truncate">{memberStatusLine(m)}</div>
+            </div>
+            <span className={`font-sans font-extrabold text-[13.5px] ${m.rating == null ? "text-ink-muted" : "text-ink"}`}>{formatGlass(m.rating)}</span>
+          </MemberRowLink>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-4">
-      <SegmentedControl
-        options={[
-          { value: "feed", label: "Feed" },
-          { value: "chat", label: "Chat", badge: unread > 0 ? unread : undefined },
-          { value: "members", label: "Members" },
-          // The organiser gets a dedicated Settings surface; members never see
-          // the tab at all (nothing on it is theirs to touch).
-          ...(isOrganiser ? [{ value: "settings" as const, label: "Settings" }] : []),
-        ]}
-        value={activeTab}
-        onChange={setTab}
-      />
+      {/* Phone tab nav. Hidden at 900+, where the context sidebar owns navigation. */}
+      <div className="min-[900px]:hidden">
+        <SegmentedControl
+          options={[
+            { value: "feed", label: "Feed" },
+            { value: "chat", label: "Chat", badge: unread > 0 ? unread : undefined },
+            { value: "members", label: "Members" },
+            ...(isOrganiser ? [{ value: "settings" as const, label: "Settings" }] : []),
+          ]}
+          value={activeTab}
+          onChange={setTab}
+        />
+      </div>
 
       {activeTab === "feed" && (
-        <div className="flex flex-col gap-3">
-          {soloCircle && (
+        <>
+          {wideHeader(
+            "Feed",
+            `what ${circleName} has been up to`,
+            members.length > 0 ? (
+              <AvatarStack people={members.slice(0, 4).map((m) => ({ src: m.avatarUrl, name: m.displayName }))} size="sm" ring="ground" />
+            ) : undefined,
+          )}
+          <div className="flex flex-col gap-3 min-[900px]:grid min-[900px]:grid-cols-[1fr_300px] min-[900px]:gap-[18px] min-[900px]:items-start">
+            <div className="flex flex-col gap-3 min-w-0">
+              {soloCircle && (
+                <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
+                  <div className="flex items-center gap-3">
+                    <DashedSlot label="+" size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-cu-body font-bold text-ink">Invite your group</p>
+                      <Meta as="p" className="mt-0.5">
+                        it&apos;s just you so far, share the link and your four fills up
+                      </Meta>
+                    </div>
+                    <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <InviteLinkText inviteCode={inviteCode} className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={() => setQrOpen(true)}
+                      className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[11px] px-3 py-2 shrink-0 transition-cu-state active:opacity-80"
+                    >
+                      Show QR
+                    </button>
+                  </div>
+                </div>
+              )}
+              {pinnedBar}
+              {rivalry && (
+                <RivalryCallout
+                  opponentName={rivalry.opponentName}
+                  opponentAvatarUrl={rivalry.opponentAvatarUrl}
+                  count={rivalry.count}
+                  direction={rivalry.direction}
+                />
+              )}
+              {/* Pending-seal cards — wide feed only (the phone feed never showed them). */}
+              {pendingSeals.map((p) => {
+                const score = p.sets.map((s) => `${s.a}–${s.b}`).join(" ");
+                return (
+                  <div key={p.matchId} className="hidden min-[900px]:flex items-center gap-3 border border-ink-hairline-3 rounded-[20px] px-4 py-3.5">
+                    <span className="w-2 h-2 rounded-full border-2 border-ink-hairline-4 box-border flex-none" aria-hidden />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-sans font-bold text-[13px] text-ink">
+                        {p.winnerNames} sent {score} over {p.loserNames}
+                      </p>
+                      <p className="font-mono text-[10.5px] text-ink-muted mt-0.5">waiting on a confirm · Glass moves once the other side seals it</p>
+                    </div>
+                    <span className="font-mono text-[10px] font-semibold text-ink-muted border border-ink-hairline-3 rounded-full px-2.5 py-1 flex-none">PENDING</span>
+                  </div>
+                );
+              })}
+              {!primary && (
+                <p className="text-cu-body text-ink-muted">
+                  No Standing Game yet
+                  {isOrganiser && (
+                    <>
+                      {", "}
+                      <Link href={`/games/standing/new?circleId=${circleId}`} className="font-bold text-action-strong">
+                        set one up →
+                      </Link>
+                    </>
+                  )}
+                </p>
+              )}
+              {feedItems.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {feedItems.map((item) =>
+                    item.kind === "result" ? (
+                      <ResultPost key={`result-${item.post.matchId}`} data={item.post} />
+                    ) : (
+                      <PlacementRevealPost key={`reveal-${item.reveal.ratingEventId}`} data={item.reveal} />
+                    ),
+                  )}
+                </div>
+              ) : (
+                <Meta as="p" className="text-center px-4">
+                  results, reactions and rivalries land here once this Circle plays its first match
+                </Meta>
+              )}
+            </div>
+            {membersSideCard}
+          </div>
+        </>
+      )}
+
+      {activeTab === "chat" && (
+        <>
+          {wideHeader("Chat", `${members.length} member${members.length === 1 ? "" : "s"}`)}
+          {/* Single PinnedGameBar + single CircleChat; wide styling wraps them in a tall card. */}
+          <div className="flex flex-col gap-3 min-[900px]:bg-surface min-[900px]:border min-[900px]:border-ink-hairline-1 min-[900px]:rounded-[22px] min-[900px]:px-5 min-[900px]:pt-[18px] min-[900px]:pb-4 min-[900px]:min-h-[560px]">
+            {pinnedBar}
+            <CircleChat circleId={circleId} currentUserId={currentUserId} initialMessages={messages} />
+          </div>
+        </>
+      )}
+
+      {activeTab === "members" && (
+        <>
+          {wideHeader("Members", "ratings are everyone's business here. That's the point")}
+
+          {/* Phone members block — the shipped MemberList + organiser tools + leave. */}
+          <div className="min-[900px]:hidden flex flex-col gap-3">
+            <MemberList members={members} currentUserId={currentUserId} />
+            {isOrganiser && <MembersManager circleId={circleId} members={members} currentUserId={currentUserId} />}
             <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
               <div className="flex items-center gap-3">
                 <DashedSlot label="+" size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-cu-body font-bold text-ink">Invite your group</p>
+                  <p className="text-cu-body font-bold text-ink">Invite a mate</p>
                   <Meta as="p" className="mt-0.5">
-                    it&apos;s just you so far, share the link and your four fills up
+                    share the Circle link, they&apos;re in before their first game
                   </Meta>
                 </div>
                 <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
@@ -214,98 +344,51 @@ export function CircleTabs({
                 </button>
               </div>
             </div>
-          )}
-          {pinnedBar}
-          {rivalry && (
-            <RivalryCallout
-              opponentName={rivalry.opponentName}
-              opponentAvatarUrl={rivalry.opponentAvatarUrl}
-              count={rivalry.count}
-              direction={rivalry.direction}
-            />
-          )}
-          {!primary && (
-            <p className="text-cu-body text-ink-muted">
-              No Standing Game yet
-              {isOrganiser && (
-                <>
-                  {", "}
-                  <Link href={`/games/standing/new?circleId=${circleId}`} className="font-bold text-action-strong">
-                    set one up →
-                  </Link>
-                </>
-              )}
-            </p>
-          )}
-          {feedItems.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {feedItems.map((item) =>
-                item.kind === "result" ? (
-                  <ResultPost key={`result-${item.post.matchId}`} data={item.post} />
-                ) : (
-                  <PlacementRevealPost key={`reveal-${item.reveal.ratingEventId}`} data={item.reveal} />
-                ),
-              )}
-            </div>
-          ) : (
-            <Meta as="p" className="text-center px-4">
-              results, reactions and rivalries land here once this Circle plays its first match
+            <Meta as="p" className="text-center">
+              ratings are everyone&apos;s business here, that&apos;s the point
             </Meta>
-          )}
-        </div>
-      )}
+            <LeaveCircleButton circleId={circleId} circleName={circleName} mustTransferFirst={mustTransferFirst} isLastMember={isLastMember} />
+          </div>
 
-      {activeTab === "chat" && (
-        <div className="flex flex-col gap-3">
-          {pinnedBar}
-          <CircleChat circleId={circleId} currentUserId={currentUserId} initialMessages={messages} />
-        </div>
-      )}
-
-      {activeTab === "members" && (
-        <div className="flex flex-col gap-3">
-          <MemberList members={members} currentUserId={currentUserId} />
-          {isOrganiser && <MembersManager circleId={circleId} members={members} currentUserId={currentUserId} />}
-          <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
-            <div className="flex items-center gap-3">
+          {/* Wide members roster — the design's big rows + dashed invite card. Static (no mount effects), so it may render alongside the phone block. */}
+          <div className="hidden min-[900px]:block">
+            <div className="max-w-[680px] bg-surface border border-ink-hairline-1 rounded-[20px] overflow-hidden">
+              {members.map((m, i) => {
+                const isYou = m.userId === currentUserId;
+                const badge = memberBadge(m, isYou);
+                return (
+                  <MemberRowLink
+                    key={m.userId}
+                    href={memberHref(m, isYou)}
+                    className={`flex items-center gap-3 px-[18px] py-3.5 ${i < members.length - 1 ? "border-b border-ink-hairline-1" : ""}`}
+                  >
+                    <Avatar src={m.avatarUrl} name={m.displayName} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-sans font-bold text-[14px] text-ink truncate">{m.displayName}</span>
+                        {badge && <MemberBadge badge={badge} />}
+                      </div>
+                      <div className="font-mono text-[10px] text-ink-muted mt-[3px] truncate">{memberStatusLine(m)}</div>
+                    </div>
+                    <GlassCell m={m} />
+                  </MemberRowLink>
+                );
+              })}
+            </div>
+            <div className="max-w-[680px] mt-3 border-[1.5px] border-dashed border-action rounded-[16px] px-4 py-3 flex items-center gap-3">
               <DashedSlot label="+" size="md" />
               <div className="flex-1 min-w-0">
-                <p className="text-cu-body font-bold text-ink">Invite a mate</p>
-                <Meta as="p" className="mt-0.5">
-                  share the Circle link, they&apos;re in before their first game
-                </Meta>
+                <p className="font-sans font-bold text-[13px] text-action-strong">Invite a mate</p>
+                <p className="font-mono text-[10px] text-ink-muted mt-0.5">share the Circle link. They&apos;re in before their first game</p>
               </div>
-              <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Share ↗" />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <InviteLinkText inviteCode={inviteCode} className="flex-1" />
-              <button
-                type="button"
-                onClick={() => setQrOpen(true)}
-                className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[11px] px-3 py-2 shrink-0 transition-cu-state active:opacity-80"
-              >
-                Show QR
-              </button>
+              <InviteShareButton inviteCode={inviteCode} circleName={circleName} label="Copy ↗" />
             </div>
           </div>
-          <Meta as="p" className="text-center">
-            ratings are everyone&apos;s business here, that&apos;s the point
-          </Meta>
-          <LeaveCircleButton
-            circleId={circleId}
-            circleName={circleName}
-            mustTransferFirst={mustTransferFirst}
-            isLastMember={isLastMember}
-          />
-        </div>
+        </>
       )}
 
       {activeTab === "settings" && isOrganiser && (
         <div className="flex flex-col gap-6">
-          {/* Circle details — the full identity + config sheet (name, colour,
-              emblem, header image, home court, max players). Kept as its
-              save-then-close sheet so React 19's form reset can't revert a
-              save mid-edit (hard convention 14). */}
           <section className="flex flex-col gap-3">
             <div>
               <p className="text-cu-body font-bold text-ink">Circle details</p>
@@ -327,9 +410,6 @@ export function CircleTabs({
             />
           </section>
 
-          {/* Discovery — the door controls self-label with the "Discovery"
-              InfoTerm and live tier line, so they stand as their own headed
-              group without a duplicate title above them. */}
           <section className="flex flex-col gap-3">
             <DoorControls
               circleId={circleId}
@@ -340,10 +420,6 @@ export function CircleTabs({
             />
           </section>
 
-          {/* Asks to join — pending knocks from Open Door. KnockPanel renders
-              nothing when the queue is empty, and self-labels "Asks to join ·N"
-              when it isn't, so it reads as its own section only when there's
-              something to action. */}
           <KnockPanel knocks={pendingKnocks} />
         </div>
       )}

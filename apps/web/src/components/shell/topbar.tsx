@@ -79,8 +79,10 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
           </Pill>
           <Pill href={base} active={circleActive === "chat"}>
             Chat
-            {activeCircle?.hasUnreadChat && (
-              <span style={{ background: "rgba(255,92,61,.16)", color: "#FF7A5C", borderRadius: 999, padding: "1px 7px", font: "800 10px 'Archivo',sans-serif" }}>•</span>
+            {(activeCircle?.unreadChatCount ?? 0) > 0 && (
+              <span className="tabular-nums" style={{ background: "rgba(255,92,61,.16)", color: "#FF7A5C", borderRadius: 999, padding: "1px 7px", font: "800 10px 'Archivo',sans-serif" }}>
+                {(activeCircle?.unreadChatCount ?? 0) > 99 ? "99+" : activeCircle?.unreadChatCount}
+              </span>
             )}
           </Pill>
           <Pill href={base} active={circleActive === "members"}>
@@ -101,7 +103,7 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
           <Pill href="/home" active={homeActive === "week"}>
             Your week
           </Pill>
-          <Pill href="/players" active={homeActive === "discover"}>
+          <Pill href="/discover" active={homeActive === "discover"}>
             Discover
           </Pill>
           <Pill href="/tab" active={homeActive === "tab"}>

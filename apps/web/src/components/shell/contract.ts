@@ -33,7 +33,17 @@ export interface ShellCircle {
   color: string;
   /** mono status line, e.g. "Tue 8pm · 1 spot open" or "Thu 7pm · full ✓"; null when nothing upcoming */
   statusLine: string | null;
-  hasUnreadChat: boolean;
+  /** unread chat messages, renders as a numeric pill badge */
+  unreadChatCount: number;
+  /** for the circle-context sidebar header subline "6 members · est. 2024" */
+  memberCount: number;
+  foundedYear: number | null;
+  /**
+   * The viewer's net position INSIDE this circle for the circle-context
+   * sidebar Tab row (the global rollup stays on ShellData). Same money rules.
+   */
+  circleTabNetLine: string | null;
+  circleTabNetOwing: boolean;
   /** coral dot on the rail flag / sidebar row (needs-answer, open spot, etc.) */
   needsAttention: boolean;
 }
@@ -65,7 +75,15 @@ export interface ShellData {
   /** true when the viewer owes overall (renders in the down/negative colour) */
   tabNetOwing: boolean;
   unreadNotifications: number;
+  /** count for the Discover nav item's green badge (open games near the viewer's patch this week); null hides the badge */
+  discoverCount: number | null;
 }
+
+/*
+ * WAVE B money-format rule (applies to every ShellData/ShellCircle amount):
+ * whole pounds render WITHOUT pence ("+£8", "−£4"); pence only when real
+ * ("£8.50"). The design never shows ".00".
+ */
 
 /** Which context the shell is in and which nav item is active, derived from the pathname */
 export type ShellContext =
@@ -73,11 +91,16 @@ export type ShellContext =
   | { kind: "circle"; circleId: string; active: "feed" | "chat" | "members" | "games" | "tab" | "other" };
 
 /*
- * Route → context mapping (Wave A; Wave B may refine):
- *   /circles/[id]*                → circle context (feed active; deeper tabs arrive in Wave B)
+ * Route → context mapping (WAVE B revision — B5 implements in lib/shell-context.ts):
+ *   /circles/[id]            → circle:feed
+ *   /circles/[id]/chat       → circle:chat
+ *   /circles/[id]/members    → circle:members
+ *   /circles/[id]/games*     → circle:games
+ *   /circles/[id]/tab        → circle:tab
+ *   /circles/[id]/<other>    → circle:other (settings etc.)
  *   /home, /feed, /matches*, /games* → home:week
- *   /players*                     → home:discover
- *   /tab                          → home:tab
- *   /profile*                     → home:you
+ *   /discover, /players*     → home:discover   (Discover's own page = /discover, NEW in Wave B)
+ *   /tab                     → home:tab
+ *   /profile*                → home:you
  *   /circles, /notifications, anything else → home:other (no pill highlighted)
  */

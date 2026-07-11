@@ -1,6 +1,6 @@
 # WEB-SHELL-SPEC — CUATRO on every screen
 
-**Status: SPEC ONLY. Not started. Do not begin implementation without Pete saying go.**
+**Status: Wave A SHIPPED (PR #22, merged 2026-07-11). Wave B SHIPPED (PR #24, 2026-07-11). Waves C and D remain — do not start a wave without Pete saying go.**
 
 The design is done and authoritative: `design/CUATRO-Web-LATEST.dc.html` (25 interactive screens, desktop 1440 + tablet 1024, reviewed and punch-listed to zero on 2026-07-11). This spec turns it into build waves. Read `CLAUDE.md` first, then the DESIGN-AUDIT.md "Web/desktop design import" section, then this.
 
@@ -52,6 +52,9 @@ One coral action per PANEL (desktop restatement). Dashed coral circle = a space 
 **Wave B — the read surfaces.** Your week, Discover, wide Tab, You + settings, circle tabs (Feed/Members/Games lists), player profile. Mostly new views over existing queries + the week aggregate. Gate: screen-by-screen screenshots vs `CUATRO-Web-LATEST` at both widths.
 
 **Wave C — the flows.** Record-a-result overlay, rotation pre-lock/locked/offer layouts, circle create + settings (visibility, join queue, standing game editor, money opt-ins per #21), Tab add-expense + settle handshake, guest landings. Gate: E2E-CHARTER additions driven in the real app.
+
+**Wave C punch list (accumulated at the A/B gates, do these inside Wave C):**
+/games/[sessionId] should resolve to CIRCLE context (needs data-aware context resolution — contract + shell change); app-wide money-format sweep to whole-pounds-when-clean (phone + wide together, re-cut the 430 baselines); RatingReveal must not spend its "seen" timer while display:none at wide widths (gate the timer on actual visibility inside the shared component's effect); lean countOpenBoardGamesNearPatch in discovery.ts for the shell badge (currently builds full Board cards per navigation); Members hand/side + Games "Booked on" tiles land with issue #21.
 
 **Wave D — desktop-native.** ⌘K, docked chat, keyboard shortcuts, browser notifications (keys permitting). The USP garnish, last on purpose.
 

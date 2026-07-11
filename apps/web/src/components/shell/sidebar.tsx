@@ -145,9 +145,40 @@ function TabNet({ line, owing }: { line: string | null; owing: boolean }) {
   return <span style={{ font: `700 11px ${MONO}`, color: owing ? LOSS : WIN }}>{line}</span>;
 }
 
-/** Small coral dot for a nav row that needs attention / has unread. */
+/** Small coral dot for a nav row that needs attention. */
 function Dot() {
   return <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: CORAL }} />;
+}
+
+/** Caps a badge count so the pill never stretches (matches the notif tray). */
+function badgeLabel(n: number): string {
+  return n > 99 ? "99+" : String(n);
+}
+
+/** Numeric unread-chat pill (coral) — the design's Chat-row badge; null-renders at zero. */
+function UnreadPill({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className="tabular-nums"
+      style={{ background: "rgba(255,92,61,.16)", color: CORAL_STRONG, borderRadius: 999, padding: "2px 8px", font: "800 10px 'Archivo',sans-serif" }}
+    >
+      {badgeLabel(count)}
+    </span>
+  );
+}
+
+/** Green count pill for the Discover row — open games near the viewer's patch; hidden when null or zero. */
+function DiscoverBadge({ count }: { count: number | null | undefined }) {
+  if (count == null || count <= 0) return null;
+  return (
+    <span
+      className="tabular-nums"
+      style={{ background: "rgba(75,201,139,.14)", color: WIN, borderRadius: 999, padding: "2px 8px", font: "800 10px 'Archivo',sans-serif" }}
+    >
+      {badgeLabel(count)}
+    </span>
+  );
 }
 
 function Flag({ circle, size, radius, fontSize }: { circle: ShellCircle; size: number; radius: number; fontSize: number }) {
@@ -178,7 +209,7 @@ function HomeSidebar({ data, context }: { data: ShellData; context: ShellContext
 
       <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 20 }}>
         <NavRow href="/home" active={active === "week"} label="Your week" icon={ICONS.week} />
-        <NavRow href="/players" active={active === "discover"} label="Discover" icon={ICONS.discover} />
+        <NavRow href="/discover" active={active === "discover"} label="Discover" icon={ICONS.discover} trailing={<DiscoverBadge count={data.discoverCount} />} />
         <NavRow href="/tab" active={active === "tab"} label="The Tab" icon={ICONS.tab} trailing={<TabNet line={data.tabNetLine} owing={data.tabNetOwing} />} />
         <NavRow href="/profile" active={active === "you"} label="You" icon={<YouAvatar url={data.identity.avatarUrl} active={active === "you"} />} />
       </div>
@@ -208,7 +239,7 @@ function HomeSidebar({ data, context }: { data: ShellData; context: ShellContext
                   <div style={{ font: "700 12px 'Archivo',sans-serif", color: BONE }}>{c.name}</div>
                   {c.statusLine && <div style={{ font: `400 10px ${MONO}`, color: "rgba(245,242,236,.45)" }}>{c.statusLine}</div>}
                 </div>
-                {(c.needsAttention || c.hasUnreadChat) && <Dot />}
+                {(c.needsAttention || (c.unreadChatCount ?? 0) > 0) && <Dot />}
               </Link>
             ))}
           </div>
@@ -217,6 +248,13 @@ function HomeSidebar({ data, context }: { data: ShellData; context: ShellContext
       <span style={{ flex: 1 }} />
     </div>
   );
+}
+
+/** Circle-context header subline: "6 members · est. 2024" (the founded year is dropped when unknown). */
+function circleSubline(circle: ShellCircle): string {
+  const n = circle.memberCount ?? 0;
+  const members = `${n} member${n === 1 ? "" : "s"}`;
+  return circle.foundedYear != null ? `${members} · est. ${circle.foundedYear}` : members;
 }
 
 function CircleSidebar({ data, context }: { data: ShellData; context: Extract<ShellContext, { kind: "circle" }> }) {
@@ -231,7 +269,7 @@ function CircleSidebar({ data, context }: { data: ShellData; context: Extract<Sh
         {circle && <Flag circle={circle} size={38} radius={12} fontSize={13} />}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ font: "800 14px/1.1 'Archivo',sans-serif", color: BONE }}>{circle?.name ?? "Circle"}</div>
-          {circle?.statusLine && <div style={{ font: `400 10px ${MONO}`, color: "rgba(245,242,236,.45)", marginTop: 2 }}>{circle.statusLine}</div>}
+          {circle && <div style={{ font: `400 10px ${MONO}`, color: "rgba(245,242,236,.45)", marginTop: 2 }}>{circleSubline(circle)}</div>}
         </div>
       </div>
 
@@ -242,11 +280,11 @@ function CircleSidebar({ data, context }: { data: ShellData; context: Extract<Sh
           active={context.active === "chat"}
           label="Chat"
           icon={ICONS.chat}
-          trailing={circle?.hasUnreadChat ? <Dot /> : undefined}
+          trailing={<UnreadPill count={circle?.unreadChatCount ?? 0} />}
         />
         <NavRow href={base} active={context.active === "members"} label="Members" icon={ICONS.members} />
         <NavRow href={base} active={context.active === "games"} label="Games" icon={ICONS.games} />
-        <NavRow href={`${base}/tab`} active={context.active === "tab"} label="The Tab" icon={ICONS.tab} trailing={<TabNet line={data.tabNetLine} owing={data.tabNetOwing} />} />
+        <NavRow href={`${base}/tab`} active={context.active === "tab"} label="The Tab" icon={ICONS.tab} trailing={<TabNet line={circle?.circleTabNetLine ?? null} owing={circle?.circleTabNetOwing ?? false} />} />
         <NavRow
           href={base}
           active={false}

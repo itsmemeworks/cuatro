@@ -55,6 +55,7 @@ function homeActiveFor(top: string | undefined): Extract<ShellContext, { kind: "
     case "matches":
     case "games":
       return "week";
+    case "discover":
     case "players":
       return "discover";
     case "tab":

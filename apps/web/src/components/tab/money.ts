@@ -15,6 +15,31 @@ export function formatMoney(amountMinor: number, currency: string, locale = "en-
 }
 
 /**
+ * The web design's money format (design/CUATRO-Web-LATEST.dc.html, mirrors
+ * server/shell.ts's formatShellNet): whole pounds carry NO pence ("£8",
+ * "£12"), pence show only when the amount actually has them ("£8.50"). The
+ * design never renders ".00". Returns the magnitude only (no sign) — pair it
+ * with a tone colour, or use formatMoneyWholeSigned for the ±£ net header.
+ * The phone `formatMoney` above stays pence-always so the phone Tab and every
+ * surface that already uses it are byte-for-byte unchanged.
+ */
+export function formatMoneyWhole(amountMinor: number, currency: string, locale = "en-GB"): string {
+  const whole = amountMinor % 100 === 0;
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(amountMinor) / 100);
+}
+
+/** As formatMoneyWhole, but with the design's signed prefix — "+£8" when owed, "−£4" when down (U+2212 minus, never a hyphen or em dash). */
+export function formatMoneyWholeSigned(amountMinor: number, currency: string, locale = "en-GB"): string {
+  const sign = amountMinor > 0 ? "+" : amountMinor < 0 ? "−" : "";
+  return `${sign}${formatMoneyWhole(amountMinor, currency, locale)}`;
+}
+
+/**
  * Parses a user-typed amount like "32" or "32.50" into integer minor units.
  * Returns null for anything that isn't a non-negative number with at most
  * two decimal places (rejects rather than silently rounding away pennies).

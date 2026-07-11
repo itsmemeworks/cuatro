@@ -96,6 +96,11 @@ export const GLOSSARY = {
     plain: "How far a single result can move your Glass.",
     why: "Bigger while you're new and still being placed, smaller once your number has settled.",
   },
+  glassPoured: {
+    term: "Glass poured",
+    plain: "The moment your Placement Trio completes and your Glass rating is revealed, with the confidence it starts at.",
+    why: "A rating should arrive as a moment, not leak out as a guess. Poured means it's real: earned on court, explained in your Ledger from day one.",
+  },
 } as const satisfies Record<string, GlossaryEntry>;
 
 export type GlossaryKey = keyof typeof GLOSSARY;
