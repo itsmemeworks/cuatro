@@ -6,6 +6,12 @@ import { getGuestToken } from "@/lib/guest-session";
 import { getGuestUserId } from "@/server/guest";
 import { getGamesClient } from "@/server/games-db";
 import { saveAvatarJpeg } from "@/lib/avatar-storage";
+import { enforceRateLimit } from "@/lib/rate-limit";
+
+// Per-actor upload cap: an avatar is a one-off (or rare re-take), so an hourly
+// ceiling is generous for humans and tight against a loop hammering fs writes.
+// Keyed on the resolved actor (user OR guest), so it applies before conversion.
+const AVATAR_LIMIT = { max: 10, windowMs: 60 * 60_000 };
 
 // A 256px-square JPEG at reasonable quality is a few hundred KB at most;
 // the client resizes before sending (selfie-camera.tsx), so anything past
@@ -29,6 +35,9 @@ export async function POST(request: Request) {
     if (token) actorId = await getGuestUserId(db, token);
   }
   if (!actorId) return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
+
+  const limited = enforceRateLimit([{ key: `avatar:${actorId}`, ...AVATAR_LIMIT }]);
+  if (limited) return limited;
 
   let body: { dataUrl?: string };
   try {

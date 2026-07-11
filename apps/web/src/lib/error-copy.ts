@@ -3,6 +3,7 @@
 // Voice: warm, plain, no exclamation marks (see design/HANDOFF.md).
 
 const ERROR_COPY: Record<string, string> = {
+  rate_limited: "Easy does it. Give it a minute and try again.",
   network_error: "Couldn't reach the server. Check your connection and try again.",
   last_organiser: "You're the only organiser. Hand the Circle to someone else before you leave.",
   target_not_a_member: "That player isn't in this Circle any more.",

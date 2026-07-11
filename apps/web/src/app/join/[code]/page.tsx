@@ -172,6 +172,19 @@ export default async function JoinPage({
     return <CircleFullNotice circleName={circle.name} colour={circle.colour} emblem={circle.emblem} />;
   }
 
+  // Too many join taps in a short window (joinCircleAction rate limit). Warm
+  // dead-end, not a shut door — the spot is still theirs once they slow down.
+  if (error === "rate_limited") {
+    return (
+      <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-3 bg-ground text-ink">
+        <h1 className="text-cu-title">One moment</h1>
+        <p className="text-cu-body text-ink-muted max-w-xs">
+          Easy does it. Give it a minute and try again.
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink">
       <div className="flex flex-col items-center gap-4">

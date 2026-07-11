@@ -2,15 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
 import { createSessionKnock, withdrawSessionKnock } from "@/server/discovery";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // A knock is a player asking their way into a game they found on The Board.
 // POST creates one (honouring one-open-knock); DELETE withdraws the player's
 // own pending knock. The organiser's accept/decline lives in ./decide.
 const MAX_MESSAGE_LENGTH = 280;
 
+// Creating knocks is authed, so key on the user: a signed-in player firing off
+// join requests across many games is the abuse this bounds.
+const KNOCK_LIMIT = { max: 10, windowMs: 5 * 60_000 };
+
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+
+  const limited = enforceRateLimit([{ key: `knock:${user.id}`, ...KNOCK_LIMIT }]);
+  if (limited) return limited;
 
   let body: unknown;
   try {
