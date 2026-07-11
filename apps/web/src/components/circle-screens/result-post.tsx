@@ -66,15 +66,22 @@ function formatDelta(delta: number): string {
 }
 
 /** "last Tuesday" for the last 2-6 days, else a plain "9 Jul" — mirrors how a person would actually say it, without inventing a real-time-relative library for one line. */
+/** The UK calendar day of an instant, as "YYYY-MM-DD" — deterministic on server (UTC) and client (any TZ), so hydration can never disagree about day boundaries. */
+function ukDay(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+function ukDayStartMs(d: Date): number {
+  return Date.parse(`${ukDay(d)}T00:00:00Z`);
+}
+
 function relativeDayLabel(iso: string): string {
   const played = new Date(iso);
   const now = new Date();
-  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const diffDays = Math.round((startOf(now) - startOf(played)) / 86_400_000);
+  const diffDays = Math.round((ukDayStartMs(now) - ukDayStartMs(played)) / 86_400_000);
   if (diffDays === 0) return "today";
   if (diffDays === 1) return "yesterday";
-  if (diffDays >= 2 && diffDays <= 6) return `last ${played.toLocaleDateString("en-GB", { weekday: "long" })}`;
-  return played.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  if (diffDays >= 2 && diffDays <= 6) return `last ${played.toLocaleDateString("en-GB", { timeZone: "Europe/London", weekday: "long" })}`;
+  return played.toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short" });
 }
 
 /** "Kav +0.04 → 4.91" when a team has a named representative (server/feed.ts's ResultPostTeam.namedDelta), else "Kav & Tom +0.02" using the team average — the same tone-by-sign either way. */

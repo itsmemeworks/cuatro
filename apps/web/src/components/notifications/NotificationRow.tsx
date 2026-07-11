@@ -51,10 +51,10 @@ export function NotificationRow({ notification }: { notification: NotificationVi
       </div>
       <div className="flex flex-col items-end gap-1.5 shrink-0">
         {read ? (
-          <Meta>{notification.createdAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</Meta>
+          <Meta>{notification.createdAt.toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" })}</Meta>
         ) : (
           <span className="text-cu-meta" style={{ color: "rgba(245,242,236,.45)" }}>
-            {notification.createdAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+            {notification.createdAt.toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
         {!read && <span className="w-2 h-2 rounded-full bg-action" aria-hidden />}

@@ -27,7 +27,7 @@ export type FeedItemData =
   | { kind: "placement_reveal"; reveal: PlacementRevealPostData };
 
 function formatWhen(startsAt: Date): string {
-  return startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }).replace(",", "");
+  return startsAt.toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", minute: "2-digit" }).replace(",", "");
 }
 
 /**

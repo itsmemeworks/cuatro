@@ -16,23 +16,29 @@ export interface ChatMessage {
 }
 
 function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
+}
+
+/** The UK calendar day of an instant, as "YYYY-MM-DD" — deterministic on server (UTC) and client (any TZ), so hydration can never disagree about day boundaries. */
+function ukDay(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+function ukDayStartMs(d: Date): number {
+  return Date.parse(`${ukDay(d)}T00:00:00Z`);
 }
 
 function dayKey(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  return ukDay(new Date(iso));
 }
 
 /** Centered mono day divider above the thread (prototype's "TODAY") — generalised to yesterday/an actual date rather than hardcoding "today", since a thread can span more than one day. */
 function dayDividerLabel(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
-  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diffDays = Math.round((startOf(now) - startOf(d)) / 86_400_000);
+  const diffDays = Math.round((ukDayStartMs(now) - ukDayStartMs(d)) / 86_400_000);
   if (diffDays === 0) return "TODAY";
   if (diffDays === 1) return "YESTERDAY";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }).toUpperCase();
+  return d.toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short" }).toUpperCase();
 }
 
 // Delivery: the circle's realtime broadcast channel carries only

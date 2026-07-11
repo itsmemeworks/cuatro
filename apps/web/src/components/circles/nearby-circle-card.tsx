@@ -80,7 +80,7 @@ function glassRangeText(level: NearbyCircleData["level"]): string | null {
 
 /** Same "when" format The Board uses on Home, so an ask reads identically wherever it appears. */
 function whenLabelFor(startsAtMs: number): string {
-  return new Date(startsAtMs).toLocaleString("en-GB", {
+  return new Date(startsAtMs).toLocaleString("en-GB", { timeZone: "Europe/London",
     weekday: "short",
     day: "numeric",
     month: "short",

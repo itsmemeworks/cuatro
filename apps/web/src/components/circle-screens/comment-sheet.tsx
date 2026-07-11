@@ -101,7 +101,7 @@ export function CommentSheet({
                   <span className="font-bold text-ink">{c.displayName}</span>{" "}
                   <span className="text-ink">{c.body}</span>
                 </p>
-                <Meta as="span">{new Date(c.createdAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</Meta>
+                <Meta as="span">{new Date(c.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</Meta>
               </div>
             </div>
           ))}
