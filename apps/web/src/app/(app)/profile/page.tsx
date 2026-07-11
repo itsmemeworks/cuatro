@@ -7,6 +7,7 @@ import { getPlayerProfile } from "@/server/players";
 import { GlassProfile } from "@/components/glass/glass-profile";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { SettingsSheet, type VenueOption } from "@/components/profile/settings-sheet";
+import { PushToggle } from "@/components/profile/push-toggle";
 import { Chip, Meta } from "@/components/ui";
 
 export default async function ProfilePage() {
@@ -65,6 +66,8 @@ export default async function ProfilePage() {
       <Meta as="p" className="text-center">
         {patchStatusLine}
       </Meta>
+
+      <PushToggle />
 
       <SettingsSheet
         displayName={user.displayName}
