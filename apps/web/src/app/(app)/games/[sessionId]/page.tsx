@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -13,16 +12,12 @@ import { listNotificationsForUser } from "@/server/notifications";
 import { hasTabSplitForSession } from "@/server/session-tab";
 import { createTabSplitForSessionAction } from "@/server/session-tab-actions";
 import { pinVenueLocationAction } from "@/server/pin-location-actions";
-import { StandingGameWeekCard } from "@/components/games/StandingGameWeekCard";
-import { VenueMapCard } from "@/components/games/venue-map-card";
 import { KnockPanel, type KnockRow } from "@/components/games/knock-panel";
 import { sessionKnocks } from "@/server/discovery";
 import { FourthCallReceive } from "@/components/circle-screens/fourth-call-receive";
 import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
-import { FriendlyBadge } from "@/components/matches/friendly-badge";
-import { Button, Meta } from "@/components/ui";
 import { sessionOgImageUrl } from "@/lib/og";
-import { formatMoney } from "@/components/tab/money";
+import { GameDetail } from "@/components/circle-screens/wide/wide-game-detail";
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -252,160 +247,27 @@ export default async function SessionDetailPage({
   }
 
   return (
-    <main className="px-5 pt-8 pb-6 flex flex-col gap-4">
-      <Link href="/home" className="text-cu-secondary font-bold text-action">
-        ‹ Back
-      </Link>
-
-      {viewerStatusLine && (
-        <div
-          className={`rounded-button px-4 py-2.5 text-cu-body font-bold ${
-            summary.viewerStatus === "in" ? "bg-win-tint text-win" : "bg-surface border border-ink-hairline-1 text-ink"
-          }`}
-        >
-          {viewerStatusLine}
-        </div>
-      )}
-
-      <div>
-        <div className="flex items-center gap-2">
-          <Meta as="p" className="uppercase tracking-[0.12em]">
-            Standing Game · {summary.circleName}
-          </Meta>
-          {summary.session.gameType === "friendly" && <FriendlyBadge />}
-        </div>
-        <h1 className="text-cu-title text-ink mt-1.5 leading-tight">
-          {standingGameTitle}
-          {summary.venue && (
-            <>
-              <br />
-              {summary.venue.name}
-            </>
-          )}
-        </h1>
-        <Meta as="p" className="mt-1.5">
-          repeats weekly · RSVPs open {rsvpWindowDays} {rsvpWindowDays === 1 ? "day" : "days"} before
-        </Meta>
-      </div>
-
-      <ToastBoundary>
-        <StandingGameWeekCard
-          sessionId={sessionId}
-          circleId={summary.circleId}
-          circleName={summary.circleName}
-          circleColour={summary.circleColour}
-          circleEmblem={summary.circleEmblem}
-          weekLabel={new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-          slots={summary.slots}
-          confirmed={summary.confirmed}
-          reserves={summary.reserves}
-          viewerUserId={user.id}
-          viewerDisplayName={user.displayName || user.email.split("@")[0] || "You"}
-          viewerAvatarUrl={user.avatarUrl}
-          viewerStatus={summary.viewerStatus}
-          rsvpWindowOpensAt={summary.rsvpWindowOpensAt}
-          startsAt={new Date(summary.session.startsAt)}
-          canSendFourthCall={upcoming && !gameFull && viewerIsOrganiser}
-          fourthCallHref={`/games/${sessionId}/fourth-call`}
-          glassByUserId={glassByUserId}
-          guestByUserId={guestByUserId}
-          rotation={
-            summary.rotation
-              ? {
-                  mode: summary.rotation.mode,
-                  locked: summary.rotation.lockedAt != null,
-                  coldStart: summary.rotation.coldStart,
-                  locksAtMs: summary.rotation.locksAt.getTime(),
-                  available: summary.rotation.available,
-                  lineup: summary.rotation.lineup,
-                  sitting: summary.rotation.sitting,
-                  reasons: summary.rotation.reasons,
-                  viewerAvailable: summary.rotation.viewerAvailable,
-                }
-              : null
-          }
-        />
-      </ToastBoundary>
-
-      {viewerIsOrganiser && knockRows.length > 0 && <KnockPanel knocks={knockRows} />}
-
-      {summary.costMinor != null ? (
-        !isPast ? (
-          <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3">
-            <p className="text-cu-body text-ink flex-1">
-              {formatMoney(summary.costMinor, summary.costCurrency)} court
-              {summary.costPerHeadMinor != null && (
-                <>
-                  {" · "}
-                  <strong>{formatMoney(summary.costPerHeadMinor, summary.costCurrency)} each</strong>
-                </>
-              )}
-              {" · goes on the Tab"}
-            </p>
-            <Meta className="whitespace-nowrap">{durationMinutes} min</Meta>
-          </div>
-        ) : (
-          <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex flex-col gap-2.5">
-            <p className="text-cu-body text-ink font-mono">
-              {formatMoney(summary.costMinor, summary.costCurrency)} court
-              {summary.costPerHeadMinor != null && ` · ${formatMoney(summary.costPerHeadMinor, summary.costCurrency)} each`}
-              {` · ${durationMinutes} min`}
-            </p>
-            <form action={boundCreateSplit}>
-              <Button type="submit" variant={alreadySplit ? "quiet" : "primary"} disabled={alreadySplit} fullWidth>
-                {alreadySplit ? "Split on the Tab ✓" : "Goes on the Tab"}
-              </Button>
-            </form>
-          </div>
-        )
-      ) : (
-        <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex flex-col gap-2">
-          <Link href={`/circles/${summary.circleId}/tab`} className="flex items-center gap-3">
-            <span className="text-cu-body text-ink flex-1">Court split goes on the Tab</span>
-            <Meta tone="action">The Tab →</Meta>
-          </Link>
-          {viewerIsOrganiser && summary.standingGame && (
-            <Meta as="p">
-              Set a court cost on the{" "}
-              <Link href={`/games/standing/${summary.standingGame.id}`} className="font-bold text-action-strong">
-                Standing Game
-              </Link>{" "}
-              and it splits in one tap here.
-            </Meta>
-          )}
-        </div>
-      )}
-
-      {summary.venue && (
-        <VenueMapCard venueName={summary.venue.name} venueAddress={summary.venue.address ?? null} pinLocationAction={boundPinLocation} />
-      )}
-
-      {isPast &&
-        (existingMatch ? (
-          <Link
-            href={`/matches/${existingMatch.id}`}
-            className="rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold transition-cu-state active:opacity-80 bg-transparent text-ink border border-ink-hairline-4"
-          >
-            View result
-          </Link>
-        ) : (
-          <div className="rounded-card bg-surface border border-ink-hairline-1 px-4 py-4 flex flex-col gap-2.5">
-            <div>
-              <Meta as="p" className="uppercase tracking-[0.12em] font-extrabold">
-                Played
-              </Meta>
-              <p className="text-cu-body text-ink mt-1">
-                Log the result so everyone&apos;s Glass moves, the other team just confirms it.
-              </p>
-            </div>
-            <Link
-              href={`/matches/new?session=${sessionId}`}
-              className="rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state active:opacity-80"
-            >
-              Log last night&apos;s result
-            </Link>
-          </div>
-        ))}
-    </main>
+    <ToastBoundary>
+      <GameDetail
+        summary={summary}
+        viewer={{ id: user.id, displayName: user.displayName || user.email.split("@")[0] || "You", avatarUrl: user.avatarUrl }}
+        glassByUserId={glassByUserId}
+        guestByUserId={guestByUserId}
+        viewerIsOrganiser={viewerIsOrganiser}
+        upcoming={upcoming}
+        gameFull={gameFull}
+        isPast={isPast}
+        existingMatchId={existingMatch?.id ?? null}
+        alreadySplit={alreadySplit}
+        createSplitAction={boundCreateSplit}
+        pinLocationAction={boundPinLocation}
+        standingGameTitle={standingGameTitle}
+        rsvpWindowDays={rsvpWindowDays}
+        durationMinutes={durationMinutes}
+        fourthCallHref={`/games/${sessionId}/fourth-call`}
+        viewerStatusLine={viewerStatusLine}
+        knockPanel={viewerIsOrganiser && knockRows.length > 0 ? <KnockPanel knocks={knockRows} /> : null}
+      />
+    </ToastBoundary>
   );
 }

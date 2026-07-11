@@ -8,7 +8,9 @@ describe("resolveShellContext — home context", () => {
     }
   });
 
-  it("maps /players* to home:discover", () => {
+  it("maps /discover and /players* to home:discover", () => {
+    expect(resolveShellContext("/discover")).toEqual({ kind: "home", active: "discover" });
+    expect(resolveShellContext("/discover/anything")).toEqual({ kind: "home", active: "discover" });
     expect(resolveShellContext("/players")).toEqual({ kind: "home", active: "discover" });
     expect(resolveShellContext("/players/u-1")).toEqual({ kind: "home", active: "discover" });
   });

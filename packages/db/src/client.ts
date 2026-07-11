@@ -91,7 +91,17 @@ export async function createClient(databaseUrl?: string): Promise<CuatroClient> 
   // postgres-js's default max of 10 blew this during the 2026-07-10 deploy
   // (Sentry CUATRO-2, EMAXCONNSESSION from the scheduler tick).
   const max = Number(process.env.DATABASE_POOL_MAX ?? 6)
-  const sql = postgres(url, { max: Number.isFinite(max) && max > 0 ? max : 6 })
+  // Dev only: idle connections close themselves after 20s. Next's dev server
+  // orphans a server realm (each holding a full pool) on heavy HMR churn —
+  // without a timeout those idle pools accumulate until local Postgres's 100
+  // slots are gone ("remaining connection slots are reserved for SUPERUSER").
+  // Prod keeps persistent connections: the scheduler ticks every 60s and Fly
+  // machines are always-warm, so churn there is a bug, not a lifestyle.
+  const idleTimeout = process.env.NODE_ENV === 'production' ? undefined : Number(process.env.DATABASE_IDLE_TIMEOUT ?? 20)
+  const sql = postgres(url, {
+    max: Number.isFinite(max) && max > 0 ? max : 6,
+    ...(idleTimeout ? { idle_timeout: idleTimeout } : {}),
+  })
   const db = drizzle(sql, { schema })
 
   // Serialize concurrent boots. Take the advisory lock on a single reserved

@@ -18,6 +18,8 @@ import { BoardSection } from "@/components/games/board-section";
 import { boardGames } from "@/server/discovery";
 import { resolvePatch } from "@/server/patch";
 import type { BoardCardProps } from "@/components/games/board-card";
+import { getWeekData } from "@/server/week";
+import { WeekView } from "@/components/week/week-view";
 
 /**
  * `quiet` (design/DESIGN-AUDIT.md H4's "'Manage' quiet") is ink-muted, not
@@ -368,6 +370,14 @@ export default async function HomePage() {
     resolvePatch(gamesClient.db, user.id),
     boardGames(gamesClient.db, user.id),
   ]);
+
+  // The wide (≥900px) "Your week" surface reads ONE aggregate (server/week.ts).
+  // It runs after listUpcomingSessionsForUser above so any lazily-materialised
+  // sessions already exist for this read-only pass. The phone layout below is
+  // untouched (byte-for-byte); the two branches are CSS-selected, never a JS
+  // width switch. Phone-home dedup onto this aggregate is deferred (Wave B
+  // "(later)", WEB-SHELL-SPEC.md §New product surface 4).
+  const weekData = await getWeekData(user.id, new Date(now));
   const boardCards: BoardCardProps[] = board.map((g) => ({
     sessionId: g.sessionId,
     circleId: g.circleId,
@@ -390,8 +400,20 @@ export default async function HomePage() {
   }));
 
   return (
-    <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
-      <LiveRefresh userId={user.id} />
+    <>
+      {/*
+        Two CSS-selected faces of /home, one server render. Below 900px the
+        shell hides its wide chrome and this phone <main> is the page,
+        byte-for-byte as before (the shell provides no header here). At 900px+
+        the phone branch is display:none and the wide "Your week" surface takes
+        over — the shell already supplies identity + bell, so the wide header
+        carries only the title and "Log last night's result". LiveRefresh stays
+        mounted in the phone branch (display:none still mounts + runs effects),
+        so realtime refresh works at every width.
+      */}
+      <div className="min-[900px]:hidden">
+        <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
+          <LiveRefresh userId={user.id} />
 
       <div className="flex items-center justify-between">
         <div>
@@ -488,7 +510,19 @@ export default async function HomePage() {
         </section>
       )}
 
-      <BoardSection hasPatch={patch !== null} games={boardCards} />
-    </main>
+          <BoardSection hasPatch={patch !== null} games={boardCards} />
+        </main>
+      </div>
+
+      {/* `c4-wide` opts this page into the wide content column (globals.css:
+          .c4-shell-content:has(.c4-wide) lifts the 448 clamp at ≥900px); the
+          page then self-clamps to the design's ~1000px column. */}
+      <div className="c4-wide hidden min-[900px]:block mx-auto max-w-[1000px] px-[30px]">
+        <WeekView
+          data={weekData}
+          viewer={{ userId: user.id, displayName: user.displayName || name, avatarUrl: user.avatarUrl }}
+        />
+      </div>
+    </>
   );
 }

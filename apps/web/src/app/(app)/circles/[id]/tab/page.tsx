@@ -10,6 +10,7 @@ import { TabEntryRow, AllSquareRow } from "@/components/tab/tab-entry-row";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { CircleSwitcher } from "@/components/circles/circle-switcher";
 import { Card, Meta } from "@/components/ui";
+import { WideTab } from "@/components/circle-screens/wide/wide-tab";
 
 function activityDateLabel(d: Date): string {
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric" }).format(d);
@@ -91,7 +92,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
   }
   activeRows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-  return (
+  const phoneTree = (
     <main className="px-4 pt-6 pb-6 flex flex-col gap-4">
       <LiveRefresh circleId={circleId} />
       <Link href={`/circles/${circleId}`} className="text-cu-secondary font-bold text-action">
@@ -172,5 +173,28 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
 
       <p className="text-cu-meta text-ink-muted text-center">the Tab just keeps score, money moves in your own bank app, never through CUATRO. No chasing, no spreadsheets</p>
     </main>
+  );
+
+  // Games/Tab aren't CircleTabs tabs — CSS-sibling split. The wide Tab is static
+  // (TabEntryRow/AddEntrySheet act on user input, not mount), and LiveRefresh
+  // lives only in the phone tree, so no effectful component is duplicated.
+  return (
+    <>
+      <div className="min-[900px]:hidden">{phoneTree}</div>
+      <div className="hidden min-[900px]:block">
+        <WideTab
+          circleId={circleId}
+          circleName={detail?.name ?? ""}
+          viewerUserId={user.id}
+          members={view.members}
+          netEntries={netEntries}
+          netStatusLabel={netStatusLabel}
+          activeRows={activeRows}
+          allSquare={allSquare}
+          avatarByUserId={avatarByUserId}
+          activity={view.activity}
+        />
+      </div>
+    </>
   );
 }

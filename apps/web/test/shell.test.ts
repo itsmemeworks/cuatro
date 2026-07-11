@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
+  circleMembers,
   circleMessages,
   circles,
   notifications,
@@ -10,11 +11,15 @@ import {
   tabEntries,
   tabs,
   users,
+  venues,
 } from "@cuatro/db";
 import { seedCircle, type Fixture } from "./support/games-fixtures";
 import { buildShellData } from "@/server/shell";
-import { formatMoney } from "@/components/tab/money";
 import { circleColorFor } from "@/lib/design";
+
+// The web shell renders money in whole pounds without pence; the minus is the
+// design's typographic U+2212, not an ASCII hyphen.
+const MINUS = "−";
 
 let fixture: Fixture | undefined;
 afterEach(async () => {
@@ -236,17 +241,82 @@ describe("buildShellData — status line + needs attention", () => {
   });
 });
 
-describe("buildShellData — unread chat dot", () => {
-  it("flags a circle with another member's unread message, ignoring the viewer's own", async () => {
+describe("buildShellData — unread chat count", () => {
+  it("counts other members' unread messages numerically, ignoring the viewer's own", async () => {
     fixture = await seedCircle({ memberCount: 1 });
     const [m0] = fixture.memberIds;
     await fixture.db.insert(circleMessages).values({ circleId: fixture.circleId, userId: fixture.organiserId, body: "mine" });
     let data = await buildShellData(fixture.db, fixture.organiserId);
-    expect(data.circles[0].hasUnreadChat).toBe(false); // only my own message
+    expect(data.circles[0].unreadChatCount).toBe(0); // only my own message
 
-    await fixture.db.insert(circleMessages).values({ circleId: fixture.circleId, userId: m0, body: "theirs" });
+    await fixture.db.insert(circleMessages).values({ circleId: fixture.circleId, userId: m0, body: "one" });
+    await fixture.db.insert(circleMessages).values({ circleId: fixture.circleId, userId: m0, body: "two" });
     data = await buildShellData(fixture.db, fixture.organiserId);
-    expect(data.circles[0].hasUnreadChat).toBe(true);
+    expect(data.circles[0].unreadChatCount).toBe(2);
+  });
+});
+
+describe("buildShellData — member count + founded year (circle header subline)", () => {
+  it("counts the whole roster (organiser + members) and reads the founded year from createdAt", async () => {
+    fixture = await seedCircle({ memberCount: 3 });
+    const data = await buildShellData(fixture.db, fixture.organiserId);
+    expect(data.circles[0].memberCount).toBe(4); // organiser + 3 members
+    expect(data.circles[0].foundedYear).toBe(new Date().getFullYear());
+  });
+});
+
+describe("buildShellData — per-circle Tab net (circle-context sidebar)", () => {
+  async function seedTabEntry(
+    fx: Fixture,
+    circleId: string,
+    opts: { payer: string; debtor: string; amountMinor: number },
+  ) {
+    const [tab] = await fx.db.insert(tabs).values({ circleId }).onConflictDoNothing().returning();
+    const tabId = tab?.id ?? (await fx.db.select().from(tabs).where(eq(tabs.circleId, circleId)))[0].id;
+    await fx.db.insert(tabEntries).values({
+      tabId,
+      payerUserId: opts.payer,
+      debtorUserId: opts.debtor,
+      amountMinor: opts.amountMinor,
+      currency: "GBP",
+    });
+  }
+
+  it("scopes each circle's net to that circle's own entries (not the global rollup)", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    const [m0] = fixture.memberIds;
+
+    // A second circle the viewer also belongs to.
+    const [venue2] = await fixture.db.insert(venues).values({ name: "Venue 2", timezone: "Europe/London" }).returning();
+    const [circle2] = await fixture.db
+      .insert(circles)
+      .values({ name: "Second Circle", timezone: "Europe/London", inviteCode: `TWO-${Math.random().toString(36).slice(2, 8)}`, createdBy: fixture.organiserId })
+      .returning();
+    await fixture.db.insert(circleMembers).values({ circleId: circle2.id, userId: fixture.organiserId, role: "organiser" });
+    await fixture.db.insert(circleMembers).values({ circleId: circle2.id, userId: m0, role: "member" });
+    void venue2;
+
+    // Owe £4 in the seeded circle; owed £8 in the second.
+    await seedTabEntry(fixture, fixture.circleId, { payer: m0, debtor: fixture.organiserId, amountMinor: 400 });
+    await seedTabEntry(fixture, circle2.id, { payer: fixture.organiserId, debtor: m0, amountMinor: 800 });
+
+    const data = await buildShellData(fixture.db, fixture.organiserId);
+    const byId = new Map(data.circles.map((c) => [c.id, c]));
+
+    expect(byId.get(fixture.circleId)!.circleTabNetLine).toBe(`${MINUS}£4`);
+    expect(byId.get(fixture.circleId)!.circleTabNetOwing).toBe(true);
+    expect(byId.get(circle2.id)!.circleTabNetLine).toBe("+£8");
+    expect(byId.get(circle2.id)!.circleTabNetOwing).toBe(false);
+
+    // The global rollup nets the two: +£8 owed − £4 owing = +£4.
+    expect(data.tabNetLine).toBe("+£4");
+  });
+
+  it("is null for a circle the viewer has no unsettled entries in", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    const data = await buildShellData(fixture.db, fixture.organiserId);
+    expect(data.circles[0].circleTabNetLine).toBeNull();
+    expect(data.circles[0].circleTabNetOwing).toBe(false);
   });
 });
 
@@ -270,24 +340,33 @@ describe("buildShellData — Tab net line", () => {
     });
   }
 
-  it("shows a negative, owing line when the viewer owes", async () => {
+  it("shows a negative, owing line when the viewer owes (whole pounds, no pence)", async () => {
     fixture = await seedCircle({ memberCount: 1 });
     const [m0] = fixture.memberIds;
     await seedTabEntry(fixture, { payer: m0, debtor: fixture.organiserId, amountMinor: 400 });
 
     const data = await buildShellData(fixture.db, fixture.organiserId);
-    expect(data.tabNetLine).toBe(formatMoney(-400, "GBP"));
+    expect(data.tabNetLine).toBe(`${MINUS}£4`);
     expect(data.tabNetOwing).toBe(true);
   });
 
-  it("shows a positive, non-owing line when the viewer is owed", async () => {
+  it("shows a positive, non-owing line when the viewer is owed (whole pounds, no pence)", async () => {
     fixture = await seedCircle({ memberCount: 1 });
     const [m0] = fixture.memberIds;
     await seedTabEntry(fixture, { payer: fixture.organiserId, debtor: m0, amountMinor: 800 });
 
     const data = await buildShellData(fixture.db, fixture.organiserId);
-    expect(data.tabNetLine).toBe(`+${formatMoney(800, "GBP")}`);
+    expect(data.tabNetLine).toBe("+£8");
     expect(data.tabNetOwing).toBe(false);
+  });
+
+  it("shows pence only when the amount actually has them", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    const [m0] = fixture.memberIds;
+    await seedTabEntry(fixture, { payer: fixture.organiserId, debtor: m0, amountMinor: 850 });
+
+    const data = await buildShellData(fixture.db, fixture.organiserId);
+    expect(data.tabNetLine).toBe("+£8.50");
   });
 
   it("is null when balances net to zero", async () => {
@@ -308,7 +387,7 @@ describe("buildShellData — Tab net line", () => {
     await seedTabEntry(fixture, { payer: m0, debtor: fixture.organiserId, amountMinor: 5000, currency: "EUR" });
 
     const data = await buildShellData(fixture.db, fixture.organiserId);
-    expect(data.tabNetLine).toBe(`+${formatMoney(300, "GBP")}`); // GBP wins despite the bigger EUR debt
+    expect(data.tabNetLine).toBe("+£3"); // GBP wins despite the bigger EUR debt
     expect(data.tabNetOwing).toBe(false);
   });
 
@@ -316,6 +395,73 @@ describe("buildShellData — Tab net line", () => {
     fixture = await seedCircle({ memberCount: 1 });
     const data = await buildShellData(fixture.db, fixture.organiserId);
     expect(data.tabNetLine).toBeNull();
+  });
+});
+
+describe("buildShellData — Discover badge (discoverCount)", () => {
+  const SHOREDITCH = { lat: 51.5265, lng: -0.0805 };
+  const STRATFORD = { lat: 51.5432, lng: -0.0125 }; // ≈ 5 km from Shoreditch, inside the 10 km default
+  const NOW = new Date("2026-07-14T12:00:00.000Z");
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  /** Pin the fixture's venue and make it the viewer's home so a patch resolves. */
+  async function giveViewerAPatch(fx: Fixture, pin: { lat: number; lng: number }) {
+    await fx.db.update(venues).set({ lat: pin.lat, lng: pin.lng }).where(eq(venues.id, fx.venueId));
+    await fx.db.update(users).set({ homeVenueId: fx.venueId, findable: true }).where(eq(users.id, fx.organiserId));
+  }
+
+  /** A board-enabled circle the viewer is NOT in, with one upcoming open-slot game at `pin`. */
+  async function foreignBoardGame(
+    fx: Fixture,
+    opts: { pin: { lat: number; lng: number }; startsAt: Date; rsvpWindowDays?: number; slots?: number; confirmed?: number },
+  ) {
+    const [org] = await fx.db.insert(users).values({ email: `org${Math.random()}@e.com`, displayName: "Org" }).returning();
+    const [venue] = await fx.db.insert(venues).values({ name: "Foreign", timezone: "Europe/London", lat: opts.pin.lat, lng: opts.pin.lng }).returning();
+    const [circle] = await fx.db
+      .insert(circles)
+      .values({ name: "Foreign Circle", timezone: "Europe/London", inviteCode: `F-${Math.random().toString(36).slice(2, 8)}`, createdBy: org.id, boardEnabled: true })
+      .returning();
+    await fx.db.insert(circleMembers).values({ circleId: circle.id, userId: org.id, role: "organiser" });
+    const [sg] = await fx.db
+      .insert(standingGames)
+      .values({ circleId: circle.id, venueId: venue.id, weekday: 2, startTime: "20:00", slots: opts.slots ?? 4, rsvpWindowDays: opts.rsvpWindowDays ?? 6 })
+      .returning();
+    const [session] = await fx.db
+      .insert(sessions)
+      .values({ standingGameId: sg.id, circleId: circle.id, venueId: venue.id, startsAt: opts.startsAt.getTime(), status: "upcoming" })
+      .returning();
+    for (let i = 0; i < (opts.confirmed ?? 0); i++) {
+      const [p] = await fx.db.insert(users).values({ email: `p${Math.random()}@e.com`, displayName: "P" }).returning();
+      await fx.db.insert(circleMembers).values({ circleId: circle.id, userId: p.id, role: "member" });
+      await fx.db.insert(rsvps).values({ sessionId: session.id, userId: p.id, status: "in" });
+    }
+    return session.id;
+  }
+
+  it("is null when the viewer has no resolvable patch (badge hidden)", async () => {
+    fixture = await seedCircle({ memberCount: 0 });
+    const data = await buildShellData(fixture.db, fixture.organiserId, NOW);
+    expect(data.discoverCount).toBeNull();
+  });
+
+  it("counts open public games near the patch inside the next 7 days", async () => {
+    fixture = await seedCircle({ memberCount: 0 });
+    await giveViewerAPatch(fixture, SHOREDITCH);
+    await foreignBoardGame(fixture, { pin: STRATFORD, startsAt: new Date(NOW.getTime() + 5 * DAY_MS), confirmed: 2 });
+
+    const data = await buildShellData(fixture.db, fixture.organiserId, NOW);
+    expect(data.discoverCount).toBe(1);
+  });
+
+  it("drops games beyond the 7-day horizon even when the board still lists them", async () => {
+    fixture = await seedCircle({ memberCount: 0 });
+    await giveViewerAPatch(fixture, SHOREDITCH);
+    // 10 days out, but a 30-day RSVP window keeps it on the board; the badge's
+    // 7-day horizon must still exclude it, leaving 0 (patch resolves, so not null).
+    await foreignBoardGame(fixture, { pin: STRATFORD, startsAt: new Date(NOW.getTime() + 10 * DAY_MS), rsvpWindowDays: 30, confirmed: 1 });
+
+    const data = await buildShellData(fixture.db, fixture.organiserId, NOW);
+    expect(data.discoverCount).toBe(0);
   });
 });
 
@@ -340,6 +486,7 @@ describe("buildShellData — notifications + no-circle viewer", () => {
     expect(data.tabNetLine).toBeNull();
     expect(data.tabNetOwing).toBe(false);
     expect(data.unreadNotifications).toBe(1);
+    expect(data.discoverCount).toBeNull(); // no patch → no badge
     expect(data.identity.displayName).toBe("Lone Wolf");
   });
 });

@@ -544,4 +544,12 @@
     padding-top: 26px;
     padding-bottom: 34px;
   }
+  /* Wave B: pages OPT IN to the wide content column by putting `c4-wide` on
+   * their root element — then the 448 clamp lifts and the page self-clamps to
+   * the design's ~1000px column (max-w-[1000px] mx-auto px-[30px]). Pages not
+   * yet converted keep the Wave A centred-448 behaviour at wide widths, so
+   * nothing stretches before its wave. Below 900 the 448 clamp always applies. */
+  .c4-shell-content:has(.c4-wide) {
+    max-width: none;
+  }
 }
