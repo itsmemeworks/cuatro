@@ -58,7 +58,7 @@ export function FourthCallCard({
     }
   }
 
-  const whenLabel = session.startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const whenLabel = session.startsAt.toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", minute: "2-digit" });
   const expiresHours = Math.max(1, Math.round((session.startsAt.getTime() - Date.now()) / (60 * 60 * 1000)));
 
   return (

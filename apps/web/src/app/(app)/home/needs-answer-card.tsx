@@ -76,7 +76,7 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
     }
   }
 
-  const when = session.startsAt.toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const when = session.startsAt.toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", minute: "2-digit" });
   const place = session.venueName ? ` · ${session.venueName}` : "";
 
   // The card only renders when the viewer hasn't answered yet, so they're

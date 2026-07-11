@@ -52,7 +52,9 @@ async function toView(row: Notification, tx: CuatroDb): Promise<NotificationView
 }
 
 function dayKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  // The UK calendar day (not the UTC one): a 00:30 London notification must
+  // group under "Today" for the person who just received it.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
 function formatDayLabel(date: Date, now: Date): string {
@@ -60,7 +62,7 @@ function formatDayLabel(date: Date, now: Date): string {
   const key = dayKey(date);
   if (key === dayKey(now)) return "Today";
   if (key === dayKey(yesterday)) return "Yesterday";
-  return date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  return date.toLocaleDateString("en-GB", { timeZone: "Europe/London", weekday: "long", day: "numeric", month: "long" });
 }
 
 /** Every notification for `userId`, newest first, grouped into day buckets ("Today", "Yesterday", then calendar dates). */

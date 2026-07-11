@@ -294,7 +294,10 @@ export default async function HomePage() {
   // above rather than a second lookup.
   const fourthCallCards: FourthCallHomeSession[] = await Promise.all(
     activeFourthCalls
-      .filter((s) => s.session.id !== featured?.session.id)
+      // Only ask people who haven't answered: an 'in' member is already
+      // playing, an 'out' said no, a reserve is queued — none should be
+      // re-asked by the incoming-call card (charter run bug, 2026-07-11).
+      .filter((s) => s.session.id !== featured?.session.id && s.viewerStatus === null)
       .map(async (s) => {
         const ratings = (
           await Promise.all(s.confirmed.map(async (p) => (await matchesStore.getProfileGlassView(p.userId))?.rating ?? null))

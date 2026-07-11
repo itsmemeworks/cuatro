@@ -216,7 +216,7 @@ export function SessionCard({
             <Meta as="p">{data.circleName}</Meta>
           </div>
           <p className="text-cu-card-title text-ink mt-0.5">
-            {data.startsAt.toLocaleString("en-GB", {
+            {data.startsAt.toLocaleString("en-GB", { timeZone: "Europe/London",
               weekday: "short",
               day: "numeric",
               month: "short",

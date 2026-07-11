@@ -78,7 +78,7 @@ export function PinnedGameBar({
   const msUntilOpen = opensMs - now;
   const opensLabel =
     msUntilOpen > 24 * 60 * 60 * 1000
-      ? `RSVPs open ${rsvpWindowOpensAt.toLocaleDateString("en-GB", { weekday: "short" })}`
+      ? `RSVPs open ${rsvpWindowOpensAt.toLocaleDateString("en-GB", { timeZone: "Europe/London", weekday: "short" })}`
       : `RSVPs open in ${formatCountdown(msUntilOpen)}`;
 
   async function toggleRsvp() {
