@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SegmentedControl, DashedSlot, Meta, QrShareSheet, Avatar, AvatarStack } from "@/components/ui";
@@ -14,6 +14,7 @@ import { DoorControls } from "@/components/circles/door-controls";
 import { EditCircleSheet, type EditAnchor, type EditVenueOption } from "@/components/circles/edit-circle-sheet";
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { useCircleLive } from "@/lib/realtime/hooks";
+import { setChatDockPref, useChatDockActive, useHydrated } from "@/lib/chat-dock";
 import { formatGlass } from "@/lib/design";
 import type { PendingSealCardData, SettingsStandingGameView } from "@/app/(app)/circles/[id]/load-circle";
 import type { MoneyOptIn } from "@/lib/booking";
@@ -136,14 +137,35 @@ export function CircleTabs({
     }
   }, [circleId]);
 
-  useCircleLive(tab === "chat" ? null : circleId, (event) => {
-    if (event.type === "message" || event.type === "reconnect") refreshUnread();
+  // Wave D dock coordination (lib/chat-dock.ts): while the dock is active
+  // (>=1440, docked) chat lives in DockedChat and the Chat tab shows a
+  // "docked" note instead of a second CircleChat — the single-instance /
+  // single-mark-read rule (see circle-chat.tsx's header).
+  const dockActive = useChatDockActive();
+  const hydrated = useHydrated();
+
+  // Chat is on screen either in the dock or in the visible Chat tab. While
+  // it is, CircleChat owns read state (it marks read as messages land), so
+  // the badge watcher below must not refetch the unread count — the fetch
+  // could race the mark-read POST and resurrect a badge for a message the
+  // viewer is looking at.
+  const chatVisible = dockActive || activeTab === "chat";
+  const chatVisibleRef = useRef(chatVisible);
+  chatVisibleRef.current = chatVisible;
+
+  // Always registered: the shared channel pool (lib/realtime/shared-channels.ts)
+  // multiplexes this handler with CircleChat's over ONE websocket channel per
+  // circle, so there is no double-subscribe to gate against any more — the old
+  // `tab === "chat" ? null : circleId` null-gating predated the pool and broke
+  // once the dock meant chat could be visible outside the Chat tab.
+  useCircleLive(circleId, (event) => {
+    if ((event.type === "message" || event.type === "reconnect") && !chatVisibleRef.current) refreshUnread();
     if (isOrganiser && event.type === "notification") router.refresh();
   });
 
   useEffect(() => {
-    if (tab === "chat") setUnread(0);
-  }, [tab]);
+    if (chatVisible) setUnread(0);
+  }, [chatVisible]);
 
   const pinnedBar = primary && (
     <PinnedGameBar
@@ -173,8 +195,23 @@ export function CircleTabs({
     </div>
   );
 
+  // The feed's members side column collapses while the dock is active (the
+  // design gives its 300px to the dock rail: feedCols 1fr, feedMemD none).
+  // Pre-hydration the preference/viewport are unknown, so CSS assumes the
+  // default (docked at >=1440) and the live values take over once hydrated.
+  const feedGridCols = hydrated
+    ? dockActive
+      ? "min-[900px]:grid-cols-[1fr]"
+      : "min-[900px]:grid-cols-[1fr_300px]"
+    : "min-[900px]:grid-cols-[1fr_300px] min-[1440px]:grid-cols-[1fr]";
+  const membersCardVisibility = hydrated
+    ? dockActive
+      ? "hidden"
+      : "hidden min-[900px]:block"
+    : "hidden min-[900px]:block min-[1440px]:hidden";
+
   const membersSideCard = (
-    <div className="hidden min-[900px]:block bg-surface border border-ink-hairline-1 rounded-[20px] overflow-hidden self-start">
+    <div className={`${membersCardVisibility} bg-surface border border-ink-hairline-1 rounded-[20px] overflow-hidden self-start`}>
       <Link href={`/circles/${circleId}/members`} className="flex items-center justify-between px-4 py-3 bg-ink-hairline-1">
         <span className="font-sans font-extrabold text-[10px] tracking-[0.14em] text-ink-muted">MEMBERS · {members.length}</span>
         <span className="font-sans font-bold text-[11px] text-action-strong">all →</span>
@@ -227,7 +264,7 @@ export function CircleTabs({
               <AvatarStack people={members.slice(0, 4).map((m) => ({ src: m.avatarUrl, name: m.displayName }))} size="sm" ring="ground" />
             ) : undefined,
           )}
-          <div className="flex flex-col gap-3 min-[900px]:grid min-[900px]:grid-cols-[1fr_300px] min-[900px]:gap-[18px] min-[900px]:items-start">
+          <div className={`flex flex-col gap-3 min-[900px]:grid ${feedGridCols} min-[900px]:gap-[18px] min-[900px]:items-start`}>
             <div className="flex flex-col gap-3 min-w-0">
               {soloCircle && (
                 <div className="rounded-button border-[1.5px] border-dashed border-action px-3.5 py-3 flex flex-col gap-2.5">
@@ -314,12 +351,51 @@ export function CircleTabs({
 
       {activeTab === "chat" && (
         <>
-          {wideHeader("Chat", `${members.length} member${members.length === 1 ? "" : "s"}`)}
-          {/* Single PinnedGameBar + single CircleChat; wide styling wraps them in a tall card. */}
-          <div className="flex flex-col gap-3 min-[900px]:bg-surface min-[900px]:border min-[900px]:border-ink-hairline-1 min-[900px]:rounded-[22px] min-[900px]:px-5 min-[900px]:pt-[18px] min-[900px]:pb-4 min-[900px]:min-h-[560px]">
-            {pinnedBar}
-            <CircleChat circleId={circleId} currentUserId={currentUserId} initialMessages={messages} />
-          </div>
+          {wideHeader(
+            "Chat",
+            `${members.length} member${members.length === 1 ? "" : "s"}`,
+            // Re-dock affordance — only meaningful where the dock can exist
+            // (>=1440) and only once hydration knows it is undocked.
+            hydrated && !dockActive ? (
+              <button
+                type="button"
+                onClick={() => setChatDockPref(true)}
+                className="hidden min-[1440px]:inline-flex rounded-chip border border-ink-hairline-3 px-2.5 py-1.5 font-mono text-[10px] font-semibold text-ink-muted transition-cu-state hover:bg-ink-hairline-1 hover:text-ink"
+              >
+                dock →
+              </button>
+            ) : undefined,
+          )}
+          {/* Dock handoff (Wave D): while the dock is active the tab shows a
+              quiet note (chat already on screen in the right-hand pane); the
+              inline chat mounts only while it is not. Pre-hydration both
+              render with complementary min-[1440px] classes assuming the
+              docked default, so a desktop load doesn't flash the full thread
+              before hydration hands it to the dock. */}
+          {(!hydrated || dockActive) && (
+            <div className="hidden min-[1440px]:flex items-center gap-3 border border-ink-hairline-3 rounded-[20px] px-4 py-3.5">
+              <div className="flex-1 min-w-0">
+                <p className="font-sans font-bold text-[13px] text-ink">Chat is docked</p>
+                <p className="font-mono text-[10.5px] text-ink-muted mt-0.5">already open on the right, it follows you around this Circle</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChatDockPref(false)}
+                className="rounded-chip border border-ink-hairline-3 px-2.5 py-1.5 font-mono text-[10px] font-semibold text-ink-muted transition-cu-state hover:bg-ink-hairline-1 hover:text-ink"
+              >
+                undock
+              </button>
+            </div>
+          )}
+          {(!hydrated || !dockActive) && (
+            /* Single PinnedGameBar + single CircleChat; wide styling wraps them in a tall card. */
+            <div
+              className={`flex flex-col gap-3 min-[900px]:bg-surface min-[900px]:border min-[900px]:border-ink-hairline-1 min-[900px]:rounded-[22px] min-[900px]:px-5 min-[900px]:pt-[18px] min-[900px]:pb-4 min-[900px]:min-h-[560px]${hydrated ? "" : " min-[1440px]:hidden"}`}
+            >
+              {pinnedBar}
+              <CircleChat circleId={circleId} currentUserId={currentUserId} initialMessages={messages} />
+            </div>
+          )}
         </>
       )}
 

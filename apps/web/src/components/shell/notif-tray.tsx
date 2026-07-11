@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { NotificationDayGroup, NotificationView } from "@/server/notifications";
 import { errorCopy } from "@/lib/error-copy";
+import { PendingSpinner } from "@/components/ui";
+import {
+  fetchVapidPublicKey,
+  pushSupported,
+  trayPushRowState,
+  usePushSubscribe,
+} from "@/lib/use-push-subscribe";
 
 /*
  * The web shell chrome (rail/sidebar/topbar) is a fixed-dark frame in BOTH
@@ -54,6 +61,15 @@ interface TrayState {
   error: string | null;
 }
 
+/**
+ * "Not now" (or a denied permission prompt) parks the tray's enable row on
+ * this device for good — never ask twice. Device-scoped like the browser
+ * permission itself, so no user id in the key.
+ */
+const PUSH_DISMISS_KEY = "cuatro:push-tray-dismissed";
+
+type PushPhase = "idle" | "pending" | "enabled" | "denied" | "error";
+
 export function NotifTray({ unreadCount, anchor }: { unreadCount: number; anchor: "rail" | "topbar" }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -63,6 +79,82 @@ export function NotifTray({ unreadCount, anchor }: { unreadCount: number; anchor
   const [tray, setTray] = useState<TrayState>({ status: "idle", rows: [], error: null });
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Quiet browser-notifications enable row (spec item 5). Enrolment flow is
+  // the shared hook (lib/use-push-subscribe.ts, same one the profile toggle
+  // uses); this block only decides whether and how the row shows. Dismissed
+  // starts true so the server render and first client paint agree (hidden)
+  // until localStorage has actually been consulted.
+  const push = usePushSubscribe();
+  const [pushPhase, setPushPhase] = useState<PushPhase>("idle");
+  const [pushDismissed, setPushDismissed] = useState(true);
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  // undefined = not fetched yet (row stays hidden, never stubbed).
+  const [serverKey, setServerKey] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!pushSupported()) return;
+    setPermission(Notification.permission);
+    try {
+      setPushDismissed(window.localStorage.getItem(PUSH_DISMISS_KEY) != null);
+    } catch {
+      // Storage unavailable: leave dismissed=true, the row just stays quiet.
+    }
+  }, []);
+
+  // Ask the server for its VAPID public key lazily, on first open, and only
+  // once every cheaper gate says the row could show. A null/absent key hides
+  // the row entirely.
+  useEffect(() => {
+    if (!open || serverKey !== undefined) return;
+    if (!push.supported || pushDismissed || push.subscribed || permission === "denied") return;
+    let stale = false;
+    void fetchVapidPublicKey().then((key) => {
+      if (!stale) setServerKey(key);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [open, serverKey, push.supported, pushDismissed, push.subscribed, permission]);
+
+  const pushOffer =
+    pushPhase === "idle" &&
+    trayPushRowState({
+      supported: push.supported,
+      permission,
+      subscribed: push.subscribed,
+      dismissed: pushDismissed,
+      serverKey: serverKey ?? null,
+    }) === "offer";
+
+  async function enablePush() {
+    if (pushPhase === "pending") return;
+    setPushPhase("pending");
+    const result = await push.enable();
+    if (result === "subscribed") {
+      setPushPhase("enabled");
+      return;
+    }
+    if (result === "denied") {
+      // The browser said no. Park the row for good (never ask twice) and
+      // leave one quiet line about where to change their mind.
+      try {
+        window.localStorage.setItem(PUSH_DISMISS_KEY, "1");
+      } catch {}
+      setPermission("denied");
+      setPushPhase("denied");
+      return;
+    }
+    setPushPhase("error");
+  }
+
+  function dismissPush() {
+    try {
+      window.localStorage.setItem(PUSH_DISMISS_KEY, "1");
+    } catch {}
+    setPushDismissed(true);
+    setPushPhase("idle");
+  }
 
   useEffect(() => {
     setUnread(unreadCount);
@@ -279,8 +371,79 @@ export function NotifTray({ unreadCount, anchor }: { unreadCount: number; anchor
               })}
           </div>
 
-          {/* Browser-notifications enable row is deliberately omitted in Wave A
-              (VAPID keys parked) — hidden, not stubbed, per WEB-SHELL-SPEC.md. */}
+          {/* Quiet browser-notifications enable row (design's tray footer
+              strip). Hidden entirely unless the browser can push, the server
+              has a VAPID key, this device isn't subscribed, and the player
+              hasn't said "not now" — never stubbed, never asked twice. */}
+          {(pushOffer || pushPhase !== "idle") && (
+            <div
+              className="shrink-0"
+              style={{
+                padding: "11px 16px",
+                background: "rgba(245,242,236,.04)",
+                borderBottom: "1px solid rgba(245,242,236,.08)",
+                fontFamily: FONT_MONO,
+                fontWeight: 400,
+                fontSize: 10.5,
+                color: BONE_45,
+              }}
+            >
+              {pushOffer && (
+                <>
+                  desktop can ping you when a slot opens ·{" "}
+                  <button
+                    type="button"
+                    onClick={() => void enablePush()}
+                    className="cursor-pointer transition-cu-state hover:opacity-70"
+                    style={{ font: "inherit", color: "#FF7A5C", fontWeight: 700 }}
+                  >
+                    enable browser notifications
+                  </button>{" "}
+                  ·{" "}
+                  <button
+                    type="button"
+                    onClick={dismissPush}
+                    className="cursor-pointer transition-cu-state hover:text-[rgba(245,242,236,.75)]"
+                    style={{ font: "inherit", color: "inherit" }}
+                  >
+                    not now
+                  </button>
+                </>
+              )}
+              {pushPhase === "pending" && (
+                <span className="inline-flex items-center gap-1.5">
+                  <PendingSpinner />
+                  switching on browser notifications
+                </span>
+              )}
+              {pushPhase === "enabled" && <>this desktop will ping you when a slot opens</>}
+              {pushPhase === "denied" && (
+                <>your browser has notifications blocked for CUATRO. You can change that in its site settings</>
+              )}
+              {pushPhase === "error" && (
+                <>
+                  {errorCopy("something_went_wrong")}{" "}
+                  <button
+                    type="button"
+                    onClick={() => void enablePush()}
+                    className="cursor-pointer transition-cu-state hover:opacity-70"
+                    style={{ font: "inherit", color: "#FF7A5C", fontWeight: 700 }}
+                  >
+                    enable browser notifications
+                  </button>{" "}
+                  ·{" "}
+                  <button
+                    type="button"
+                    onClick={dismissPush}
+                    className="cursor-pointer transition-cu-state hover:text-[rgba(245,242,236,.75)]"
+                    style={{ font: "inherit", color: "inherit" }}
+                  >
+                    not now
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           <Link
             href="/notifications"
             onClick={() => setOpen(false)}

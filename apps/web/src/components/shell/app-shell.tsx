@@ -3,6 +3,8 @@ import type { ShellContext, ShellData } from "./contract";
 import { Rail } from "./rail";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
+import { ShellHotkeys } from "./hotkeys";
+import { DockedChat } from "./docked-chat";
 
 /*
  * AppShell — the responsive frame the (app) route group renders inside.
@@ -48,7 +50,21 @@ export function AppShell({ data, context, bottomNav, children }: AppShellProps) 
           <Topbar data={data} context={context} className="hidden min-[900px]:flex min-[1440px]:hidden" />
           <div className="c4-shell-content">{children}</div>
         </div>
+        {/* Wave D: the docked chat column, desktop circle-context only. The
+            component itself owns dock/undock state and the one-subscription
+            coordination; this wrapper only decides that the slot exists. */}
+        {context.kind === "circle" && (
+          <div className="hidden min-[1440px]:flex">
+            <DockedChat
+              circleId={context.circleId}
+              currentUserId={bottomNav.userId}
+              circle={data.circles.find((c) => c.id === context.circleId) ?? null}
+            />
+          </div>
+        )}
       </div>
+      {/* Wave D: the global keyboard layer (⌘K + g-sequences), mounted once. */}
+      <ShellHotkeys circles={data.circles} />
       {/* BottomNav is `fixed`; the wrapper's display:none at 900+ removes it
           from the wide shells without touching the component's own props. */}
       <div className="min-[900px]:hidden">

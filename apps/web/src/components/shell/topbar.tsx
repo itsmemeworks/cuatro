@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ShellContext, ShellData } from "./contract";
+import { QuickSwitchHint } from "./hotkeys";
 import { CircleSwitcher } from "./circle-switcher";
 import { NotifTray } from "./notif-tray";
 
@@ -77,7 +78,7 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
           <Pill href={base} active={circleActive === "feed"}>
             Feed
           </Pill>
-          <Pill href={base} active={circleActive === "chat"}>
+          <Pill href={`${base}/chat`} active={circleActive === "chat"}>
             Chat
             {(activeCircle?.unreadChatCount ?? 0) > 0 && (
               <span className="tabular-nums" style={{ background: "rgba(255,92,61,.16)", color: "#FF7A5C", borderRadius: 999, padding: "1px 7px", font: "800 10px 'Archivo',sans-serif" }}>
@@ -85,10 +86,10 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
               </span>
             )}
           </Pill>
-          <Pill href={base} active={circleActive === "members"}>
+          <Pill href={`${base}/members`} active={circleActive === "members"}>
             Members
           </Pill>
-          <Pill href={base} active={circleActive === "games"}>
+          <Pill href={`${base}/games`} active={circleActive === "games"}>
             Games
           </Pill>
           <Pill href={base} active={false}>
@@ -114,6 +115,8 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
           </Pill>
         </div>
       )}
+
+      <QuickSwitchHint variant="topbar" />
 
       <NotifTray unreadCount={data.unreadNotifications} anchor="topbar" />
 

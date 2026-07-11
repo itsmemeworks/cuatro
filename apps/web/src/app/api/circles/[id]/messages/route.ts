@@ -9,10 +9,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   const { id } = await params;
 
-  // Poll-fallback / backfill query: the client passes the timestamp (ms
-  // since epoch) of the last message it has and asks for anything newer —
-  // used for the initial catch-up if the SSE stream (see
-  // messages/stream/route.ts) ever misses a gap.
+  // Backfill query: the client passes the timestamp (ms since epoch) of
+  // the last message it has and asks for anything newer. CircleChat calls
+  // this on mount and again whenever the circle's realtime channel signals
+  // a "message"/"reconnect" (broadcasts carry ids only, never bodies — see
+  // lib/realtime/channels.ts), so one endpoint serves both live delivery
+  // and catch-up after a dropped connection.
   const afterParam = request.nextUrl.searchParams.get("after");
   const after = afterParam ? new Date(Number(afterParam)) : undefined;
 
