@@ -76,7 +76,7 @@ npm run dev --workspace=@cuatro/web
 **Checks before you open a pull request.**
 
 ```bash
-npm test              # full suite (~626 tests, all workspaces); no Supabase stack needed
+npm test              # full suite (~690 tests, all workspaces); no Supabase stack needed
 npm run build         # production build (webpack, not Turbopack)
 ```
 
