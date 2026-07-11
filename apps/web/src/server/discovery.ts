@@ -30,7 +30,7 @@
  * inventing a new channel event — clients always refetch through the authed
  * API, so the signal carries no entity data.
  */
-import { and, asc, eq, gt, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import {
   circleMembers,
   circles,
@@ -51,7 +51,7 @@ import {
   DEFAULT_RADIUS_KM,
 } from "@/lib/geo";
 import { resolvePatch } from "./patch";
-import { slotsForSession, DEFAULT_RSVP_WINDOW_DAYS } from "./games-service";
+import { slotsForSession, DEFAULT_RSVP_WINDOW_DAYS, DEFAULT_SESSION_SLOTS } from "./games-service";
 import { isUniqueConstraintError } from "./circles";
 import { insertNotification } from "./notify";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
@@ -244,6 +244,97 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
 
   scored.sort((a, b) => a.km - b.km || a.startsAt.getTime() - b.startsAt.getTime());
   return scored.map(({ km: _km, ...game }) => game);
+}
+
+export interface BoardCountOptions extends BoardOptions {
+  /** Only count games starting at/before this instant (the shell's "this week" Discover window). Omitted = every upcoming game, exactly boardGames' universe. */
+  startsBefore?: Date;
+}
+
+/**
+ * The COUNT twin of boardGames, for the shell's Discover badge — which runs on
+ * EVERY authed navigation, so it must not pay boardGames' per-candidate N+1
+ * (standing game + confirmed roster per row) just to throw the cards away.
+ *
+ * Same gating, by construction: resolvePatch (no patch → 0, nothing else runs),
+ * board-enabled Circles the viewer is NOT in, pinned venues only, bounding-box
+ * pre-filter + exact haversine refine, RSVP window open, at least one open
+ * slot. Three fixed queries: membership, candidates (with the standing-game
+ * columns joined in), one grouped confirmed-count. The discovery test asserts
+ * this NEVER disagrees with boardGames().length — if you change the board's
+ * rules, change this in the same commit.
+ */
+export async function boardGamesCount(
+  db: CuatroDb,
+  viewerId: string,
+  options: BoardCountOptions = {},
+): Promise<number> {
+  const radiusKm = options.radiusKm ?? DEFAULT_RADIUS_KM;
+  const now = options.now ?? new Date();
+
+  const patch = await resolvePatch(db, viewerId);
+  if (!patch) return 0;
+
+  const box = boundingBox(patch.lat, patch.lng, radiusKm);
+
+  const memberCircleIds = new Set(
+    (
+      await db
+        .select({ circleId: circleMembers.circleId })
+        .from(circleMembers)
+        .where(eq(circleMembers.userId, viewerId))
+    ).map((r) => r.circleId),
+  );
+
+  const rows = await db
+    .select({
+      sessionId: sessions.id,
+      circleId: sessions.circleId,
+      startsAt: sessions.startsAt,
+      lat: venues.lat,
+      lng: venues.lng,
+      // Left-joined so a one-off session (no standing game) falls back to the
+      // same product defaults slotsForSession/rsvpWindowDaysFor apply.
+      slots: standingGames.slots,
+      rsvpWindowDays: standingGames.rsvpWindowDays,
+    })
+    .from(sessions)
+    .innerJoin(circles, eq(circles.id, sessions.circleId))
+    .innerJoin(venues, eq(venues.id, sessions.venueId))
+    .leftJoin(standingGames, eq(standingGames.id, sessions.standingGameId))
+    .where(
+      and(
+        eq(sessions.status, "upcoming"),
+        gt(sessions.startsAt, now.getTime()),
+        ...(options.startsBefore ? [lte(sessions.startsAt, options.startsBefore.getTime())] : []),
+        eq(circles.boardEnabled, true),
+        isNotNull(venues.lat),
+        isNotNull(venues.lng),
+        gte(venues.lat, box.minLat),
+        lte(venues.lat, box.maxLat),
+        gte(venues.lng, box.minLng),
+        lte(venues.lng, box.maxLng),
+      ),
+    );
+
+  const candidates = rows.filter((row) => {
+    if (memberCircleIds.has(row.circleId)) return false;
+    if (row.lat == null || row.lng == null) return false;
+    if (haversineKm(patch.lat, patch.lng, row.lat, row.lng) > radiusKm) return false; // refine the box's corners
+    const windowOpensAt = row.startsAt - (row.rsvpWindowDays ?? DEFAULT_RSVP_WINDOW_DAYS) * DAY_MS;
+    return now.getTime() >= windowOpensAt;
+  });
+  if (candidates.length === 0) return 0;
+
+  const confirmedRows = await db
+    .select({ sessionId: rsvps.sessionId, n: sql<number>`cast(count(*) as int)` })
+    .from(rsvps)
+    .where(and(inArray(rsvps.sessionId, candidates.map((c) => c.sessionId)), eq(rsvps.status, "in")))
+    .groupBy(rsvps.sessionId);
+  const confirmedBySession = new Map(confirmedRows.map((r) => [r.sessionId, Number(r.n)]));
+
+  return candidates.filter((c) => (c.slots ?? DEFAULT_SESSION_SLOTS) - (confirmedBySession.get(c.sessionId) ?? 0) > 0)
+    .length;
 }
 
 // ---------------------------------------------------------------------------

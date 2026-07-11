@@ -62,17 +62,17 @@ export function Rail({ data, context, className = "" }: { data: ShellData; conte
     >
       <Link href="/home" aria-label="Home" aria-current={homeActive ? "page" : undefined} style={{ position: "relative", userSelect: "none" }}>
         <ActiveBar on={homeActive} />
+        {/* Hover states live in classes — inline `background`/`opacity` would beat stylesheet :hover (Pete, 2026-07-11). */}
         <div
+          className={`transition-colors ${homeActive ? "bg-[rgba(245,242,236,.08)]" : "hover:bg-[rgba(245,242,236,.06)]"}`}
           style={{
             width: 46,
             height: 46,
             borderRadius: 15,
-            background: homeActive ? "rgba(245,242,236,.08)" : "transparent",
             border: `1px solid ${HAIR}`,
             color: CORAL,
             font: "800 19px/46px 'Archivo',sans-serif",
             textAlign: "center",
-            transition: "background 200ms",
             boxSizing: "border-box",
           }}
         >
@@ -94,6 +94,7 @@ export function Rail({ data, context, className = "" }: { data: ShellData; conte
           >
             <ActiveBar on={active} />
             <div
+              className={`transition-opacity ${active ? "" : "opacity-[.45] hover:opacity-90"}`}
               style={{
                 width: 46,
                 height: 46,
@@ -102,8 +103,6 @@ export function Rail({ data, context, className = "" }: { data: ShellData; conte
                 color: "#fff",
                 font: "800 15px/46px 'Archivo',sans-serif",
                 textAlign: "center",
-                opacity: active ? 1 : 0.45,
-                transition: "opacity 200ms",
               }}
             >
               {c.emblem ?? c.initials}
@@ -115,12 +114,12 @@ export function Rail({ data, context, className = "" }: { data: ShellData; conte
       <Link
         href="/circles/new"
         aria-label="Create a Circle"
+        className="bg-[rgba(245,242,236,.04)] transition-colors hover:bg-[rgba(245,242,236,.1)]"
         style={{
           width: 46,
           height: 46,
           borderRadius: 15,
           border: "1px solid rgba(245,242,236,.18)",
-          background: "rgba(245,242,236,.04)",
           color: "rgba(245,242,236,.7)",
           font: "600 19px/44px 'Archivo',sans-serif",
           textAlign: "center",

@@ -1,13 +1,76 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, InfoTerm, Meta, Sheet } from "@/components/ui";
+import { Button, Card, InfoTerm, Meta, Sheet, SubmitButton } from "@/components/ui";
 import { updateDisplayNameAction } from "@/lib/actions";
 import { updateDiscoverySettingsAction } from "@/app/(app)/profile/discovery-actions";
+import { updatePlayerAttrsAction } from "@/app/(app)/profile/player-attrs-actions";
+import { COURT_SIDES, DOMINANT_HANDS } from "@/lib/player-attrs";
 
 export interface VenueOption {
   id: string;
   name: string;
+}
+
+/** The design's Side segment labels: "Drive · right" / "Backhand · left" / "Both" — lingo first, real side second (design ON COURT card). */
+export function courtSideSegmentLabel(side: (typeof COURT_SIDES)[number]): string {
+  return side.id === "both" ? side.short : `${side.short} · ${side.id}`;
+}
+
+/**
+ * The ON COURT pill segments (issue #21, design "Home · Settings" ON COURT
+ * card): a rounded group where the active segment gets the strong bone-on-ink
+ * inversion. Skippable by design — tapping the active segment clears it back
+ * to unset, so "none of these" is always one tap away. Shared by the phone
+ * settings sheet and the wide Settings page (both A1 files).
+ */
+export function AttrSegments({
+  options,
+  value,
+  onSelect,
+  disabled,
+  label,
+}: {
+  options: { id: string; label: string }[];
+  value: string;
+  onSelect: (next: string) => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      aria-busy={disabled || undefined}
+      className={[
+        "inline-flex gap-[3px] bg-ground border border-ink-hairline-2 rounded-full p-[3px] self-start transition-cu-state",
+        // The save-in-flight pending state (mid-wave addendum: no silent
+        // clicks) — the tapped segment has already flipped optimistically,
+        // the dimmed group says "writing".
+        disabled ? "opacity-60" : "",
+      ].join(" ")}
+    >
+      {options.map((opt) => {
+        const active = opt.id === value;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            disabled={disabled}
+            onClick={() => onSelect(active ? "" : opt.id)}
+            className={[
+              "rounded-full px-[11px] py-[5px] text-[10.5px] font-bold whitespace-nowrap transition-cu-state",
+              active ? "bg-strong-bg text-strong-fg" : "text-ink-muted hover:text-ink",
+            ].join(" ")}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
@@ -23,14 +86,25 @@ export function SettingsSheet({
   findable,
   homeVenueId,
   venueOptions,
+  dominantHand,
+  courtSide,
 }: {
   displayName: string | null;
   email: string;
   findable: boolean;
   homeVenueId: string | null;
   venueOptions: VenueOption[];
+  /** ON COURT attributes (issue #21): pass the STORED values (null = unset). Leaving both undefined hides the whole ON COURT card — a picker that can't see the stored value must not render, or a reopened sheet would show "unset" over a real value and a re-save would null it (the CLAUDE.md #14 stale-default data-loss shape, sans React). */
+  dominantHand?: string | null;
+  courtSide?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  // Controlled on purpose (unlike the uncontrolled fields above, which rely on
+  // save-then-close): a controlled value never falls victim to React 19's
+  // form-reset-on-resolve, and the segments need local state anyway.
+  const [hand, setHand] = useState(dominantHand ?? "");
+  const [side, setSide] = useState(courtSide ?? "");
+  const showOnCourt = dominantHand !== undefined || courtSide !== undefined;
 
   // Close the sheet once a save lands. This is load-bearing, not cosmetic:
   // React 19 auto-resets a `<form action={fn}>` as soon as the action resolves,
@@ -73,9 +147,9 @@ export function SettingsSheet({
                 className="w-full rounded-button px-4 py-3 text-cu-body outline-none bg-ground border border-ink-hairline-2 text-ink"
                 style={{ minHeight: "var(--touch-target)" }}
               />
-              <Button type="submit" variant="strong" size="lg" fullWidth>
+              <SubmitButton variant="strong" size="lg" fullWidth>
                 Save
-              </Button>
+              </SubmitButton>
             </form>
             <Meta>{email}</Meta>
           </Card>
@@ -118,11 +192,43 @@ export function SettingsSheet({
               </select>
               <Meta as="p">This is what places you on The Board, pick where you usually play.</Meta>
 
-              <Button type="submit" variant="strong" size="lg" fullWidth>
+              <SubmitButton variant="strong" size="lg" fullWidth>
                 Save
-              </Button>
+              </SubmitButton>
             </form>
           </Card>
+
+          {showOnCourt && (
+          <Card className="flex flex-col gap-3">
+            <form action={saveThenClose(updatePlayerAttrsAction)} className="flex flex-col gap-3">
+              <p className="text-cu-secondary font-semibold text-ink-muted">On court</p>
+              <input type="hidden" name="dominantHand" value={hand} />
+              <input type="hidden" name="courtSide" value={side} />
+
+              <span className="text-cu-body text-ink">Hand</span>
+              <AttrSegments
+                options={DOMINANT_HANDS.map((h) => ({ id: h.id, label: h.label }))}
+                value={hand}
+                onSelect={setHand}
+                label="Dominant hand"
+              />
+              <Meta as="p">Which hand holds the racket. Optional, skip freely.</Meta>
+
+              <span className="text-cu-body text-ink mt-1">Side</span>
+              <AttrSegments
+                options={COURT_SIDES.map((s) => ({ id: s.id, label: courtSideSegmentLabel(s) }))}
+                value={side}
+                onSelect={setSide}
+                label="Court side"
+              />
+              <Meta as="p">Where you set up in the pair. Never touches Glass, the Rotation, or who can join.</Meta>
+
+              <SubmitButton variant="strong" size="lg" fullWidth>
+                Save
+              </SubmitButton>
+            </form>
+          </Card>
+          )}
 
           <form action="/api/auth/logout" method="POST">
             <Button type="submit" variant="quiet" size="lg" fullWidth>

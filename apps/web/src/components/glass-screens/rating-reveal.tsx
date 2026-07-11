@@ -49,15 +49,48 @@ export function RatingReveal({
 }) {
   const { show } = useToast();
   const [visible, setVisible] = useState(false);
+  const [armed, setArmed] = useState(false);
   const [text, setText] = useState(() => randomGlassText());
   const [settled, setSettled] = useState(false);
   const [confDrawn, setConfDrawn] = useState(false);
   const [poured, setPoured] = useState(false);
   const hapticFired = useRef(false);
+  const rootRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (hasSeenRatingReveal(userId)) return;
     setVisible(true);
+    // Deliberately runs once on mount — re-checking on every prop change
+    // would replay the pour for a rating that hasn't actually changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ARM only on genuine visibility (WEB-SHELL-SPEC Wave C punch item: at wide
+  // widths the phone tree that hosts this component is display:none, and the
+  // old mount-time timer quietly spent the once-ever pour — and its "seen"
+  // flag — on a screen nobody was looking at). An element inside display:none
+  // never intersects, so the IntersectionObserver simply waits: resize below
+  // 900px (or a phone visit) and the pour starts fresh from the top.
+  useEffect(() => {
+    if (!visible) return;
+    const el = rootRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      // No way to observe (ancient browser/jsdom): behave exactly as before.
+      setArmed(true);
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        setArmed(true);
+        io.disconnect();
+      }
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible]);
+
+  useEffect(() => {
+    if (!armed) return;
 
     // Marked "seen" only once the sequence actually finishes — an
     // interruption (navigating away, a remount) leaves the flag unset so
@@ -65,6 +98,9 @@ export function RatingReveal({
     // glimpse being their one and only reveal forever.
     const markSeen = () => window.localStorage.setItem(seenKey(userId), "1");
 
+    // The reduced-motion path lives INSIDE the armed gate on purpose: it
+    // marks seen instantly, so running it while display:none would burn the
+    // reveal invisibly for exactly the users the punch item protects.
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) {
       setText(formatGlass(rating));
@@ -97,10 +133,9 @@ export function RatingReveal({
       clearTimeout(tConf);
       clearTimeout(tPoured);
     };
-    // Deliberately runs once on mount — re-checking on every prop change
-    // would replay the pour for a rating that hasn't actually changed.
+    // Runs once, the moment the component becomes genuinely visible.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [armed]);
 
   if (!visible) return null;
 
@@ -123,7 +158,7 @@ export function RatingReveal({
   }
 
   return (
-    <section className="rounded-card bg-surface-feature border border-ink-hairline-2 p-6 flex flex-col items-center text-center gap-1">
+    <section ref={rootRef} className="rounded-card bg-surface-feature border border-ink-hairline-2 p-6 flex flex-col items-center text-center gap-1">
       <p className="text-cu-secondary font-extrabold tracking-[0.14em] text-action-on-feature-label">
         PLACEMENT TRIO COMPLETE
       </p>

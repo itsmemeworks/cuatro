@@ -100,6 +100,8 @@ export function CirclePhone({ ctx, currentUserId, initialTab }: { ctx: CircleCon
           pendingSeals={ctx.pendingSeals}
           initialTab={initialTab}
           rivalry={ctx.rivalry}
+          pinnedMoneyOptIn={ctx.pinnedMoneyOptIn}
+          settingsStandingGames={ctx.settingsStandingGames}
         />
       </ToastBoundary>
     </main>

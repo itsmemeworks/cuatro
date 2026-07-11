@@ -4,6 +4,7 @@ import { formatGlass } from "@/lib/design";
 import { PLACEMENT_TRIO_SIZE } from "@cuatro/glass";
 import { PlacementTrioProgress } from "@/components/glass/placement-trio-progress";
 import { GlassIntroCard } from "@/components/glass/glass-intro-card";
+import { courtSideFact, dominantHand } from "@/lib/player-attrs";
 
 export interface MemberListItem {
   userId: string;
@@ -17,6 +18,23 @@ export interface MemberListItem {
   verifiedMatchCount: number;
   /** Guests have no public profile — their row renders unlinked. Optional: upstream mappers may not set it, in which case a guest tapped through lands on the graceful guest presence page. */
   isGuest?: boolean;
+  /** Optional profile facts (issue #21) — soft signals shown as mono facts when set, never a gate or filter. Optional: upstream mappers may not carry them. */
+  dominantHand?: string | null;
+  courtSide?: string | null;
+}
+
+/**
+ * " · left hand · Left side (backhand)" — the issue #21 mono facts appended to
+ * a member's status line, empty when neither is set. Real padel lingo via
+ * courtSideFact; hand reads "left hand" / "right hand" / "either hand".
+ */
+export function memberAttrFacts(m: Pick<MemberListItem, "dominantHand" | "courtSide">): string {
+  const parts: string[] = [];
+  const hand = dominantHand(m.dominantHand);
+  if (hand) parts.push(hand.id === "both" ? "either hand" : `${hand.label.toLowerCase()} hand`);
+  const side = courtSideFact(m.courtSide);
+  if (side) parts.push(side);
+  return parts.length > 0 ? ` · ${parts.join(" · ")}` : "";
 }
 
 const NEW_MEMBER_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
@@ -75,6 +93,7 @@ export function MemberList({ members, currentUserId }: { members: MemberListItem
               </div>
               <Meta as="p" className="mt-1">
                 {reliabilityLabel}
+                {memberAttrFacts(m)}
               </Meta>
             </div>
             <div className="text-right shrink-0">

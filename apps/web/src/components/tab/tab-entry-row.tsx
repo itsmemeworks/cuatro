@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, Chip, Fact, Meta } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
-import { formatMoney } from "./money";
+import { formatMoneyWhole } from "./money";
 
 export interface TabEntryRowData {
   id: string;
@@ -20,27 +20,43 @@ export interface TabEntryRowData {
   subtitle?: string | null;
 }
 
-/** Compact pill for Nudge/Settle — smaller and rounder than the standard Button (design/HANDOFF.md's "the Tab" row anatomy: buttons sit inline in the row, not stacked below it). */
+/**
+ * Compact pill for Nudge/Settle — smaller and rounder than the standard
+ * Button (design/HANDOFF.md's "the Tab" row anatomy: buttons sit inline in
+ * the row, not stacked below it). `pending` shows the system pending state
+ * (the same cap-height border-spinner recipe as components/ui/button.tsx's
+ * PendingSpinner — Button itself can't shrink to row-pill scale) per the
+ * no-silent-clicks rule (Pete, 2026-07-11).
+ */
 function RowPill({
   tone = "quiet",
   disabled,
+  pending,
   onClick,
   children,
 }: {
   tone?: "quiet" | "action";
   disabled?: boolean;
+  pending?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={pending || disabled}
+      aria-busy={pending || undefined}
       onClick={onClick}
-      className={`shrink-0 rounded-chip px-3.5 py-2 text-[11px] font-bold whitespace-nowrap transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none ${
+      className={`shrink-0 rounded-chip px-3.5 py-2 text-[11px] font-bold whitespace-nowrap inline-flex items-center gap-1.5 transition-cu-state hover:opacity-90 active:opacity-80 disabled:opacity-40 disabled:pointer-events-none ${
         tone === "action" ? "bg-action text-action-contrast border border-transparent" : "border border-ink-hairline-3 text-ink"
       }`}
     >
+      {pending ? (
+        <span
+          aria-hidden
+          className="inline-block h-[1em] w-[1em] flex-none animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none"
+        />
+      ) : null}
       {children}
     </button>
   );
@@ -64,14 +80,17 @@ export function TabEntryRow({
   counterpartyAvatarUrl?: string | null;
 }) {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
+  // Which action is in flight — the clicked pill spins, its sibling disables
+  // (no silent clicks; Pete, 2026-07-11).
+  const [pendingAction, setPendingAction] = useState<"nudge" | "settle" | null>(null);
+  const pending = pendingAction !== null;
   const [error, setError] = useState<string | null>(null);
 
   const viewerIsPayer = entry.payerUserId === viewerUserId;
   const counterpartyName = viewerIsPayer ? entry.debtorName : entry.payerName;
 
   async function post(action: "nudge" | "settle") {
-    setPending(true);
+    setPendingAction(action);
     setError(null);
     try {
       const res = await fetch(`/api/tab/entries/${entry.id}/${action}`, { method: "POST" });
@@ -84,7 +103,7 @@ export function TabEntryRow({
     } catch {
       setError("network_error");
     } finally {
-      setPending(false);
+      setPendingAction(null);
     }
   }
 
@@ -108,15 +127,15 @@ export function TabEntryRow({
           {entry.subtitle && <p className="text-cu-secondary text-ink-muted mt-0.5">{entry.subtitle}</p>}
         </div>
         <Fact size="md" weight="bold" tone={viewerIsPayer ? "win" : "loss"}>
-          {formatMoney(entry.amountMinor, entry.currency)}
+          {formatMoneyWhole(entry.amountMinor, entry.currency)}
         </Fact>
         {viewerIsPayer ? (
           <>
-            <RowPill disabled={pending || entry.status !== "open"} onClick={() => post("nudge")}>
+            <RowPill pending={pendingAction === "nudge"} disabled={pending || entry.status !== "open"} onClick={() => post("nudge")}>
               {entry.status === "open" ? "Nudge 👋" : "Nudged ✓"}
             </RowPill>
             {counterpartyProposed && (
-              <RowPill disabled={pending} onClick={() => post("settle")}>
+              <RowPill pending={pendingAction === "settle"} disabled={pending} onClick={() => post("settle")}>
                 Confirm settled
               </RowPill>
             )}
@@ -124,11 +143,12 @@ export function TabEntryRow({
         ) : (
           <RowPill
             tone={entry.pendingSettleBy == null || counterpartyProposed ? "action" : "quiet"}
+            pending={pendingAction === "settle"}
             disabled={pending || viewerAlreadyProposed}
             onClick={() => post("settle")}
           >
             {entry.pendingSettleBy == null
-              ? `Mark as paid ${formatMoney(entry.amountMinor, entry.currency)}`
+              ? `Mark as paid ${formatMoneyWhole(entry.amountMinor, entry.currency)}`
               : viewerAlreadyProposed
                 ? "Waiting…"
                 : "Confirm ✓"}

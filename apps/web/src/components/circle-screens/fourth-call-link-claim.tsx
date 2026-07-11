@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Meta } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
+import { sideHintLine, type FourthCallSideHint } from "@/components/circle-screens/fourth-call-side-hint";
 
 // Context-specific overrides for the ring-3 claim path; anything not listed
 // here falls through to the shared errorCopy() map so no raw code can leak.
@@ -20,7 +21,16 @@ const ERROR_COPY: Record<string, string> = {
  * notification (see /api/fourth-call/[sessionId]/claim's `{ token }`
  * body and claimFourthCallSlot's ring3Token option).
  */
-export function FourthCallLinkClaim({ sessionId, token }: { sessionId: string; token: string }) {
+export function FourthCallLinkClaim({
+  sessionId,
+  token,
+  sideHint = null,
+}: {
+  sessionId: string;
+  token: string;
+  /** Organiser's optional court-side hint (issue #21) — display copy only, the claim below is never gated on it. */
+  sideHint?: FourthCallSideHint | null;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +59,10 @@ export function FourthCallLinkClaim({ sessionId, token }: { sessionId: string; t
 
   return (
     <div className="flex flex-col gap-2.5">
+      {sideHint && <Meta as="p">{sideHintLine(sideHint)}</Meta>}
       {error && <Meta tone="action">{ERROR_COPY[error] ?? errorCopy(error)}</Meta>}
-      <Button size="lg" fullWidth disabled={pending} onClick={claim}>
-        {pending ? "…" : "I can play"}
+      <Button size="lg" fullWidth pending={pending} onClick={claim}>
+        I can play
       </Button>
     </div>
   );

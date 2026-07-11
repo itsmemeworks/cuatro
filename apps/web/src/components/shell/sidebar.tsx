@@ -41,16 +41,17 @@ function NavRow({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
+      // Hover affordance lives in classes, not the style object — inline
+      // `background` would beat any stylesheet :hover (Pete, 2026-07-11).
+      className={`transition-colors ${active ? "bg-[rgba(245,242,236,.06)]" : "hover:bg-[rgba(245,242,236,.05)]"}`}
       style={{
         display: "flex",
         alignItems: "center",
         gap: 11,
         padding: "10px 12px",
         borderRadius: 12,
-        background: active ? "rgba(245,242,236,.06)" : "transparent",
         position: "relative",
         userSelect: "none",
-        transition: "background 200ms",
       }}
     >
       <div
@@ -224,6 +225,7 @@ function HomeSidebar({ data, context }: { data: ShellData; context: ShellContext
               <Link
                 key={c.id}
                 href={`/circles/${c.id}`}
+                className={`transition-[background-color,opacity] hover:bg-[rgba(245,242,236,.05)] ${c.needsAttention ? "" : "opacity-[.55] hover:opacity-100"}`}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -231,7 +233,6 @@ function HomeSidebar({ data, context }: { data: ShellData; context: ShellContext
                   padding: "8px 12px",
                   borderRadius: 11,
                   userSelect: "none",
-                  opacity: c.needsAttention ? 1 : 0.55,
                 }}
               >
                 <Flag circle={c} size={26} radius={9} fontSize={10} />
@@ -262,7 +263,7 @@ function CircleSidebar({ data, context }: { data: ShellData; context: Extract<Sh
   const base = `/circles/${context.circleId}`;
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-      <Link href="/home" style={{ font: "700 11px 'Archivo',sans-serif", color: BONE_MUTED, padding: "0 10px", userSelect: "none" }}>
+      <Link href="/home" className="hover:underline" style={{ font: "700 11px 'Archivo',sans-serif", color: BONE_MUTED, padding: "0 10px", userSelect: "none" }}>
         ‹ Home
       </Link>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 10px 0" }}>
@@ -296,6 +297,7 @@ function CircleSidebar({ data, context }: { data: ShellData; context: Extract<Sh
 
       <Link
         href={base}
+        className="transition-colors hover:bg-[rgba(255,92,61,.08)]"
         style={{
           margin: "18px 10px 0",
           border: "1.5px dashed rgba(255,92,61,.5)",
@@ -342,8 +344,8 @@ export function Sidebar({ data, context, className = "" }: { data: ShellData; co
       {/* footer identity card + brand-promise line (both contexts) */}
       <Link
         href="/profile"
+        className="bg-[rgba(245,242,236,.05)] transition-colors hover:bg-[rgba(245,242,236,.09)]"
         style={{
-          background: "rgba(245,242,236,.05)",
           border: "1px solid rgba(245,242,236,.08)",
           borderRadius: 14,
           padding: "11px 12px",

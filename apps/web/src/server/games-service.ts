@@ -48,6 +48,8 @@ import { computeEqualSplit } from "./tab";
 import { localRingCandidates, LOCAL_RING_FANOUT_CAP } from "./local-ring";
 import { playedWithCandidates, PLAYED_WITH_FANOUT_CAP } from "./played-with";
 import { emitCircleEvent, emitSessionEvent, emitUserEvent } from "@/lib/realtime/broadcast";
+import { BOOKING_PLATFORM_IDS, resolveMoneyOptIn, type MoneyOptIn } from "@/lib/booking";
+import { normalizeBookingUrl } from "./standing-games-service";
 import { captureEvent } from "@/lib/analytics";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -291,6 +293,10 @@ export type OneOffSessionInput = {
   venueName?: string | null;
   /** FRIENDLIES classification. Omit to inherit the circle's default_game_type. */
   gameType?: GameType;
+  /** "Booked on" signpost (issue #21). A one-off has no standing game to inherit from, so it sets the signpost directly on the session row. Sessions carry no cost column, so there's no cost XOR here. */
+  bookingPlatform?: string | null;
+  /** Optional pasted booking URL (http/https); only stored alongside a platform. */
+  bookingUrl?: string | null;
 };
 
 export type ServiceResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -298,6 +304,16 @@ export type ServiceResult<T> = { ok: true; value: T } | { ok: false; error: stri
 /** A one-off session has no standing_game_id — organiser-created, single occurrence. */
 export async function createOneOffSession(db: CuatroDb, userId: string, input: OneOffSessionInput): Promise<ServiceResult<Session>> {
   if (!(await isOrganiser(db, input.circleId, userId))) return { ok: false, error: "not_an_organiser" };
+
+  // "Booked on" (issue #21): validated here the same way the standing-game
+  // service does — unknown platform ids and non-http(s) URLs bounce.
+  const bookingPlatform = (input.bookingPlatform ?? null) as Session["bookingPlatform"];
+  if (bookingPlatform != null && !(BOOKING_PLATFORM_IDS as readonly string[]).includes(bookingPlatform)) {
+    return { ok: false, error: "invalid_booking_platform" };
+  }
+  const bookingUrlResult = normalizeBookingUrl(input.bookingUrl);
+  if (!bookingUrlResult.ok) return { ok: false, error: "invalid_booking_url" };
+  const bookingUrl = bookingPlatform ? bookingUrlResult.url : null;
 
   const venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName);
   const [circleRow] = await db
@@ -313,6 +329,8 @@ export async function createOneOffSession(db: CuatroDb, userId: string, input: O
       startsAt: input.startsAt.getTime(),
       status: "upcoming",
       gameType,
+      bookingPlatform,
+      bookingUrl,
     })
     .returning();
 
@@ -609,7 +627,7 @@ export type FourthCallCheckResult =
  * Lazily checked on view (no cron in v0 — documented limitation: a session
  * nobody looks at between T-48h and kickoff never gets its Fourth Call).
  * Idempotent: uses the presence of an existing `fourth_call` notification
- * for this session (via json_extract on the payload) as the "already
+ * for this session (via the ->> operator on the payload) as the "already
  * fired" marker, so repeat views don't spam duplicate notifications.
  */
 export async function checkFourthCallLevel1(
@@ -732,7 +750,7 @@ async function fourthCallLevel1FiredAt(db: CuatroDb, sessionId: string): Promise
  * Has the GEO Local Ring (level 2, no `via`) already fired for this session?
  * Its notification is the idempotency marker. Deliberately excludes the
  * played-with ring's notifications — those also carry level 2 but a
- * `via: "played_with"` tag (json_extract of a missing key is NULL, so the geo
+ * `via: "played_with"` tag (`->>` on a missing key is NULL, so the geo
  * ring's own invites are `$.via IS NULL`). Without this the played-with ring
  * firing first would wrongly mark the geo ring as already-done.
  */
@@ -1558,11 +1576,15 @@ export type SessionSummary = {
   /** Present iff the Standing Game has rotationEnabled; null for plain first-come games. */
   rotation: SessionRotationView | null;
   rsvpWindowOpensAt: Date;
-  /** null when the standing game's organiser hasn't set a court cost yet (design/DESIGN-AUDIT.md F4) — a one-off session (no standing game) never has one, matching the schema (cost lives on standing_games only). */
+  /** null when the standing game's organiser hasn't set a court cost yet (design/DESIGN-AUDIT.md F4) — a one-off session (no standing game) never has one, matching the schema (cost lives on standing_games only). Also null when a "Booked on" signpost resolves for this session (issue #21): a booked-on game never touches the Tab, so no cost/split chrome may render — derived from `moneyOptIn`, the single rule. */
   costMinor: number | null;
   costCurrency: string;
   /** floor(cost / slots), remainder absorbed by whoever ends up paying — same rule as server/tab.ts's computeEqualSplit, reused here for display before any Tab split exists. */
   costPerHeadMinor: number | null;
+  /** The game's resolved money opt-in (issue #21): a "Booked on" signpost XOR a court cost, or null (the default silence). Session booking override > standing-game booking > standing-game cost — the one pure rule in lib/booking.ts resolveMoneyOptIn. Consumers render booking chips / split previews from THIS, so the mutual exclusivity holds everywhere by construction. */
+  moneyOptIn: MoneyOptIn;
+  /** Fourth Call side hint (issue #21, organiser-set via server/fourth-call.ts): "ideally a left-sider" flavour on call cards. A HINT ONLY — it never filters who sees or can claim a call. 'right' = drive, 'left' = backhand. */
+  fourthCallSideHint: "left" | "right" | null;
 };
 
 /** "£32 court, 4 slots" -> £8 each, floor + payer-absorbs-remainder, reusing tab.ts's computeEqualSplit (design/DESIGN-AUDIT.md F4). Null when there's no cost, or fewer than 2 slots (nothing to split). */
@@ -1615,7 +1637,11 @@ export async function getSessionSummary(
     .map(toPlayerRef);
   const viewerRow = rows.find((r) => r.userId === viewerUserId);
   const slots = slotsForSession(standingGame);
-  const costMinor = standingGame?.costMinor ?? null;
+  // Money opt-in (issue #21): one resolution, then every cost field derives
+  // from it — a resolved booking silences the cost (so no split preview can
+  // leak onto a booked-on game), and only a real cost opt-in exposes cost.
+  const moneyOptIn = resolveMoneyOptIn({ session, standingGame });
+  const costMinor = moneyOptIn?.kind === "cost" ? moneyOptIn.amountMinor : null;
 
   const rotation = await buildRotationView(db, session, standingGame, rows, slots, viewerUserId);
 
@@ -1641,6 +1667,8 @@ export async function getSessionSummary(
     costMinor,
     costCurrency: standingGame?.costCurrency ?? "GBP",
     costPerHeadMinor: computeSessionCostPerHead(costMinor, slots),
+    moneyOptIn,
+    fourthCallSideHint: session.fourthCallSideHint,
   };
 }
 

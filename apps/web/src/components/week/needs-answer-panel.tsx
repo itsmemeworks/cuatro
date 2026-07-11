@@ -36,7 +36,7 @@ function namesLine(confirmed: { displayName: string }[]): string {
  * line the design leads with.
  */
 export function NeedsAnswerPanel({ session, viewer }: { session: WeekNeedsAnswer; viewer: Viewer }) {
-  const { respond, pending, error, answered } = useRsvp(session.sessionId);
+  const { respond, pending, pendingAction, error, answered } = useRsvp(session.sessionId);
   const optimisticIn = answered === "in";
 
   const displayConfirmed = optimisticIn ? [...session.confirmed, viewer] : session.confirmed;
@@ -54,7 +54,10 @@ export function NeedsAnswerPanel({ session, viewer }: { session: WeekNeedsAnswer
           Needs your answer · {session.circleName}
         </p>
         <span className="flex-1" />
-        <Link href={`/games/${session.sessionId}`} className="text-[12px] font-bold text-action-on-feature-link whitespace-nowrap">
+        <Link
+          href={`/games/${session.sessionId}`}
+          className="text-[12px] font-bold text-action-on-feature-link whitespace-nowrap transition-cu-state hover:underline"
+        >
           View game →
         </Link>
       </div>
@@ -100,7 +103,7 @@ export function NeedsAnswerPanel({ session, viewer }: { session: WeekNeedsAnswer
             variant="strong"
             size="lg"
             onFeature
-            disabled={pending}
+            pending={pendingAction === "out"}
             onClick={() => respond("out")}
             style={{ background: "var(--color-win)", color: "var(--color-action-contrast)" }}
             className="flex-1"
@@ -109,10 +112,26 @@ export function NeedsAnswerPanel({ session, viewer }: { session: WeekNeedsAnswer
           </Button>
         ) : (
           <>
-            <Button variant="primary" size="lg" onFeature disabled={pending} onClick={() => respond("in")} className="flex-[2]">
+            <Button
+              variant="primary"
+              size="lg"
+              onFeature
+              pending={pendingAction === "in"}
+              disabled={pending}
+              onClick={() => respond("in")}
+              className="flex-[2]"
+            >
               I&apos;m in
             </Button>
-            <Button variant="destructiveQuiet" size="lg" onFeature disabled={pending} onClick={() => respond("out")} className="flex-1">
+            <Button
+              variant="destructiveQuiet"
+              size="lg"
+              onFeature
+              pending={pendingAction === "out"}
+              disabled={pending}
+              onClick={() => respond("out")}
+              className="flex-1"
+            >
               Can&apos;t
             </Button>
           </>

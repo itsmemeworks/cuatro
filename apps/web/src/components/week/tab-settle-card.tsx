@@ -20,7 +20,7 @@ export function TabSettleCard({ prompt }: { prompt: WeekTabPrompt }) {
       </div>
       <Link
         href={`/circles/${prompt.circleId}/tab`}
-        className="rounded-chip bg-strong-bg text-strong-fg text-[11.5px] font-bold px-3.5 py-2 whitespace-nowrap"
+        className="rounded-chip bg-strong-bg text-strong-fg text-[11.5px] font-bold px-3.5 py-2 whitespace-nowrap transition-cu-state hover:opacity-90"
       >
         Settle
       </Link>

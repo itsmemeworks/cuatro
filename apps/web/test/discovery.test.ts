@@ -16,6 +16,7 @@ import {
 } from "@cuatro/db";
 import {
   boardGames,
+  boardGamesCount,
   createSessionKnock,
   decideSessionKnock,
   sessionKnocks,
@@ -331,5 +332,82 @@ describe("session knock flow", () => {
     expect(rows[0].message).toBe("keen");
     expect(rows[0].rating).toBe(3.4);
     expect(rows[0].distanceLabel).toMatch(/km away$/); // viewer (Shoreditch) → game venue (Stratford)
+  });
+});
+
+// -----------------------------------------------------------------------------
+// boardGamesCount — the shell badge's fixed-cost COUNT twin of boardGames.
+// The invariant these tests pin: the count NEVER disagrees with
+// boardGames().length under the same options. If a board rule changes, both
+// functions (and these scenarios) change together.
+// -----------------------------------------------------------------------------
+
+describe("boardGamesCount — always equals boardGames().length", () => {
+  async function expectParity(viewerId: string, opts: { now?: Date; radiusKm?: number } = {}) {
+    const games = await boardGames(db, viewerId, opts);
+    const count = await boardGamesCount(db, viewerId, opts);
+    expect(count).toBe(games.length);
+    return { games, count };
+  }
+
+  it("counts 0 for a viewer with no resolvable patch (nothing near, nothing counted)", async () => {
+    const viewer = await mkUser({ displayName: "Nowhere" });
+    const { count } = await expectParity(viewer.id, { now: NOW });
+    expect(count).toBe(0);
+  });
+
+  it("matches across the geo boundary: near game in, just-outside game out", async () => {
+    const shoreditch = await mkVenue("Powerleague Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Padel Social Club Stratford", STRATFORD);
+    const wandsworth = await mkVenue("Rocket Padel Wandsworth", WANDSWORTH);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id, findable: true });
+
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1, 3.8] });
+    await mkBoardCircle({ venueId: wandsworth.id, confirmedRatings: [3.0] });
+
+    const { count } = await expectParity(viewer.id, { now: NOW });
+    expect(count).toBe(1);
+  });
+
+  it("matches when games are excluded for being full, own-circle, board-disabled, or window-not-open", async () => {
+    const shoreditch = await mkVenue("Powerleague Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Padel Social Club Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id, findable: true });
+
+    // Counted: open slots, window open, board-enabled, not a member.
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1] });
+    // Excluded: full (4 of 4).
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.0, 3.2, 3.4, 3.6] });
+    // Excluded: board disabled.
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.0], boardEnabled: false });
+    // Excluded: RSVP window (default 6 days) not open yet for a game 10 days out.
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.0], startsAt: new Date(NOW.getTime() + 10 * DAY_MS) });
+    // Excluded: the viewer's own circle.
+    const own = await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.0] });
+    await db.insert(circleMembers).values({ circleId: own.circleId, userId: viewer.id, role: "member" });
+
+    const { count } = await expectParity(viewer.id, { now: NOW });
+    expect(count).toBe(1);
+  });
+
+  it("startsBefore trims the count exactly like the shell's 7-day badge window trims the board", async () => {
+    const shoreditch = await mkVenue("Powerleague Shoreditch", SHOREDITCH);
+    const stratford = await mkVenue("Padel Social Club Stratford", STRATFORD);
+    const viewer = await mkUser({ displayName: "Viewer", homeVenueId: shoreditch.id, findable: true });
+
+    // In 5 days (inside the horizon) and one further game whose RSVP window
+    // IS open (widened to 10 days so it's genuinely on the board) but which
+    // starts beyond the 6-day horizon.
+    await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.1] });
+    const far = await mkBoardCircle({ venueId: stratford.id, confirmedRatings: [3.2], startsAt: new Date(NOW.getTime() + 6.5 * DAY_MS) });
+    await db.update(standingGames).set({ rsvpWindowDays: 10 }).where(eq(standingGames.id, far.standingGameId));
+
+    const horizon = new Date(NOW.getTime() + 6 * DAY_MS);
+    const games = await boardGames(db, viewer.id, { now: NOW });
+    const expected = games.filter((g) => g.startsAt.getTime() <= horizon.getTime()).length;
+    const count = await boardGamesCount(db, viewer.id, { now: NOW, startsBefore: horizon });
+    expect(games.length).toBe(2);
+    expect(count).toBe(expected);
+    expect(count).toBe(1);
   });
 });

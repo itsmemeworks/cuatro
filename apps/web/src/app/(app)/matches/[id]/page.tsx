@@ -5,6 +5,7 @@ import { confirmMatchAction, disputeMatchAction } from "@/server/matches-actions
 import { ScoreTable, MatchStatusBadge } from "@/components/matches/score-table";
 import { FriendlyBadge } from "@/components/matches/friendly-badge";
 import { MatchConfirmFlow } from "@/components/matches/match-confirm-flow";
+import { MatchDetailWide } from "@/components/matches/wide/match-detail-wide";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { Card, Meta } from "@/components/ui";
 
@@ -27,7 +28,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
     );
   }
 
-  const { match, players, confirmedTeams, viewerTeam, ledgerEvents } = detail;
+  const { match, players, avatars, confirmedTeams, viewerTeam, ledgerEvents, context } = detail;
   const teamAName = `${players[match.teamAPlayer1Id]} & ${players[match.teamAPlayer2Id]}`;
   const teamBName = `${players[match.teamBPlayer1Id]} & ${players[match.teamBPlayer2Id]}`;
   const winner = computeWinner(match.score);
@@ -46,48 +47,90 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const confirmWithId = confirmMatchAction.bind(null, match.id);
   const disputeWithId = disputeMatchAction.bind(null, match.id);
 
+  const playerBits = (playerId: string) => ({ name: players[playerId] ?? "Player", avatarUrl: avatars[playerId] ?? null });
+
   return (
-    <main className="px-4 pt-6 pb-6 flex flex-col gap-4">
+    <>
+      {/* One subscription serves both trees (LiveRefresh renders nothing). */}
       <LiveRefresh sessionId={match.sessionId} />
-      <div className="flex items-center justify-between">
-        <h1 className="text-cu-title text-ink">Match result</h1>
-        <div className="flex items-center gap-2">
-          {isFriendly && <FriendlyBadge />}
-          <MatchStatusBadge status={match.status} outcome={match.outcome} />
+      <main className="px-4 pt-6 pb-6 flex flex-col gap-4 min-[900px]:hidden">
+        <div className="flex items-center justify-between">
+          <h1 className="text-cu-title text-ink">Match result</h1>
+          <div className="flex items-center gap-2">
+            {isFriendly && <FriendlyBadge />}
+            <MatchStatusBadge status={match.status} outcome={match.outcome} />
+          </div>
         </div>
+
+        <Card className="flex flex-col gap-3">
+          <ScoreTable sets={match.score} teamAName={teamAName} teamBName={teamBName} />
+          <Meta>{noRealWinner ? "No games played" : `${winner === "A" ? teamAName : teamBName} won`}</Meta>
+        </Card>
+
+        {match.status !== "void" && (
+          <MatchConfirmFlow
+            status={match.status}
+            outcome={match.outcome}
+            friendly={isFriendly}
+            teamAName={teamAName}
+            teamBName={teamBName}
+            confirmedTeams={confirmedTeams}
+            viewerTeam={viewerTeam}
+            canAct={canAct}
+            ledgerEvents={ledgerEvents}
+            players={players}
+            teamAPlayerIds={[match.teamAPlayer1Id, match.teamAPlayer2Id]}
+            teamBPlayerIds={[match.teamBPlayer1Id, match.teamBPlayer2Id]}
+            confirmAction={confirmWithId}
+            disputeAction={disputeWithId}
+          />
+        )}
+
+        {match.status === "pending_confirmation" && (
+          <p className="text-cu-meta text-ink-muted text-center px-6">
+            {isFriendly
+              ? "A friendly still gets confirmed by both teams. It counts for Reliability and shows in your history, Glass just stays put."
+              : "Glass moves only when both teams confirm, no referee, no disputes desk"}
+          </p>
+        )}
+      </main>
+
+      {/* Wide (>=900px): the design overlay's step 5 grown into a page —
+          pending seal + how-the-other-side-sees-it, the real opposing
+          confirm, and the both-deltas seal. Same LiveRefresh signal drives
+          both trees via the one instance above (it renders nothing). */}
+      <div className="c4-wide hidden min-[900px]:block w-full pt-2">
+        {match.status === "void" ? (
+          <div className="max-w-[720px] mx-auto px-[30px]">
+            <Card>
+              <p className="text-cu-body text-ink-muted">This result was voided.</p>
+            </Card>
+          </div>
+        ) : (
+          <MatchDetailWide
+            status={match.status}
+            outcome={match.outcome}
+            friendly={isFriendly}
+            sets={match.score}
+            viewerTeam={viewerTeam}
+            viewerHasConfirmed={viewerHasConfirmed}
+            canAct={canAct}
+            teamA={[playerBits(match.teamAPlayer1Id), playerBits(match.teamAPlayer2Id)]}
+            teamB={[playerBits(match.teamBPlayer1Id), playerBits(match.teamBPlayer2Id)]}
+            teamAIds={[match.teamAPlayer1Id, match.teamAPlayer2Id]}
+            teamBIds={[match.teamBPlayer1Id, match.teamBPlayer2Id]}
+            viewerId={user.id}
+            ledgerEvents={ledgerEvents}
+            playerNames={players}
+            startsAtMs={context.startsAt.getTime()}
+            venueName={context.venueName}
+            circleName={context.circleName}
+            sessionId={match.sessionId}
+            confirmAction={confirmWithId}
+            disputeAction={disputeWithId}
+          />
+        )}
       </div>
-
-      <Card className="flex flex-col gap-3">
-        <ScoreTable sets={match.score} teamAName={teamAName} teamBName={teamBName} />
-        <Meta>{noRealWinner ? "No games played" : `${winner === "A" ? teamAName : teamBName} won`}</Meta>
-      </Card>
-
-      {match.status !== "void" && (
-        <MatchConfirmFlow
-          status={match.status}
-          outcome={match.outcome}
-          friendly={isFriendly}
-          teamAName={teamAName}
-          teamBName={teamBName}
-          confirmedTeams={confirmedTeams}
-          viewerTeam={viewerTeam}
-          canAct={canAct}
-          ledgerEvents={ledgerEvents}
-          players={players}
-          teamAPlayerIds={[match.teamAPlayer1Id, match.teamAPlayer2Id]}
-          teamBPlayerIds={[match.teamBPlayer1Id, match.teamBPlayer2Id]}
-          confirmAction={confirmWithId}
-          disputeAction={disputeWithId}
-        />
-      )}
-
-      {match.status === "pending_confirmation" && (
-        <p className="text-cu-meta text-ink-muted text-center px-6">
-          {isFriendly
-            ? "A friendly still gets confirmed by both teams. It counts for Reliability and shows in your history, Glass just stays put."
-            : "Glass moves only when both teams confirm, no referee, no disputes desk"}
-        </p>
-      )}
-    </main>
+    </>
   );
 }

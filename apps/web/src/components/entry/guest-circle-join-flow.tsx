@@ -29,7 +29,7 @@ export type GuestCircleJoinInitial =
 // step exactly. `strong`, never coral: the one coral action on the done step
 // is the RSVP button, per the design system's one-primary-per-screen rule.
 const STRONG_LG_LINK_CLASS =
-  "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 w-full min-h-12 px-5 text-[15px] font-extrabold bg-strong-bg text-strong-fg";
+  "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state hover:opacity-90 active:opacity-80 w-full min-h-12 px-5 text-[15px] font-extrabold bg-strong-bg text-strong-fg";
 
 const JOIN_ERROR_COPY: Record<string, string> = {
   invalid_name: "give us at least one letter",
@@ -145,7 +145,7 @@ export function GuestCircleJoinFlow({
             <p className="text-[10px] font-extrabold tracking-[0.14em] text-action">YOU&apos;RE INVITED</p>
             <h1 className="text-cu-title mt-1.5">{circleName}</h1>
           </div>
-          <p className="text-cu-body text-ink-muted max-w-xs">
+          <p className="text-cu-body text-ink-muted max-w-xs min-[900px]:max-w-[400px]">
             Its chat, history and Standing Games, join to see what your mates have been up to.
           </p>
         </div>
@@ -155,7 +155,7 @@ export function GuestCircleJoinFlow({
           <Meta>a spot&apos;s open for you</Meta>
         </div>
 
-        <div className="w-full max-w-xs flex flex-col gap-3 text-left">
+        <div className="w-full max-w-xs flex flex-col gap-3 text-left min-[900px]:max-w-[400px]">
           <input
             value={nameDraft}
             onChange={(e) => setNameDraft(e.target.value)}
@@ -166,8 +166,8 @@ export function GuestCircleJoinFlow({
             autoFocus
             className="w-full box-border bg-surface border border-ink-hairline-3 rounded-button px-4 py-3.5 text-[15px] font-semibold text-ink outline-none"
           />
-          <Button size="lg" fullWidth disabled={pending} onClick={join}>
-            {pending ? "…" : `Join ${circleName}`}
+          <Button size="lg" fullWidth pending={pending} onClick={join}>
+            Join {circleName}
           </Button>
           <Meta as="p" className="text-center">
             no account · no app download · ~10 seconds
@@ -197,7 +197,7 @@ export function GuestCircleJoinFlow({
         <Meta as="p">a member of {circleName}</Meta>
       </div>
 
-      <div className="w-full max-w-xs">
+      <div className="w-full max-w-xs min-[900px]:max-w-[440px]">
         {nextGame ? (
           <div className="rounded-card bg-surface-feature border border-ink-hairline-2 overflow-hidden text-left">
             <div className="p-4 pb-3.5 border-b border-ink-hairline-1">
@@ -225,8 +225,8 @@ export function GuestCircleJoinFlow({
                   You&apos;re on the reserve list, you&apos;ll hear the moment a slot opens
                 </p>
               ) : nextGame.rsvpOpen ? (
-                <Button size="lg" fullWidth disabled={pending} onClick={() => rsvp(nextGame.sessionId)}>
-                  {pending ? "…" : "Count me in"}
+                <Button size="lg" fullWidth pending={pending} onClick={() => rsvp(nextGame.sessionId)}>
+                  Count me in
                 </Button>
               ) : (
                 <Meta as="p" onFeature>
@@ -251,7 +251,7 @@ export function GuestCircleJoinFlow({
         )}
       </div>
 
-      <div className="w-full max-w-xs flex flex-col gap-3.5">
+      <div className="w-full max-w-xs flex flex-col gap-3.5 min-[900px]:max-w-[440px]">
         <Link href={`/login?next=${encodeURIComponent(`/join/${code}`)}`} className={STRONG_LG_LINK_CLASS}>
           Save your spot, send me a magic link
         </Link>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PLACEMENT_TRIO_SIZE } from "@cuatro/glass";
 import { formatGlass } from "@/lib/design";
 import { PlacementTrioProgress } from "@/components/glass/placement-trio-progress";
-import type { MemberListItem } from "@/components/circles/member-list";
+import { memberAttrFacts, type MemberListItem } from "@/components/circles/member-list";
 
 /**
  * Shared member-row pieces for the wide circle tabs (WEB-SHELL-SPEC.md Wave B).
@@ -17,10 +17,15 @@ import type { MemberListItem } from "@/components/circles/member-list";
  * (matches the design's Members rows), so this stays reliability-only.
  */
 export function memberStatusLine(m: MemberListItem): string {
-  if (m.rating == null) {
-    return `Placement Trio · ${Math.min(m.verifiedMatchCount, PLACEMENT_TRIO_SIZE)} of ${PLACEMENT_TRIO_SIZE} played`;
-  }
-  return m.reliability != null ? `✓ shows up ${Math.round(m.reliability * 100)}%` : "no RSVP history yet";
+  const base =
+    m.rating == null
+      ? `Placement Trio · ${Math.min(m.verifiedMatchCount, PLACEMENT_TRIO_SIZE)} of ${PLACEMENT_TRIO_SIZE} played`
+      : m.reliability != null
+        ? `✓ shows up ${Math.round(m.reliability * 100)}%`
+        : "no RSVP history yet";
+  // Issue #21 soft signals ride the same mono line when set (design Members
+  // rows: "✓ shows up 97% · … · drive") — rated or not.
+  return `${base}${memberAttrFacts(m)}`;
 }
 
 /** Role/you/new badge, matching the phone MemberList precedence (organiser > you > new). */

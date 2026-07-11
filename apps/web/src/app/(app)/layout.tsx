@@ -7,7 +7,8 @@ import { getCirclesStore } from "@/server/circles";
 import { hasOpenEntriesAgainstViewer } from "@/server/tab";
 import { hasUnreadMessages } from "@/server/circle-unread";
 import { getShellData } from "@/server/shell";
-import { resolveShellContext } from "@/lib/shell-context";
+import { circleIdForSession } from "@/server/shell-circle";
+import { resolveShellContext, gameSessionIdFor } from "@/lib/shell-context";
 import { AppShell } from "@/components/shell/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -38,7 +39,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getShellData(user.id),
   ]);
 
-  const context = resolveShellContext(pathname ?? "/");
+  // /games/[sessionId] is a circle surface whose circle is data, not path
+  // (Wave C punch item): resolve it and override the pure mapping, but only
+  // into a circle the viewer is actually a member of — an unknown session or
+  // an outsider's deep link keeps the home:week fallback.
+  let context = resolveShellContext(pathname ?? "/");
+  const shellSessionId = gameSessionIdFor(pathname ?? "/");
+  if (shellSessionId) {
+    const sessionCircleId = await circleIdForSession(db, shellSessionId);
+    if (sessionCircleId && circleIds.includes(sessionCircleId)) {
+      context = { kind: "circle", circleId: sessionCircleId, active: "games" };
+    }
+  }
 
   return (
     <AppShell

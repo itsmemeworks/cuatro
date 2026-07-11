@@ -10,7 +10,7 @@ import { Card } from "@/components/ui";
 export function StartCircleCard() {
   return (
     <Link href="/circles/new" className="block h-full">
-      <Card className="h-full flex flex-col items-center justify-center text-center gap-2 transition-cu-state active:opacity-80">
+      <Card className="h-full flex flex-col items-center justify-center text-center gap-2 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80">
         <span
           aria-hidden
           className="rounded-[13px] flex items-center justify-center border border-ink-hairline-2 bg-ink-hairline-1 text-ink-muted text-[18px] font-semibold"

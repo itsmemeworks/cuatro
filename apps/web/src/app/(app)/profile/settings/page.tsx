@@ -20,7 +20,12 @@ export default async function SettingsPage() {
 
   const { db } = await getDb();
   const [discoveryRow] = await db
-    .select({ findable: users.findable, homeVenueId: users.homeVenueId })
+    .select({
+      findable: users.findable,
+      homeVenueId: users.homeVenueId,
+      dominantHand: users.dominantHand,
+      courtSide: users.courtSide,
+    })
     .from(users)
     .where(eq(users.id, user.id))
     .limit(1);
@@ -43,6 +48,8 @@ export default async function SettingsPage() {
         homeVenueId={discoveryRow?.homeVenueId ?? null}
         homeVenueName={homeVenueName}
         venueOptions={venueOptions}
+        dominantHand={discoveryRow?.dominantHand ?? null}
+        courtSide={discoveryRow?.courtSide ?? null}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveShellContext } from "@/lib/shell-context";
+import { gameSessionIdFor, resolveShellContext } from "@/lib/shell-context";
 
 describe("resolveShellContext — home context", () => {
   it("maps /home, /feed, /matches*, /games* to home:week", () => {
@@ -49,6 +49,24 @@ describe("resolveShellContext — circle context", () => {
 
   it("does NOT treat /circles/new as a circle (create route, not a clubhouse)", () => {
     expect(resolveShellContext("/circles/new")).toEqual({ kind: "home", active: "other" });
+  });
+});
+
+describe("gameSessionIdFor — the data-aware /games/[sessionId] escape hatch (Wave C)", () => {
+  it("names the sessionId for a session view", () => {
+    expect(gameSessionIdFor("/games/s-1")).toBe("s-1");
+    expect(gameSessionIdFor("/games/s-1/")).toBe("s-1");
+    expect(gameSessionIdFor("/games/s-1?from=home")).toBe("s-1");
+  });
+
+  it("returns null for /games, the standing-game editor routes, and non-game paths", () => {
+    for (const path of ["/games", "/games/standing", "/games/standing/new", "/games/standing/sg-1", "/home", "/circles/c-1/games"]) {
+      expect(gameSessionIdFor(path)).toBeNull();
+    }
+  });
+
+  it("keeps the pure fallback at home:week (the layout overrides only after a membership-checked lookup)", () => {
+    expect(resolveShellContext("/games/s-1")).toEqual({ kind: "home", active: "week" });
   });
 });
 

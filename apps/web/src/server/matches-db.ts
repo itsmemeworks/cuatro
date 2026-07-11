@@ -28,6 +28,7 @@ import {
   rsvps,
   sessions,
   users,
+  venues,
   type CuatroClient,
   type CuatroDb,
   type GameType,
@@ -83,6 +84,30 @@ export interface RosterPlayer {
   rating: number | null;
   avatarUrl: string | null;
   isGuest: boolean;
+  /**
+   * Preferred court side (issue #21): 'right' = drive, 'left' = backhand.
+   * A SOFT SIGNAL ONLY — the wide roster editor uses it to default a seat
+   * and render a small drive/backhand marker; null/'both' means no default
+   * preference, and swapping is always completely free.
+   */
+  courtSide: "right" | "left" | "both" | null;
+}
+
+/**
+ * The viewer's own public Glass state plus the two inputs the wide overlay's
+ * seal preview needs that aren't derivable client-side: which opponents the
+ * viewer has already faced (confidence moves only on NEW opponents) and any
+ * recent verified matches involving the viewer (Echo Damping looks back 30
+ * days for a repeat fixture). `rating` is the PUBLIC rating — null while the
+ * Placement Trio is still pouring; the hidden internal rating never leaves
+ * the server, so the preview simply doesn't render for an unrated viewer.
+ */
+export interface ViewerGlassContext {
+  rating: number | null;
+  confidencePct: number;
+  verifiedMatchCount: number;
+  opponentsFaced: string[];
+  recentFixtures: FixtureOccurrence[];
 }
 
 /**
@@ -99,6 +124,23 @@ export interface RosterContext {
   confirmed: RosterPlayer[];
   /** Circle members not already in `confirmed`, plus the viewer if they aren't a member — the pool a sub can be picked from. */
   candidates: RosterPlayer[];
+  /** Seal-preview inputs for the wide overlay (see ViewerGlassContext). Null only if the viewer row vanished mid-request. */
+  viewerGlass: ViewerGlassContext | null;
+}
+
+/**
+ * One row of the wide overlay's "Which game was it?" step: a recent played
+ * session the viewer could record (or has recorded) a result for.
+ */
+export interface RecordableSession {
+  sessionId: string;
+  startsAt: Date;
+  circleId: string;
+  circleName: string;
+  venueName: string | null;
+  gameType: GameType;
+  /** The session's live (non-void) match, if one exists — pending or sealed. */
+  match: { id: string; status: string } | null;
 }
 
 /** A sub the reporter named who has no `users` row yet — created as a guest (is_guest=1) atomically when the match is recorded. `token` is the client-side stand-in used in the team slots until then. */
@@ -140,9 +182,13 @@ export type ConfirmOutcome =
 export interface MatchDetail {
   match: Match;
   players: Record<string, string>; // userId -> displayName, for the 4 participants
+  /** userId -> avatarUrl for the 4 participants (wide layout renders avatar stacks; phone ignores it). */
+  avatars: Record<string, string | null>;
   confirmedTeams: Team[];
   viewerTeam: Team | null;
   ledgerEvents: readonly LedgerEvent[] | null; // populated only once verified
+  /** Where/when the match happened, for the wide layout's prose ("last night at Powerleague"). */
+  context: { startsAt: Date; venueName: string | null; circleName: string };
 }
 
 export interface ProfileGlassView {
@@ -522,6 +568,8 @@ export interface MatchesStore {
   db: CuatroDb;
   getSessionForEntry(sessionId: string): Promise<SessionForEntry | null>;
   getRosterContext(sessionId: string, viewerId: string): Promise<RosterContext | null>;
+  /** Recent played-window sessions across the viewer's Circles, newest first — the wide overlay's "Which game was it?" list. */
+  getRecordableSessions(viewerId: string): Promise<RecordableSession[]>;
   /** The most recently recorded match for a session, if any — used to cross-link a played session to "Record result" vs. its existing match. */
   getMatchForSession(sessionId: string): Promise<{ id: string; status: string } | null>;
   recordMatch(input: RecordMatchInput): Promise<{ matchId: string }>;
@@ -576,6 +624,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
           rating: users.rating,
           avatarUrl: users.avatarUrl,
           isGuest: users.isGuest,
+          courtSide: users.courtSide,
           respondedAt: rsvps.respondedAt,
         })
         .from(rsvps)
@@ -584,7 +633,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       const confirmed: RosterPlayer[] = inRows
         // respondedAt is epoch-ms (Postgres bigint) now — compare the numbers.
         .sort((a, b) => (a.respondedAt ?? 0) - (b.respondedAt ?? 0))
-        .map((r) => ({ id: r.userId, displayName: r.displayName, rating: r.rating, avatarUrl: r.avatarUrl, isGuest: r.isGuest }));
+        .map((r) => ({ id: r.userId, displayName: r.displayName, rating: r.rating, avatarUrl: r.avatarUrl, isGuest: r.isGuest, courtSide: r.courtSide }));
 
       const confirmedIds = new Set(confirmed.map((p) => p.id));
 
@@ -598,13 +647,14 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
           rating: users.rating,
           avatarUrl: users.avatarUrl,
           isGuest: users.isGuest,
+          courtSide: users.courtSide,
         })
         .from(circleMembers)
         .innerJoin(users, eq(circleMembers.userId, users.id))
         .where(eq(circleMembers.circleId, session.circleId));
       const candidates: RosterPlayer[] = memberRows
         .filter((r) => !confirmedIds.has(r.userId))
-        .map((r) => ({ id: r.userId, displayName: r.displayName, rating: r.rating, avatarUrl: r.avatarUrl, isGuest: r.isGuest }));
+        .map((r) => ({ id: r.userId, displayName: r.displayName, rating: r.rating, avatarUrl: r.avatarUrl, isGuest: r.isGuest, courtSide: r.courtSide }));
 
       // The reporter must end up as one of the four (they auto-confirm their
       // own team — see recordMatch). If they RSVP'd in they're already in
@@ -613,10 +663,66 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       const alreadyListed = confirmedIds.has(viewerId) || candidates.some((c) => c.id === viewerId);
       if (!alreadyListed) {
         const [viewer] = await db
-          .select({ id: users.id, displayName: users.displayName, rating: users.rating, avatarUrl: users.avatarUrl, isGuest: users.isGuest })
+          .select({
+            id: users.id,
+            displayName: users.displayName,
+            rating: users.rating,
+            avatarUrl: users.avatarUrl,
+            isGuest: users.isGuest,
+            courtSide: users.courtSide,
+          })
           .from(users)
           .where(eq(users.id, viewerId));
         if (viewer) candidates.unshift(viewer);
+      }
+
+      // Seal-preview inputs (wide overlay step 4). Only PUBLIC state travels:
+      // users.rating stays null mid-Trio, and the hidden internal rating in
+      // rating_events never leaves the server — the preview just doesn't
+      // render for an unrated viewer. opponentsFaced comes from the viewer's
+      // own Ledger rows (the same factors.opponentUserIds loadPlayerState
+      // reads); recentFixtures is every verified match involving the viewer
+      // inside the Echo Damping window before this session, which is
+      // sufficient for the fixture check because the viewer is always one of
+      // the four on court.
+      let viewerGlass: ViewerGlassContext | null = null;
+      const [viewerRow] = await db
+        .select({ rating: users.rating, confidence: users.confidence, verifiedMatchCount: users.verifiedMatchCount })
+        .from(users)
+        .where(eq(users.id, viewerId));
+      if (viewerRow) {
+        const viewerEvents = await db
+          .select({ factors: ratingEvents.factors })
+          .from(ratingEvents)
+          .where(eq(ratingEvents.userId, viewerId));
+        const opponentsFaced = new Set<string>();
+        for (const ev of viewerEvents) {
+          for (const id of ev.factors.opponentUserIds) opponentsFaced.add(id);
+        }
+        const windowStart = session.startsAt - ECHO_DAMPING_WINDOW_MS;
+        const fixtureRows = await db
+          .select()
+          .from(matches)
+          .where(
+            and(
+              eq(matches.status, "verified"),
+              gte(matches.playedAt, windowStart),
+              lt(matches.playedAt, session.startsAt),
+              or(
+                eq(matches.teamAPlayer1Id, viewerId),
+                eq(matches.teamAPlayer2Id, viewerId),
+                eq(matches.teamBPlayer1Id, viewerId),
+                eq(matches.teamBPlayer2Id, viewerId),
+              ),
+            ),
+          );
+        viewerGlass = {
+          rating: viewerRow.rating,
+          confidencePct: Math.round(viewerRow.confidence * 100),
+          verifiedMatchCount: viewerRow.verifiedMatchCount,
+          opponentsFaced: [...opponentsFaced],
+          recentFixtures: fixtureRows.map((m) => ({ playedAt: m.playedAt, playerIds: fourPlayerIds(m) })),
+        };
       }
 
       return {
@@ -625,7 +731,55 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         circleName: circle?.name ?? "",
         confirmed,
         candidates,
+        viewerGlass,
       };
+    },
+
+    async getRecordableSessions(viewerId) {
+      // The wide overlay's step 1. "Recordable" = a session in one of the
+      // viewer's Circles whose start time has passed, inside the same lookback
+      // window The Rotation uses for "recent" (14 days keeps the list honest —
+      // older than that and nobody remembers the score anyway). Cancelled
+      // sessions never played, so they never appear.
+      const now = Date.now();
+      const windowStart = now - 14 * 24 * 60 * 60 * 1000;
+      const rows = await db
+        .select({
+          sessionId: sessions.id,
+          startsAt: sessions.startsAt,
+          circleId: sessions.circleId,
+          circleName: circles.name,
+          venueName: venues.name,
+          gameType: sessions.gameType,
+        })
+        .from(sessions)
+        .innerJoin(circleMembers, and(eq(circleMembers.circleId, sessions.circleId), eq(circleMembers.userId, viewerId)))
+        .innerJoin(circles, eq(circles.id, sessions.circleId))
+        .leftJoin(venues, eq(venues.id, sessions.venueId))
+        .where(and(lt(sessions.startsAt, now), gte(sessions.startsAt, windowStart), inArray(sessions.status, ["upcoming", "played"])))
+        .orderBy(desc(sessions.startsAt))
+        .limit(8);
+
+      const out: RecordableSession[] = [];
+      for (const r of rows) {
+        const live = (
+          await db
+            .select({ id: matches.id, status: matches.status })
+            .from(matches)
+            .where(eq(matches.sessionId, r.sessionId))
+            .orderBy(desc(matches.createdAt))
+        ).find((m) => m.status !== "void");
+        out.push({
+          sessionId: r.sessionId,
+          startsAt: new Date(r.startsAt),
+          circleId: r.circleId,
+          circleName: r.circleName,
+          venueName: r.venueName ?? null,
+          gameType: r.gameType,
+          match: live ?? null,
+        });
+      }
+      return out;
     },
 
     async getMatchForSession(sessionId) {
@@ -922,8 +1076,21 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       if (!match) return null;
 
       const fourIds = fourPlayerIds(match);
-      const nameRows = await db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, fourIds));
+      const nameRows = await db
+        .select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl })
+        .from(users)
+        .where(inArray(users.id, fourIds));
       const players = Object.fromEntries(nameRows.map((r) => [r.id, r.displayName]));
+      const avatars = Object.fromEntries(nameRows.map((r) => [r.id, r.avatarUrl]));
+
+      // Where/when, for the wide layout's prose. The session always exists
+      // (matches.sessionId is NOT NULL) but tolerate a missing row anyway.
+      const [sessionRow] = await db
+        .select({ startsAt: sessions.startsAt, venueName: venues.name, circleName: circles.name })
+        .from(sessions)
+        .innerJoin(circles, eq(circles.id, sessions.circleId))
+        .leftJoin(venues, eq(venues.id, sessions.venueId))
+        .where(eq(sessions.id, match.sessionId));
 
       const confirmations = await db.select().from(matchConfirmations).where(eq(matchConfirmations.matchId, matchId));
       const confirmedTeams = confirmations.map((c) => c.team as Team);
@@ -957,9 +1124,15 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
       return {
         match,
         players,
+        avatars,
         confirmedTeams,
         viewerTeam: teamOf(match, viewerId),
         ledgerEvents,
+        context: {
+          startsAt: new Date(sessionRow?.startsAt ?? match.playedAt),
+          venueName: sessionRow?.venueName ?? null,
+          circleName: sessionRow?.circleName ?? "",
+        },
       };
     },
 

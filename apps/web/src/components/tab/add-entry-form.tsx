@@ -129,7 +129,8 @@ export function AddEntryForm({
         variant="primary"
         size="lg"
         fullWidth
-        disabled={pending || debtorChoices.length === 0}
+        pending={pending}
+        disabled={debtorChoices.length === 0}
         className="tab-add-entry-form__submit"
       >
         Add to the Tab

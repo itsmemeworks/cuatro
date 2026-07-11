@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Avatar, Button, Meta } from "@/components/ui";
+import { sideHintShort, type FourthCallSideHint } from "@/components/circle-screens/fourth-call-side-hint";
 
 export type FourthCallHomeSession = {
   sessionId: string;
@@ -15,6 +16,8 @@ export type FourthCallHomeSession = {
   levelRangeLabel: string | null;
   /** The viewer's own Glass rating, or null if unrated. */
   viewerRating: number | null;
+  /** Organiser's optional court-side hint (issue #21) — display copy only, "I can play" is never gated on it. Optional so builders that don't read the column yet keep compiling. */
+  sideHint?: FourthCallSideHint | null;
 };
 
 /**
@@ -34,12 +37,12 @@ export function FourthCallCard({
 }) {
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<"in" | "out" | null>(null);
 
   if (dismissed) return null;
 
   async function respond(action: "in" | "out") {
-    setPending(true);
+    setPending(action);
     try {
       const res = await fetch(`/api/games/sessions/${session.sessionId}/rsvp`, {
         method: "POST",
@@ -54,7 +57,7 @@ export function FourthCallCard({
     } catch {
       // Silent — the card just stays put and the tap can be retried.
     } finally {
-      setPending(false);
+      setPending(null);
     }
   }
 
@@ -74,14 +77,21 @@ export function FourthCallCard({
         </div>
       </div>
       <div className="flex items-center gap-2.5 mt-2.5">
-        <Button variant={demote ? "strong" : "primary"} size="default" disabled={pending} onClick={() => respond("in")} className="flex-1">
+        <Button
+          variant={demote ? "strong" : "primary"}
+          size="default"
+          pending={pending === "in"}
+          disabled={pending !== null}
+          onClick={() => respond("in")}
+          className="flex-1"
+        >
           I can play
         </Button>
         <button
           type="button"
-          disabled={pending}
+          disabled={pending !== null}
           onClick={() => respond("out")}
-          className="text-[12px] font-semibold text-ink-muted px-2 disabled:opacity-40"
+          className="text-[12px] font-semibold text-ink-muted px-2 disabled:opacity-40 transition-cu-state hover:text-ink"
         >
           Pass
         </button>
@@ -89,6 +99,7 @@ export function FourthCallCard({
       <Meta as="p" className="mt-2">
         {session.levelRangeLabel ? `${session.levelRangeLabel} · ` : ""}
         {session.viewerRating != null ? `yours ${session.viewerRating.toFixed(2)} · ` : ""}
+        {session.sideHint ? `${sideHintShort(session.sideHint)} · ` : ""}
         expires in {expiresHours}h
       </Meta>
     </div>

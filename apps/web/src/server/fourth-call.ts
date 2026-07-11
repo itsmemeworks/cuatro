@@ -315,6 +315,59 @@ export async function claimFourthCallSlot(
   return outcome;
 }
 
+export type SetSideHintOutcome =
+  | { ok: true; sideHint: "left" | "right" | null }
+  | { ok: false; error: "invalid_hint" | "session_not_found" | "session_started" | "not_an_organiser" };
+
+/**
+ * Organiser-set, optional court-side hint on a Fourth Call (GitHub issue
+ * #21): "ideally a left-sider". Stored on the session
+ * (sessions.fourth_call_side_hint) and rendered on the call cards + the
+ * public /fc landing as DISPLAY COPY ONLY — it never filters candidates and
+ * never gates a claim (note claimFourthCallSlot above reads no hint at all;
+ * the ladder is untouched). `hint: null` clears it.
+ *
+ * Read-decide-write (organiser + still-upcoming checks before the update),
+ * so the session row is locked FOR UPDATE per the repo convention, and the
+ * realtime signal fires only after the transaction commits.
+ */
+export async function setFourthCallSideHint(
+  db: CuatroDb,
+  sessionId: string,
+  userId: string,
+  hint: unknown,
+  now: Date = new Date(),
+): Promise<SetSideHintOutcome> {
+  if (hint !== null && hint !== "left" && hint !== "right") return { ok: false, error: "invalid_hint" };
+
+  let circleId: string | undefined;
+  const outcome = await db.transaction(async (tx): Promise<SetSideHintOutcome> => {
+    const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId)).for("update");
+    if (!session) return { ok: false, error: "session_not_found" };
+    circleId = session.circleId;
+    if (session.status !== "upcoming" || now.getTime() >= session.startsAt) {
+      return { ok: false, error: "session_started" };
+    }
+
+    const [membership] = await tx
+      .select({ role: circleMembers.role })
+      .from(circleMembers)
+      .where(and(eq(circleMembers.circleId, session.circleId), eq(circleMembers.userId, userId)));
+    if (membership?.role !== "organiser") return { ok: false, error: "not_an_organiser" };
+
+    await tx.update(sessions).set({ fourthCallSideHint: hint }).where(eq(sessions.id, sessionId));
+    return { ok: true, sideHint: hint };
+  });
+
+  if (outcome.ok && circleId) {
+    // Minimal signal only (ids, no entity data) — open receive/landing
+    // screens refetch through their own authed reads.
+    emitSessionEvent(sessionId, "fourth_call", { circleId });
+    emitCircleEvent(circleId, "fourth_call", { sessionId });
+  }
+  return outcome;
+}
+
 /**
  * Whoever currently holds this session's open slot via a Fourth Call claim
  * (level 2 or ring 3 — see claimFourthCallSlot's `source: "fourth_call"`

@@ -23,17 +23,17 @@ function Pill({ href, active, children }: { href: string; active: boolean; child
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
+      // Hover affordance in classes — inline `background`/`color` would beat
+      // stylesheet :hover (Pete, 2026-07-11).
+      className={`transition-colors ${active ? "bg-[rgba(245,242,236,.1)] text-[#F5F2EC]" : "text-[rgba(245,242,236,.55)] hover:bg-[rgba(245,242,236,.06)] hover:text-[#F5F2EC]"}`}
       style={{
         display: "flex",
         alignItems: "center",
         gap: 6,
         borderRadius: 999,
         padding: "8px 14px",
-        background: active ? "rgba(245,242,236,.1)" : "transparent",
-        color: active ? BONE : BONE_MUTED,
         font: "700 12px 'Archivo',sans-serif",
         userSelect: "none",
-        transition: "background 200ms",
       }}
     >
       {children}
@@ -62,7 +62,7 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
         flex: "none",
       }}
     >
-      <Link href="/home" style={{ display: "flex", alignItems: "center", gap: 8, userSelect: "none" }}>
+      <Link href="/home" className="transition-opacity hover:opacity-80" style={{ display: "flex", alignItems: "center", gap: 8, userSelect: "none" }}>
         <span style={{ font: "800 15px 'Archivo',sans-serif", color: CORAL }}>◆</span>
         <span style={{ font: "900 15px 'Archivo',sans-serif", letterSpacing: "-.01em", color: BONE }}>CUATRO</span>
       </Link>
@@ -117,7 +117,7 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
 
       <NotifTray unreadCount={data.unreadNotifications} anchor="topbar" />
 
-      <Link href="/profile" aria-label="You" style={{ flex: "none" }}>
+      <Link href="/profile" aria-label="You" className="transition-opacity hover:opacity-80" style={{ flex: "none" }}>
         {data.identity.avatarUrl ? (
           <div
             style={{

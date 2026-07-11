@@ -40,7 +40,7 @@ export function WeekView({ data, viewer }: { data: WeekData; viewer: Viewer }) {
         {data.logResultSessionId && (
           <Link
             href={`/matches/new?session=${data.logResultSessionId}`}
-            className="rounded-[13px] bg-strong-bg text-strong-fg px-5 py-3 text-[13px] font-extrabold whitespace-nowrap"
+            className="rounded-[13px] bg-strong-bg text-strong-fg px-5 py-3 text-[13px] font-extrabold whitespace-nowrap transition-cu-state hover:opacity-90"
           >
             Log last night&apos;s result
           </Link>

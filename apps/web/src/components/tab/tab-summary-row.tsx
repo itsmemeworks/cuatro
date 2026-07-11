@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Fact, Meta } from "@/components/ui";
-import { formatMoney } from "./money";
+import { formatMoneyWholeSigned } from "./money";
 
 export interface TabSummaryRowProps {
   circleId: string;
@@ -30,8 +30,7 @@ export function TabSummaryRow({ circleId, netPositionByCurrency }: TabSummaryRow
         <span className="tab-summary-row__net flex gap-2">
           {balances.map(([currency, minor]) => (
             <Fact key={currency} size="sm" weight="bold" tone={minor > 0 ? "win" : "loss"}>
-              {minor > 0 ? "+" : ""}
-              {formatMoney(minor, currency)}
+              {formatMoneyWholeSigned(minor, currency)}
             </Fact>
           ))}
         </span>

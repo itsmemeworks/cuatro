@@ -26,6 +26,10 @@ export interface PlayerPublicUser {
   displayName: string;
   avatarUrl: string | null;
   isGuest: boolean;
+  /** ON COURT attributes (issue #21) — soft signals, shown as mono facts alongside Reliability; both nullable forever, nothing renders when unset. */
+  dominantHand: "left" | "right" | "both" | null;
+  /** 'right' = drive, 'left' = backhand (render via lib/player-attrs.ts courtSideFact). */
+  courtSide: "right" | "left" | "both" | null;
 }
 
 /** One of the "Last three" result chips (W/L + game score, from the player's own perspective). */
@@ -58,7 +62,14 @@ export interface PlayerProfile {
 export async function getPlayerProfile(userId: string, viewerId?: string): Promise<PlayerProfile | null> {
   const { db } = await getDb();
   const [row] = await db
-    .select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl, isGuest: users.isGuest })
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      isGuest: users.isGuest,
+      dominantHand: users.dominantHand,
+      courtSide: users.courtSide,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -147,7 +158,14 @@ export interface PlayerLedger {
 export async function getPlayerLedger(userId: string): Promise<PlayerLedger | null> {
   const { db } = await getDb();
   const [user] = await db
-    .select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl, isGuest: users.isGuest })
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      isGuest: users.isGuest,
+      dominantHand: users.dominantHand,
+      courtSide: users.courtSide,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);

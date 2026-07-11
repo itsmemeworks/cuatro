@@ -69,7 +69,7 @@ export default async function DiscoverPage() {
           </p>
           <Link
             href="/profile"
-            className="mt-2 w-full rounded-button bg-action text-action-contrast font-extrabold text-[14px] text-center py-3.5 transition-cu-state active:opacity-80"
+            className="mt-2 w-full rounded-button bg-action text-action-contrast font-extrabold text-[14px] text-center py-3.5 transition-cu-state hover:opacity-90 active:opacity-80"
           >
             Set my patch
           </Link>

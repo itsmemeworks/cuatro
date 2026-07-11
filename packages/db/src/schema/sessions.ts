@@ -30,6 +30,21 @@ export const sessions = pgTable(
     // inherits the circle default at creation. Snapshotted onto the match at
     // record time (matches.game_type) so the Ledger can explain a no-move seal.
     gameType: gameTypeColumn('game_type'),
+    // "Booked on" per-occurrence OVERRIDE (GitHub issue #21). Null means
+    // "inherit from the Standing Game"; set, it wins for this session only.
+    // Resolution order lives in one pure place — resolveMoneyOptIn in
+    // apps/web/src/lib/booking.ts: session booking > standing-game booking >
+    // standing-game court cost > silence. A resolved booking always silences
+    // the cost (a booked-on game never touches the Tab).
+    bookingPlatform: text('booking_platform', {
+      enum: ['playtomic', 'padel_mates', 'matchi', 'padium', 'club_website', 'other'],
+    }),
+    bookingUrl: text('booking_url'),
+    // Fourth Call side hint (GitHub issue #21): organiser-set, OPTIONAL,
+    // e.g. "ideally a left-sider" on the call card. A HINT ONLY — it never
+    // filters who sees or can claim a Fourth Call. 'right' = drive,
+    // 'left' = backhand.
+    fourthCallSideHint: text('fourth_call_side_hint', { enum: ['left', 'right'] }),
     createdAt: createdAtColumn(),
   },
   (table) => ({
@@ -37,6 +52,14 @@ export const sessions = pgTable(
     standingGameIdIdx: index('sessions_standing_game_id_idx').on(table.standingGameId),
     startsAtIdx: index('sessions_starts_at_idx').on(table.startsAt),
     gameTypeCheck: check('sessions_game_type_check', sql`${table.gameType} in ('competitive', 'friendly')`),
+    bookingPlatformCheck: check(
+      'sessions_booking_platform_check',
+      sql`${table.bookingPlatform} in ('playtomic', 'padel_mates', 'matchi', 'padium', 'club_website', 'other')`,
+    ),
+    fourthCallSideHintCheck: check(
+      'sessions_fourth_call_side_hint_check',
+      sql`${table.fourthCallSideHint} in ('left', 'right')`,
+    ),
   }),
 )
 

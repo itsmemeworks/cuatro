@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AvatarStack, Button, Fact, InfoTerm, Meta } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
+import { sideHintLine, type FourthCallSideHint } from "@/components/circle-screens/fourth-call-side-hint";
 import { PresenceTracker } from "@/components/realtime/PresenceTracker";
 import { RosterList, type RosterPlayer } from "@/components/games/roster";
 
@@ -42,6 +43,7 @@ export function FourthCallReceive({
   passNotificationId,
   viewerId,
   nearby = false,
+  sideHint = null,
 }: {
   sessionId: string;
   circleName: string;
@@ -57,6 +59,8 @@ export function FourthCallReceive({
   viewerId?: string | null;
   /** True when the viewer was reached by ring 2 (the Local Ring — a nearby, level-matched player) rather than as a Circle member. Switches on the "near you" framing. */
   nearby?: boolean;
+  /** Organiser's optional court-side hint (issue #21) — display copy only, claiming is never gated on it. */
+  sideHint?: FourthCallSideHint | null;
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
@@ -132,6 +136,7 @@ export function FourthCallReceive({
         </Meta>
       )}
       {levelMatchLabel && <Fact tone="muted">{levelMatchLabel}</Fact>}
+      {sideHint && <Meta as="p">{sideHintLine(sideHint)}</Meta>}
 
       {confirmed.length > 0 && (
         <div className="w-full max-w-xs text-left">
@@ -145,10 +150,10 @@ export function FourthCallReceive({
       {error && <Meta tone="action">{errorCopy(error)}</Meta>}
 
       <div className="flex flex-col gap-3 w-full max-w-xs">
-        <Button size="lg" fullWidth disabled={pending !== null || expired} onClick={claim}>
+        <Button size="lg" fullWidth pending={pending === "claim"} disabled={pending !== null || expired} onClick={claim}>
           {expired ? "Expired" : "I can play"}
         </Button>
-        <Button variant="quiet" fullWidth disabled={pending !== null} onClick={pass}>
+        <Button variant="quiet" fullWidth pending={pending === "pass"} disabled={pending !== null} onClick={pass}>
           Pass
         </Button>
       </div>

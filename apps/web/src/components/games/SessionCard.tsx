@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSessionLive } from "@/lib/realtime/hooks";
 import { Avatar, Button, Card, Chip, DashedSlot, Fact, Meta } from "@/components/ui";
+import { bookingPlatform, type MoneyOptIn } from "@/lib/booking";
 import { CircleEmblem } from "./roster";
 import { LateCancelSheet, isLateCancel } from "./late-cancel-sheet";
 import { errorCopy } from "@/lib/error-copy";
@@ -41,6 +42,13 @@ export type SessionCardData = {
    * the provisional/locked four, so the tile grid needs no change.
    */
   rotation?: { locked: boolean; viewerAvailable: boolean } | null;
+  /**
+   * The game's resolved money opt-in (issue #21), where the surface carries it.
+   * A booking renders the "booked on PT" meta line; a resolved booking means no
+   * cost chrome anywhere on this card, by construction. Omitted → no meta line
+   * (silence is the default state of money on a game).
+   */
+  moneyOptIn?: MoneyOptIn;
 };
 
 export function formatCountdown(msRemaining: number): string {
@@ -225,6 +233,15 @@ export function SessionCard({
             })}
           </p>
           {data.venueName && <Meta as="p">{data.venueName}</Meta>}
+          {/* "booked on PT" (issue #21): the signpost as a meta fact — the
+              tile abbreviation, never a third-party logo. Not a link here
+              (this card often sits inside a row link); the tap-through
+              detail page carries the outbound BookingChip. */}
+          {data.moneyOptIn?.kind === "booking" && (
+            <Meta as="p" className="mt-0.5">
+              booked on {bookingPlatform(data.moneyOptIn.booking.platform)?.tile ?? data.moneyOptIn.booking.platform}
+            </Meta>
+          )}
         </div>
         {countdownLabel && (
           <Meta as="p" className="text-right whitespace-nowrap">
@@ -273,13 +290,13 @@ export function SessionCard({
             size="lg"
             className="flex-[2]"
             variant={data.rotation.viewerAvailable ? "strong" : "primary"}
-            disabled={pending}
+            pending={pending}
             onClick={(event) => sendRsvp(event, data.rotation!.viewerAvailable ? "unavailable" : "available")}
           >
             {data.rotation.viewerAvailable ? "You're available ✓" : "I'm available"}
           </Button>
           {data.rotation.viewerAvailable && (
-            <Button size="lg" variant="destructiveQuiet" className="flex-1" disabled={pending} onClick={(event) => sendRsvp(event, "unavailable")}>
+            <Button size="lg" variant="destructiveQuiet" className="flex-1" pending={pending} onClick={(event) => sendRsvp(event, "unavailable")}>
               Not this week
             </Button>
           )}
@@ -293,7 +310,7 @@ export function SessionCard({
             className="flex-[2]"
             variant={viewerHoldsSlot || viewerReserved ? "strong" : "primary"}
             style={viewerHoldsSlot ? { background: "var(--color-win)", color: "var(--color-action-contrast)" } : undefined}
-            disabled={pending}
+            pending={pending}
             onClick={(event) => sendRsvp(event, viewerHoldsSlot || viewerReserved ? "out" : "in")}
           >
             {viewerHoldsSlot ? "You're in ✓" : viewerReserved ? "Reserved ✓" : "I'm in"}
@@ -303,7 +320,7 @@ export function SessionCard({
               size="lg"
               variant="destructiveQuiet"
               className="flex-1"
-              disabled={pending}
+              pending={pending}
               onClick={(event) => sendRsvp(event, "out")}
             >
               Can&apos;t

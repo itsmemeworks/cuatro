@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
 import { getTabView, type TabEntryView } from "@/server/tab";
 import { getCirclesStore } from "@/server/circles";
-import { formatMoney } from "@/components/tab/money";
+import { formatMoneyWhole, formatMoneyWholeSigned } from "@/components/tab/money";
 import { AddEntrySheet } from "@/components/tab/add-entry-sheet";
 import { TabEntryRow, AllSquareRow } from "@/components/tab/tab-entry-row";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
@@ -32,7 +32,7 @@ function ActivityRow({ entry, viewerUserId }: { entry: TabEntryView; viewerUserI
         <span>
           {dateLabel} · {text}
         </span>
-        <span className="text-win">{entry.payerUserId === viewerUserId ? `${formatMoney(entry.amountMinor, entry.currency)} ✓` : "✓"}</span>
+        <span className="text-win">{entry.payerUserId === viewerUserId ? `${formatMoneyWhole(entry.amountMinor, entry.currency)} ✓` : "✓"}</span>
       </div>
     );
   }
@@ -40,7 +40,7 @@ function ActivityRow({ entry, viewerUserId }: { entry: TabEntryView; viewerUserI
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5 font-mono tabular-nums text-[11px] text-ink-muted">
       <span>{dateLabel} · {entry.descriptionLabel ?? "court split"}</span>
-      <span>{formatMoney(entry.amountMinor, entry.currency)} each</span>
+      <span>{formatMoneyWhole(entry.amountMinor, entry.currency)} each</span>
     </div>
   );
 }
@@ -113,8 +113,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
             <>
               {netEntries.map(([currency, minor]) => (
                 <p key={currency} className={`font-mono tabular-nums font-extrabold text-[22px] leading-none ${minor > 0 ? "text-win" : "text-loss"}`}>
-                  {minor > 0 ? "+" : ""}
-                  {formatMoney(minor, currency)}
+                  {formatMoneyWholeSigned(minor, currency)}
                 </p>
               ))}
               {netStatusLabel && <Meta as="p" className="mt-1">{netStatusLabel}</Meta>}

@@ -17,6 +17,7 @@ import {
   findFourthCallClaimant,
   getRing3ClaimLink,
   hasFourthCallInvite,
+  setFourthCallSideHint,
   signRing3Token,
   verifyRing3Token,
 } from "@/server/fourth-call";
@@ -463,5 +464,127 @@ describe("realtime — fourth_call and rsvp events", () => {
     const second = await claimFourthCallSlot(db, session.id, invitee.id, new Date("2026-08-04T18:00:00.000Z"));
     expect(second).toEqual({ ok: true, status: "in", alreadyIn: true });
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("setFourthCallSideHint (issue #21)", () => {
+  const before = new Date("2026-08-04T18:00:00.000Z");
+
+  it("lets an organiser set and clear the hint", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    await addMember(circleA.id, organiser.id, "organiser");
+    const session = await seedSession(circleA.id, { slots: 4 });
+
+    const set = await setFourthCallSideHint(db, session.id, organiser.id, "left", before);
+    expect(set).toEqual({ ok: true, sideHint: "left" });
+    let [row] = await db.select().from(sessions).where(eq(sessions.id, session.id));
+    expect(row?.fourthCallSideHint).toBe("left");
+
+    const cleared = await setFourthCallSideHint(db, session.id, organiser.id, null, before);
+    expect(cleared).toEqual({ ok: true, sideHint: null });
+    [row] = await db.select().from(sessions).where(eq(sessions.id, session.id));
+    expect(row?.fourthCallSideHint).toBeNull();
+  });
+
+  it("rejects a non-organiser member and a total stranger", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    await addMember(circleA.id, organiser.id, "organiser");
+    const member = await seedUser();
+    await addMember(circleA.id, member.id);
+    const stranger = await seedUser();
+    const session = await seedSession(circleA.id, { slots: 4 });
+
+    expect(await setFourthCallSideHint(db, session.id, member.id, "left", before)).toEqual({
+      ok: false,
+      error: "not_an_organiser",
+    });
+    expect(await setFourthCallSideHint(db, session.id, stranger.id, "right", before)).toEqual({
+      ok: false,
+      error: "not_an_organiser",
+    });
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, session.id));
+    expect(row?.fourthCallSideHint).toBeNull();
+  });
+
+  it("rejects anything that isn't 'left', 'right' or null", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    await addMember(circleA.id, organiser.id, "organiser");
+    const session = await seedSession(circleA.id, { slots: 4 });
+
+    for (const bad of ["both", "LEFT", "", 3, undefined, {}]) {
+      expect(await setFourthCallSideHint(db, session.id, organiser.id, bad, before)).toEqual({
+        ok: false,
+        error: "invalid_hint",
+      });
+    }
+  });
+
+  it("rejects once the session has started, and 404s a missing session", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    await addMember(circleA.id, organiser.id, "organiser");
+    const session = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
+
+    expect(await setFourthCallSideHint(db, session.id, organiser.id, "left", new Date("2026-08-04T20:00:00.000Z"))).toEqual({
+      ok: false,
+      error: "session_started",
+    });
+    expect(await setFourthCallSideHint(db, "00000000-0000-0000-0000-000000000000", organiser.id, "left", before)).toEqual({
+      ok: false,
+      error: "session_not_found",
+    });
+  });
+
+  it("broadcasts fourth_call to session and circle after a successful set, and not on a failed one", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    await addMember(circleA.id, organiser.id, "organiser");
+    const member = await seedUser();
+    await addMember(circleA.id, member.id);
+    const session = await seedSession(circleA.id, { slots: 4 });
+
+    const calls: { topic: string; type: string; fields: Record<string, unknown> }[] = [];
+    __setRealtimeSenderForTests(async (topic, type, fields) => {
+      calls.push({ topic, type, fields });
+    });
+
+    await setFourthCallSideHint(db, session.id, organiser.id, "right", before);
+    expect(calls.filter((c) => c.type === "fourth_call").map((c) => c.topic).sort()).toEqual(
+      [sessionChannel(session.id), circleChannel(circleA.id)].sort(),
+    );
+
+    calls.length = 0;
+    await setFourthCallSideHint(db, session.id, member.id, "left", before);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("NEVER filters: a wrong-sided player can still claim a hinted call through the public link", async () => {
+    const organiser = await seedUser();
+    const circleA = await seedCircle(organiser.id);
+    await addMember(circleA.id, organiser.id, "organiser");
+    const p1 = await seedUser();
+    await addMember(circleA.id, p1.id);
+    const session = await seedSession(circleA.id, { slots: 4, startsAt: new Date("2026-08-04T20:00:00.000Z") });
+    await rsvpConfirmed(session.id, p1.id);
+
+    // Organiser asks for a left-sider…
+    await setFourthCallSideHint(db, session.id, organiser.id, "left", before);
+
+    // …and a committed RIGHT-sider with no invite at all claims via ring 3.
+    const rightSider = await seedUser();
+    await db.update(users).set({ courtSide: "right" }).where(eq(users.id, rightSider.id));
+
+    const linkResult = await getRing3ClaimLink(db, session.id, before);
+    if (!linkResult.ok) throw new Error("unreachable");
+    const outcome = await claimFourthCallSlot(db, session.id, rightSider.id, new Date("2026-08-04T18:05:00.000Z"), {
+      ring3Token: linkResult.value.token,
+    });
+
+    expect(outcome).toEqual({ ok: true, status: "in", alreadyIn: false });
+    const [row] = await db.select().from(rsvps).where(eq(rsvps.userId, rightSider.id));
+    expect(row?.status).toBe("in");
   });
 });

@@ -3,9 +3,12 @@ import type { ReactNode } from "react";
 import type { SessionSummary } from "@/server/games-service";
 import { StandingGameWeekCard } from "@/components/games/StandingGameWeekCard";
 import { VenueMapCard } from "@/components/games/venue-map-card";
+import { BookingChip } from "@/components/games/booking-chip";
 import { FriendlyBadge } from "@/components/matches/friendly-badge";
-import { Button, Meta } from "@/components/ui";
-import { formatMoney } from "@/components/tab/money";
+import { Button, Meta, SubmitButton } from "@/components/ui";
+import { formatMoneyWhole } from "@/components/tab/money";
+import { RotationWideMain, RotationWideAside } from "./wide-rotation";
+import { rotationModePill } from "./wide-rotation-model";
 
 export interface GameDetailProps {
   summary: SessionSummary;
@@ -27,6 +30,8 @@ export interface GameDetailProps {
   viewerStatusLine: string | null;
   /** Organiser-only session asks-to-join (Board knocks); the page builds the KnockPanel. */
   knockPanel?: ReactNode;
+  /** Who currently holds the live consent offer on a locked rotation game (server-decided), if anyone. */
+  rotationOfferUserId?: string | null;
 }
 
 /** The rings visual (design "FOURTH CALL · ORGANISER"): display-only; "Send the call" links into the existing phone Fourth Call flow. */
@@ -57,7 +62,7 @@ function FourthCallRingsPanel({ circleName, fourthCallHref }: { circleName: stri
           </div>
         ))}
       </div>
-      <Link href={fourthCallHref} className="mt-1.5 block bg-action text-action-contrast rounded-[13px] text-center py-3 font-sans font-extrabold text-[13.5px]">
+      <Link href={fourthCallHref} className="mt-1.5 block bg-action text-action-contrast rounded-[13px] text-center py-3 font-sans font-extrabold text-[13.5px] transition-cu-state hover:opacity-90">
         Send the call
       </Link>
       <div className="mt-2 text-center font-mono text-[10px] text-ink-muted">closest people first, then wider if it stays quiet</div>
@@ -80,6 +85,25 @@ export function GameDetail(props: GameDetailProps) {
   const isRotation = summary.rotation != null;
   const isOneOff = summary.standingGame == null;
   const open = summary.slots - summary.confirmed.length;
+  // Booking signpost XOR court cost XOR silence (issue #21), resolved by
+  // getSessionSummary — a resolved booking silences cost by construction,
+  // so render from THIS and never re-derive cost chrome.
+  const moneyOptIn = summary.moneyOptIn;
+  const rotationLocked = summary.rotation?.lockedAt != null;
+  // One client-safe rotation view, shared by the phone card and the wide panels.
+  const rotationView = summary.rotation
+    ? {
+        mode: summary.rotation.mode,
+        locked: summary.rotation.lockedAt != null,
+        coldStart: summary.rotation.coldStart,
+        locksAtMs: summary.rotation.locksAt.getTime(),
+        available: summary.rotation.available,
+        lineup: summary.rotation.lineup,
+        sitting: summary.rotation.sitting,
+        reasons: summary.rotation.reasons,
+        viewerAvailable: summary.rotation.viewerAvailable,
+      }
+    : null;
 
   // A rotation game keeps its Fourth Call / offer handling inside the roster
   // card; a plain standing game surfaces the rings panel instead (never both).
@@ -93,7 +117,7 @@ export function GameDetail(props: GameDetailProps) {
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-4 c4-wide min-[900px]:px-[30px] min-[900px]:pt-0 min-[900px]:pb-0 min-[900px]:max-w-[1000px] min-[900px]:mx-auto">
-      <Link href={`/circles/${summary.circleId}/games`} className="text-cu-secondary font-bold text-action">
+      <Link href={`/circles/${summary.circleId}/games`} className="text-cu-secondary font-bold text-action transition-cu-state hover:underline">
         ‹ Games
       </Link>
 
@@ -131,7 +155,21 @@ export function GameDetail(props: GameDetailProps) {
             {subline}
           </Meta>
         </div>
-        {props.upcoming && open > 0 && (
+        {/* Wide-only header meta (design "Circle · Rotation game"): the Booked-on
+            pill, the rotation contract pill, and — where slots are literal —
+            the open-spot count. A pre-lock rotation game has no held slots, so
+            its "open" count would be a lie; the pills carry the state instead. */}
+        {moneyOptIn?.kind === "booking" && (
+          <span className="hidden min-[900px]:inline-flex items-center rounded-full border border-ink-hairline-2 py-1 pl-1 pr-2.5 mb-1 whitespace-nowrap">
+            <BookingChip booking={moneyOptIn.booking} size={20} />
+          </span>
+        )}
+        {isRotation && summary.standingGame && (
+          <span className="hidden min-[900px]:inline-block rounded-full border border-ink-hairline-2 px-3 py-[5px] mb-1 font-mono text-[10px] font-semibold text-ink-muted whitespace-nowrap">
+            {rotationModePill(summary.standingGame.rotationMode, summary.standingGame.rotationCutoffHours)}
+          </span>
+        )}
+        {props.upcoming && open > 0 && (!isRotation || rotationLocked) && (
           <span className="hidden min-[900px]:block font-mono text-[11.5px] font-bold text-action-strong pb-1 whitespace-nowrap">
             {open} SPOT{open === 1 ? "" : "S"} OPEN
           </span>
@@ -140,54 +178,73 @@ export function GameDetail(props: GameDetailProps) {
 
       <div className="flex flex-col gap-4 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:gap-4 min-[900px]:items-start">
         <div className="flex flex-col gap-4 min-w-0">
-          <StandingGameWeekCard
-            sessionId={summary.session.id}
-            circleId={summary.circleId}
-            circleName={summary.circleName}
-            circleColour={summary.circleColour}
-            circleEmblem={summary.circleEmblem}
-            weekLabel={new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-            slots={summary.slots}
-            confirmed={summary.confirmed}
-            reserves={summary.reserves}
-            viewerUserId={viewer.id}
-            viewerDisplayName={viewer.displayName}
-            viewerAvatarUrl={viewer.avatarUrl}
-            viewerStatus={summary.viewerStatus}
-            rsvpWindowOpensAt={summary.rsvpWindowOpensAt}
-            startsAt={new Date(summary.session.startsAt)}
-            canSendFourthCall={rotationCanSendFourthCall}
-            fourthCallHref={props.fourthCallHref}
-            glassByUserId={props.glassByUserId}
-            guestByUserId={props.guestByUserId}
-            rotation={
-              summary.rotation
-                ? {
-                    mode: summary.rotation.mode,
-                    locked: summary.rotation.lockedAt != null,
-                    coldStart: summary.rotation.coldStart,
-                    locksAtMs: summary.rotation.locksAt.getTime(),
-                    available: summary.rotation.available,
-                    lineup: summary.rotation.lineup,
-                    sitting: summary.rotation.sitting,
-                    reasons: summary.rotation.reasons,
-                    viewerAvailable: summary.rotation.viewerAvailable,
-                  }
-                : null
-            }
-          />
+          {/* A rotation game swaps this phone card for the design's wide
+              anatomy at 900+ (RotationWideMain/Aside below). The card stays
+              MOUNTED (display:contents, then display:none at 900+) because it
+              holds the session's single realtime subscription — its
+              router.refresh() is what keeps the wide panels live. */}
+          <div className={isRotation ? "contents min-[900px]:hidden" : "contents"}>
+            <StandingGameWeekCard
+              sessionId={summary.session.id}
+              circleId={summary.circleId}
+              circleName={summary.circleName}
+              circleColour={summary.circleColour}
+              circleEmblem={summary.circleEmblem}
+              weekLabel={new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+              slots={summary.slots}
+              confirmed={summary.confirmed}
+              reserves={summary.reserves}
+              viewerUserId={viewer.id}
+              viewerDisplayName={viewer.displayName}
+              viewerAvatarUrl={viewer.avatarUrl}
+              viewerStatus={summary.viewerStatus}
+              rsvpWindowOpensAt={summary.rsvpWindowOpensAt}
+              startsAt={new Date(summary.session.startsAt)}
+              canSendFourthCall={rotationCanSendFourthCall}
+              fourthCallHref={props.fourthCallHref}
+              glassByUserId={props.glassByUserId}
+              guestByUserId={props.guestByUserId}
+              rotation={rotationView}
+            />
+          </div>
+
+          {rotationView && (
+            <div className="hidden min-[900px]:block">
+              <RotationWideMain
+                sessionId={summary.session.id}
+                slots={summary.slots}
+                startsAtMs={summary.session.startsAt}
+                rsvpWindowOpensAtMs={summary.rsvpWindowOpensAt.getTime()}
+                viewerUserId={viewer.id}
+                viewerStatus={summary.viewerStatus}
+                rotation={rotationView}
+                canSendFourthCall={rotationCanSendFourthCall}
+                fourthCallHref={props.fourthCallHref}
+                glassByUserId={props.glassByUserId}
+                guestByUserId={props.guestByUserId}
+              />
+            </div>
+          )}
 
           {props.knockPanel}
 
-          {summary.costMinor != null ? (
+          {/* The money opt-in row (issue #21): a booked-on game shows its
+              signpost and NOTHING else — the booking silenced the cost by
+              construction, so no split/cost chrome may render beside it. */}
+          {moneyOptIn?.kind === "booking" ? (
+            <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3">
+              <BookingChip booking={moneyOptIn.booking} />
+              <Meta className="flex-1 text-right whitespace-nowrap">booked and paid there, the Tab stays out of it</Meta>
+            </div>
+          ) : moneyOptIn?.kind === "cost" ? (
             !props.isPast ? (
               <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3">
                 <p className="text-cu-body text-ink flex-1">
-                  {formatMoney(summary.costMinor, summary.costCurrency)} court
+                  {formatMoneyWhole(moneyOptIn.amountMinor, moneyOptIn.currency)} court
                   {summary.costPerHeadMinor != null && (
                     <>
                       {" · "}
-                      <strong>{formatMoney(summary.costPerHeadMinor, summary.costCurrency)} each</strong>
+                      <strong>{formatMoneyWhole(summary.costPerHeadMinor, moneyOptIn.currency)} each</strong>
                     </>
                   )}
                   {" · goes on the Tab"}
@@ -197,27 +254,27 @@ export function GameDetail(props: GameDetailProps) {
             ) : (
               <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex flex-col gap-2.5">
                 <p className="text-cu-body text-ink font-mono">
-                  {formatMoney(summary.costMinor, summary.costCurrency)} court
-                  {summary.costPerHeadMinor != null && ` · ${formatMoney(summary.costPerHeadMinor, summary.costCurrency)} each`}
+                  {formatMoneyWhole(moneyOptIn.amountMinor, moneyOptIn.currency)} court
+                  {summary.costPerHeadMinor != null && ` · ${formatMoneyWhole(summary.costPerHeadMinor, moneyOptIn.currency)} each`}
                   {` · ${props.durationMinutes} min`}
                 </p>
                 <form action={props.createSplitAction}>
-                  <Button type="submit" variant={props.alreadySplit ? "quiet" : "primary"} disabled={props.alreadySplit} fullWidth>
+                  <SubmitButton variant={props.alreadySplit ? "quiet" : "primary"} disabled={props.alreadySplit} fullWidth>
                     {props.alreadySplit ? "Split on the Tab ✓" : "Goes on the Tab"}
-                  </Button>
+                  </SubmitButton>
                 </form>
               </div>
             )
           ) : (
             <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex flex-col gap-2">
-              <Link href={`/circles/${summary.circleId}/tab`} className="flex items-center gap-3">
+              <Link href={`/circles/${summary.circleId}/tab`} className="flex items-center gap-3 transition-cu-state hover:opacity-80">
                 <span className="text-cu-body text-ink flex-1">Court split goes on the Tab</span>
                 <Meta tone="action">The Tab →</Meta>
               </Link>
               {props.viewerIsOrganiser && summary.standingGame && (
                 <Meta as="p">
                   Set a court cost on the{" "}
-                  <Link href={`/games/standing/${summary.standingGame.id}`} className="font-bold text-action-strong">
+                  <Link href={`/games/standing/${summary.standingGame.id}`} className="font-bold text-action-strong transition-cu-state hover:underline">
                     Standing Game
                   </Link>{" "}
                   and it splits in one tap here.
@@ -230,7 +287,7 @@ export function GameDetail(props: GameDetailProps) {
             (props.existingMatchId ? (
               <Link
                 href={`/matches/${props.existingMatchId}`}
-                className="rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold transition-cu-state active:opacity-80 bg-transparent text-ink border border-ink-hairline-4"
+                className="rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 bg-transparent text-ink border border-ink-hairline-4"
               >
                 View result
               </Link>
@@ -244,7 +301,7 @@ export function GameDetail(props: GameDetailProps) {
                 </div>
                 <Link
                   href={`/matches/new?session=${summary.session.id}`}
-                  className="rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state active:opacity-80"
+                  className="rounded-button min-h-12 px-5 py-3.5 text-center text-[15px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state hover:opacity-90 active:opacity-80"
                 >
                   Log last night&apos;s result
                 </Link>
@@ -253,6 +310,20 @@ export function GameDetail(props: GameDetailProps) {
         </div>
 
         <div className="flex flex-col gap-3">
+          {/* Rotation, wide: the fair-share ranked list (pre-lock) or the
+              consent-offer cascade (locked + a spot open, organiser view). */}
+          {rotationView && props.upcoming && (
+            <div className="hidden min-[900px]:block">
+              <RotationWideAside
+                slots={summary.slots}
+                viewerUserId={viewer.id}
+                rotation={rotationView}
+                viewerIsOrganiser={props.viewerIsOrganiser}
+                offerUserId={props.rotationOfferUserId ?? null}
+                guestByUserId={props.guestByUserId}
+              />
+            </div>
+          )}
           {summary.venue && (
             <VenueMapCard venueName={summary.venue.name} venueAddress={summary.venue.address ?? null} pinLocationAction={props.pinLocationAction} />
           )}

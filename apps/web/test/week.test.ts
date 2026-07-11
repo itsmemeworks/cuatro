@@ -141,6 +141,60 @@ describe("weekCellKind — the day-cell state machine", () => {
   });
 });
 
+describe("buildWeekData — money opt-in (issue #21, Booked on XOR court cost)", () => {
+  async function insertStandingGame(fx: Fixture, values: Record<string, unknown> = {}) {
+    const [sg] = await fx.db
+      .insert(standingGames)
+      .values({ circleId: fx.circleId, venueId: fx.venueId, weekday: 2, startTime: "20:00", ...values })
+      .returning();
+    return sg;
+  }
+
+  it("defaults to silence — a game with no signpost and no cost carries no money at all", async () => {
+    fixture = await seedCircle({ memberCount: 0 });
+    await insertSession(fixture, { startsAt: NOW.getTime() + DAY });
+    const data = await buildWeekData(fixture.db, fixture.organiserId, NOW);
+    expect(data.sessions[0].moneyOptIn).toBeNull();
+  });
+
+  it("inherits the standing game's Booked-on signpost", async () => {
+    fixture = await seedCircle({ memberCount: 0 });
+    const sg = await insertStandingGame(fixture, { bookingPlatform: "playtomic", bookingUrl: "https://playtomic.io/x" });
+    await insertSession(fixture, { startsAt: NOW.getTime() + DAY, standingGameId: sg.id });
+    const data = await buildWeekData(fixture.db, fixture.organiserId, NOW);
+    expect(data.sessions[0].moneyOptIn).toEqual({
+      kind: "booking",
+      booking: { platform: "playtomic", url: "https://playtomic.io/x" },
+    });
+  });
+
+  it("lets a session-level booking override the standing game's", async () => {
+    fixture = await seedCircle({ memberCount: 0 });
+    const sg = await insertStandingGame(fixture, { bookingPlatform: "playtomic" });
+    const s = await insertSession(fixture, { startsAt: NOW.getTime() + DAY, standingGameId: sg.id });
+    await fixture.db.update(sessions).set({ bookingPlatform: "matchi", bookingUrl: null }).where(eq(sessions.id, s.id));
+    const data = await buildWeekData(fixture.db, fixture.organiserId, NOW);
+    expect(data.sessions[0].moneyOptIn).toEqual({ kind: "booking", booking: { platform: "matchi", url: null } });
+  });
+
+  it("resolves a court cost when that's the one opt-in set", async () => {
+    fixture = await seedCircle({ memberCount: 0 });
+    const sg = await insertStandingGame(fixture, { costMinor: 3200, costCurrency: "GBP" });
+    await insertSession(fixture, { startsAt: NOW.getTime() + DAY, standingGameId: sg.id });
+    const data = await buildWeekData(fixture.db, fixture.organiserId, NOW);
+    expect(data.sessions[0].moneyOptIn).toEqual({ kind: "cost", amountMinor: 3200, currency: "GBP" });
+  });
+
+  it("a booking signpost silences a cost — booked-on games never touch the Tab", async () => {
+    fixture = await seedCircle({ memberCount: 0 });
+    // The write side enforces the XOR; the read side stays defensive anyway.
+    const sg = await insertStandingGame(fixture, { bookingPlatform: "padel_mates", costMinor: 3200 });
+    await insertSession(fixture, { startsAt: NOW.getTime() + DAY, standingGameId: sg.id });
+    const data = await buildWeekData(fixture.db, fixture.organiserId, NOW);
+    expect(data.sessions[0].moneyOptIn).toEqual({ kind: "booking", booking: { platform: "padel_mates", url: null } });
+  });
+});
+
 describe("buildWeekData — the Tab prompt", () => {
   async function seedTabEntry(fx: Fixture, opts: { payer: string; debtor: string; amountMinor: number; description?: string }) {
     const [tab] = await fx.db.insert(tabs).values({ circleId: fx.circleId }).onConflictDoNothing().returning();

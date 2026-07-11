@@ -151,8 +151,10 @@ export default async function JoinPage({
     }
 
     return (
-      <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 gap-8 bg-ground text-ink">
-        <div className="w-full max-w-sm flex flex-col items-center">
+      // Same additive-wide treatment as /fc: below 900 nothing changes, at
+      // 900px+ the content top-anchors and the flow's own columns widen.
+      <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 gap-8 bg-ground text-ink min-[900px]:justify-start min-[900px]:pt-14 min-[900px]:pb-16 min-[900px]:bg-transparent">
+        <div className="w-full max-w-sm flex flex-col items-center min-[900px]:max-w-[460px]">
           <GuestCircleJoinFlow
             code={code}
             circleName={circle.name}
@@ -186,7 +188,7 @@ export default async function JoinPage({
   }
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink">
+    <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink min-[900px]:justify-start min-[900px]:pt-14 min-[900px]:pb-16 min-[900px]:bg-transparent">
       <div className="flex flex-col items-center gap-4">
         <div
           className="w-16 h-16 rounded-full flex items-center justify-center text-3xl text-white"
@@ -197,9 +199,9 @@ export default async function JoinPage({
         </div>
         <div>
           <p className="text-[10px] font-extrabold tracking-[0.14em] text-action">YOU&apos;RE INVITED</p>
-          <h1 className="text-cu-title mt-1.5">{circle.name}</h1>
+          <h1 className="text-cu-title mt-1.5 min-[900px]:text-[26px]">{circle.name}</h1>
         </div>
-        <p className="text-cu-body text-ink-muted max-w-xs">
+        <p className="text-cu-body text-ink-muted max-w-xs min-[900px]:max-w-[400px]">
           Its chat, history and Standing Games, join to see what your mates have been up to.
         </p>
       </div>
@@ -209,7 +211,7 @@ export default async function JoinPage({
         <Meta>a spot&apos;s open for you</Meta>
       </div>
 
-      <div className="w-full max-w-xs flex flex-col items-center gap-2.5">
+      <div className="w-full max-w-xs flex flex-col items-center gap-2.5 min-[900px]:max-w-[400px]">
         <form action={joinCircleAction} className="w-full">
           <input type="hidden" name="code" value={code} />
           <JoinButton label={`Join ${circle.name}`} />

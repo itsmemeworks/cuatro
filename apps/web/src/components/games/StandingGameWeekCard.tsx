@@ -230,13 +230,13 @@ export function StandingGameWeekCard({
             size="lg"
             className="flex-[2]"
             variant={rotation.viewerAvailable ? "strong" : "primary"}
-            disabled={pending}
+            pending={pending}
             onClick={() => sendRsvp(rotation.viewerAvailable ? "unavailable" : "available")}
           >
             {rotation.viewerAvailable ? "You're available ✓" : "I'm available"}
           </Button>
           {rotation.viewerAvailable && (
-            <Button size="lg" variant="destructiveQuiet" className="flex-1" disabled={pending} onClick={() => sendRsvp("unavailable")}>
+            <Button size="lg" variant="destructiveQuiet" className="flex-1" pending={pending} onClick={() => sendRsvp("unavailable")}>
               Not this week
             </Button>
           )}
@@ -249,12 +249,12 @@ export function StandingGameWeekCard({
               className="flex-[2]"
               variant="strong"
               style={viewerHoldsSlot ? { background: "var(--color-win)", color: "var(--color-action-contrast)" } : undefined}
-              disabled={pending}
+              pending={pending}
               onClick={() => sendRsvp("out")}
             >
               {viewerHoldsSlot ? "You're in this week ✓" : "Sitting out ✓"}
             </Button>
-            <Button size="lg" variant="destructiveQuiet" className="flex-1" disabled={pending} onClick={() => sendRsvp("out")}>
+            <Button size="lg" variant="destructiveQuiet" className="flex-1" pending={pending} onClick={() => sendRsvp("out")}>
               Can&apos;t
             </Button>
           </div>
@@ -352,7 +352,7 @@ export function StandingGameWeekCard({
             <div className="px-4 py-3 border-t border-ink-hairline-1 flex items-center gap-2.5">
               <DashedSlot size="sm" pulse label={String(rotation.lineup.length + 1)} />
               <span className="flex-1 text-cu-body font-bold text-action-strong">Open, send a Fourth Call</span>
-              <Link href={fourthCallHref} className="shrink-0 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 whitespace-nowrap">
+              <Link href={fourthCallHref} className="shrink-0 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 whitespace-nowrap transition-cu-state hover:bg-ink-hairline-1">
                 Find a 4th →
               </Link>
             </div>
@@ -428,7 +428,7 @@ export function StandingGameWeekCard({
                   <span className="flex-1 text-cu-body font-bold text-action-strong">Open, send a Fourth Call</span>
                   <Link
                     href={fourthCallHref}
-                    className="shrink-0 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 whitespace-nowrap"
+                    className="shrink-0 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 whitespace-nowrap transition-cu-state hover:bg-ink-hairline-1"
                   >
                     Find a 4th →
                   </Link>
@@ -474,13 +474,13 @@ export function StandingGameWeekCard({
             className="flex-[2]"
             variant={viewerHoldsSlot || viewerReserved ? "strong" : "primary"}
             style={viewerHoldsSlot ? { background: "var(--color-win)", color: "var(--color-action-contrast)" } : undefined}
-            disabled={pending}
+            pending={pending}
             onClick={() => sendRsvp(viewerHoldsSlot || viewerReserved ? "out" : "in")}
           >
             {viewerHoldsSlot ? "You're in ✓" : viewerReserved ? "Reserved ✓" : "I'm in"}
           </Button>
           {(viewerHoldsSlot || viewerReserved) && (
-            <Button size="lg" variant="destructiveQuiet" className="flex-1" disabled={pending} onClick={() => sendRsvp("out")}>
+            <Button size="lg" variant="destructiveQuiet" className="flex-1" pending={pending} onClick={() => sendRsvp("out")}>
               Can&apos;t
             </Button>
           )}

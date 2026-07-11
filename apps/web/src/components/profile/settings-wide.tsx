@@ -7,7 +7,9 @@ import { Avatar, Button, Meta } from "@/components/ui";
 import { SelfieCamera } from "@/components/entry/selfie-camera";
 import { updateDisplayNameAction } from "@/lib/actions";
 import { updateDiscoverySettingsAction } from "@/app/(app)/profile/discovery-actions";
-import type { VenueOption } from "@/components/profile/settings-sheet";
+import { updatePlayerAttrsAction } from "@/app/(app)/profile/player-attrs-actions";
+import { COURT_SIDES, DOMINANT_HANDS } from "@/lib/player-attrs";
+import { AttrSegments, courtSideSegmentLabel, type VenueOption } from "@/components/profile/settings-sheet";
 
 /** Section shell — bone label + hairline card, matching the design's Settings cards. No coral here; the one strong action is Save (design/CUATRO-Web-LATEST.dc.html "Home · Settings"). */
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
@@ -45,12 +47,13 @@ function SettingToggle({ on, onToggle, disabled, label }: { on: boolean; onToggl
  * venue), logout — so there is no new mutation surface; this is the desktop
  * restatement of controls that already exist.
  *
- * Deliberately NOT here (per the Wave B scope rulings): the ON COURT
- * hand/side fields (GitHub #21, a later wave) and the browser-notifications
- * "Enable" row (desktop web push is Wave D). The three notification-type rows
- * render their current state — CUATRO sends all of them today — but the
- * per-type controls are not wired (no preference store yet); they read as
- * status, not as toggles that quietly fail to save.
+ * ON COURT (issue #21, Wave C): the hand/side segmented pickers, saved on tap
+ * through updatePlayerAttrsAction — soft signals only, both skippable, tapping
+ * the active segment clears it. Deliberately NOT here: the
+ * browser-notifications "Enable" row (desktop web push is Wave D). The three
+ * notification-type rows render their current state — CUATRO sends all of
+ * them today — but the per-type controls are not wired (no preference store
+ * yet); they read as status, not as toggles that quietly fail to save.
  */
 export function SettingsWide({
   displayName,
@@ -60,6 +63,8 @@ export function SettingsWide({
   homeVenueId,
   homeVenueName,
   venueOptions,
+  dominantHand = null,
+  courtSide = null,
 }: {
   displayName: string | null;
   email: string;
@@ -68,6 +73,9 @@ export function SettingsWide({
   homeVenueId: string | null;
   homeVenueName: string | null;
   venueOptions: VenueOption[];
+  /** ON COURT attributes (issue #21) — the stored values; null renders both pickers unset. */
+  dominantHand?: string | null;
+  courtSide?: string | null;
 }) {
   const router = useRouter();
   const [name, setName] = useState(displayName ?? "");
@@ -75,8 +83,11 @@ export function SettingsWide({
   const [showCamera, setShowCamera] = useState(false);
   const [findableOn, setFindableOn] = useState(findable);
   const [venue, setVenue] = useState(homeVenueId ?? "");
+  const [hand, setHand] = useState(dominantHand ?? "");
+  const [side, setSide] = useState(courtSide ?? "");
   const [savingName, startSaveName] = useTransition();
   const [savingDiscovery, startSaveDiscovery] = useTransition();
+  const [savingAttrs, startSaveAttrs] = useTransition();
 
   const nameDirty = name.trim() !== (displayName ?? "").trim() && name.trim().length > 0;
 
@@ -102,9 +113,22 @@ export function SettingsWide({
     });
   }
 
+  // Hand + side also share one action (both always submitted together), saved
+  // on tap like the discovery controls — no Save button, the segment IS the
+  // state. "" means unset and writes null.
+  function saveAttrs(nextHand: string, nextSide: string) {
+    const fd = new FormData();
+    fd.set("dominantHand", nextHand);
+    fd.set("courtSide", nextSide);
+    startSaveAttrs(async () => {
+      await updatePlayerAttrsAction(fd);
+      router.refresh();
+    });
+  }
+
   return (
     <div>
-      <Link href="/profile" className="text-cu-secondary font-bold text-action">
+      <Link href="/profile" className="text-cu-secondary font-bold text-action hover:underline">
         ‹ You
       </Link>
       <h1 className="text-[24px] leading-none font-extrabold text-ink mt-3">Settings</h1>
@@ -125,15 +149,15 @@ export function SettingsWide({
               <button
                 type="button"
                 onClick={() => setShowCamera(true)}
-                className="shrink-0 rounded-full border border-ink-hairline-3 px-3 py-2 text-[11px] font-bold text-ink"
+                className="shrink-0 rounded-full border border-ink-hairline-3 px-3 py-2 text-[11px] font-bold text-ink hover:bg-ink-hairline-1 transition-cu-state"
               >
                 Change photo
               </button>
             </div>
             {nameDirty && (
               <div className="mt-3">
-                <Button type="button" variant="strong" onClick={saveName} disabled={savingName}>
-                  {savingName ? "Saving…" : "Save name"}
+                <Button type="button" variant="strong" onClick={saveName} pending={savingName}>
+                  Save name
                 </Button>
               </div>
             )}
@@ -166,6 +190,44 @@ export function SettingsWide({
             </select>
           </Section>
 
+          <Section label="ON COURT">
+            <div className="flex items-center gap-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-bold text-ink">Hand</p>
+                <Meta as="p" className="mt-0.5">which hand holds the racket</Meta>
+              </div>
+              <AttrSegments
+                options={DOMINANT_HANDS.map((h) => ({ id: h.id, label: h.label }))}
+                value={hand}
+                onSelect={(next) => {
+                  setHand(next);
+                  saveAttrs(next, side);
+                }}
+                disabled={savingAttrs}
+                label="Dominant hand"
+              />
+            </div>
+            <div className="flex items-center gap-2.5 mt-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-bold text-ink">Side</p>
+                <Meta as="p" className="mt-0.5">where you set up in the pair</Meta>
+              </div>
+              <AttrSegments
+                options={COURT_SIDES.map((s) => ({ id: s.id, label: courtSideSegmentLabel(s) }))}
+                value={side}
+                onSelect={(next) => {
+                  setSide(next);
+                  saveAttrs(hand, next);
+                }}
+                disabled={savingAttrs}
+                label="Court side"
+              />
+            </div>
+            <Meta as="p" className="mt-3">
+              both optional, skip freely. Never touches Glass, the Rotation, or who can join
+            </Meta>
+          </Section>
+
           <div className="bg-surface border border-ink-hairline-1 rounded-[20px] px-[18px] py-4 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-bold text-ink">Findable</p>
@@ -186,7 +248,7 @@ export function SettingsWide({
           <form action="/api/auth/logout" method="POST">
             <button
               type="submit"
-              className="w-full border border-ink-hairline-3 rounded-2xl py-3 text-center text-[12.5px] font-bold text-ink-muted"
+              className="w-full border border-ink-hairline-3 rounded-2xl py-3 text-center text-[12.5px] font-bold text-ink-muted hover:bg-ink-hairline-1 hover:text-ink transition-cu-state"
             >
               Sign out
             </button>

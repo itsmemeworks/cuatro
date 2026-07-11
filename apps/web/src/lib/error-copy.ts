@@ -40,6 +40,10 @@ const ERROR_COPY: Record<string, string> = {
   // The Rotation.
   rotation_not_enabled: "This game isn't on rotation, so just tap in.",
   rotation_locked: "This week's four is already set. Tap in or out on the game itself.",
+  // Money opt-in (issue #21): booking signpost XOR court cost.
+  booking_and_cost: "Pick one, booked on or a court cost. A game never carries both.",
+  invalid_booking_platform: "Pick a booking platform from the list.",
+  invalid_booking_url: "That link doesn't look right. Paste the full address, starting with https.",
 };
 
 const FALLBACK = "Something didn't go through. Give it another tap.";

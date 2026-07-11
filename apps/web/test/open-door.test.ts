@@ -294,6 +294,8 @@ describe("Open Door", () => {
     expect(panel).toHaveLength(1);
     expect(panel[0].message).toBe("hi!");
     expect(panel[0].distanceLabel).toMatch(/km away$/); // viewer's Shoreditch → Stratford anchor
+    // the wide join-request row's "conf N%" fact rides along with the rating
+    expect(typeof panel[0].confidence).toBe("number");
   });
 
   it("accept creates a real membership, notifies the knocker, and the circle appears in their list", async () => {
