@@ -82,15 +82,30 @@ export async function listNotificationsForUser(
   const groups: NotificationDayGroup[] = [];
   let currentKey: string | null = null;
   for (const row of rows) {
+    // A row whose type the current build can't render (data outlives code:
+    // a type written by an old build, or a raw insert that dodged notify.ts)
+    // must never take the whole page down — drop it loudly instead. That
+    // exact failure shipped once: tab.ts wrote "tab_settled" straight to the
+    // table before the type existed in notify.ts, and /notifications crashed
+    // for anyone holding the row (Sentry CUATRO-4).
+    let view: NotificationView;
+    try {
+      view = await toView(row, db);
+    } catch (err) {
+      console.error(`notifications: dropping unrenderable row ${row.id} (type "${row.type}")`, err);
+      continue;
+    }
     const createdAt = new Date(row.createdAt);
     const key = dayKey(createdAt);
     if (key !== currentKey) {
       groups.push({ label: formatDayLabel(createdAt, now), notifications: [] });
       currentKey = key;
     }
-    groups[groups.length - 1]!.notifications.push(await toView(row, db));
+    groups[groups.length - 1]!.notifications.push(view);
   }
-  return groups;
+  // A dropped row can leave an empty trailing group only if it was the sole
+  // member of its day — prune those.
+  return groups.filter((g) => g.notifications.length > 0);
 }
 
 export async function getUnreadCount(db: CuatroDb, userId: string): Promise<number> {

@@ -58,6 +58,7 @@ export type NotificationInput =
       type: "tab_nudge";
       payload: { circleId: string; tabEntryId: string; amountMinor: number; currency: string };
     }
+  | { type: "tab_settled"; payload: { entryId: string; confirmedBy: string } }
   | { type: "session_rescheduled"; payload: { sessionId: string } }
   | { type: "rotation_selected"; payload: { sessionId: string } }
   | { type: "rotation_sitting_out"; payload: { sessionId: string } }
@@ -195,6 +196,13 @@ export async function renderNotificationCopy(tx: CuatroDb, input: NotificationIn
           : "The other team logged your score. Confirm so Glass can move for everyone.",
       };
     }
+    case "tab_settled": {
+      const [confirmer] = await tx.select({ displayName: users.displayName }).from(users).where(eq(users.id, input.payload.confirmedBy));
+      return {
+        title: "Settled up",
+        body: `${confirmer?.displayName ?? "Your counterpart"} confirmed you're square. The Tab agrees.`,
+      };
+    }
     case "tab_nudge": {
       const amount = (input.payload.amountMinor / 100).toFixed(2);
       return {
@@ -298,6 +306,13 @@ export async function renderNotificationCopy(tx: CuatroDb, input: NotificationIn
         body: `${from?.displayName ?? "The previous organiser"} handed ${circle?.name ?? "the Circle"} to you. Settings, members and the door are yours.`,
       };
     }
+    default: {
+      // Exhaustiveness backstop: a (type, payload) that reaches here came
+      // from data, not from the union — fail with a name, not a property
+      // read on undefined.
+      const t = (input as { type?: string }).type;
+      throw new Error(`renderNotificationCopy: no copy for notification type "${t}"`);
+    }
   }
 }
 
@@ -319,6 +334,8 @@ export function deepLinkFor(input: NotificationInput): string {
       return `/matches/${input.payload.matchId}`;
     case "tab_nudge":
       return `/circles/${input.payload.circleId}`;
+    case "tab_settled":
+      return "/tab";
     case "session_rescheduled":
     case "rotation_selected":
     case "rotation_sitting_out":
