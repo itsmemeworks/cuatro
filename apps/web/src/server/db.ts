@@ -18,14 +18,25 @@
 import { createClient } from "@cuatro/db";
 import type { CuatroClient } from "@cuatro/db";
 
-let clientPromise: Promise<CuatroClient> | null = null;
+/*
+ * The singleton MUST live on globalThis, not at module level: Next's dev
+ * server compiles each route into its own server-bundle module instance, so a
+ * module-level memo yields one postgres-js pool (max 6 connections) PER
+ * VISITED ROUTE — a full crawl of ~12 routes exhausts local Postgres's 100
+ * slots ("remaining connection slots are reserved for SUPERUSER"). globalThis
+ * is shared across all of those module copies, so the whole process holds
+ * exactly one pool in dev and prod alike.
+ */
+const g = globalThis as typeof globalThis & {
+  __cuatroDbPromise?: Promise<CuatroClient> | null;
+};
 
 export function getDb(): Promise<CuatroClient> {
-  if (!clientPromise) clientPromise = createClient();
-  return clientPromise;
+  if (!g.__cuatroDbPromise) g.__cuatroDbPromise = createClient();
+  return g.__cuatroDbPromise;
 }
 
 /** Test-only: force a fresh connection on next getDb() call. */
 export function __resetDbForTests() {
-  clientPromise = null;
+  g.__cuatroDbPromise = null;
 }
