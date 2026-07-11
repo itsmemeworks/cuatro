@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/itsmemeworks/cuatro/compare/v1.1.1...v1.2.0) (2026-07-11)
+
+
+### Features
+
+* notifications toggle on the profile, the missing client half of web push ([#19](https://github.com/itsmemeworks/cuatro/issues/19)) ([1b8e3fc](https://github.com/itsmemeworks/cuatro/commit/1b8e3fc0d096a14310cc4c17b96f46986e4eafc6))
+
 ## [1.1.1](https://github.com/itsmemeworks/cuatro/compare/v1.1.0...v1.1.1) (2026-07-11)
 
 
