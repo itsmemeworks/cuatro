@@ -111,3 +111,30 @@ describe("read / unread", () => {
     expect(await getUnreadCount(db, priya.id)).toBe(1);
   });
 });
+
+describe("unrenderable rows (data outlives code)", () => {
+  it("drops a row whose type the copy layer does not know, keeps the rest", async () => {
+    const user = await seedUser("survivor@example.com");
+    // member_removed copy tolerates a vanished circle ("the Circle" fallback),
+    // so no circle row is needed for this test.
+    await insertNotification(db, { userId: user.id, type: "member_removed", payload: { circleId: "gone-circle" } });
+    // A raw insert that dodged notify.ts, exactly how Sentry CUATRO-4 happened.
+    await db.insert(notifications).values({ userId: user.id, type: "ghost_type", payload: { anything: true } });
+
+    const groups = await listNotificationsForUser(db, user.id);
+    const all = groups.flatMap((g) => g.notifications);
+    expect(all).toHaveLength(1);
+    expect(all[0].type).toBe("member_removed");
+  });
+
+  it("renders a tab_settled row (the once-orphaned type now has copy)", async () => {
+    const user = await seedUser("settled@example.com");
+    const other = await seedUser("other@example.com");
+    await insertNotification(db, { userId: user.id, type: "tab_settled", payload: { entryId: "e-1", confirmedBy: other.id } });
+    const groups = await listNotificationsForUser(db, user.id);
+    const all = groups.flatMap((g) => g.notifications);
+    expect(all).toHaveLength(1);
+    expect(all[0].title).toBe("Settled up");
+    expect(all[0].href).toBe("/tab");
+  });
+});
