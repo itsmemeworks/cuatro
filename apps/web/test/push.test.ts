@@ -27,6 +27,11 @@ const {
   __setPushTransportForTests,
 } = await import("@/lib/push");
 
+// Client-side shared enrolment flow (lib/use-push-subscribe.ts): the pure
+// parts — key decoding and the tray row's visibility matrix — are testable
+// without a browser.
+const { urlBase64ToUint8Array, trayPushRowState } = await import("@/lib/use-push-subscribe");
+
 let client: CuatroClient;
 let db: CuatroDb;
 
@@ -176,5 +181,77 @@ describe("sendPushToUser", () => {
     const user = await seedUser();
     const res = await sendPushToUser(user.id, { title: "T" });
     expect(res).toEqual({ sent: false, reason: "no subscription for user" });
+  });
+});
+
+describe("urlBase64ToUint8Array (shared enrolment flow)", () => {
+  it("decodes a base64url VAPID key to the raw bytes PushManager wants", () => {
+    // "Hello" in base64url (no padding, url-safe chars exercised below).
+    expect(Array.from(urlBase64ToUint8Array("SGVsbG8"))).toEqual([72, 101, 108, 108, 111]);
+  });
+
+  it("maps url-safe characters (-, _) to their base64 originals (+, /)", () => {
+    // 0xfb 0xff 0xbf encodes to "-_-_" in base64url ("+/+/" in base64).
+    expect(Array.from(urlBase64ToUint8Array("-_-_"))).toEqual([251, 255, 191]);
+  });
+
+  it("restores stripped padding for any input length", () => {
+    // One byte (needs ==) and two bytes (needs =) both round-trip.
+    expect(Array.from(urlBase64ToUint8Array("QQ"))).toEqual([65]);
+    expect(Array.from(urlBase64ToUint8Array("QUI"))).toEqual([65, 66]);
+  });
+
+  it("matches web-push's own generated public key byte-for-byte", () => {
+    const decoded = urlBase64ToUint8Array(vapid.publicKey);
+    // A VAPID public key is a 65-byte uncompressed P-256 point (0x04 prefix).
+    expect(decoded.length).toBe(65);
+    expect(decoded[0]).toBe(4);
+    expect(Array.from(decoded)).toEqual(Array.from(Buffer.from(vapid.publicKey, "base64url")));
+  });
+});
+
+describe("trayPushRowState (never-ask-twice matrix)", () => {
+  const offerable = {
+    supported: true,
+    permission: "default" as NotificationPermission,
+    subscribed: false,
+    dismissed: false,
+    serverKey: "BKey",
+  };
+
+  it("offers only when every gate passes", () => {
+    expect(trayPushRowState(offerable)).toBe("offer");
+  });
+
+  it("offers when permission is already granted but this device has no subscription", () => {
+    // e.g. granted via the profile toggle once, then unsubscribed: enabling
+    // from the tray subscribes silently, no prompt.
+    expect(trayPushRowState({ ...offerable, permission: "granted" })).toBe("offer");
+  });
+
+  it("hides when the browser cannot do push", () => {
+    expect(trayPushRowState({ ...offerable, supported: false })).toBe("hidden");
+  });
+
+  it("hides forever once the player said not now (never ask twice)", () => {
+    expect(trayPushRowState({ ...offerable, dismissed: true })).toBe("hidden");
+  });
+
+  it("hides when permission is denied (asking again is nagging)", () => {
+    expect(trayPushRowState({ ...offerable, permission: "denied" })).toBe("hidden");
+  });
+
+  it("hides when this device is already subscribed", () => {
+    expect(trayPushRowState({ ...offerable, subscribed: true })).toBe("hidden");
+  });
+
+  it("hides entirely when the server has no VAPID key (null and empty)", () => {
+    expect(trayPushRowState({ ...offerable, serverKey: null })).toBe("hidden");
+    expect(trayPushRowState({ ...offerable, serverKey: "" })).toBe("hidden");
+  });
+
+  it("hides while the key is still unknown (unfetched maps to null, never a stub)", () => {
+    const serverKey: string | null = null;
+    expect(trayPushRowState({ ...offerable, serverKey })).toBe("hidden");
   });
 });

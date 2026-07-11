@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, Meta } from "@/components/ui";
 import { Toggle } from "@/components/ui/toggle";
+import { usePushSubscribe } from "@/lib/use-push-subscribe";
 
 /**
- * The one place a player switches web push on or off. Requests browser
- * permission, subscribes this device via the service worker, and stores the
- * subscription server-side (lib/push.ts persists it in push_subscriptions,
- * so it survives deploys and one player can have several devices).
+ * The profile's switch for web push on this device. The actual enrolment
+ * flow (permission → server key → subscribe → persist in
+ * push_subscriptions) lives in lib/use-push-subscribe.ts, shared with the
+ * notification tray's quiet enable row — one implementation, two surfaces.
  *
  * Renders nothing when the browser can't do push (no service worker or
  * PushManager, e.g. an uninstalled iOS Safari tab) — the row appearing IS
@@ -16,70 +17,22 @@ import { Toggle } from "@/components/ui/toggle";
  * home screen, which is exactly the story the pilot needs.
  */
 export function PushToggle() {
-  const [supported, setSupported] = useState(false);
-  const [enabled, setEnabled] = useState(false);
+  const { supported, subscribed, enable, disable } = usePushSubscribe();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
-    setSupported(true);
-    navigator.serviceWorker.ready
-      .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => setEnabled(Boolean(sub)))
-      .catch(() => {});
-  }, []);
 
   async function toggle() {
     if (busy) return;
     setBusy(true);
     setFailed(false);
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      if (enabled) {
-        const sub = await reg.pushManager.getSubscription();
-        if (sub) {
-          await fetch("/api/push/unsubscribe", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ endpoint: sub.endpoint }),
-          });
-          await sub.unsubscribe();
-        }
-        setEnabled(false);
-      } else {
-        const permission = await Notification.requestPermission();
-        if (permission !== "granted") {
-          setFailed(true);
-          return;
-        }
-        const keyRes = await fetch("/api/push/subscribe");
-        const { publicKey } = (await keyRes.json()) as { publicKey: string | null };
-        if (!publicKey) {
-          setFailed(true);
-          return;
-        }
-        const sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey),
-        });
-        const res = await fetch("/api/push/subscribe", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(sub.toJSON()),
-        });
-        if (!res.ok) {
-          await sub.unsubscribe();
-          setFailed(true);
-          return;
-        }
-        setEnabled(true);
-      }
-    } catch {
-      setFailed(true);
-    } finally {
-      setBusy(false);
+    if (subscribed) {
+      const ok = await disable();
+      if (!ok) setFailed(true);
+    } else {
+      const result = await enable();
+      if (result !== "subscribed") setFailed(true);
     }
+    setBusy(false);
   }
 
   if (!supported) return null;
@@ -91,7 +44,7 @@ export function PushToggle() {
           <p className="text-cu-body text-ink">Notifications on this device</p>
           <Meta as="p" className="mt-0.5">fourth calls, results to confirm, your four being set</Meta>
         </div>
-        <Toggle checked={enabled} onToggle={toggle} label="Notifications on this device" disabled={busy} />
+        <Toggle checked={subscribed} onToggle={toggle} label="Notifications on this device" disabled={busy} />
       </div>
       {failed && (
         <Meta as="p" tone="loss">
@@ -100,13 +53,4 @@ export function PushToggle() {
       )}
     </Card>
   );
-}
-
-function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
-  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  const normalised = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(normalised);
-  const out = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out;
 }

@@ -49,18 +49,38 @@ function dayDividerLabel(iso: string): string {
 // missed while offline". Any other event type on this channel (rsvp, match,
 // tab — the same circle page also shows sessions/tab summaries) falls
 // through to a plain router.refresh() so the rest of the page stays live
-// too, without a second subscription to the same topic.
+// too, without a second subscription to the same topic (the shared channel
+// pool in lib/realtime/shared-channels.ts guarantees one live channel per
+// circle however many consumers are mounted).
+//
+// Single-instance rule (Wave D): this component subscribes AND marks the
+// circle read on mount, so it must only be mounted where the viewer can
+// actually see it. lib/chat-dock.ts `useChatDockActive` is the arbiter —
+// true mounts the DockedChat instance (>=1440, docked), false mounts the
+// Chat tab instance. Never mount it from anywhere else.
 export function CircleChat({
   circleId,
   currentUserId,
   initialMessages,
+  fill = false,
 }: {
   circleId: string;
   currentUserId: string;
   initialMessages: ChatMessage[];
+  /**
+   * Dock mode (docked-chat.tsx): stretch to fill the parent flex column
+   * instead of the phone layout's 55vh list cap, and hold the empty-state
+   * copy until the first backfill answers (the dock mounts with no
+   * server-rendered messages, so "No messages yet" would flash while the
+   * real thread loads). Default false = the phone/tab layout, byte-for-byte.
+   */
+  fill?: boolean;
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  // Whether at least one backfill attempt has completed — gates the
+  // empty-state copy in fill mode only (see the `fill` prop doc).
+  const [caughtUp, setCaughtUp] = useState(initialMessages.length > 0);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -94,6 +114,8 @@ export function CircleChat({
       markRead();
     } catch {
       // Best-effort — the next live event (or a manual refresh) will retry.
+    } finally {
+      setCaughtUp(true);
     }
   }, [circleId, markRead]);
 
@@ -139,10 +161,19 @@ export function CircleChat({
     }
   }
 
+  // `fill` swaps the phone 55vh list cap for flex-fill (the dock column
+  // sizes the list); the non-fill branch must stay byte-identical to the
+  // shipped phone markup.
   return (
-    <div className="flex flex-col gap-3">
-      <div ref={listRef} className="flex flex-col gap-2.5 overflow-y-auto px-1" style={{ maxHeight: "55vh" }}>
-        {messages.length === 0 && <p className="text-cu-body text-ink-muted">No messages yet. Say hi to the Circle.</p>}
+    <div className={fill ? "flex flex-col gap-3 flex-1 min-h-0" : "flex flex-col gap-3"}>
+      <div
+        ref={listRef}
+        className={fill ? "flex flex-col gap-2.5 overflow-y-auto px-1 flex-1" : "flex flex-col gap-2.5 overflow-y-auto px-1"}
+        style={fill ? undefined : { maxHeight: "55vh" }}
+      >
+        {messages.length === 0 && (caughtUp || !fill) && (
+          <p className="text-cu-body text-ink-muted">No messages yet. Say hi to the Circle.</p>
+        )}
         {messages.map((m, i) => {
           const mine = m.userId === currentUserId;
           const showDivider = i === 0 || dayKey(m.createdAt) !== dayKey(messages[i - 1].createdAt);

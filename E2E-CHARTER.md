@@ -46,6 +46,15 @@ For every screen, side-by-side against the prototype:
 - [ ] Week grid cells navigate to their game; every server-action button shows a pending state (no silent clicks); money renders whole-pounds-when-clean everywhere (tab_nudge notification included)
 - [ ] Profile hand/side: save → persist → public profile mono facts; RatingReveal does not spend its seen-timer while hidden at wide widths
 
+## C3. Wave D additions (desktop-native, 2026-07-11)
+- [ ] ⌘K/Ctrl+K opens the quick switcher from anywhere including a focused input; type-to-filter ranks circle > game > person; ↑↓/Enter navigates; Esc closes locally
+- [ ] g c / g w / g t navigate with ~1s expiry and are SUPPRESSED while any input/textarea/contentEditable has focus (type "gt" in the chat composer: it must stay in the composer)
+- [ ] Docked chat at 1440: message from a separate browser context lands live in the dock; dock/undock persists; undocked leaves unread counted, re-docking marks read
+- [ ] ONE realtime channel per circle topic regardless of mounts (dock + tab + badge watcher + LiveRefresh) — assert at the socket level, not by behaviour
+- [ ] Sidebar/topbar circle nav rows land on their sub-routes (chat/members/games) — regression guard for the Wave A href={base} bug
+- [ ] Tray push enable: row hidden when unsupported/no server key/already subscribed/denied/dismissed; enabling lands a push_subscriptions row and a REAL push arrives; "not now" survives reload; profile toggle unchanged
+- [ ] Push automation traps (document, don't fight): Chrome bans Push API in incognito (persistent profile required); headless never connects to FCM (headed for delivery proof); CDP grant_permissions doesn't reach the profile Preferences file
+
 ## D. Evidence & exit
 - GIF recordings of: join-via-link flow, RSVP morph + live promotion, both-deltas seal, rating reveal, live chat between two tabs
 - Defect list filed with severity; fix wave; re-test failures to green

@@ -1,6 +1,6 @@
 # WEB-SHELL-SPEC — CUATRO on every screen
 
-**Status: Wave A SHIPPED (PR #22, merged 2026-07-11). Wave B SHIPPED (PR #24, 2026-07-11). Wave C BUILT 2026-07-11 (branch feat/web-shell-wave-c, all flows + issue #21 + the punch list; see the PR for the two deferrals: the ad-hoc match row in record step 1, and browser notifications which remain Wave D). Wave D remains — do not start it without Pete saying go.**
+**Status: COMPLETE. Wave A SHIPPED (PR #22). Wave B SHIPPED (PR #24). Wave C SHIPPED (PR #25). Wave D BUILT 2026-07-11 (branch feat/web-shell-wave-d): ⌘K quick switcher + g-sequences, docked chat at 1440 on a ref-counted realtime channel pool, browser-notifications enable in the tray (self-hides until VAPID keys are set in the env — prod/staging still need Pete's keys as Fly secrets). Carry-overs recorded in the PR: ad-hoc match row (needs session-less recordMatch), sidebar dock pill, dock presence/pinned-game card.**
 
 The design is done and authoritative: `design/CUATRO-Web-LATEST.dc.html` (25 interactive screens, desktop 1440 + tablet 1024, reviewed and punch-listed to zero on 2026-07-11). This spec turns it into build waves. Read `CLAUDE.md` first, then the DESIGN-AUDIT.md "Web/desktop design import" section, then this.
 

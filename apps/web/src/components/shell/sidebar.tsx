@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ShellCircle, ShellContext, ShellData } from "./contract";
+import { QuickSwitchHint } from "./hotkeys";
 
 /*
  * Sidebar — the 236px desktop-only context sidebar
@@ -277,14 +278,14 @@ function CircleSidebar({ data, context }: { data: ShellData; context: Extract<Sh
       <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 18 }}>
         <NavRow href={base} active={context.active === "feed"} label="Feed" icon={ICONS.feed} />
         <NavRow
-          href={base}
+          href={`${base}/chat`}
           active={context.active === "chat"}
           label="Chat"
           icon={ICONS.chat}
           trailing={<UnreadPill count={circle?.unreadChatCount ?? 0} />}
         />
-        <NavRow href={base} active={context.active === "members"} label="Members" icon={ICONS.members} />
-        <NavRow href={base} active={context.active === "games"} label="Games" icon={ICONS.games} />
+        <NavRow href={`${base}/members`} active={context.active === "members"} label="Members" icon={ICONS.members} />
+        <NavRow href={`${base}/games`} active={context.active === "games"} label="Games" icon={ICONS.games} />
         <NavRow href={`${base}/tab`} active={context.active === "tab"} label="The Tab" icon={ICONS.tab} trailing={<TabNet line={circle?.circleTabNetLine ?? null} owing={circle?.circleTabNetOwing ?? false} />} />
         <NavRow
           href={base}
@@ -340,6 +341,8 @@ export function Sidebar({ data, context, className = "" }: { data: ShellData; co
       }}
     >
       {context.kind === "circle" ? <CircleSidebar data={data} context={context} /> : <HomeSidebar data={data} context={context} />}
+
+      <QuickSwitchHint variant="sidebar" />
 
       {/* footer identity card + brand-promise line (both contexts) */}
       <Link
