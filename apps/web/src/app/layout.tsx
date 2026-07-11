@@ -61,33 +61,25 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en-GB" className={`${archivo.variable} ${plexMono.variable}`}>
-      <body>
-        {/*
-         * The global phone-frame constraint (design/DESIGN-AUDIT.md's G1):
-         * CUATRO is a phone experience, so every route — the (app) tab
-         * group, login/landing, /join/[code], /fc/[token] — renders inside
-         * this single centred column instead of stretching full-width on a
-         * desktop viewport. 448px (Tailwind's `max-w-md`) is the value the
-         * audit itself names, chosen to sit close to the prototype's 392px
-         * device art board plus its 16px inner gutters (392 + 2×16 = 424,
-         * rounded up to the nearest standard Tailwind step) while staying a
-         * named scale value rather than an arbitrary one-off. Below 448px —
-         * i.e. every real phone — this is a no-op: the column just equals
-         * the viewport. `min-h-dvh` on the column (not just the outer div)
-         * is what makes bg-ground reach the bottom on a short page; the
-         * outer div's own bg-ground is what shows in the gutters on a wide
-         * viewport.
-         */}
-        <div className="min-h-dvh bg-ground">
-          <div className="relative mx-auto min-h-dvh max-w-[448px] bg-ground text-ink">
-            {IS_STAGING && (
-              <div className="pointer-events-none fixed left-1/2 top-1 z-[100] -translate-x-1/2 rounded-full bg-ink/75 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-ground">
-                staging
-              </div>
-            )}
-            <ToastProvider>{children}</ToastProvider>
+      {/*
+       * The global 448px phone-frame clamp that used to live here (DESIGN-AUDIT
+       * G1) moved into the responsive shell for the web waves: the (app) group
+       * renders inside AppShell (phone branch = the 448 column, wide branches =
+       * rail/sidebar/topbar chrome), and the auth/guest routes (login, welcome,
+       * join, fc) keep the 448 column at all widths via their own thin layouts
+       * wrapping PhoneFrame. not-found.tsx wraps PhoneFrame directly. So the
+       * root layout no longer forces a width — each surface owns its frame. It
+       * still owns the fonts, the ToastProvider, the STAGING badge, and the
+       * service-worker registration. bg-ground stays on the body so the ground
+       * always fills behind whichever frame renders.
+       */}
+      <body className="bg-ground">
+        {IS_STAGING && (
+          <div className="pointer-events-none fixed left-1/2 top-1 z-[100] -translate-x-1/2 rounded-full bg-ink/75 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-ground">
+            staging
           </div>
-        </div>
+        )}
+        <ToastProvider>{children}</ToastProvider>
         <RegisterServiceWorker />
       </body>
     </html>

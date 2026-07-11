@@ -521,3 +521,27 @@
 .pb-safe {
   padding-bottom: var(--safe-bottom);
 }
+
+/* ===== web shell (Wave A) =====
+ * The AppShell content column (components/shell/app-shell.tsx). Below 900px
+ * it reproduces the pre-shell (app) column exactly: the existing phone pages
+ * are 448-wide, centred, top-padded for the safe-area, bottom-padded for the
+ * fixed BottomNav. At 900px+ the BottomNav is gone (its wrapper is
+ * display:none) and the column takes the design's desktop/tablet content
+ * padding while staying a 448 clamp for Wave A (wide page layouts land in
+ * Wave B). One media query, so the phone/wide switch can't half-apply. */
+.c4-shell-content {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 448px;
+  margin-inline: auto;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--c4-nav-height);
+}
+
+@media (min-width: 900px) {
+  .c4-shell-content {
+    padding-top: 26px;
+    padding-bottom: 34px;
+  }
+}

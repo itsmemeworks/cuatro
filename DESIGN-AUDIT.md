@@ -65,3 +65,18 @@
 
 ## Verification bar for the fix wave
 Every fix agent MUST verify at 430px-wide viewport rendering (screenshot or DOM-measured) before reporting; final acceptance is my own Chrome re-audit against the prototype, screen by screen.
+
+---
+
+# Web/desktop design import — 2026-07-11
+
+**`design/CUATRO-Web-LATEST.dc.html` is now the authoritative DESKTOP + TABLET design** (imported from claude.ai/design project root file "CUATRO Web v2.dc.html"; avatars in `design/avatars/`, needs `support.js` beside it, serve `design/` on :8791 as usual). The phone prototype remains authoritative below ~900px.
+
+Delta vs the phone prototype (what the web design ADDS, all Pete-reviewed and punch-listed to zero):
+- Two-context shell: home context (Your week / Discover / The Tab / You) vs circle context (Feed / Chat / Members / Games / Tab). Desktop 1440 = rail + sidebar; tablet 1024 = top bar with circle dropdown; below ~900 = phone layout. Breakpoint note is in the file chrome.
+- 25 interactive screens incl. NEW surfaces not in the phone prototype: record-a-result 5-step flow (roster seated by side, guest add, Glass prediction, pending seal + opposing confirm), rotation game pre-lock/locked (THE FOUR / THE BENCH / consent offer cascade), circle Games list (multi standing games + one-offs), circle settings (visibility tiers, join-request queue, standing game editor, money opt-ins), notifications tray + bell, ⌘K quick switcher, docked chat pane at 1440, player profile w/ public Ledger + YOU TWO, guest link landing (claim → hold → in), empty states (week/discover/feed), home settings (patch, findable, hand/side, notification prefs).
+- Money opt-in model per the 2026-07-11 decision (Booked-on signpost XOR Tab cost, silence default) and hand/side profile fields — matches GitHub issue #21.
+- New canon vocabulary used throughout: **Placement Trio**, **Glass poured** (+ "watch the pour"). Adopt in GLOSSARY when implementing.
+- Design laws restated in a comment at the top of the file, incl. the desktop restatement: **one coral action per PANEL**.
+
+Implementation spec: `WEB-SHELL-SPEC.md`. Verification bar for the web wave: screenshots at 1440 AND 1024 vs this file, plus 430px unchanged vs the phone prototype.
