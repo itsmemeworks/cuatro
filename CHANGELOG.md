@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/itsmemeworks/cuatro/compare/v1.0.0...v1.1.0) (2026-07-11)
+
+
+### Features
+
+* pilot hardening — persistent push subscriptions and public-endpoint rate limits ([#14](https://github.com/itsmemeworks/cuatro/issues/14)) ([cac210c](https://github.com/itsmemeworks/cuatro/commit/cac210c3546addbb0a1b46c965665fad2feed3a5))
+
+
+### Bug Fixes
+
+* cap the Postgres pool under the session-pooler client limit ([#11](https://github.com/itsmemeworks/cuatro/issues/11)) ([3facada](https://github.com/itsmemeworks/cuatro/commit/3facada993944b253e7609914e97d12639a60b09))
+* timezone-deterministic time rendering and fourth-call card gating ([#15](https://github.com/itsmemeworks/cuatro/issues/15)) ([692f101](https://github.com/itsmemeworks/cuatro/commit/692f101235f156783d5d1e2c95fb9eb586ff5072))
+
 ## [1.0.0](https://github.com/itsmemeworks/cuatro/compare/v0.1.1...v1.0.0) (2026-07-10)
 
 
