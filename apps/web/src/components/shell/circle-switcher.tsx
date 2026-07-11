@@ -97,11 +97,11 @@ export function CircleSwitcher({ circles, activeCircleId }: { circles: ShellCirc
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={active ? `Circle: ${active.name}. Switch circle` : "Switch circle"}
-        className="flex cursor-pointer items-center gap-2 transition-cu-state"
+        // Hover state in classes — an inline `background` would beat stylesheet :hover.
+        className={`flex cursor-pointer items-center gap-2 transition-cu-state ${open ? "bg-[rgba(245,242,236,.06)]" : "hover:bg-[rgba(245,242,236,.05)]"}`}
         style={{
           padding: "5px 12px 5px 5px",
           borderRadius: 999,
-          background: open ? "rgba(245,242,236,.06)" : "transparent",
           border: `1px solid ${open ? "rgba(245,242,236,.16)" : "rgba(245,242,236,.1)"}`,
         }}
       >
@@ -136,11 +136,10 @@ export function CircleSwitcher({ circles, activeCircleId }: { circles: ShellCirc
                 href={`/circles/${c.id}`}
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 transition-cu-state"
+                className={`flex items-center gap-2.5 transition-cu-state hover:bg-[rgba(245,242,236,.04)] ${isActive ? "" : "opacity-[.55] hover:opacity-100"}`}
                 style={{
                   padding: "11px 14px",
                   borderBottom: `1px solid ${ROW_HAIRLINE}`,
-                  opacity: isActive ? 1 : 0.55,
                 }}
               >
                 <Flag circle={c} size={28} />
@@ -180,7 +179,7 @@ export function CircleSwitcher({ circles, activeCircleId }: { circles: ShellCirc
             href="/home"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 transition-cu-state"
+            className="flex items-center gap-2.5 transition-cu-state hover:bg-[rgba(245,242,236,.04)]"
             style={{ padding: "11px 14px" }}
           >
             <HomeEmblem size={28} />

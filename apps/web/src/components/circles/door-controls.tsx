@@ -177,7 +177,7 @@ export function DoorControls({
           />
           <div className="flex items-center justify-between gap-3">
             <Meta>{vibeLine.length}/{MAX_VIBE_LINE_LENGTH}</Meta>
-            <Button variant="quiet" onClick={saveVibe} disabled={pending || !vibeDirty}>
+            <Button variant="quiet" onClick={saveVibe} pending={pending} disabled={!vibeDirty}>
               Save
             </Button>
           </div>

@@ -16,10 +16,10 @@
  * patch this week) reuses the discovery module rather than reimplementing its
  * geo/privacy rules: resolvePatch gates it (null patch → null, no board query
  * at all, so unplaceable viewers pay nothing beyond resolvePatch), and a
- * placeable viewer runs boardGames once. It runs in parallel with the circle
- * reads. Cost note: boardGames re-resolves the patch internally and is N+1 over
- * nearby candidate sessions, so the badge is the shell's one variable-cost read
- * — see the manifest for the recommended lean count follow-up.
+ * placeable viewer runs discovery.ts's boardGamesCount — the fixed-cost COUNT
+ * twin of boardGames (3 queries, no per-candidate N+1), whose gating the
+ * discovery test pins to boardGames().length so the badge can never disagree
+ * with the Board itself. It runs in parallel with the circle reads.
  *
  * Money rules (CLAUDE.md #4) are sacred here: net position is computed from
  * amount_minor integers via server/tab.ts's computeNetPosition, currencies are
@@ -51,7 +51,7 @@ import { getUnreadCount } from "@/server/notifications";
 import { computeNetPosition, type TabEntryLike } from "@/server/tab";
 import { DEFAULT_SESSION_SLOTS } from "@/server/games-service";
 import { resolvePatch } from "@/server/patch";
-import { boardGames } from "@/server/discovery";
+import { boardGamesCount } from "@/server/discovery";
 import { circleColorFor } from "@/lib/design";
 
 /**
@@ -275,16 +275,18 @@ const DISCOVER_WINDOW_DAYS = 7;
  * Count of open public games near the viewer's patch over the next 7 days, for
  * the Discover nav badge. Returns null when the viewer has no resolvable patch
  * (not placeable → not on the map, badge hidden), matching the discovery
- * contract; resolvePatch gates the work so unplaceable viewers never touch
- * boardGames. Reuses server/discovery.ts's boardGames so the geo/RSVP-window/
- * open-slot/privacy rules stay single-sourced.
+ * contract; resolvePatch gates the work so unplaceable viewers never touch the
+ * board queries. Reuses server/discovery.ts's boardGamesCount — the fixed-cost
+ * COUNT twin of boardGames — so the geo/RSVP-window/open-slot/privacy rules
+ * stay single-sourced and the badge always equals what the Board shows.
  */
 async function computeDiscoverCount(db: CuatroDb, userId: string, now: Date): Promise<number | null> {
   const patch = await resolvePatch(db, userId);
   if (!patch) return null;
-  const horizon = now.getTime() + DISCOVER_WINDOW_DAYS * DAY_MS;
-  const games = await boardGames(db, userId, { now });
-  return games.filter((g) => g.startsAt.getTime() <= horizon).length;
+  return boardGamesCount(db, userId, {
+    now,
+    startsBefore: new Date(now.getTime() + DISCOVER_WINDOW_DAYS * DAY_MS),
+  });
 }
 
 // ---------------------------------------------------------------------------

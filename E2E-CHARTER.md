@@ -36,6 +36,16 @@ For every screen, side-by-side against the prototype:
 | Result confirmed (seal) | Session page + all 4 users' bells + circle feed |
 | Tab nudge/settle | Debtor's bell / circle tab page |
 
+## C2. Wave C additions (web shell flows, 2026-07-11)
+- [ ] Record-a-result 5-step overlay at 1440/1024: record → pending → opposing confirm → both-deltas seal; roster seats players by court side (drive/backhand markers), swaps free; 430 unchanged
+- [ ] Rotation at wide: pre-lock availability + ranked list → locked THE FOUR / THE BENCH → post-lock drop fires consent offer → offeree accepts via receive takeover (regression guard: this page 500'd on Postgres via a SQLite `json_extract` — any Fourth Call invitee page render is the canary)
+- [ ] Money opt-in XOR both directions through the real editor: booking set clears cost, cost set clears booking, both-in-one-payload rejected with visible error copy (edit form must SHOW the error, not save silently)
+- [ ] Booked-on chip renders on game detail, games list, week grid, pinned feed card; tappable when URL present; booked-on games show ZERO cost/split chrome anywhere
+- [ ] Guest link landing is responsive: /fc/[token] at 1440 shows the wide card + wordmark, 430 keeps phone anatomy; claim → hold → in works logged out at both
+- [ ] Side hint never filters: organiser sets a hint; a wrong-sided, uninvited guest still completes claim via the public link
+- [ ] Week grid cells navigate to their game; every server-action button shows a pending state (no silent clicks); money renders whole-pounds-when-clean everywhere (tab_nudge notification included)
+- [ ] Profile hand/side: save → persist → public profile mono facts; RatingReveal does not spend its seen-timer while hidden at wide widths
+
 ## D. Evidence & exit
 - GIF recordings of: join-via-link flow, RSVP morph + live promotion, both-deltas seal, rating reveal, live chat between two tabs
 - Defect list filed with severity; fix wave; re-test failures to green

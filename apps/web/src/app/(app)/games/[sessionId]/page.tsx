@@ -132,6 +132,9 @@ export default async function SessionDetailPage({
 
     // A level-2 (extended-network / Local Ring) fourth_call invite switches the
     // takeover to the "near you" framing; level 1 is the viewer's own Circle.
+    // Postgres JSONB operators (`->>`), NOT SQLite's json_extract — this arm
+    // only runs for an invite-holding viewer, so the SQLite-era syntax survived
+    // the Postgres conversion unnoticed until the rotation-offer flow hit it.
     const [nearbyRow] = await db
       .select({ id: notifications.id })
       .from(notifications)
@@ -139,8 +142,8 @@ export default async function SessionDetailPage({
         and(
           eq(notifications.userId, user.id),
           eq(notifications.type, "fourth_call"),
-          sql`json_extract(${notifications.payload}, '$.sessionId') = ${sessionId}`,
-          sql`json_extract(${notifications.payload}, '$.level') = 2`,
+          sql`${notifications.payload} ->> 'sessionId' = ${sessionId}`,
+          sql`${notifications.payload} ->> 'level' = '2'`,
         ),
       );
     const nearby = !!nearbyRow;
@@ -163,6 +166,7 @@ export default async function SessionDetailPage({
             passNotificationId={passNotificationId}
             viewerId={user.id}
             nearby={nearby}
+            sideHint={summary.session.fourthCallSideHint ?? null}
           />
         </ToastBoundary>
       </main>
@@ -267,6 +271,7 @@ export default async function SessionDetailPage({
         fourthCallHref={`/games/${sessionId}/fourth-call`}
         viewerStatusLine={viewerStatusLine}
         knockPanel={viewerIsOrganiser && knockRows.length > 0 ? <KnockPanel knocks={knockRows} /> : null}
+        rotationOfferUserId={offer.state === "waiting" || offer.state === "offered" ? offer.userId : null}
       />
     </ToastBoundary>
   );

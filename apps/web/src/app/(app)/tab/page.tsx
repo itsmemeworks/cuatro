@@ -40,8 +40,10 @@ export default async function TabTabPage() {
   if (circles.length === 0) {
     // Phone: the original empty state, unchanged. Wide: the same message,
     // laid out for the desktop content column.
+    // Issue #21: the Tab is opt-in, never required — games carry no money by
+    // default, and this copy owns that identity even before the first Circle.
     const emptyCopy =
-      "The Tab tracks who owes who within a Circle. Join one with a link or QR code, or create your own to get started.";
+      "The Tab keeps score when someone fronts the court or a tin of balls. No fees, no chasing. It lives inside a Circle, so join one with a link or QR code, or create your own.";
     return (
       <>
         <main className="px-5 pt-8 pb-6 flex flex-col gap-6 min-[900px]:hidden">
@@ -69,7 +71,7 @@ export default async function TabTabPage() {
             </div>
             <Link
               href="/circles/new"
-              className="rounded-button min-h-11 px-4 self-start flex items-center justify-center text-[14px] font-extrabold bg-action text-action-contrast"
+              className="rounded-button min-h-11 px-4 self-start flex items-center justify-center text-[14px] font-extrabold bg-action text-action-contrast transition-cu-state hover:opacity-90"
             >
               + Create a Circle
             </Link>

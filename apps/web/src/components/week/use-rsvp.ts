@@ -12,12 +12,15 @@ import { useState } from "react";
  */
 export function useRsvp(sessionId: string) {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
+  // Which action is in flight (null = idle) — callers put the pending spinner
+  // on the button that was actually clicked; `pending` stays as the derived
+  // any-in-flight flag for disabling the counterpart.
+  const [pendingAction, setPendingAction] = useState<"in" | "out" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [answered, setAnswered] = useState<"in" | "out" | null>(null);
 
   async function respond(action: "in" | "out") {
-    setPending(true);
+    setPendingAction(action);
     setError(null);
     try {
       const res = await fetch(`/api/games/sessions/${sessionId}/rsvp`, {
@@ -35,9 +38,9 @@ export function useRsvp(sessionId: string) {
     } catch {
       setError("network_error");
     } finally {
-      setPending(false);
+      setPendingAction(null);
     }
   }
 
-  return { respond, pending, error, answered };
+  return { respond, pending: pendingAction !== null, pendingAction, error, answered };
 }

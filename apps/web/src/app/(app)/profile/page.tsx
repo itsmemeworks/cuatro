@@ -24,7 +24,12 @@ export default async function ProfilePage() {
   // are every pinned venue the app knows (an unpinned venue can't anchor a
   // patch — see server/patch.ts), name-sorted. These stay owner-private.
   const [discoveryRow] = await db
-    .select({ findable: users.findable, homeVenueId: users.homeVenueId })
+    .select({
+      findable: users.findable,
+      homeVenueId: users.homeVenueId,
+      dominantHand: users.dominantHand,
+      courtSide: users.courtSide,
+    })
     .from(users)
     .where(eq(users.id, user.id))
     .limit(1);
@@ -78,6 +83,8 @@ export default async function ProfilePage() {
           findable={discoveryRow?.findable ?? true}
           homeVenueId={discoveryRow?.homeVenueId ?? null}
           venueOptions={venueOptions}
+          dominantHand={discoveryRow?.dominantHand ?? null}
+          courtSide={discoveryRow?.courtSide ?? null}
         />
       </main>
 

@@ -6,9 +6,11 @@ import { getStandingGame, isOrganiser } from "@/server/standing-games-service";
 import { listVenuesForCircle } from "@/server/venues";
 import { ensureUpcomingSessionForStandingGame } from "@/server/games-service";
 import { toggleStandingGameActiveAction, updateStandingGameAction } from "@/server/games-actions";
-import { Button, Meta } from "@/components/ui";
+import { errorCopy } from "@/lib/error-copy";
+import { Meta, SubmitButton } from "@/components/ui";
 import { InfoTerm } from "@/components/ui/info-term";
 import { VenuePicker } from "../venue-picker";
+import { MoneyOptInPicker } from "../money-opt-in-picker";
 
 const WEEKDAYS = [
   { value: 0, label: "Sunday" },
@@ -39,13 +41,13 @@ export default async function EditStandingGamePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; matched?: string }>;
+  searchParams: Promise<{ created?: string; matched?: string; error?: string }>;
 }) {
   const user = await getSessionUser();
   if (!user) return null;
 
   const { id } = await params;
-  const { created, matched } = await searchParams;
+  const { created, matched, error } = await searchParams;
   const { db } = await getGamesClient();
   const standingGame = await getStandingGame(db, id);
   if (!standingGame) notFound();
@@ -108,14 +110,23 @@ export default async function EditStandingGamePage({
         <Meta as="p">Matched your court to {matched}, no duplicate created.</Meta>
       )}
 
+      {/* updateStandingGameAction bounces validation failures back here as
+          ?error=<code> (same convention as the create form) — without this the
+          edit form saved silently-not-at-all on e.g. a bad booking URL. */}
+      {error && (
+        <Meta as="p" tone="loss">
+          {errorCopy(error)}
+        </Meta>
+      )}
+
       {!canManage ? (
         <Meta as="p">Only Circle organisers can edit this Standing Game.</Meta>
       ) : (
         <>
           <form action={boundToggle}>
-            <Button type="submit" variant={standingGame.active ? "destructiveQuiet" : "primary"} fullWidth>
+            <SubmitButton variant={standingGame.active ? "destructiveQuiet" : "primary"} fullWidth>
               {standingGame.active ? "Pause Standing Game" : "Reactivate Standing Game"}
-            </Button>
+            </SubmitButton>
           </form>
 
           <form action={boundUpdate} className="flex flex-col gap-4">
@@ -210,14 +221,17 @@ export default async function EditStandingGamePage({
 
             <VenuePicker venues={venueOptions} defaultVenueId={standingGame.venueId} />
 
-            <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
-              Court cost (optional, splits on the Tab)
-              <input type="text" name="costAmount" inputMode="decimal" placeholder="32.00" defaultValue={currentCostLabel} className={fieldClass} />
-            </label>
+            <MoneyOptInPicker
+              defaultPlatform={standingGame.bookingPlatform}
+              defaultUrl={standingGame.bookingUrl}
+              defaultCostLabel={currentCostLabel}
+              slots={standingGame.slots}
+              currency={standingGame.costCurrency}
+            />
 
-            <Button type="submit" size="lg" fullWidth>
+            <SubmitButton size="lg" fullWidth>
               Save changes
-            </Button>
+            </SubmitButton>
           </form>
         </>
       )}

@@ -6,7 +6,7 @@ import { listUpcomingSessionsForUser, isFourthCallActive, type SessionSummary } 
 import { getMatchesStore, type PendingConfirmationView } from "@/server/matches-db";
 import { getTabView } from "@/server/tab";
 import { getUnreadCount } from "@/server/notifications";
-import { formatMoney } from "@/components/tab/money";
+import { formatMoneyWhole } from "@/components/tab/money";
 import { type SessionCardData } from "@/components/games/SessionCard";
 import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { Card, Avatar, Meta, Fact } from "@/components/ui";
@@ -167,7 +167,7 @@ function TabRow({
     <Card className="flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <p className="text-cu-card-title text-[13px] truncate">
-          The Tab · you owe {name} <Fact as="span" size="sm" tone="loss">{formatMoney(amountMinor, currency)}</Fact>
+          The Tab · you owe {name} <Fact as="span" size="sm" tone="loss">{formatMoneyWhole(amountMinor, currency)}</Fact>
         </p>
         <p className="text-cu-secondary text-ink-muted mt-0.5">{circleName}</p>
         {description && <p className="text-cu-secondary text-ink-muted mt-0.5">from {description}</p>}
@@ -202,6 +202,7 @@ function toSessionCardData(s: SessionSummary): SessionCardData {
     rsvpWindowOpensAt: s.rsvpWindowOpensAt,
     fourthCallActive: s.rotation && !rotationLocked ? false : isFourthCallActive(s),
     rotation: s.rotation ? { locked: rotationLocked, viewerAvailable: s.rotation.viewerAvailable } : null,
+    moneyOptIn: s.moneyOptIn,
   };
 }
 
@@ -320,6 +321,7 @@ export default async function HomePage() {
           askerName: asker?.displayName ?? s.circleName,
           levelRangeLabel,
           viewerRating: glass?.rating ?? null,
+          sideHint: s.session.fourthCallSideHint ?? null,
         };
       }),
   );

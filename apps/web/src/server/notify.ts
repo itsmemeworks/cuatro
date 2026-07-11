@@ -38,6 +38,7 @@ import { eq } from "drizzle-orm";
 import { notifications, sessions, circles, users, type CuatroDb, type Notification } from "@cuatro/db";
 import { sendPushToUser } from "@/lib/push";
 import { emitUserEvent } from "@/lib/realtime/broadcast";
+import { formatMoneyWhole } from "@/components/tab/money";
 
 export type NotificationInput =
   | { type: "game_filled"; payload: { sessionId: string } }
@@ -204,10 +205,9 @@ export async function renderNotificationCopy(tx: CuatroDb, input: NotificationIn
       };
     }
     case "tab_nudge": {
-      const amount = (input.payload.amountMinor / 100).toFixed(2);
       return {
         title: "You've got a Tab nudge",
-        body: `${input.payload.currency} ${amount} outstanding on the Tab. Settle when you can.`,
+        body: `${formatMoneyWhole(input.payload.amountMinor, input.payload.currency)} outstanding on the Tab. Settle when you can.`,
       };
     }
     case "rotation_selected": {

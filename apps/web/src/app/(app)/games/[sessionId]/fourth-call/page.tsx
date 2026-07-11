@@ -159,6 +159,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
         ring3Available={ring3Available}
         claimed={!!claimant}
         organiserId={user.id}
+        sideHint={summary.session.fourthCallSideHint ?? null}
       />
 
       {claimant && (

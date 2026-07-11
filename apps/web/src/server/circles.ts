@@ -227,6 +227,9 @@ export interface CircleMemberView {
   reliability: number | null;
   /** Verified matches played so far — drives the Placement Trio progress dots for an unrated (rating === null) member. Capped display-side at PLACEMENT_TRIO_SIZE (3); this is the raw count. */
   verifiedMatchCount: number;
+  /** Optional profile facts (issue #21) — soft signals only, never a gate or filter. Null until the player sets them. */
+  dominantHand: "left" | "right" | "both" | null;
+  courtSide: "right" | "left" | "both" | null;
 }
 
 export interface CircleDetail {
@@ -744,6 +747,8 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
           rsvpInCount: users.rsvpInCount,
           showUpCount: users.showUpCount,
           verifiedMatchCount: users.verifiedMatchCount,
+          dominantHand: users.dominantHand,
+          courtSide: users.courtSide,
         })
         .from(circleMembers)
         .innerJoin(users, eq(circleMembers.userId, users.id))
@@ -761,6 +766,8 @@ export function createCirclesStore(db: CuatroDb, options: CirclesStoreOptions = 
         confidence: row.confidence,
         reliability: row.rsvpInCount > 0 ? Math.min(1, row.showUpCount / row.rsvpInCount) : null,
         verifiedMatchCount: row.verifiedMatchCount,
+        dominantHand: row.dominantHand,
+        courtSide: row.courtSide,
       }));
 
       // Resolve the explicit home venue's name/address when one is set (cheap

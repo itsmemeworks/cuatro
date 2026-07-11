@@ -101,6 +101,16 @@ export const GLOSSARY = {
     plain: "The moment your Placement Trio completes and your Glass rating is revealed, with the confidence it starts at.",
     why: "A rating should arrive as a moment, not leak out as a guess. Poured means it's real: earned on court, explained in your Ledger from day one.",
   },
+  bookedOn: {
+    term: "Booked on",
+    plain: "Where the court booking and payment actually live, Playtomic, a club site, wherever. CUATRO points at it and stays out of the money.",
+    why: "A booked-on game never touches the Tab. The split only appears when an organiser adds a court cost instead.",
+  },
+  bench: {
+    term: "The Bench",
+    plain: "Sitting out this week. The bench banks priority, whoever sits goes first next week.",
+    why: "If a spot opens it is offered down the bench one at a time, consent only. Nobody gets pulled into a game they didn't say yes to.",
+  },
 } as const satisfies Record<string, GlossaryEntry>;
 
 export type GlossaryKey = keyof typeof GLOSSARY;

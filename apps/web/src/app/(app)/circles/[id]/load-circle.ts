@@ -12,6 +12,8 @@ import {
 } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
 import { listUpcomingSessionsForCircle, isFourthCallActive } from "@/server/games-service";
+import { listStandingGamesForCircle } from "@/server/standing-games-service";
+import { resolveMoneyOptIn, type MoneyOptIn } from "@/lib/booking";
 import { circleAnchor, circleKnocks } from "@/server/open-door";
 import type { KnockPanelItem } from "@/components/circles/knock-panel";
 import type { EditAnchor, EditVenueOption } from "@/components/circles/edit-circle-sheet";
@@ -96,6 +98,27 @@ async function loadPendingSealCards(db: CuatroDb, circleId: string): Promise<Pen
  * notFound() (same posture as the old page: a guessed id can't confirm a
  * circle's existence to an outsider).
  */
+/**
+ * A Standing Game as the wide Settings panel shows it (design "Circle ·
+ * Settings" right column): the fixture facts, rotation posture, and the
+ * resolved money opt-in (booking signpost XOR court cost XOR silence).
+ * Serializable — it crosses into client components.
+ */
+export interface SettingsStandingGameView {
+  id: string;
+  weekday: number;
+  startTime: string;
+  durationMinutes: number;
+  slots: number;
+  active: boolean;
+  rotationEnabled: boolean;
+  rotationCutoffHours: number;
+  rotationMode: "limited" | "unlimited";
+  gameType: "competitive" | "friendly";
+  venueName: string | null;
+  moneyOptIn: MoneyOptIn;
+}
+
 export interface CircleContext {
   /** the signed-in viewer — every wide tab needs it (row "· you", RSVP, etc.) */
   currentUserId: string;
@@ -117,6 +140,10 @@ export interface CircleContext {
   members: CircleMemberView[];
   /** wide feed only — pending (unsealed) matches; the phone feed never shows these */
   pendingSeals: PendingSealCardData[];
+  /** Issue #21: the primary (pinned) session's resolved money opt-in — the pinned bar shows a BookingChip when it's a booking. Null = silence. */
+  pinnedMoneyOptIn: MoneyOptIn;
+  /** Organiser-only (empty otherwise): the Circle's Standing Games for the wide Settings panel. */
+  settingsStandingGames: SettingsStandingGameView[];
 }
 
 export async function loadCircleContext(id: string, userId: string): Promise<CircleContext> {
@@ -218,11 +245,46 @@ export async function loadCircleContext(id: string, userId: string): Promise<Cir
           displayName: k.displayName,
           avatarUrl: k.avatarUrl,
           rating: k.rating,
+          confidence: k.confidence,
           reliability: k.reliability,
           distanceLabel: k.distanceLabel,
           message: k.message,
         }))
       : [];
+
+  // Issue #21: resolve the pinned (first upcoming) session's money opt-in from
+  // the rows the summary already carries — booking silences cost, default is
+  // silence. The pinned bar renders a BookingChip only for the booking kind.
+  const primarySummary = sessionSummaries[0] ?? null;
+  const pinnedMoneyOptIn = primarySummary
+    ? resolveMoneyOptIn({ session: primarySummary.session, standingGame: primarySummary.standingGame })
+    : null;
+
+  // The wide Settings panel's standing-game cards (organiser only — the tab
+  // itself is organiser-gated, so members never pay for this read).
+  let settingsStandingGames: SettingsStandingGameView[] = [];
+  if (detail.myRole === "organiser") {
+    const standingGameRows = await listStandingGamesForCircle(db, id);
+    const venueIds = [...new Set(standingGameRows.map((sg) => sg.venueId).filter((v): v is string => v != null))];
+    const venueRows = venueIds.length
+      ? await db.select({ id: venues.id, name: venues.name }).from(venues).where(inArray(venues.id, venueIds))
+      : [];
+    const venueNameById = new Map(venueRows.map((v) => [v.id, v.name]));
+    settingsStandingGames = standingGameRows.map((sg) => ({
+      id: sg.id,
+      weekday: sg.weekday,
+      startTime: sg.startTime,
+      durationMinutes: sg.durationMinutes,
+      slots: sg.slots,
+      active: sg.active,
+      rotationEnabled: sg.rotationEnabled,
+      rotationCutoffHours: sg.rotationCutoffHours,
+      rotationMode: sg.rotationMode,
+      gameType: sg.gameType,
+      venueName: sg.venueId ? (venueNameById.get(sg.venueId) ?? null) : null,
+      moneyOptIn: resolveMoneyOptIn({ standingGame: sg }),
+    }));
+  }
 
   const foundedYear = allCircles.find((c) => c.id === id)?.createdAt.getFullYear();
   const colour = detail.colour ?? circleColorFor(detail.id);
@@ -253,5 +315,7 @@ export async function loadCircleContext(id: string, userId: string): Promise<Cir
     foundedYear,
     members: detail.members,
     pendingSeals,
+    pinnedMoneyOptIn,
+    settingsStandingGames,
   };
 }

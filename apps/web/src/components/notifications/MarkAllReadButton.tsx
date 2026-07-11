@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PendingSpinner } from "@/components/ui";
 
 export function MarkAllReadButton() {
   const router = useRouter();
@@ -22,9 +23,9 @@ export function MarkAllReadButton() {
       type="button"
       onClick={handleClick}
       disabled={pending}
-      className="text-cu-secondary font-semibold text-ink-muted underline underline-offset-2 disabled:opacity-50 transition-cu-state"
+      className="inline-flex cursor-pointer items-center gap-1.5 text-cu-secondary font-semibold text-ink-muted underline underline-offset-2 disabled:opacity-50 transition-cu-state hover:text-ink"
     >
-      Mark all read
+      {pending ? <PendingSpinner /> : null} Mark all read
     </button>
   );
 }

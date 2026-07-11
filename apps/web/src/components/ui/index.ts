@@ -1,5 +1,6 @@
-export { Button } from "./button";
+export { Button, PendingSpinner } from "./button";
 export type { ButtonProps, ButtonVariant, ButtonSize } from "./button";
+export { SubmitButton } from "./submit-button";
 
 export { Chip } from "./chip";
 export type { ChipTone } from "./chip";

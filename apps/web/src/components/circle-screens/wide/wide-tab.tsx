@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { TabEntryView } from "@/server/tab";
-import { formatMoney } from "@/components/tab/money";
-import { AddEntrySheet } from "@/components/tab/add-entry-sheet";
+import { formatMoneyWhole, formatMoneyWholeSigned } from "@/components/tab/money";
+import { AddExpenseDialog } from "@/components/tab/add-expense-dialog";
 import type { AddEntryFormMember } from "@/components/tab/add-entry-form";
-import { TabEntryRow, AllSquareRow } from "@/components/tab/tab-entry-row";
+import { TabOweRow } from "@/components/tab/tab-owe-row";
+import { AllSquareRow } from "@/components/tab/tab-entry-row";
 import { WidePage } from "./wide-shell";
 
 function activityDateLabel(d: Date): string {
@@ -31,16 +32,18 @@ function ActivityLine({ entry, viewerUserId }: { entry: TabEntryView; viewerUser
       <span>
         {activityDateLabel(entry.createdAt)} · {entry.descriptionLabel ?? "court split"}
       </span>
-      <span>{formatMoney(entry.amountMinor, entry.currency)} each</span>
+      <span>{formatMoneyWhole(entry.amountMinor, entry.currency)} each</span>
     </div>
   );
 }
 
 /**
  * Wide Circle Tab (design "Desktop · Circle tab"): a two-column, circle-scoped
- * ledger — balances (reusing the phone TabEntryRow so nudge + the settle
- * handshake keep working) beside the nudge note and the mono activity feed.
- * Money rules unchanged: whole pounds, no pence; currencies never net.
+ * ledger — balance rows (TabOweRow, the wide row anatomy, driving the same
+ * nudge + two-step settle endpoints as the phone) beside the nudge note and
+ * the mono activity feed, with the design's "+ Add expense" dialog in the
+ * header. Money rules unchanged: whole pounds when clean, currencies never
+ * net against each other.
  */
 export function WideTab({
   circleId,
@@ -72,12 +75,18 @@ export function WideTab({
           <h1 className="font-sans font-extrabold text-[24px] leading-none text-ink">The Tab</h1>
           <p className="font-sans text-[12px] text-ink-muted mt-1.5">
             {circleName} only ·{" "}
-            <Link href="/tab" className="text-action-strong font-bold">
+            <Link href="/tab" className="text-action-strong font-bold transition-cu-state hover:underline">
               all Circles →
             </Link>
           </p>
         </div>
-        <AddEntrySheet circleId={circleId} members={members} payerUserId={viewerUserId} defaultCurrency="GBP" />
+        <AddExpenseDialog
+          circleId={circleId}
+          circleName={circleName}
+          members={members}
+          payerUserId={viewerUserId}
+          defaultCurrency="GBP"
+        />
         <div className="text-right">
           {netEntries.length === 0 ? (
             <div className="font-mono font-extrabold text-[22px] text-ink">All square ✓</div>
@@ -85,8 +94,7 @@ export function WideTab({
             <>
               {netEntries.map(([currency, minor]) => (
                 <div key={currency} className={`font-mono font-extrabold text-[26px] leading-none ${minor > 0 ? "text-win" : "text-loss"}`}>
-                  {minor > 0 ? "+" : ""}
-                  {formatMoney(minor, currency)}
+                  {formatMoneyWholeSigned(minor, currency)}
                 </div>
               ))}
               {netStatusLabel && <div className="font-mono text-[10px] text-ink-muted mt-[3px]">{netStatusLabel}</div>}
@@ -96,7 +104,7 @@ export function WideTab({
       </div>
 
       <div className="grid grid-cols-[1.2fr_1fr] gap-4 mt-[18px] items-start">
-        <div className="bg-surface border border-ink-hairline-1 rounded-[20px] overflow-hidden divide-y divide-ink-hairline-1">
+        <div className="bg-surface border border-ink-hairline-1 rounded-[20px] overflow-hidden">
           {activeRows.length === 0 && allSquare.length === 0 ? (
             <p className="px-[18px] py-4 font-sans text-[13px] text-ink-muted">
               All square. Nobody owes anybody, and the friendship survives another booking.
@@ -104,7 +112,7 @@ export function WideTab({
           ) : (
             <>
               {activeRows.map((e) => (
-                <TabEntryRow
+                <TabOweRow
                   key={e.id}
                   entry={{
                     id: e.id,

@@ -40,6 +40,17 @@ export const standingGames = pgTable(
     // float (see packages/db/src/schema/tabs.ts's amount_minor precedent).
     costMinor: integer('cost_minor'),
     costCurrency: text('cost_currency').notNull().default('GBP'),
+    // "Booked on" signpost (GitHub issue #21): where the booking and payment
+    // actually live. Money on a game is OPT-IN and mutually exclusive: a game
+    // carries a booking signpost XOR a court cost, never both — a booked-on
+    // game never touches the Tab. The XOR is enforced in the service layer
+    // (server/standing-games-service.ts), not here, because setting one must
+    // CLEAR the other. Platform list is data (apps/web/src/lib/booking.ts) —
+    // world-ready, no UK assumptions.
+    bookingPlatform: text('booking_platform', {
+      enum: ['playtomic', 'padel_mates', 'matchi', 'padium', 'club_website', 'other'],
+    }),
+    bookingUrl: text('booking_url'),
     // FRIENDLIES (V1-READINESS #10): this fixture's classification, set from the
     // circle's default at creation and overridable per Standing Game. Every
     // session materialised from this game inherits it (see games-service.ts
@@ -52,6 +63,10 @@ export const standingGames = pgTable(
     gameTypeCheck: check(
       'standing_games_game_type_check',
       sql`${table.gameType} in ('competitive', 'friendly')`,
+    ),
+    bookingPlatformCheck: check(
+      'standing_games_booking_platform_check',
+      sql`${table.bookingPlatform} in ('playtomic', 'padel_mates', 'matchi', 'padium', 'club_website', 'other')`,
     ),
   }),
 )

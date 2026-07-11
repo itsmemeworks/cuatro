@@ -104,7 +104,7 @@ export function MembersManager({
                   <div className="flex flex-col gap-2">
                     <Meta as="p">Remove {m.displayName} from this Circle? They keep their history.</Meta>
                     <div className="flex gap-2">
-                      <Button variant="destructiveQuiet" fullWidth onClick={() => run({ userId: m.userId, kind: "remove" })} disabled={pending}>
+                      <Button variant="destructiveQuiet" fullWidth onClick={() => run({ userId: m.userId, kind: "remove" })} pending={pending}>
                         {pending ? "Removing…" : "Remove"}
                       </Button>
                       <Button variant="quiet" fullWidth onClick={() => setConfirming(null)} disabled={pending}>
@@ -116,7 +116,7 @@ export function MembersManager({
                   <div className="flex flex-col gap-2">
                     <Meta as="p">Make {m.displayName} the organiser? You&apos;ll step back to member.</Meta>
                     <div className="flex gap-2">
-                      <Button variant="strong" fullWidth onClick={() => run({ userId: m.userId, kind: "transfer" })} disabled={pending}>
+                      <Button variant="strong" fullWidth onClick={() => run({ userId: m.userId, kind: "transfer" })} pending={pending}>
                         {pending ? "Handing over…" : "Make organiser"}
                       </Button>
                       <Button variant="quiet" fullWidth onClick={() => setConfirming(null)} disabled={pending}>

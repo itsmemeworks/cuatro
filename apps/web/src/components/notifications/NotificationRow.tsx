@@ -34,8 +34,8 @@ export function NotificationRow({ notification }: { notification: NotificationVi
     <button
       type="button"
       onClick={handleClick}
-      className={`rounded-card p-3.5 flex items-start gap-2.5 text-left w-full border transition-cu-state ${
-        read ? "bg-surface border-ink-hairline-1" : "bg-surface-feature border-action/50"
+      className={`rounded-card p-3.5 flex items-start gap-2.5 text-left w-full border cursor-pointer transition-cu-state ${
+        read ? "bg-surface border-ink-hairline-1 hover:border-ink-hairline-4" : "bg-surface-feature border-action/50 hover:border-action"
       }`}
     >
       <span className="text-lg shrink-0" aria-hidden>

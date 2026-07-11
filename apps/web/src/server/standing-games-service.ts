@@ -4,10 +4,16 @@
  *
  * All DB access here is ASYNC (Postgres via drizzle/postgres-js): every query
  * is awaited and returns an array (no better-sqlite3 `.get()/.all()/.run()`
- * terminals). These functions don't need explicit transactions themselves (no
- * read-then-write race that matters for plain CRUD); the concurrency-critical
- * paths that DO (session materialisation, RSVP) live in games-service.ts and
- * take row locks there.
+ * terminals). Plain creates don't need explicit transactions; updateStandingGame
+ * DOES run in one with a `FOR UPDATE` lock on the standing_games row, because
+ * the money opt-in XOR (below) makes it a read-decide-write.
+ *
+ * MONEY OPT-IN (GitHub issue #21): a game carries at most ONE of a "Booked on"
+ * signpost (booking_platform + optional booking_url) or a court cost
+ * (cost_minor), never both — a booked-on game never touches the Tab. Enforced
+ * HERE, not just in forms: a payload carrying both is rejected
+ * (`booking_and_cost`), and setting one clears the other. Default is silence
+ * (neither set, no money chrome anywhere).
  */
 import { and, eq } from "drizzle-orm";
 import {
@@ -19,6 +25,7 @@ import {
   type StandingGame,
   type GameType,
 } from "@cuatro/db";
+import { BOOKING_PLATFORM_IDS } from "@/lib/booking";
 import { captureEvent } from "@/lib/analytics";
 
 export type ServiceResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -35,9 +42,13 @@ export type StandingGameInput = {
   venueName?: string | null;
   /** Sets/overwrites the resolved venue's address (design/DESIGN-AUDIT.md F5) — undefined leaves it untouched, "" clears it. */
   venueAddress?: string | null;
-  /** The court cost for one occurrence (design/DESIGN-AUDIT.md F4). null/undefined leaves it unset — no "goes on the Tab" split can be offered until an organiser sets one. */
+  /** The court cost for one occurrence (design/DESIGN-AUDIT.md F4). null/undefined leaves it unset — no "goes on the Tab" split can be offered until an organiser sets one. XOR bookingPlatform (issue #21). */
   costMinor?: number | null;
   costCurrency?: string;
+  /** "Booked on" signpost platform id (see lib/booking.ts BOOKING_PLATFORMS). XOR costMinor — a payload carrying both is rejected; setting one clears the other. null clears. */
+  bookingPlatform?: string | null;
+  /** Optional pasted booking URL (http/https). Only stored alongside a platform; cleared whenever the platform clears. */
+  bookingUrl?: string | null;
   /** THE ROTATION: when true, the weekly RSVP becomes an availability declaration and CUATRO picks a fair four. Defaults false (plain first-come). */
   rotationEnabled?: boolean;
   /** How long before kickoff a LIMITED rotation locks its four. Default 24. */
@@ -62,6 +73,8 @@ export type StandingGamePatch = Partial<
     | "venueAddress"
     | "costMinor"
     | "costCurrency"
+    | "bookingPlatform"
+    | "bookingUrl"
     | "rotationEnabled"
     | "rotationCutoffHours"
     | "rotationMode"
@@ -131,6 +144,40 @@ function validateWeekdayAndTime(weekday: number, startTime: string): string | nu
   return null;
 }
 
+/** A pasted booking URL, normalised: trimmed, "" -> null, must parse as http(s) (a pasted "playtomic.com/…" without a scheme is not something we can safely link out to). */
+export function normalizeBookingUrl(raw: string | null | undefined): { ok: true; url: string | null } | { ok: false } {
+  const trimmed = raw?.trim();
+  if (!trimmed) return { ok: true, url: null };
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return { ok: false };
+    return { ok: true, url: trimmed };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * The money opt-in XOR, validated against a single payload (issue #21):
+ * a booking platform and a court cost may not arrive together, the platform
+ * must be a known id (lib/booking.ts is the list), and a URL must be a real
+ * http(s) link. Returns the error code, or null when the payload is clean.
+ * `bookingPlatform`/`costMinor` here are the payload's VALUES (undefined =
+ * field absent, null = explicit clear) — clears never conflict.
+ */
+function validateMoneyOptIn(input: {
+  bookingPlatform?: string | null;
+  bookingUrl?: string | null;
+  costMinor?: number | null;
+}): string | null {
+  if (input.bookingPlatform != null && input.costMinor != null) return "booking_and_cost";
+  if (input.bookingPlatform != null && !(BOOKING_PLATFORM_IDS as readonly string[]).includes(input.bookingPlatform)) {
+    return "invalid_booking_platform";
+  }
+  if (input.bookingUrl !== undefined && !normalizeBookingUrl(input.bookingUrl).ok) return "invalid_booking_url";
+  return null;
+}
+
 export async function createStandingGame(
   db: CuatroDb,
   userId: string,
@@ -140,6 +187,15 @@ export async function createStandingGame(
 
   const validationError = validateWeekdayAndTime(input.weekday, input.startTime);
   if (validationError) return { ok: false, error: validationError };
+
+  // Money opt-in XOR (issue #21): booking signpost and court cost never arrive
+  // together; a booking-signposted game stores no cost (it never touches the Tab).
+  const moneyError = validateMoneyOptIn(input);
+  if (moneyError) return { ok: false, error: moneyError };
+  // Safe narrow: validateMoneyOptIn just proved any non-null value is a known id.
+  const bookingPlatform = (input.bookingPlatform ?? null) as StandingGame["bookingPlatform"];
+  const bookingUrlResult = normalizeBookingUrl(input.bookingUrl);
+  const bookingUrl = bookingPlatform && bookingUrlResult.ok ? bookingUrlResult.url : null;
 
   const venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName, input.venueAddress);
 
@@ -161,8 +217,10 @@ export async function createStandingGame(
       slots: input.slots ?? 4,
       rsvpWindowDays: input.rsvpWindowDays ?? 6,
       active: true,
-      costMinor: input.costMinor ?? null,
+      costMinor: bookingPlatform ? null : (input.costMinor ?? null),
       costCurrency: input.costCurrency ?? "GBP",
+      bookingPlatform,
+      bookingUrl,
       rotationEnabled: input.rotationEnabled ?? false,
       rotationCutoffHours: input.rotationCutoffHours ?? 24,
       rotationMode: input.rotationMode ?? "limited",
@@ -204,52 +262,87 @@ export async function updateStandingGame(
   id: string,
   patch: StandingGamePatch,
 ): Promise<ServiceResult<StandingGame>> {
-  const existing = await getStandingGame(db, id);
-  if (!existing) return { ok: false, error: "not_found" };
-  if (!(await isOrganiser(db, existing.circleId, userId))) return { ok: false, error: "not_an_organiser" };
+  // One transaction with a FOR UPDATE lock on the game row: the money opt-in
+  // XOR below decides what to write FROM what's already stored (setting a cost
+  // must clear an existing booking and vice versa), which makes this a
+  // read-decide-write — two concurrent edits must serialise, not interleave
+  // into a row carrying both opt-ins (CLAUDE.md convention 1).
+  return db.transaction(async (tx): Promise<ServiceResult<StandingGame>> => {
+    const [existing] = await tx.select().from(standingGames).where(eq(standingGames.id, id)).for("update");
+    if (!existing) return { ok: false, error: "not_found" };
+    if (!(await isOrganiser(tx, existing.circleId, userId))) return { ok: false, error: "not_an_organiser" };
 
-  if (patch.weekday !== undefined || patch.startTime !== undefined) {
-    const validationError = validateWeekdayAndTime(
-      patch.weekday ?? existing.weekday,
-      patch.startTime ?? existing.startTime,
-    );
-    if (validationError) return { ok: false, error: validationError };
-  }
+    if (patch.weekday !== undefined || patch.startTime !== undefined) {
+      const validationError = validateWeekdayAndTime(
+        patch.weekday ?? existing.weekday,
+        patch.startTime ?? existing.startTime,
+      );
+      if (validationError) return { ok: false, error: validationError };
+    }
 
-  // A venueName (or venueId) patch resolves/creates as before, now carrying
-  // venueAddress along to whichever venue that resolves to. An address-only
-  // patch (no venue swap) instead re-resolves the CURRENT venue by id, so
-  // "edit the address" works without also having to re-supply a name — but
-  // only if there's a venue to attach it to; a standing game with none yet
-  // has nowhere for a bare address to go.
-  let venueId: string | null | undefined;
-  if (patch.venueId !== undefined || patch.venueName !== undefined) {
-    venueId = await resolveVenue(db, existing.circleId, patch.venueId, patch.venueName, patch.venueAddress);
-  } else if (patch.venueAddress !== undefined && existing.venueId) {
-    venueId = await resolveVenue(db, existing.circleId, existing.venueId, undefined, patch.venueAddress);
-  }
+    // Money opt-in XOR (issue #21). The PAYLOAD may never carry both; against
+    // the stored row, setting one side clears the other:
+    //   - a (non-null) bookingPlatform clears any stored costMinor
+    //   - a (non-null) costMinor clears any stored booking signpost
+    //   - clearing the platform (null) also drops its URL
+    //   - a bookingUrl only sticks while a platform exists after this patch
+    const moneyError = validateMoneyOptIn(patch);
+    if (moneyError) return { ok: false, error: moneyError };
+    const money: Partial<typeof standingGames.$inferInsert> = {};
+    if (patch.bookingPlatform !== undefined) {
+      // Safe narrow: validateMoneyOptIn just proved any non-null value is a known id.
+      money.bookingPlatform = patch.bookingPlatform as StandingGame["bookingPlatform"];
+      if (patch.bookingPlatform != null) money.costMinor = null;
+      else money.bookingUrl = null;
+    }
+    if (patch.bookingUrl !== undefined) {
+      const platformAfter = patch.bookingPlatform !== undefined ? patch.bookingPlatform : existing.bookingPlatform;
+      const normalized = normalizeBookingUrl(patch.bookingUrl);
+      money.bookingUrl = platformAfter && normalized.ok ? normalized.url : null;
+    }
+    if (patch.costMinor !== undefined) {
+      money.costMinor = patch.costMinor;
+      if (patch.costMinor != null) {
+        money.bookingPlatform = null;
+        money.bookingUrl = null;
+      }
+    }
 
-  const [updated] = await db
-    .update(standingGames)
-    .set({
-      ...(patch.weekday !== undefined ? { weekday: patch.weekday } : {}),
-      ...(patch.startTime !== undefined ? { startTime: patch.startTime } : {}),
-      ...(patch.durationMinutes !== undefined ? { durationMinutes: patch.durationMinutes } : {}),
-      ...(patch.slots !== undefined ? { slots: patch.slots } : {}),
-      ...(patch.rsvpWindowDays !== undefined ? { rsvpWindowDays: patch.rsvpWindowDays } : {}),
-      ...(venueId !== undefined ? { venueId } : {}),
-      ...(patch.active !== undefined ? { active: patch.active } : {}),
-      ...(patch.costMinor !== undefined ? { costMinor: patch.costMinor } : {}),
-      ...(patch.costCurrency !== undefined ? { costCurrency: patch.costCurrency } : {}),
-      ...(patch.rotationEnabled !== undefined ? { rotationEnabled: patch.rotationEnabled } : {}),
-      ...(patch.rotationCutoffHours !== undefined ? { rotationCutoffHours: patch.rotationCutoffHours } : {}),
-      ...(patch.rotationMode !== undefined ? { rotationMode: patch.rotationMode } : {}),
-      ...(patch.gameType !== undefined ? { gameType: patch.gameType } : {}),
-    })
-    .where(eq(standingGames.id, id))
-    .returning();
+    // A venueName (or venueId) patch resolves/creates as before, now carrying
+    // venueAddress along to whichever venue that resolves to. An address-only
+    // patch (no venue swap) instead re-resolves the CURRENT venue by id, so
+    // "edit the address" works without also having to re-supply a name — but
+    // only if there's a venue to attach it to; a standing game with none yet
+    // has nowhere for a bare address to go.
+    let venueId: string | null | undefined;
+    if (patch.venueId !== undefined || patch.venueName !== undefined) {
+      venueId = await resolveVenue(tx, existing.circleId, patch.venueId, patch.venueName, patch.venueAddress);
+    } else if (patch.venueAddress !== undefined && existing.venueId) {
+      venueId = await resolveVenue(tx, existing.circleId, existing.venueId, undefined, patch.venueAddress);
+    }
 
-  return { ok: true, value: updated };
+    const [updated] = await tx
+      .update(standingGames)
+      .set({
+        ...(patch.weekday !== undefined ? { weekday: patch.weekday } : {}),
+        ...(patch.startTime !== undefined ? { startTime: patch.startTime } : {}),
+        ...(patch.durationMinutes !== undefined ? { durationMinutes: patch.durationMinutes } : {}),
+        ...(patch.slots !== undefined ? { slots: patch.slots } : {}),
+        ...(patch.rsvpWindowDays !== undefined ? { rsvpWindowDays: patch.rsvpWindowDays } : {}),
+        ...(venueId !== undefined ? { venueId } : {}),
+        ...(patch.active !== undefined ? { active: patch.active } : {}),
+        ...money,
+        ...(patch.costCurrency !== undefined ? { costCurrency: patch.costCurrency } : {}),
+        ...(patch.rotationEnabled !== undefined ? { rotationEnabled: patch.rotationEnabled } : {}),
+        ...(patch.rotationCutoffHours !== undefined ? { rotationCutoffHours: patch.rotationCutoffHours } : {}),
+        ...(patch.rotationMode !== undefined ? { rotationMode: patch.rotationMode } : {}),
+        ...(patch.gameType !== undefined ? { gameType: patch.gameType } : {}),
+      })
+      .where(eq(standingGames.id, id))
+      .returning();
+
+    return { ok: true, value: updated };
+  });
 }
 
 /** Circles the user belongs to, with their role — used to populate "which circle?" pickers. */

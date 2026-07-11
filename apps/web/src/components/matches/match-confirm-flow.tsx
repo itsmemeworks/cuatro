@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, Card, Fact } from "@/components/ui";
+import { Card, Fact, SubmitButton } from "@/components/ui";
 import type { LedgerEvent, MatchOutcome } from "@cuatro/glass";
 
 export type Team = "A" | "B";
@@ -203,15 +203,12 @@ export function MatchConfirmFlow({
               <span className={`text-cu-card-title font-bold text-win ${arriving ? "animate-cu-arrive" : ""}`}>✓</span>
             ) : isViewerRow && canAct ? (
               <div className="flex gap-2">
+                {/* SubmitButtons show the in-flight spinner (no silent clicks, Pete 2026-07-11). */}
                 <form action={disputeAction}>
-                  <Button type="submit" variant="destructiveQuiet">
-                    Dispute
-                  </Button>
+                  <SubmitButton variant="destructiveQuiet">Dispute</SubmitButton>
                 </form>
                 <form action={confirmAction}>
-                  <Button type="submit" variant="primary">
-                    Confirm
-                  </Button>
+                  <SubmitButton variant="primary">Confirm</SubmitButton>
                 </form>
               </div>
             ) : (

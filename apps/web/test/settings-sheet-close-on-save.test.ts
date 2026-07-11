@@ -31,6 +31,7 @@ describe("SettingsSheet close-on-save (React 19 form-reset regression)", () => {
     // server action, so the sheet stays open and React resets the fields.
     expect(source).not.toMatch(/action=\{\s*updateDiscoverySettingsAction\s*\}/);
     expect(source).not.toMatch(/action=\{\s*updateDisplayNameAction\s*\}/);
+    expect(source).not.toMatch(/action=\{\s*updatePlayerAttrsAction\s*\}/);
   });
 
   it("closes the sheet after a save resolves so the fields unmount before the reset", () => {
@@ -39,8 +40,11 @@ describe("SettingsSheet close-on-save (React 19 form-reset regression)", () => {
     expect(source).toMatch(/await\s+action\(\s*formData\s*\)[\s\S]*setOpen\(false\)/);
   });
 
-  it("wires both settings forms through the save-then-close wrapper", () => {
+  it("wires every settings form through the save-then-close wrapper", () => {
+    // Three forms: display name, discovery (findable + home venue), and the
+    // ON COURT hand/side card (issue #21 — its fields are controlled, so it's
+    // reset-proof either way, but it keeps the sheet's one consistent save UX).
     const wrapped = source.match(/action=\{\s*saveThenClose\(/g) ?? [];
-    expect(wrapped.length).toBe(2);
+    expect(wrapped.length).toBe(3);
   });
 });

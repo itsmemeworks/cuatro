@@ -126,6 +126,23 @@ describe("circles store (@cuatro/db)", () => {
     expect(memberRowAfter.verifiedMatchCount).toBe(2);
   });
 
+  it("exposes dominantHand and courtSide per member (issue #21 soft signals), null until set", async () => {
+    const circle = await store.createCircle({ name: "Hands Circle", creatorUserId: organiser.id });
+    await store.joinCircle({ inviteCode: circle.inviteCode, userId: member.id });
+
+    const detailBefore = await store.getCircleDetail(circle.id, organiser.id);
+    const rowBefore = detailBefore!.members.find((m) => m.userId === member.id)!;
+    expect(rowBefore.dominantHand).toBeNull();
+    expect(rowBefore.courtSide).toBeNull();
+
+    await client.db.update(users).set({ dominantHand: "left", courtSide: "left" }).where(eq(users.id, member.id));
+
+    const detailAfter = await store.getCircleDetail(circle.id, organiser.id);
+    const rowAfter = detailAfter!.members.find((m) => m.userId === member.id)!;
+    expect(rowAfter.dominantHand).toBe("left");
+    expect(rowAfter.courtSide).toBe("left");
+  });
+
   it("enforces membership on getCircleDetail", async () => {
     const circle = await store.createCircle({ name: "Private Circle", creatorUserId: organiser.id });
 

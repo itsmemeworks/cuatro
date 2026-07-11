@@ -35,6 +35,13 @@ function parseCostField(raw: FormDataEntryValue | null): number | null | undefin
   return parseAmountToMinor(trimmed) ?? undefined;
 }
 
+/** "Booked on" form fields (issue #21): absent -> undefined (leave unchanged), "" -> null (clear), anything else passes through verbatim — the SERVICE validates platform ids and URLs and enforces the booking XOR cost rule, so a crafted value is rejected there, not silently laundered here. */
+function parseBookingField(raw: FormDataEntryValue | null): string | null | undefined {
+  if (raw === null) return undefined;
+  const trimmed = String(raw).trim();
+  return trimmed ? trimmed : null;
+}
+
 /**
  * Turn a resolved venue submission into the venue fields create/update
  * expect. Fields stay `undefined` when they don't apply so create/update
@@ -85,6 +92,10 @@ export async function createStandingGameAction(formData: FormData): Promise<void
     rsvpWindowDays: Number(formData.get("rsvpWindowDays") ?? 6),
     ...venueFieldsFor(venue),
     costMinor: parseCostField(formData.get("costAmount")) ?? null,
+    // Money opt-in (issue #21): booking signpost XOR court cost, enforced by
+    // the service — a form somehow submitting both bounces back with a code.
+    bookingPlatform: parseBookingField(formData.get("bookingPlatform")) ?? null,
+    bookingUrl: parseBookingField(formData.get("bookingUrl")) ?? null,
     // Unchecked checkboxes submit nothing, so absence = off.
     rotationEnabled: formData.get("rotationEnabled") === "on",
     ...parseRotationFields(formData),
@@ -127,12 +138,21 @@ export async function updateStandingGameAction(id: string, formData: FormData): 
     rsvpWindowDays: formData.get("rsvpWindowDays") ? Number(formData.get("rsvpWindowDays")) : undefined,
     ...venueFieldsFor(venue),
     costMinor: parseCostField(formData.get("costAmount")),
+    // Booking fields follow the cost field's convention: absent = leave
+    // unchanged, "" = clear. The service enforces the XOR against the stored row.
+    bookingPlatform: parseBookingField(formData.get("bookingPlatform")),
+    bookingUrl: parseBookingField(formData.get("bookingUrl")),
     // The edit form always renders the rotation checkbox, so its absence is an
     // explicit "off", not "leave unchanged".
     rotationEnabled: formData.get("rotationEnabled") === "on",
     ...parseRotationFields(formData),
     gameType: parseGameType(formData.get("gameType")),
   });
+
+  // A validation failure must bounce back visibly (?error=code, same
+  // convention as create) — falling through here made a bad edit (e.g. an
+  // invalid booking URL) look saved while saving nothing.
+  if (!result.ok) redirect(`/games/standing/${id}?error=${result.error}`);
 
   if (result.ok) {
     await geocodeResolvedVenue(client, result.value.venueId);

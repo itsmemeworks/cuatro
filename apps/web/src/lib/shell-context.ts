@@ -25,6 +25,22 @@ export function resolveShellContext(pathname: string): ShellContext {
 }
 
 /**
+ * Wave C punch item: /games/[sessionId] belongs to a CIRCLE (the session's
+ * clubhouse), but which circle is data, not path — this pure module can't
+ * know it. This extractor names the sessionId when a path needs that lookup;
+ * the (app) layout resolves it (server/shell-circle.ts) and overrides the
+ * context to circle:games, falling back to resolveShellContext's home:week
+ * when the session or membership doesn't check out. /games and /games/standing*
+ * stay home:week — standing-game editor routes aren't a session view.
+ */
+export function gameSessionIdFor(pathname: string): string | null {
+  const path = (pathname.split(/[?#]/, 1)[0] || "/").replace(/\/+$/, "");
+  const segments = path.split("/").filter(Boolean);
+  if (segments[0] !== "games" || !segments[1] || segments[1] === "standing") return null;
+  return segments[1];
+}
+
+/**
  * Which circle tab a /circles/[id]/<sub> path highlights. Wave A ships the Feed
  * as the landing tab; the deeper tabs (chat/members/games/tab) already have
  * routes the switcher links to, so they map here too. An unknown deeper segment

@@ -6,9 +6,10 @@ import { listCirclesForUser } from "@/server/standing-games-service";
 import { listVenuesForCircle } from "@/server/venues";
 import { createStandingGameAction } from "@/server/games-actions";
 import { errorCopy } from "@/lib/error-copy";
-import { Button, Meta } from "@/components/ui";
+import { Meta, SubmitButton } from "@/components/ui";
 import { InfoTerm } from "@/components/ui/info-term";
 import { VenuePicker } from "../venue-picker";
+import { MoneyOptInPicker } from "../money-opt-in-picker";
 
 // Organiser-facing copy for the validation codes createStandingGameAction can
 // bounce back; anything unlisted falls through to the shared errorCopy() so no
@@ -17,6 +18,10 @@ const CREATE_ERROR_COPY: Record<string, string> = {
   not_an_organiser: "Only a Circle's organiser can set up its Standing Game.",
   invalid_weekday: "Pick a day of the week and try again.",
   invalid_start_time: "That start time didn't read right, pick it again.",
+  // Money opt-in (issue #21): one of a booking signpost or a court cost, never both.
+  booking_and_cost: "Pick one, booked on or a court cost. A game never carries both.",
+  invalid_booking_platform: "Pick one of the booking platforms and try again.",
+  invalid_booking_url: "That booking link didn't read as a web address. Paste the full link, https and all.",
 };
 
 const WEEKDAYS = [
@@ -109,10 +114,7 @@ export default async function NewStandingGamePage({
 
           <VenuePicker venues={venueOptions} />
 
-          <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
-            Court cost (optional, splits on the Tab)
-            <input type="text" name="costAmount" inputMode="decimal" placeholder="32.00" className={fieldClass} />
-          </label>
+          <MoneyOptInPicker />
 
           <label className="flex flex-col gap-1.5 text-cu-body font-semibold text-ink">
             Duration (minutes)
@@ -171,9 +173,9 @@ export default async function NewStandingGamePage({
             </select>
           </label>
 
-          <Button type="submit" size="lg" fullWidth>
+          <SubmitButton size="lg" fullWidth>
             Create Standing Game
-          </Button>
+          </SubmitButton>
         </form>
       )}
     </main>

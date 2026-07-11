@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Avatar, Button, Card, Fact } from "@/components/ui";
+import { Avatar, Card, Fact, SubmitButton } from "@/components/ui";
 import { formatGlass } from "@/lib/design";
 import { recordMatchAction } from "@/server/matches-actions";
 
@@ -281,9 +281,10 @@ export function ResultEntryForm({
       {/* Guard the empty submit: recordMatchAction silently no-ops with no
           sets and no retired flag, so keep the button disabled until there's
           something real to send. */}
-      <Button type="submit" variant="strong" size="lg" fullWidth disabled={filledSets.length === 0 && !retired}>
+      {/* SubmitButton shows the in-flight spinner (no silent clicks, Pete 2026-07-11). */}
+      <SubmitButton variant="strong" size="lg" fullWidth disabled={filledSets.length === 0 && !retired}>
         Send to both teams
-      </Button>
+      </SubmitButton>
       {filledSets.length === 0 && !retired && (
         <p className="text-cu-meta text-ink-muted text-center">Enter at least one set, or mark it retired.</p>
       )}

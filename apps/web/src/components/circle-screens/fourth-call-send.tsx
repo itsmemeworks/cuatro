@@ -6,8 +6,26 @@ import Link from "next/link";
 import { Avatar, Button, InfoTerm, Meta, QrShareSheet } from "@/components/ui";
 import { usePresenceCount } from "@/lib/realtime/presence";
 import { formatGlass } from "@/lib/design";
+import { sideHintShort, type FourthCallSideHint } from "@/components/circle-screens/fourth-call-side-hint";
 
 export type RingState = "pending" | "sent" | "done";
+
+// Chip-sized twin of components/ui/button.tsx's PendingSpinner (same classes,
+// sized by the chip's own 1em) — the ring chips are too small for a full
+// Button, but a tapped chip must still animate while the server call is out
+// (mid-wave addendum: no silent clicks, no hand-rolled spinner DESIGNS —
+// this reuses the blessed border-spinner idiom verbatim).
+function ChipSpinner() {
+  return (
+    <span
+      aria-hidden
+      className="inline-block h-[1em] w-[1em] flex-none animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none"
+    />
+  );
+}
+
+const CHIP_CLASS =
+  "rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50 inline-flex items-center gap-1.5";
 
 /** One played-with candidate row (ring 2a) — someone from the confirmed four's verified match history. */
 export type PlayedWithRow = {
@@ -51,6 +69,7 @@ export function FourthCallSend({
   ring3Available,
   claimed,
   organiserId,
+  sideHint = null,
 }: {
   sessionId: string;
   ring1State: RingState;
@@ -69,6 +88,8 @@ export function FourthCallSend({
   claimed: boolean;
   /** The organiser's own user id, excluded from the live "viewing" count below — see lib/realtime/presence.ts. */
   organiserId?: string | null;
+  /** The optional court-side hint on this call (issue #21) — display copy only, it never filters who can claim. Null = no hint. */
+  sideHint?: FourthCallSideHint | null;
 }) {
   const router = useRouter();
   const [escalating, setEscalating] = useState(false);
@@ -79,10 +100,20 @@ export function FourthCallSend({
   const [invitedLocally, setInvitedLocally] = useState<Set<string>>(new Set());
   const [invitingAll, setInvitingAll] = useState(false);
   const [ring3Pending, setRing3Pending] = useState(false);
+  // Which ring-3 affordance was tapped (Copy vs QR share the same mint), so
+  // only the tapped chip animates.
+  const [ring3Tapped, setRing3Tapped] = useState<"copy" | "qr" | null>(null);
   const [ring3Copied, setRing3Copied] = useState(false);
   const [ring3Error, setRing3Error] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
+  // Optimistic side-hint selection (issue #21) — the chip flips immediately,
+  // the server write follows, router.refresh() reconciles.
+  const [hintDraft, setHintDraft] = useState<FourthCallSideHint | null>(sideHint ?? null);
+  const [hintPending, setHintPending] = useState(false);
+  // Which chip was tapped, so only IT shows the spinner while saving.
+  const [hintTapped, setHintTapped] = useState<FourthCallSideHint | null | undefined>(undefined);
+  const [hintError, setHintError] = useState(false);
 
   // Live "N viewing…" (design/HANDOFF.md screen 6) — aggregates every
   // viewer currently on the receive screen or the public ring-3 link, both
@@ -147,6 +178,7 @@ export function FourthCallSend({
 
   async function copyRing3Link() {
     setRing3Pending(true);
+    setRing3Tapped("copy");
     setRing3Error(false);
     try {
       const url = await mintRing3Link();
@@ -175,6 +207,7 @@ export function FourthCallSend({
 
   async function showRing3Qr() {
     setRing3Pending(true);
+    setRing3Tapped("qr");
     setRing3Error(false);
     try {
       const url = await mintRing3Link();
@@ -188,6 +221,37 @@ export function FourthCallSend({
       setRing3Error(true);
     } finally {
       setRing3Pending(false);
+    }
+  }
+
+  // Side hint (issue #21): organiser-set, optional, display copy only — it
+  // rides on the call cards and the public landing but filters nobody and
+  // gates nothing (the ladder is untouched, see server/fourth-call.ts).
+  async function saveSideHint(next: FourthCallSideHint | null) {
+    const prev = hintDraft;
+    if (next === prev) return;
+    setHintDraft(next);
+    setHintPending(true);
+    setHintTapped(next);
+    setHintError(false);
+    try {
+      const res = await fetch(`/api/fourth-call/${sessionId}/side-hint`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hint: next }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) {
+        setHintDraft(prev);
+        setHintError(true);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setHintDraft(prev);
+      setHintError(true);
+    } finally {
+      setHintPending(false);
     }
   }
 
@@ -249,7 +313,7 @@ export function FourthCallSend({
               <button
                 type="button"
                 onClick={() => setPlayedWithExpanded((v) => !v)}
-                className="shrink-0 flex items-center gap-1.5 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-2.5 py-1.5 transition-cu-state active:opacity-80"
+                className="shrink-0 flex items-center gap-1.5 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-2.5 py-1.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80"
                 aria-expanded={playedWithExpanded}
               >
                 <span className="flex -space-x-1.5">
@@ -286,9 +350,11 @@ export function FourthCallSend({
                         type="button"
                         onClick={() => invitePlayedWith(p.userId)}
                         disabled={busy}
-                        className="shrink-0 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+                        aria-busy={invitingIds.has(p.userId) || undefined}
+                        className={`shrink-0 ${CHIP_CLASS}`}
                       >
-                        {invitingIds.has(p.userId) ? "…" : "Invite"}
+                        {invitingIds.has(p.userId) && <ChipSpinner />}
+                        Invite
                       </button>
                     )}
                   </div>
@@ -299,9 +365,11 @@ export function FourthCallSend({
                   type="button"
                   onClick={() => invitePlayedWith()}
                   disabled={invitingAll}
-                  className="self-start mt-0.5 rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+                  aria-busy={invitingAll || undefined}
+                  className={`self-start mt-0.5 ${CHIP_CLASS}`}
                 >
-                  {invitingAll ? "…" : "Invite all"}
+                  {invitingAll && <ChipSpinner />}
+                  Invite all
                 </button>
               )}
             </div>
@@ -358,36 +426,82 @@ export function FourthCallSend({
               type="button"
               onClick={copyRing3Link}
               disabled={!ring3Available || ring3Pending}
-              className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+              aria-busy={(ring3Pending && ring3Tapped === "copy") || undefined}
+              className={CHIP_CLASS}
             >
-              {ring3Copied ? "Copied ✓" : ring3Pending ? "…" : "Copy ↗"}
+              {ring3Pending && ring3Tapped === "copy" && <ChipSpinner />}
+              {ring3Copied ? "Copied ✓" : "Copy ↗"}
             </button>
             <button
               type="button"
               onClick={showRing3Qr}
               disabled={!ring3Available || ring3Pending}
-              className="rounded-chip border border-ink-hairline-3 text-ink font-bold text-[10.5px] px-3 py-1.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+              aria-busy={(ring3Pending && ring3Tapped === "qr") || undefined}
+              className={CHIP_CLASS}
             >
+              {ring3Pending && ring3Tapped === "qr" && <ChipSpinner />}
               QR
             </button>
           </div>
         </div>
       </div>
 
+      {!claimed && ring3Available && (
+        <div className="rounded-card bg-surface border border-ink-hairline-1 px-4 py-3.5">
+          <p className="text-cu-body font-bold text-ink">Side hint</p>
+          <Meta as="p" className="mt-0.5">
+            {hintDraft ? `on the call: ${sideHintShort(hintDraft)}` : "a nudge on the call, it never changes who can claim"}
+          </Meta>
+          {hintError && (
+            <Meta tone="action" as="p" className="mt-0.5">
+              couldn&apos;t save the hint, try again
+            </Meta>
+          )}
+          <div className="flex items-center gap-2 mt-2.5" role="group" aria-label="Side hint">
+            {(
+              [
+                { value: null, label: "None" },
+                { value: "left", label: "Left-sider" },
+                { value: "right", label: "Right-sider" },
+              ] as const
+            ).map((opt) => {
+              const selected = hintDraft === opt.value;
+              const saving = hintPending && hintTapped === opt.value;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => saveSideHint(opt.value)}
+                  disabled={hintPending}
+                  aria-pressed={selected}
+                  aria-busy={saving || undefined}
+                  className={`rounded-chip border font-bold text-[10.5px] px-3 py-1.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50 inline-flex items-center gap-1.5 ${
+                    selected ? "border-action text-action-strong" : "border-ink-hairline-3 text-ink"
+                  }`}
+                >
+                  {saving && <ChipSpinner />}
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {claimed ? (
         <Link
           href={`/games/${sessionId}`}
-          className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state active:opacity-80"
+          className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-strong-bg text-strong-fg transition-cu-state hover:opacity-90 active:opacity-80"
         >
           Done, back to the game →
         </Link>
       ) : promoteRing3 ? (
-        <Button variant="primary" size="lg" fullWidth disabled={ring3Pending} onClick={copyRing3Link}>
-          {ring3Copied ? "Link copied ✓" : ring3Pending ? "…" : "Share a link, anyone with it can claim the spot"}
+        <Button variant="primary" size="lg" fullWidth pending={ring3Pending} onClick={copyRing3Link}>
+          {ring3Copied ? "Link copied ✓" : "Share a link, anyone with it can claim the spot"}
         </Button>
       ) : canEscalate ? (
-        <Button variant="primary" size="lg" fullWidth disabled={escalating} onClick={escalate}>
-          {escalating ? "…" : "Reach nearby players →"}
+        <Button variant="primary" size="lg" fullWidth pending={escalating} onClick={escalate}>
+          Reach nearby players →
         </Button>
       ) : (
         <div className="rounded-button min-h-12 px-5 py-3.5 text-center text-[14px] font-extrabold bg-ink-hairline-2 text-ink-muted">

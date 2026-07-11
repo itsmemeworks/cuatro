@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AvatarStack, Card, Meta } from "@/components/ui";
+import { AvatarStack, Card, Meta, PendingSpinner } from "@/components/ui";
 import { CircleEmblem } from "@/components/games/roster";
 import { circleColorFor } from "@/lib/design";
 import type { NearbyCircle } from "@/server/open-door";
@@ -123,9 +123,9 @@ export function DiscoverCircleCard({ data }: { data: NearbyCircle }) {
             type="button"
             onClick={withdraw}
             disabled={busy}
-            className="text-cu-secondary font-bold text-ink-muted whitespace-nowrap disabled:opacity-50"
+            className="text-cu-secondary cursor-pointer font-bold text-ink-muted whitespace-nowrap transition-cu-state hover:text-ink disabled:opacity-50"
           >
-            Withdraw
+            {busy ? <PendingSpinner /> : null} Withdraw
           </button>
         </div>
       ) : (
@@ -133,9 +133,9 @@ export function DiscoverCircleCard({ data }: { data: NearbyCircle }) {
           type="button"
           onClick={knock}
           disabled={busy}
-          className="rounded-button border border-ink-hairline-4 text-ink font-bold text-[12px] text-center py-2.5 transition-cu-state active:opacity-80 disabled:opacity-50"
+          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-button border border-ink-hairline-4 text-ink font-bold text-[12px] text-center py-2.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50"
         >
-          {busy ? "Asking…" : "Ask to join"}
+          {busy ? <PendingSpinner /> : null} Ask to join
         </button>
       )}
 

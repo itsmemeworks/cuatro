@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { seedCircle, type Fixture } from "./support/games-fixtures";
 import {
   createStandingGame,
+  getStandingGame,
   isOrganiser,
   listCirclesForUser,
   listStandingGamesForCircle,
@@ -202,5 +203,194 @@ describe("isOrganiser / listCirclesForUser / listStandingGamesForCircle", () => 
     const games = await listStandingGamesForCircle(fixture.db, fixture.circleId);
     expect(games).toHaveLength(1);
     expect(games[0].id).toBe(fixture.standingGameId);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// Money opt-in XOR (GitHub issue #21): a game carries a "Booked on" signpost
+// XOR a court cost, never both. Enforced in the SERVICE, not just forms:
+// a payload with both is rejected, and setting one clears the other.
+// -----------------------------------------------------------------------------
+
+describe("money opt-in XOR — createStandingGame", () => {
+  it("creates a booking-signposted game (platform + url) with no cost", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    const result = await createStandingGame(fixture.db, fixture.organiserId, {
+      circleId: fixture.circleId,
+      weekday: 2,
+      startTime: "20:00",
+      bookingPlatform: "playtomic",
+      bookingUrl: "https://playtomic.io/clubs/somewhere",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.bookingPlatform).toBe("playtomic");
+    expect(result.value.bookingUrl).toBe("https://playtomic.io/clubs/somewhere");
+    expect(result.value.costMinor).toBeNull();
+  });
+
+  it("stays silent by default — no booking, no cost, no money chrome", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    const result = await createStandingGame(fixture.db, fixture.organiserId, {
+      circleId: fixture.circleId,
+      weekday: 2,
+      startTime: "20:00",
+    });
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.bookingPlatform).toBeNull();
+    expect(result.value.bookingUrl).toBeNull();
+    expect(result.value.costMinor).toBeNull();
+  });
+
+  it("rejects a payload carrying BOTH a booking platform and a cost", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    const result = await createStandingGame(fixture.db, fixture.organiserId, {
+      circleId: fixture.circleId,
+      weekday: 2,
+      startTime: "20:00",
+      bookingPlatform: "padel_mates",
+      costMinor: 3200,
+    });
+    expect(result).toEqual({ ok: false, error: "booking_and_cost" });
+  });
+
+  it("rejects an unknown platform id and a non-http(s) booking url", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    expect(
+      await createStandingGame(fixture.db, fixture.organiserId, {
+        circleId: fixture.circleId,
+        weekday: 2,
+        startTime: "20:00",
+        bookingPlatform: "skynet",
+      }),
+    ).toEqual({ ok: false, error: "invalid_booking_platform" });
+    expect(
+      await createStandingGame(fixture.db, fixture.organiserId, {
+        circleId: fixture.circleId,
+        weekday: 2,
+        startTime: "20:00",
+        bookingPlatform: "playtomic",
+        bookingUrl: "javascript:alert(1)",
+      }),
+    ).toEqual({ ok: false, error: "invalid_booking_url" });
+    expect(
+      await createStandingGame(fixture.db, fixture.organiserId, {
+        circleId: fixture.circleId,
+        weekday: 2,
+        startTime: "20:00",
+        bookingPlatform: "playtomic",
+        bookingUrl: "playtomic.io/no-scheme",
+      }),
+    ).toEqual({ ok: false, error: "invalid_booking_url" });
+  });
+
+  it("never stores a url without a platform", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    const result = await createStandingGame(fixture.db, fixture.organiserId, {
+      circleId: fixture.circleId,
+      weekday: 2,
+      startTime: "20:00",
+      bookingUrl: "https://playtomic.io/x",
+    });
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.bookingPlatform).toBeNull();
+    expect(result.value.bookingUrl).toBeNull();
+  });
+});
+
+describe("money opt-in XOR — updateStandingGame", () => {
+  it("setting a booking clears an existing cost", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 3200 });
+
+    const result = await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingPlatform: "matchi",
+      bookingUrl: "https://matchi.se/somewhere",
+    });
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.bookingPlatform).toBe("matchi");
+    expect(result.value.bookingUrl).toBe("https://matchi.se/somewhere");
+    expect(result.value.costMinor).toBeNull();
+  });
+
+  it("setting a cost clears an existing booking (platform AND url)", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingPlatform: "padium",
+      bookingUrl: "https://padium.app/x",
+    });
+
+    const result = await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 4800 });
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.costMinor).toBe(4800);
+    expect(result.value.bookingPlatform).toBeNull();
+    expect(result.value.bookingUrl).toBeNull();
+  });
+
+  it("rejects a patch carrying BOTH opt-ins, leaving the row untouched", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 3200 });
+
+    const result = await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingPlatform: "club_website",
+      costMinor: 4800,
+    });
+    expect(result).toEqual({ ok: false, error: "booking_and_cost" });
+
+    const after = await getStandingGame(fixture.db, fixture.standingGameId!);
+    expect(after?.costMinor).toBe(3200);
+    expect(after?.bookingPlatform).toBeNull();
+  });
+
+  it("explicit clears never conflict: platform + costMinor:null in one patch is a clean booking set", async () => {
+    // This is exactly what the edit form submits when an organiser picks a
+    // platform while the cost field sits empty.
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    const result = await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingPlatform: "playtomic",
+      costMinor: null,
+    });
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.bookingPlatform).toBe("playtomic");
+    expect(result.value.costMinor).toBeNull();
+  });
+
+  it("clearing the platform drops its url too, and an unrelated edit leaves the booking alone", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingPlatform: "other",
+      bookingUrl: "https://example.com/booking",
+    });
+
+    const unrelated = await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { slots: 6 });
+    if (!unrelated.ok) throw new Error("unreachable");
+    expect(unrelated.value.bookingPlatform).toBe("other");
+    expect(unrelated.value.bookingUrl).toBe("https://example.com/booking");
+
+    const cleared = await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingPlatform: null,
+    });
+    if (!cleared.ok) throw new Error("unreachable");
+    expect(cleared.value.bookingPlatform).toBeNull();
+    expect(cleared.value.bookingUrl).toBeNull();
+  });
+
+  it("a url patch only sticks while a platform exists after the patch", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+
+    // No platform stored, url alone: quietly dropped.
+    const urlOnly = await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingUrl: "https://example.com/x",
+    });
+    if (!urlOnly.ok) throw new Error("unreachable");
+    expect(urlOnly.value.bookingUrl).toBeNull();
+
+    // Platform stored, url patch alone updates it.
+    await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { bookingPlatform: "playtomic" });
+    const urlAfter = await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingUrl: "https://playtomic.io/updated",
+    });
+    if (!urlAfter.ok) throw new Error("unreachable");
+    expect(urlAfter.value.bookingUrl).toBe("https://playtomic.io/updated");
   });
 });

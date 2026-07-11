@@ -5,6 +5,8 @@ import Link from "next/link";
 import { AvatarStack, Avatar, Button, Meta } from "@/components/ui";
 import { venueDirectionsUrl } from "@/lib/directions";
 import { SelfieCamera } from "@/components/entry/selfie-camera";
+import { Wordmark } from "@/components/entry/wordmark";
+import { sideHintLine, type FourthCallSideHint } from "@/components/circle-screens/fourth-call-side-hint";
 
 export type GuestPerson = { src?: string | null; name: string };
 
@@ -18,7 +20,7 @@ export type GuestFlowInitial =
 // its variant="strong" size="lg" fullWidth class recipe exactly (same
 // approach app/page.tsx's "Get started" link already uses).
 const STRONG_LG_LINK_CLASS =
-  "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state active:opacity-80 w-full min-h-12 px-5 text-[15px] font-extrabold bg-strong-bg text-strong-fg";
+  "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state hover:opacity-90 active:opacity-80 w-full min-h-12 px-5 text-[15px] font-extrabold bg-strong-bg text-strong-fg";
 
 const CLAIM_ERROR_COPY: Record<string, string> = {
   session_started: "this game's already kicked off",
@@ -61,6 +63,7 @@ export function GuestClaimFlow({
   venue,
   confirmedPeople,
   initial,
+  sideHint = null,
 }: {
   sessionId: string;
   token: string;
@@ -69,6 +72,8 @@ export function GuestClaimFlow({
   venue?: { name: string; address?: string | null } | null;
   confirmedPeople: GuestPerson[];
   initial: GuestFlowInitial;
+  /** Organiser's optional court-side hint (issue #21) — display copy only, claiming below is never gated on it. */
+  sideHint?: FourthCallSideHint | null;
 }) {
   const [step, setStep] = useState<"claim" | "beaten" | "name" | "done">(initial.step);
   const [status, setStatus] = useState<"in" | "reserve">(initial.step === "claim" ? "in" : initial.status);
@@ -171,6 +176,10 @@ export function GuestClaimFlow({
         <div className="flex items-center gap-2 bg-surface rounded-chip px-3.5 py-2 mx-auto mb-3.5 w-fit">
           <Meta className="whitespace-nowrap">🔒 cuatro.app</Meta>
         </div>
+        {/* Wide-only wordmark above the invite card (design "Guest link landing", desktop) — additive at 900px+, invisible below, so the 430 tree is untouched. */}
+        <div className="hidden min-[900px]:flex justify-center mb-4">
+          <Wordmark size="md" onDark={false} />
+        </div>
         <div className="rounded-card bg-surface-feature border border-ink-hairline-2 overflow-hidden text-left">
           <div className="p-4 pb-3.5 border-b border-ink-hairline-1">
             <p className="text-[9.5px] font-extrabold tracking-[0.14em] text-action-strong">
@@ -186,8 +195,13 @@ export function GuestClaimFlow({
                 {namesLine(confirmedPeople.map((p) => p.name))}
               </p>
             </div>
-            <Button size="lg" fullWidth disabled={pending} onClick={claim} className="mt-3.5">
-              {pending ? "…" : "I can play, claim it"}
+            {sideHint && (
+              <Meta as="p" onFeature className="mt-2.5">
+                {sideHintLine(sideHint)}
+              </Meta>
+            )}
+            <Button size="lg" fullWidth pending={pending} onClick={claim} className="mt-3.5">
+              I can play, claim it
             </Button>
             <Meta as="p" className="text-center mt-2.5">
               no account · no app download · ~10 seconds
@@ -205,13 +219,13 @@ export function GuestClaimFlow({
 
   if (step === "beaten") {
     return (
-      <div className="w-full text-center">
+      <div className="w-full text-center min-[900px]:max-w-[440px] min-[900px]:mx-auto">
         <h2 className="text-cu-title text-ink">Beaten to it</h2>
         <p className="text-cu-body text-ink-muted mt-1.5">
           Brutal. But there&apos;s a queue, and this Circle plays every week.
         </p>
-        <Button size="lg" fullWidth disabled={pending} onClick={joinReserve} className="mt-4">
-          {pending ? "…" : "Join the reserve queue"}
+        <Button size="lg" fullWidth pending={pending} onClick={joinReserve} className="mt-4">
+          Join the reserve queue
         </Button>
         <Meta as="p" className="mt-2.5">
           reserves auto-promote, if a slot opens, you&apos;re told
@@ -227,7 +241,7 @@ export function GuestClaimFlow({
 
   if (step === "name") {
     return (
-      <div className="w-full text-left">
+      <div className="w-full text-left min-[900px]:max-w-[440px] min-[900px]:mx-auto">
         <h2 className="text-cu-title text-ink">
           {status === "in" ? (
             <>
@@ -254,8 +268,8 @@ export function GuestClaimFlow({
           autoFocus
           className="w-full box-border mt-4.5 bg-surface border border-ink-hairline-3 rounded-button px-4 py-3.5 text-[15px] font-semibold text-ink outline-none"
         />
-        <Button size="lg" fullWidth disabled={pending} onClick={lockName} className="mt-3">
-          {pending ? "…" : "Lock it in"}
+        <Button size="lg" fullWidth pending={pending} onClick={lockName} className="mt-3">
+          Lock it in
         </Button>
         <Meta as="p" className="mt-3.5 leading-[1.7]">
           that&apos;s it, no password, no email. a magic link can save your games later, after you&apos;ve played.
@@ -272,7 +286,7 @@ export function GuestClaimFlow({
   // step === "done"
   const initialLetter = displayName.trim().slice(0, 1).toUpperCase() || "?";
   return (
-    <div className="w-full text-center">
+    <div className="w-full text-center min-[900px]:max-w-[460px] min-[900px]:mx-auto">
       {showCamera && (
         <SelfieCamera
           onClose={() => setShowCamera(false)}
@@ -331,7 +345,7 @@ export function GuestClaimFlow({
       <div className="flex justify-center gap-2 mt-3.5">
         <a
           href={`/fc/${token}/ics`}
-          className="rounded-chip border border-ink-hairline-4 text-ink font-bold text-[11px] px-3.5 py-2"
+          className="rounded-chip border border-ink-hairline-4 text-ink font-bold text-[11px] px-3.5 py-2 transition-cu-state hover:bg-ink-hairline-1"
         >
           Add to calendar
         </a>
@@ -340,7 +354,7 @@ export function GuestClaimFlow({
             href={directionsUrl}
             target="_blank"
             rel="noopener"
-            className="rounded-chip border border-ink-hairline-4 text-ink font-bold text-[11px] px-3.5 py-2"
+            className="rounded-chip border border-ink-hairline-4 text-ink font-bold text-[11px] px-3.5 py-2 transition-cu-state hover:bg-ink-hairline-1"
           >
             Directions
           </a>

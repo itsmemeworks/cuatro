@@ -2,7 +2,22 @@ import Link from "next/link";
 import { GlassHero } from "@/components/glass/glass-hero";
 import { ReliabilityBadge } from "@/components/glass/reliability-badge";
 import { Card, Chip, Meta } from "@/components/ui";
+import { courtSideFact, dominantHand } from "@/lib/player-attrs";
 import type { PlayerProfile } from "@/server/players";
+
+/**
+ * The ON COURT mono fact for the profile header (issue #21): "right hand ·
+ * left side (backhand)" — a fact, so it's mono (design/HANDOFF.md), and a
+ * soft signal, so it sits quietly beside Reliability rather than badging.
+ * Null when neither field is set (nothing renders at all).
+ */
+function onCourtFact(user: PlayerProfile["user"]): string | null {
+  const hand = dominantHand(user.dominantHand);
+  const handFact = hand ? (hand.id === "both" ? "both hands" : `${hand.id} hand`) : null;
+  const sideFact = courtSideFact(user.courtSide)?.toLowerCase() ?? null;
+  const parts = [handFact, sideFact].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 /**
  * The shared Glass transparency body: header badges, the Glass hero,
@@ -39,9 +54,14 @@ export function GlassProfile({
         {avatar}
         <div className="flex-1">
           <h1 className="text-cu-title text-ink">{user.displayName}</h1>
-          <div className="flex gap-1.5 mt-1.5 flex-wrap">
+          <div className="flex gap-1.5 mt-1.5 flex-wrap items-center">
             {glass && <ReliabilityBadge pct={glass.reliabilityPct} lateCancelCount={glass.lateCancelCount} />}
             {circlesChip}
+            {onCourtFact(user) && (
+              <span className="rounded-chip inline-flex items-center px-3 py-1.5 border border-ink-hairline-3 font-mono text-[10px] text-ink-muted whitespace-nowrap">
+                {onCourtFact(user)}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -76,7 +96,7 @@ export function GlassProfile({
       )}
 
       <Link href={ledgerHref}>
-        <Card className="flex items-center gap-3">
+        <Card className="flex items-center gap-3 hover:bg-ink-hairline-1 transition-cu-state">
           <div className="flex-1">
             <p className="text-cu-card-title text-ink">The Ledger</p>
             <p className="text-cu-secondary text-ink-muted mt-0.5">{ledgerBlurb}</p>

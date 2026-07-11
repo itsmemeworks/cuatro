@@ -10,6 +10,8 @@ export interface KnockPanelItem {
   displayName: string;
   avatarUrl: string | null;
   rating: number | null;
+  /** Rating certainty 0..1 — the wide join-request row's "conf 63%" fact. Only meaningful alongside a non-null rating. */
+  confidence: number;
   reliability: number | null;
   distanceLabel: string | null;
   message: string | null;
@@ -21,11 +23,11 @@ function ratingLabel(rating: number | null): string {
 
 function KnockRow({ item }: { item: KnockPanelItem }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
   const [error, setError] = useState(false);
 
   async function decide(action: "accept" | "decline") {
-    setBusy(true);
+    setBusy(action);
     setError(false);
     try {
       const res = await fetch(`/api/knocks/circle/${item.knockId}`, {
@@ -37,11 +39,11 @@ function KnockRow({ item }: { item: KnockPanelItem }) {
         router.refresh();
       } else {
         setError(true);
-        setBusy(false);
+        setBusy(null);
       }
     } catch {
       setError(true);
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -66,10 +68,10 @@ function KnockRow({ item }: { item: KnockPanelItem }) {
       </div>
       {item.message && <p className="text-cu-secondary text-ink-muted">&ldquo;{item.message}&rdquo;</p>}
       <div className="flex items-center gap-2">
-        <Button variant="strong" onClick={() => decide("accept")} disabled={busy} fullWidth>
+        <Button variant="strong" onClick={() => decide("accept")} pending={busy === "accept"} disabled={busy != null} fullWidth>
           Accept
         </Button>
-        <Button variant="quiet" onClick={() => decide("decline")} disabled={busy}>
+        <Button variant="quiet" onClick={() => decide("decline")} pending={busy === "decline"} disabled={busy != null}>
           Decline
         </Button>
       </div>

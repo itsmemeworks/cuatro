@@ -142,7 +142,7 @@ export function NotifTray({ unreadCount, anchor }: { unreadCount: number; anchor
         aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="relative cursor-pointer transition-cu-state"
+        className="relative cursor-pointer rounded-full transition-cu-state hover:bg-[rgba(245,242,236,.08)]"
         style={{ padding: isRail ? 6 : 4, lineHeight: 0 }}
       >
         <svg
@@ -209,7 +209,7 @@ export function NotifTray({ unreadCount, anchor }: { unreadCount: number; anchor
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close notifications"
-              className="cursor-pointer transition-cu-state"
+              className="cursor-pointer transition-cu-state hover:opacity-70"
               style={{ fontFamily: FONT_UI, fontWeight: 700, fontSize: 12, color: "rgba(245,242,236,.5)" }}
             >
               ✕
@@ -239,7 +239,7 @@ export function NotifTray({ unreadCount, anchor }: { unreadCount: number; anchor
                     key={n.id}
                     type="button"
                     onClick={() => openRow(n)}
-                    className="flex w-full items-start gap-2.5 text-left transition-cu-state"
+                    className="flex w-full cursor-pointer items-start gap-2.5 text-left transition-cu-state hover:bg-[rgba(245,242,236,.04)]"
                     style={{
                       padding: "12px 16px",
                       borderBottom: i === tray.rows.length - 1 ? "none" : `1px solid ${ROW_HAIRLINE}`,
@@ -284,10 +284,9 @@ export function NotifTray({ unreadCount, anchor }: { unreadCount: number; anchor
           <Link
             href="/notifications"
             onClick={() => setOpen(false)}
-            className="shrink-0 transition-cu-state"
+            className="shrink-0 bg-[rgba(245,242,236,.04)] transition-cu-state hover:bg-[rgba(245,242,236,.08)]"
             style={{
               padding: "11px 16px",
-              background: "rgba(245,242,236,.04)",
               fontFamily: FONT_MONO,
               fontWeight: 400,
               fontSize: 10.5,

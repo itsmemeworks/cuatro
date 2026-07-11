@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Avatar } from "@/components/ui";
 import { useRsvp } from "./use-rsvp";
 import { expiresInLabel, levelBandLabel, whenLabel } from "./format";
+import { sideHintShort, type FourthCallSideHint } from "@/components/circle-screens/fourth-call-side-hint";
 
 export interface WeekFourthCallCard {
   sessionId: string;
@@ -14,6 +16,8 @@ export interface WeekFourthCallCard {
   askerAvatarUrl: string | null;
   confirmedRatings: number[];
   viewerRating: number | null;
+  /** Organiser's optional court-side hint (issue #21) — display copy only, "I can play" is never gated on it. Optional so server/week.ts keeps compiling until it reads the column. */
+  sideHint?: FourthCallSideHint | null;
 }
 
 /**
@@ -25,10 +29,18 @@ export interface WeekFourthCallCard {
  */
 export function FourthCallSideCard({ card }: { card: WeekFourthCallCard }) {
   const { respond, pending, answered } = useRsvp(card.sessionId);
+  // Which button was tapped, so only IT shows the pending spinner (useRsvp's
+  // pending is a single flag shared by both actions).
+  const [tapped, setTapped] = useState<"in" | "out" | null>(null);
   if (answered === "out") return null;
 
   const band = levelBandLabel(card.confirmedRatings);
-  const meta = [band, card.viewerRating != null ? `yours ${card.viewerRating.toFixed(2)}` : null, expiresInLabel(card.startsAt, Date.now())]
+  const meta = [
+    band,
+    card.viewerRating != null ? `yours ${card.viewerRating.toFixed(2)}` : null,
+    card.sideHint ? sideHintShort(card.sideHint) : null,
+    expiresInLabel(card.startsAt, Date.now()),
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -48,18 +60,29 @@ export function FourthCallSideCard({ card }: { card: WeekFourthCallCard }) {
         <button
           type="button"
           disabled={pending}
-          onClick={() => respond("in")}
-          className="flex-1 rounded-button border border-ink-hairline-4 text-ink text-[12.5px] font-semibold text-center py-2.5 disabled:opacity-40"
+          aria-busy={(pending && tapped === "in") || undefined}
+          onClick={() => {
+            setTapped("in");
+            respond("in");
+          }}
+          className="flex-1 rounded-button border border-ink-hairline-4 text-ink text-[12.5px] font-semibold text-center py-2.5 disabled:opacity-40 transition-cu-state hover:bg-ink-hairline-1 inline-flex items-center justify-center gap-2"
         >
+          {pending && tapped === "in" && (
+            <span aria-hidden className="inline-block h-[1em] w-[1em] flex-none animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
+          )}
           I can play
         </button>
         <button
           type="button"
           disabled={pending}
-          onClick={() => respond("out")}
-          className="text-[12px] font-semibold text-ink-muted px-2 disabled:opacity-40"
+          aria-busy={(pending && tapped === "out") || undefined}
+          onClick={() => {
+            setTapped("out");
+            respond("out");
+          }}
+          className="text-[12px] font-semibold text-ink-muted px-2 disabled:opacity-40 transition-cu-state hover:text-ink"
         >
-          Pass
+          {pending && tapped === "out" ? "…" : "Pass"}
         </button>
       </div>
       {meta && <p className="text-[10px] font-mono text-ink-muted mt-2.5 tabular-nums">{meta}</p>}

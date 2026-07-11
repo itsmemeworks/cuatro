@@ -1,4 +1,5 @@
-import { index, real, pgTable, text, integer } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { check, index, real, pgTable, text, integer } from 'drizzle-orm/pg-core'
 import { booleanColumn, createdAtColumn, idColumn, timestampColumn } from './_columns.js'
 import { venues } from './venues.js'
 
@@ -73,11 +74,28 @@ export const users = pgTable(
     // Confirmed-then-cancelled inside 24h; genuine early cancels don't count.
     lateCancelCount: integer('late_cancel_count').notNull().default(0),
 
+    // Player attributes (GitHub issue #21): dominant hand and preferred court
+    // side. Both optional and nullable FOREVER, and SOFT SIGNALS ONLY — they
+    // never gate joining anything, never filter a Fourth Call, and never
+    // affect Glass, rotation, or matchmaking. Padel lingo: court side
+    // 'right' = drive, 'left' = backhand. Vocab lives in
+    // apps/web/src/lib/player-attrs.ts.
+    dominantHand: text('dominant_hand', { enum: ['left', 'right', 'both'] }),
+    courtSide: text('court_side', { enum: ['right', 'left', 'both'] }),
+
     createdAt: createdAtColumn(),
     updatedAt: createdAtColumn('updated_at'),
   },
   (table) => ({
     countryCodeIdx: index('users_country_code_idx').on(table.countryCode),
+    dominantHandCheck: check(
+      'users_dominant_hand_check',
+      sql`${table.dominantHand} in ('left', 'right', 'both')`,
+    ),
+    courtSideCheck: check(
+      'users_court_side_check',
+      sql`${table.courtSide} in ('right', 'left', 'both')`,
+    ),
   }),
 )
 

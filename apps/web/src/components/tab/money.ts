@@ -40,6 +40,26 @@ export function formatMoneyWholeSigned(amountMinor: number, currency: string, lo
 }
 
 /**
+ * Client-safe mirror of server/tab.ts's computeEqualSplit for the wide
+ * add-expense dialog's LIVE preview line ("£34 split 3 ways · £11.33 a head,
+ * you absorb the 1p"). Same rule, same numbers: every debtor pays the FLOOR
+ * of the even split, the payer absorbs whatever pennies don't divide.
+ * `payerExtraMinor` is how many pennies the payer absorbs beyond their own
+ * floor share (0 when it splits clean). Kept in this pure UI-edge module so
+ * the client bundle never imports server/tab.ts (drizzle et al); parity with
+ * the server rule is pinned by test/tab-money.test.ts.
+ */
+export function equalSplitPreview(
+  totalAmountMinor: number,
+  debtorCount: number,
+): { shareMinor: number; payerExtraMinor: number; numPeople: number } {
+  const numPeople = debtorCount + 1;
+  const shareMinor = Math.floor(totalAmountMinor / numPeople);
+  const payerShareMinor = totalAmountMinor - shareMinor * debtorCount;
+  return { shareMinor, payerExtraMinor: payerShareMinor - shareMinor, numPeople };
+}
+
+/**
  * Parses a user-typed amount like "32" or "32.50" into integer minor units.
  * Returns null for anything that isn't a non-negative number with at most
  * two decimal places (rejects rather than silently rounding away pennies).

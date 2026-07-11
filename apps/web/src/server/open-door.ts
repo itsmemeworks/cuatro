@@ -144,6 +144,8 @@ export interface CircleKnockView {
   displayName: string;
   avatarUrl: string | null;
   rating: number | null;
+  /** Rating certainty 0..1 — the wide join-request row's "conf 63%" fact (design Circle · Settings). Only meaningful alongside a non-null rating. */
+  confidence: number;
   /** Show-up rate (showUpCount / rsvpInCount); null = no RSVP history yet. */
   reliability: number | null;
   /** Coarse distance from the Circle's anchor to the knocker's patch; null when unplaceable. */
@@ -493,6 +495,7 @@ export async function circleKnocks(db: CuatroDb, circleId: string, requestingUse
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
       rating: users.rating,
+      confidence: users.confidence,
       rsvpInCount: users.rsvpInCount,
       showUpCount: users.showUpCount,
       message: knocks.message,
@@ -520,6 +523,7 @@ export async function circleKnocks(db: CuatroDb, circleId: string, requestingUse
       displayName: row.displayName,
       avatarUrl: row.avatarUrl,
       rating: row.rating,
+      confidence: row.confidence,
       reliability: row.rsvpInCount > 0 ? Math.min(1, row.showUpCount / row.rsvpInCount) : null,
       distanceLabel,
       message: row.message,

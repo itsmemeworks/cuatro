@@ -1,6 +1,6 @@
 # WEB-SHELL-SPEC — CUATRO on every screen
 
-**Status: Wave A SHIPPED (PR #22, merged 2026-07-11). Wave B SHIPPED (PR #24, 2026-07-11). Waves C and D remain — do not start a wave without Pete saying go.**
+**Status: Wave A SHIPPED (PR #22, merged 2026-07-11). Wave B SHIPPED (PR #24, 2026-07-11). Wave C BUILT 2026-07-11 (branch feat/web-shell-wave-c, all flows + issue #21 + the punch list; see the PR for the two deferrals: the ad-hoc match row in record step 1, and browser notifications which remain Wave D). Wave D remains — do not start it without Pete saying go.**
 
 The design is done and authoritative: `design/CUATRO-Web-LATEST.dc.html` (25 interactive screens, desktop 1440 + tablet 1024, reviewed and punch-listed to zero on 2026-07-11). This spec turns it into build waves. Read `CLAUDE.md` first, then the DESIGN-AUDIT.md "Web/desktop design import" section, then this.
 

@@ -46,7 +46,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
 
   if (!parsed) {
     return (
-      <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-3 bg-ground text-ink">
+      <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-3 bg-ground text-ink min-[900px]:bg-transparent">
         <h1 className="text-cu-title">Link not found</h1>
         <p className="text-cu-body text-ink-muted max-w-xs">
           This invite link is invalid or has expired. Ask whoever sent it for a new one.
@@ -61,7 +61,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
 
   if (!summary || summary.session.status !== "upcoming" || Date.now() >= summary.session.startsAt) {
     return (
-      <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-3 bg-ground text-ink">
+      <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-3 bg-ground text-ink min-[900px]:bg-transparent">
         <h1 className="text-cu-title">This game&apos;s kicked off</h1>
         <p className="text-cu-body text-ink-muted max-w-xs">
           This invite is for a game that&apos;s already started or been played.
@@ -124,11 +124,16 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
   const confirmedPeople = summary.confirmed.map((p) => ({ src: p.avatarUrl, name: p.displayName }));
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink">
+    // Below 900 this is the phone column exactly as before (the layout keeps
+    // the 448 clamp there); at 900px+ the clamp lifts (see fc/layout.tsx) and
+    // the design's desktop landing takes over: content top-anchored with the
+    // per-step column widths living on the flow's own wrappers, all via
+    // additive min-[900px]: classes so nothing below 900 shifts.
+    <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink min-[900px]:justify-start min-[900px]:pt-12 min-[900px]:pb-16 min-[900px]:bg-transparent">
       {/* Anonymous viewer — always an ephemeral id, never this page's signed-in `user` (if any), per design/HANDOFF.md screen 6's ring-3 trust model. */}
       <PresenceTracker sessionId={parsed.sessionId} />
       {guestFlow ? (
-        <div className="w-full max-w-xs">
+        <div className="w-full max-w-xs min-[900px]:max-w-[520px]">
           <GuestClaimFlow
             sessionId={parsed.sessionId}
             token={token}
@@ -137,6 +142,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
             venue={summary.venue ? { name: summary.venue.name, address: summary.venue.address } : null}
             confirmedPeople={confirmedPeople}
             initial={guestFlow}
+            sideHint={summary.session.fourthCallSideHint ?? null}
           />
         </div>
       ) : (
@@ -145,7 +151,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
             <Meta className="uppercase tracking-[0.12em] text-action-strong font-extrabold">Fourth Call</Meta>
             <AvatarStack people={confirmedPeople} size="lg" ring="ground" />
             <div>
-              <h1 className="text-cu-title mt-1.5">{summary.circleName} need a fourth</h1>
+              <h1 className="text-cu-title mt-1.5 min-[900px]:text-[26px]">{summary.circleName} need a fourth</h1>
               <p className="text-cu-body text-ink-muted mt-1 max-w-xs">
                 {whenLabel}
                 {summary.venue?.name ? ` · ${summary.venue.name}` : ""}
@@ -155,7 +161,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
           </div>
 
           {summary.confirmed.length > 0 && (
-            <div className="w-full max-w-xs text-left">
+            <div className="w-full max-w-xs text-left min-[900px]:max-w-[440px]">
               <Meta as="p" className="uppercase tracking-[0.12em] mb-2">
                 Who&apos;s in
               </Meta>
@@ -164,11 +170,11 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
             </div>
           )}
 
-          <div className="w-full max-w-xs">
+          <div className="w-full max-w-xs min-[900px]:max-w-[440px]">
             {alreadyIn ? (
               <p className="text-cu-body text-win font-bold">You&apos;re in, see you on court</p>
             ) : (
-              <FourthCallLinkClaim sessionId={parsed.sessionId} token={token} />
+              <FourthCallLinkClaim sessionId={parsed.sessionId} token={token} sideHint={summary.session.fourthCallSideHint ?? null} />
             )}
           </div>
         </>

@@ -32,6 +32,7 @@ import {
   venues,
   type CuatroDb,
 } from "@cuatro/db";
+import { resolveMoneyOptIn, type MoneyOptIn } from "@/lib/booking";
 import { computeCounterpartyBalances, type TabEntryLike } from "@/server/tab";
 import { DEFAULT_SESSION_SLOTS, FOURTH_CALL_WINDOW_MS, ROTATION_DEFAULT_CUTOFF_HOURS } from "@/server/games-service";
 import { getDb } from "@/server/db";
@@ -82,8 +83,15 @@ export interface WeekSession {
   viewerAvailable: boolean;
   /** In the Fourth Call window (≤48h out, not full) — same rule as games-service isFourthCallActive. */
   fourthCallActive: boolean;
-  costMinor: number | null;
-  costCurrency: string;
+  /** Organiser's optional court-side hint on the call (issue #21) — display only, never filters. */
+  fourthCallSideHint: "left" | "right" | null;
+  /**
+   * Money on a game is OPT-IN (issue #21): at most one of a "Booked on"
+   * signpost (session override > standing game; never touches the Tab) or a
+   * court cost (the Tab split) — resolved by lib/booking.ts's
+   * resolveMoneyOptIn; null means the default, silence.
+   */
+  moneyOptIn: MoneyOptIn;
 }
 
 /** Visual state of a day cell / which side card a session feeds. Priority order documented in weekCellKind. */
@@ -113,6 +121,8 @@ export interface WeekFourthCall {
   confirmedRatings: number[];
   /** The viewer's own Glass, or null if unrated. */
   viewerRating: number | null;
+  /** Organiser's optional court-side hint (issue #21) — display only, never filters. */
+  sideHint: "left" | "right" | null;
 }
 
 export interface WeekTabPrompt {
@@ -215,6 +225,7 @@ export async function buildWeekData(db: CuatroDb, userId: string, now: Date = ne
       .select({
         sessionId: sessions.id,
         circleId: sessions.circleId,
+        standingGameId: sessions.standingGameId,
         startsAt: sessions.startsAt,
         rotationLockedAt: sessions.rotationLockedAt,
         slots: standingGames.slots,
@@ -223,6 +234,11 @@ export async function buildWeekData(db: CuatroDb, userId: string, now: Date = ne
         rotationCutoffHours: standingGames.rotationCutoffHours,
         costMinor: standingGames.costMinor,
         costCurrency: standingGames.costCurrency,
+        sessionBookingPlatform: sessions.bookingPlatform,
+        sessionBookingUrl: sessions.bookingUrl,
+        fourthCallSideHint: sessions.fourthCallSideHint,
+        gameBookingPlatform: standingGames.bookingPlatform,
+        gameBookingUrl: standingGames.bookingUrl,
         venueName: venues.name,
         venueTimezone: venues.timezone,
         circleTimezone: circles.timezone,
@@ -349,8 +365,19 @@ export async function buildWeekData(db: CuatroDb, userId: string, now: Date = ne
       locksAt: rotationEnabled && row.rotationMode !== "unlimited" ? row.startsAt - cutoffHours * HOUR_MS : null,
       viewerAvailable: rows.some((r) => r.userId === userId && r.status === "available"),
       fourthCallActive: msToStart >= 0 && msToStart <= FOURTH_CALL_WINDOW_MS && confirmedCount < slots,
-      costMinor: row.costMinor ?? null,
-      costCurrency: row.costCurrency ?? "GBP",
+      fourthCallSideHint: row.fourthCallSideHint ?? null,
+      moneyOptIn: resolveMoneyOptIn({
+        session: { bookingPlatform: row.sessionBookingPlatform, bookingUrl: row.sessionBookingUrl },
+        standingGame:
+          row.standingGameId != null
+            ? {
+                bookingPlatform: row.gameBookingPlatform,
+                bookingUrl: row.gameBookingUrl,
+                costMinor: row.costMinor,
+                costCurrency: row.costCurrency ?? "GBP",
+              }
+            : null,
+      }),
     });
   }
 
@@ -372,6 +399,7 @@ export async function buildWeekData(db: CuatroDb, userId: string, now: Date = ne
         askerAvatarUrl: firstFourthCall.confirmed[0]?.avatarUrl ?? null,
         confirmedRatings: firstFourthCall.confirmedRatings,
         viewerRating: viewerRow?.rating ?? null,
+        sideHint: firstFourthCall.fourthCallSideHint,
       }
     : null;
 

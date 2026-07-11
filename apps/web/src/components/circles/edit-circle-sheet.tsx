@@ -53,6 +53,7 @@ export interface EditVenueOption {
  * stays calm.
  */
 export function EditCircleSheet({
+  idPrefix = "",
   circleId,
   initialName,
   initialColour,
@@ -64,6 +65,8 @@ export function EditCircleSheet({
   venueOptions,
   anchor,
 }: {
+  /** Uniquifies field ids when two instances are mounted (the responsive phone/wide settings trees each carry one). */
+  idPrefix?: string;
   circleId: string;
   initialName: string;
   initialColour: string;
@@ -171,11 +174,11 @@ export function EditCircleSheet({
           <HeaderPicker selected={header} onChange={setHeader} />
 
           <div className="flex flex-col gap-2">
-            <label htmlFor="edit-circle-name" className="text-cu-body font-semibold text-ink">
+            <label htmlFor={`${idPrefix}edit-circle-name`} className="text-cu-body font-semibold text-ink">
               Circle name
             </label>
             <input
-              id="edit-circle-name"
+              id={`${idPrefix}edit-circle-name`}
               value={name}
               maxLength={MAX_CIRCLE_NAME_LENGTH}
               onChange={(e) => setName(e.target.value)}
@@ -210,11 +213,11 @@ export function EditCircleSheet({
           {/* Home court: pick a venue explicitly, or leave it automatic and let it
               derive from where the Circle plays. The helper states which it is. */}
           <div className="flex flex-col gap-2">
-            <label htmlFor="edit-home-venue" className="text-cu-body font-semibold text-ink">
+            <label htmlFor={`${idPrefix}edit-home-venue`} className="text-cu-body font-semibold text-ink">
               Home court
             </label>
             <select
-              id="edit-home-venue"
+              id={`${idPrefix}edit-home-venue`}
               value={homeVenueId}
               onChange={(e) => setHomeVenueId(e.target.value)}
               className="w-full rounded-button px-4 py-3 text-[14px] outline-none bg-surface border border-ink-hairline-3 text-ink"
@@ -236,11 +239,11 @@ export function EditCircleSheet({
           </div>
 
           <div className="flex flex-col gap-2">
-            <label htmlFor="edit-max-members" className="text-cu-body font-semibold text-ink">
+            <label htmlFor={`${idPrefix}edit-max-members`} className="text-cu-body font-semibold text-ink">
               Max players (optional)
             </label>
             <input
-              id="edit-max-members"
+              id={`${idPrefix}edit-max-members`}
               type="number"
               inputMode="numeric"
               min={MIN_MAX_MEMBERS}
@@ -253,7 +256,7 @@ export function EditCircleSheet({
             <Meta as="p">Most circles run 4 to 12. Leave it blank to keep joining open.</Meta>
           </div>
 
-          <Button onClick={save} size="lg" fullWidth disabled={pending || !trimmedName}>
+          <Button onClick={save} size="lg" fullWidth pending={pending} disabled={!trimmedName}>
             {pending ? "Saving…" : "Save changes"}
           </Button>
           {error && <Meta tone="loss">{EDIT_ERROR_COPY[error] ?? EDIT_ERROR_COPY.something_went_wrong}</Meta>}

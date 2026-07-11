@@ -15,8 +15,10 @@ import { EditCircleSheet, type EditAnchor, type EditVenueOption } from "@/compon
 import type { SessionCardData } from "@/components/games/SessionCard";
 import { useCircleLive } from "@/lib/realtime/hooks";
 import { formatGlass } from "@/lib/design";
-import type { PendingSealCardData } from "@/app/(app)/circles/[id]/load-circle";
+import type { PendingSealCardData, SettingsStandingGameView } from "@/app/(app)/circles/[id]/load-circle";
+import type { MoneyOptIn } from "@/lib/booking";
 import { PinnedGameBar } from "./pinned-game-bar";
+import { WideSettings } from "./wide/wide-settings";
 import { ResultPost, type ResultPostData } from "./result-post";
 import { PlacementRevealPost, type PlacementRevealPostData } from "./placement-reveal-post";
 import { RivalryCallout } from "./rivalry-callout";
@@ -72,6 +74,8 @@ export function CircleTabs({
   pendingSeals = [],
   rivalry,
   initialTab = "feed",
+  pinnedMoneyOptIn = null,
+  settingsStandingGames = [],
 }: {
   circleId: string;
   circleColour: string;
@@ -100,6 +104,10 @@ export function CircleTabs({
   pendingSeals?: PendingSealCardData[];
   rivalry: { opponentName: string; opponentAvatarUrl: string | null; count: number; direction: "beaten" | "lost_to" } | null;
   initialTab?: Tab;
+  /** Issue #21: the pinned session's resolved money opt-in — the pinned bar shows a BookingChip when it's a booking. */
+  pinnedMoneyOptIn?: MoneyOptIn;
+  /** Organiser-only — the wide Settings panel's standing-game cards. */
+  settingsStandingGames?: SettingsStandingGameView[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -148,6 +156,7 @@ export function CircleTabs({
       viewerStatus={primary.viewerStatus}
       rsvpWindowOpensAt={primary.rsvpWindowOpensAt}
       startsAt={primary.startsAt}
+      booking={pinnedMoneyOptIn?.kind === "booking" ? pinnedMoneyOptIn.booking : null}
     />
   );
 
@@ -176,7 +185,7 @@ export function CircleTabs({
           <MemberRowLink
             key={m.userId}
             href={memberHref(m, isYou)}
-            className={`flex items-center gap-2.5 px-4 py-3 ${i < arr.length - 1 ? "border-b border-ink-hairline-1" : ""}`}
+            className={`flex items-center gap-2.5 px-4 py-3 transition-cu-state hover:bg-ink-hairline-1 ${i < arr.length - 1 ? "border-b border-ink-hairline-1" : ""}`}
           >
             <Avatar src={m.avatarUrl} name={m.displayName} size="sm" />
             <div className="flex-1 min-w-0">
@@ -360,7 +369,7 @@ export function CircleTabs({
                   <MemberRowLink
                     key={m.userId}
                     href={memberHref(m, isYou)}
-                    className={`flex items-center gap-3 px-[18px] py-3.5 ${i < members.length - 1 ? "border-b border-ink-hairline-1" : ""}`}
+                    className={`flex items-center gap-3 px-[18px] py-3.5 transition-cu-state hover:bg-ink-hairline-1 ${i < members.length - 1 ? "border-b border-ink-hairline-1" : ""}`}
                   >
                     <Avatar src={m.avatarUrl} name={m.displayName} size="md" />
                     <div className="flex-1 min-w-0">
@@ -388,40 +397,75 @@ export function CircleTabs({
       )}
 
       {activeTab === "settings" && isOrganiser && (
-        <div className="flex flex-col gap-6">
-          <section className="flex flex-col gap-3">
-            <div>
-              <p className="text-cu-body font-bold text-ink">Circle details</p>
-              <Meta as="p" className="mt-0.5">
-                Name, colour, emblem, header image, home court and size.
-              </Meta>
-            </div>
-            <EditCircleSheet
-              circleId={circleId}
-              initialName={circleName}
-              initialColour={circleColour}
-              initialEmblem={circleEmblem}
-              initialHeaderImage={headerImage}
-              initialHomeVenueId={homeVenueId}
-              initialMaxMembers={maxMembers}
-              memberCount={memberCount}
-              venueOptions={venueOptions}
-              anchor={anchor}
-            />
-          </section>
+        <>
+          {/* Phone settings — the shipped surface, byte-for-byte below 900px. */}
+          <div className="min-[900px]:hidden flex flex-col gap-6">
+            <section className="flex flex-col gap-3">
+              <div>
+                <p className="text-cu-body font-bold text-ink">Circle details</p>
+                <Meta as="p" className="mt-0.5">
+                  Name, colour, emblem, header image, home court and size.
+                </Meta>
+              </div>
+              <EditCircleSheet
+                circleId={circleId}
+                initialName={circleName}
+                initialColour={circleColour}
+                initialEmblem={circleEmblem}
+                initialHeaderImage={headerImage}
+                initialHomeVenueId={homeVenueId}
+                initialMaxMembers={maxMembers}
+                memberCount={memberCount}
+                venueOptions={venueOptions}
+                anchor={anchor}
+              />
+            </section>
 
-          <section className="flex flex-col gap-3">
-            <DoorControls
+            <section className="flex flex-col gap-3">
+              <DoorControls
+                circleId={circleId}
+                initialOpenDoor={openDoor}
+                initialBoardEnabled={boardEnabled}
+                initialVibeLine={vibeLine}
+                initialDefaultGameType={defaultGameType}
+              />
+            </section>
+
+            <KnockPanel knocks={pendingKnocks} />
+          </div>
+
+          {/* Wide settings — the design's two-column organiser panel. Its own
+              EditCircleSheet instance (idPrefix keeps label targets unique;
+              only one tree is ever visible). */}
+          <div className="hidden min-[900px]:block">
+            <WideSettings
               circleId={circleId}
+              circleName={circleName}
               initialOpenDoor={openDoor}
               initialBoardEnabled={boardEnabled}
-              initialVibeLine={vibeLine}
               initialDefaultGameType={defaultGameType}
+              members={members}
+              currentUserId={currentUserId}
+              knocks={pendingKnocks}
+              standingGames={settingsStandingGames}
+              editCircleSlot={
+                <EditCircleSheet
+                  idPrefix="wide-"
+                  circleId={circleId}
+                  initialName={circleName}
+                  initialColour={circleColour}
+                  initialEmblem={circleEmblem}
+                  initialHeaderImage={headerImage}
+                  initialHomeVenueId={homeVenueId}
+                  initialMaxMembers={maxMembers}
+                  memberCount={memberCount}
+                  venueOptions={venueOptions}
+                  anchor={anchor}
+                />
+              }
             />
-          </section>
-
-          <KnockPanel knocks={pendingKnocks} />
-        </div>
+          </div>
+        </>
       )}
 
       <QrShareSheet

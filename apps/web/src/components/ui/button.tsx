@@ -52,6 +52,32 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * No-op for `primary`/`strong`.
    */
   onFeature?: boolean;
+  /**
+   * True while the action this button fired is awaiting the server (Pete,
+   * 2026-07-11: a silent click reads as "nothing happened"). Shows an inline
+   * spinner beside the label, sets aria-busy, and blocks re-submits via
+   * disabled — the label stays put so the button never changes size. For a
+   * `<form action={fn}>` submit, reach for SubmitButton (submit-button.tsx),
+   * which derives this from useFormStatus.
+   */
+  pending?: boolean;
+}
+
+/**
+ * Border-spinner sized to the label's cap height. Under prefers-reduced-
+ * motion the rotation stops but the broken ring + disabled dim still read
+ * as "working" (aria-busy carries it for AT). Exported for interactive
+ * elements that can't be a full Button (row pills, inline actions) — use
+ * this rather than replicating the recipe, so the pending state stays one
+ * shape everywhere.
+ */
+export function PendingSpinner() {
+  return (
+    <span
+      aria-hidden
+      className="inline-block h-[1em] w-[1em] flex-none animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none"
+    />
+  );
 }
 
 export function Button({
@@ -59,7 +85,10 @@ export function Button({
   size = "default",
   fullWidth = false,
   onFeature = false,
+  pending = false,
   className = "",
+  children,
+  disabled,
   ...props
 }: ButtonProps) {
   const isQuiet = variant === "quiet" || variant === "destructiveQuiet";
@@ -68,7 +97,7 @@ export function Button({
     <button
       className={[
         "rounded-button inline-flex items-center justify-center gap-2 select-none",
-        "transition-cu-state active:opacity-80 disabled:opacity-40 disabled:pointer-events-none",
+        "transition-cu-state hover:opacity-90 active:opacity-80 disabled:opacity-40 disabled:pointer-events-none",
         weight,
         onFeature && isQuiet ? ON_FEATURE_QUIET_CLASS : VARIANT_CLASS[variant],
         SIZE_CLASS[size],
@@ -77,7 +106,12 @@ export function Button({
       ]
         .filter(Boolean)
         .join(" ")}
+      aria-busy={pending || undefined}
+      disabled={pending || disabled}
       {...props}
-    />
+    >
+      {pending ? <PendingSpinner /> : null}
+      {children}
+    </button>
   );
 }

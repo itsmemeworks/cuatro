@@ -819,3 +819,112 @@ describe("rescheduleUpcomingSessionsForStandingGame", () => {
     expect(result.movedSessionIds).toEqual([upcoming.id]);
   });
 });
+
+// -----------------------------------------------------------------------------
+// Money opt-in read model (GitHub issue #21): getSessionSummary.moneyOptIn is
+// THE resolution — session booking override > standing-game booking >
+// standing-game cost > silence — and the legacy cost fields derive from it, so
+// a booked-on game can never leak a split preview.
+// -----------------------------------------------------------------------------
+
+describe("money opt-in read model — getSessionSummary.moneyOptIn", () => {
+  const SUNDAY = new Date("2026-01-04T00:00:00.000Z");
+
+  it("resolves to silence when neither opt-in is set", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    const session = await ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+    const summary = await getSessionSummary(fixture.db, session.id, fixture.organiserId);
+    expect(summary?.moneyOptIn).toBeNull();
+    expect(summary?.fourthCallSideHint).toBeNull();
+  });
+
+  it("a session inherits its standing game's booking signpost, and the cost fields stay silent", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, {
+      bookingPlatform: "playtomic",
+      bookingUrl: "https://playtomic.io/clubs/x",
+    });
+    const session = await ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+
+    const summary = await getSessionSummary(fixture.db, session.id, fixture.organiserId);
+    expect(summary?.moneyOptIn).toEqual({
+      kind: "booking",
+      booking: { platform: "playtomic", url: "https://playtomic.io/clubs/x" },
+    });
+    expect(summary?.costMinor).toBeNull();
+    expect(summary?.costPerHeadMinor).toBeNull();
+  });
+
+  it("a session-level booking override beats the standing game's opt-in", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 3200 });
+    const session = await ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+    await fixture.db
+      .update(sessions)
+      .set({ bookingPlatform: "matchi", bookingUrl: null })
+      .where(eq(sessions.id, session.id));
+
+    const summary = await getSessionSummary(fixture.db, session.id, fixture.organiserId);
+    expect(summary?.moneyOptIn).toEqual({ kind: "booking", booking: { platform: "matchi", url: null } });
+    // The standing game still carries a cost, but the per-occurrence booking
+    // override silences it — no split chrome may render for this session.
+    expect(summary?.costMinor).toBeNull();
+    expect(summary?.costPerHeadMinor).toBeNull();
+  });
+
+  it("a standing-game cost resolves as the cost opt-in (unchanged behaviour)", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00", slots: 4 } });
+    await updateStandingGame(fixture.db, fixture.organiserId, fixture.standingGameId!, { costMinor: 3200 });
+    const session = await ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+
+    const summary = await getSessionSummary(fixture.db, session.id, fixture.organiserId);
+    expect(summary?.moneyOptIn).toEqual({ kind: "cost", amountMinor: 3200, currency: "GBP" });
+    expect(summary?.costMinor).toBe(3200);
+    expect(summary?.costPerHeadMinor).toBe(800);
+  });
+
+  it("a one-off session can carry its own booking signpost (set directly, nothing to inherit)", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    const created = await createOneOffSession(fixture.db, fixture.organiserId, {
+      circleId: fixture.circleId,
+      startsAt: new Date(Date.now() + DAY_MS),
+      bookingPlatform: "club_website",
+      bookingUrl: "https://ourclub.example/booking",
+    });
+    if (!created.ok) throw new Error("unreachable");
+
+    const summary = await getSessionSummary(fixture.db, created.value.id, fixture.organiserId);
+    expect(summary?.moneyOptIn).toEqual({
+      kind: "booking",
+      booking: { platform: "club_website", url: "https://ourclub.example/booking" },
+    });
+  });
+
+  it("createOneOffSession rejects an unknown platform and a bad url", async () => {
+    fixture = await seedCircle({ memberCount: 1 });
+    expect(
+      await createOneOffSession(fixture.db, fixture.organiserId, {
+        circleId: fixture.circleId,
+        startsAt: new Date(Date.now() + DAY_MS),
+        bookingPlatform: "skynet",
+      }),
+    ).toEqual({ ok: false, error: "invalid_booking_platform" });
+    expect(
+      await createOneOffSession(fixture.db, fixture.organiserId, {
+        circleId: fixture.circleId,
+        startsAt: new Date(Date.now() + DAY_MS),
+        bookingPlatform: "playtomic",
+        bookingUrl: "not-a-url",
+      }),
+    ).toEqual({ ok: false, error: "invalid_booking_url" });
+  });
+
+  it("exposes the organiser-set Fourth Call side hint (a hint only — nothing filters on it)", async () => {
+    fixture = await seedCircle({ memberCount: 1, standingGame: { weekday: 2, startTime: "20:00" } });
+    const session = await ensureUpcomingSessionForStandingGame(fixture.db, fixture.standingGameId!, SUNDAY);
+    await fixture.db.update(sessions).set({ fourthCallSideHint: "left" }).where(eq(sessions.id, session.id));
+
+    const summary = await getSessionSummary(fixture.db, session.id, fixture.organiserId);
+    expect(summary?.fourthCallSideHint).toBe("left");
+  });
+});

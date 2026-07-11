@@ -98,7 +98,12 @@ export type ShellContext =
  *   /circles/[id]/games*     → circle:games
  *   /circles/[id]/tab        → circle:tab
  *   /circles/[id]/<other>    → circle:other (settings etc.)
- *   /home, /feed, /matches*, /games* → home:week
+ *   /home, /feed, /matches*, /games, /games/standing* → home:week
+ *   /games/[sessionId]       → circle:games for the session's circle (WAVE C:
+ *                              data-aware — lib/shell-context.ts gameSessionIdFor
+ *                              names the lookup, the (app) layout resolves it via
+ *                              server/shell-circle.ts; non-members and unknown
+ *                              sessions fall back to home:week)
  *   /discover, /players*     → home:discover   (Discover's own page = /discover, NEW in Wave B)
  *   /tab                     → home:tab
  *   /profile*                → home:you

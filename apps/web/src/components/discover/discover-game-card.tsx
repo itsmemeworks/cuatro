@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Avatar, Button, Card, DashedSlot, Fact, Meta, Sheet } from "@/components/ui";
+import { Avatar, Button, Card, DashedSlot, Fact, Meta, PendingSpinner, Sheet } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
 import type { DiscoverConfirmedPlayer, DiscoverGame } from "@/server/discover-page";
 
@@ -161,9 +161,9 @@ export function DiscoverGameCard({ game }: { game: DiscoverGame }) {
               type="button"
               onClick={withdraw}
               disabled={busy}
-              className="text-cu-secondary font-bold text-ink-muted whitespace-nowrap disabled:opacity-50"
+              className="text-cu-secondary cursor-pointer font-bold text-ink-muted whitespace-nowrap transition-cu-state hover:text-ink disabled:opacity-50"
             >
-              Asked · withdraw
+              {busy ? <PendingSpinner /> : null} Asked · withdraw
             </button>
           ) : (
             <Button variant={game.inBand ? "primary" : "quiet"} onClick={() => setOpen(true)} className="shrink-0 whitespace-nowrap">
@@ -195,8 +195,8 @@ export function DiscoverGameCard({ game }: { game: DiscoverGame }) {
             className="w-full rounded-button px-4 py-3 text-cu-body outline-none bg-ground border border-ink-hairline-2 text-ink resize-none"
           />
           {error && <p className="text-cu-secondary text-loss">{error}</p>}
-          <Button variant="strong" size="lg" fullWidth onClick={sendAsk} disabled={busy}>
-            {busy ? "Sending…" : "Send ask"}
+          <Button variant="strong" size="lg" fullWidth onClick={sendAsk} pending={busy}>
+            Send ask
           </Button>
         </div>
       </Sheet>
