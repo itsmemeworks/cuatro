@@ -1,13 +1,26 @@
 import type { LedgerEntryView } from "@/server/matches-db";
 import { Fact, InfoTerm, Meta } from "@/components/ui";
 import { LedgerRow } from "@/components/glass-screens/ledger-row";
+import { DEFAULT_TZ, formatDate } from "@/lib/time";
 
-function formatDate(d: Date): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(d);
+/**
+ * Sign follows the RESULT, not the raw float: the engine never moves a
+ * winner down nor a loser up, so the only ambiguous case is the fully
+ * Echo-damped 0.00 — which must read −0.00 on a loss, never +0.00
+ * (QA5 finding 1). U+2212 minus, matching result-post.tsx.
+ */
+function fmtDelta(delta: number, won: boolean): string {
+  return `${won ? "+" : "−"}${Math.abs(delta).toFixed(2)}`;
 }
 
-function fmtDelta(delta: number): string {
-  return `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
+/**
+ * The Ledger's genesis row is the entry whose explanation opens with
+ * matches-db.ts's PLACEMENT_REVEAL_EXPLANATION_PREFIX (there's no dedicated
+ * flag on the entry). Shared by ledger-view.tsx and you-wide.tsx so the two
+ * Ledger surfaces can't drift on what counts as the pour.
+ */
+export function isGenesisEntry(entry: Pick<LedgerEntryView, "explanation">): boolean {
+  return entry.explanation.startsWith("Placement Trio complete");
 }
 
 /** One Ledger line — a bank-statement-style row (design/HANDOFF.md screen 9): result + opponents, the delta, the plain-language why, the running balance; expands to the factors that produced it. */
@@ -22,7 +35,8 @@ export function LedgerEntryRow({
   score: string | null;
   venueName?: string | null;
 }) {
-  const won = entry.delta >= 0;
+  // From the match winner, never the delta sign (see LedgerEntryView.won).
+  const won = entry.won;
 
   return (
     <LedgerRow
@@ -34,12 +48,13 @@ export function LedgerEntryRow({
       }
       value={
         <Fact size="md" weight="bold" tone={won ? "win" : "loss"}>
-          {fmtDelta(entry.delta)}
+          {fmtDelta(entry.delta, won)}
         </Fact>
       }
       meta={
         <>
-          {formatDate(entry.createdAt)}
+          {/* DEFAULT_TZ (F2 §5): profile-wide surface with no session anchor. */}
+          {formatDate(entry.createdAt, DEFAULT_TZ)}
           {venueName && ` · ${venueName}`}
           {entry.outcome === "retired" && " · retired"}
         </>
@@ -70,7 +85,15 @@ export function LedgerEntryRow({
   );
 }
 
-/** The Ledger's origin row — "Glass poured" (design/HANDOFF.md screen 9's genesis row). One per player, ever. */
+/**
+ * The Ledger's origin row — "Glass poured" (design/HANDOFF.md screen 9's
+ * genesis row). One per player, ever. A pure MARKER: the trio-completing
+ * match itself renders as a normal entry row directly beneath this (the
+ * caller renders both — QA5 finding 2: the pour's own delta, factors and
+ * damping must be explained like any other movement, or the statement can't
+ * reconstruct its headline number). The number here is therefore the POURED
+ * balance (ratingAfter), which is exactly what the profile header shows.
+ */
 export function GenesisRow({ entry, placementSize }: { entry: LedgerEntryView; placementSize: number }) {
   return (
     <div className="flex items-center gap-2.5 px-4 py-3 border-b border-ink-hairline-1 last:border-b-0">
@@ -78,8 +101,7 @@ export function GenesisRow({ entry, placementSize }: { entry: LedgerEntryView; p
       <div className="flex-1">
         <p className="text-cu-body text-ink font-bold">Glass poured, Placement Trio complete</p>
         <Meta className="mt-0.5 block">
-          {placementSize} verified games · opening balance {entry.ratingBefore != null ? entry.ratingBefore.toFixed(2) : "—"} · conf{" "}
-          {entry.confidenceBeforePct}%
+          {placementSize} verified games · poured at {entry.ratingAfter.toFixed(2)} · conf {entry.confidenceAfterPct}%
         </Meta>
       </div>
     </div>

@@ -8,6 +8,7 @@ import {
   isOrganiser,
   listCirclesForUser,
   listStandingGamesForCircle,
+  normalizeBookingUrl,
   updateStandingGame,
 } from "@/server/standing-games-service";
 
@@ -282,6 +283,22 @@ describe("money opt-in XOR — createStandingGame", () => {
         bookingUrl: "playtomic.io/no-scheme",
       }),
     ).toEqual({ ok: false, error: "invalid_booking_url" });
+  });
+
+  // QA4: "https://x" parsed as a URL and saved, then linked a teammate
+  // nowhere. A real booking link needs a dotted host.
+  it("rejects a booking url whose host has no dot (and other non-links)", () => {
+    expect(normalizeBookingUrl("https://x")).toEqual({ ok: false });
+    expect(normalizeBookingUrl("https://x.")).toEqual({ ok: false });
+    expect(normalizeBookingUrl("https://.io")).toEqual({ ok: false });
+    expect(normalizeBookingUrl("not a real url at all")).toEqual({ ok: false });
+    // Real links (and dotted IPs) still pass; empty still means "clear".
+    expect(normalizeBookingUrl("https://playtomic.io/clubs/somewhere")).toEqual({
+      ok: true,
+      url: "https://playtomic.io/clubs/somewhere",
+    });
+    expect(normalizeBookingUrl("http://192.168.0.10/court")).toEqual({ ok: true, url: "http://192.168.0.10/court" });
+    expect(normalizeBookingUrl("  ")).toEqual({ ok: true, url: null });
   });
 
   it("never stores a url without a platform", async () => {

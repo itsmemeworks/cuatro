@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar, Fact, SubmitButton } from "@/components/ui";
 import type { LedgerEvent, MatchOutcome } from "@cuatro/glass";
-import { glassSkipNote, ratingStillHidden, type MatchStatus, type Team } from "@/components/matches/match-confirm-flow";
+import { fmtSealDelta, glassSkipNote, ratingStillHidden, sealFactTone, type MatchStatus, type Team } from "@/components/matches/match-confirm-flow";
 import { FriendlyBadge } from "@/components/matches/friendly-badge";
+import { DEFAULT_TZ, formatDate, localDateKey } from "@/lib/time";
 
 /*
  * The wide (>=900px) match detail: the design overlay's step 5 grown into a
@@ -27,18 +28,22 @@ interface PlayerBits {
   avatarUrl: string | null;
 }
 
-function fmtDelta(delta: number): string {
-  return `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
-}
-
+/**
+ * "today" / "last night" / "yesterday" / "Thu 3 Jul", tz-explicit (F2 §5):
+ * the day buckets and the 17:00 "last night" check are computed in
+ * DEFAULT_TZ (this component receives no venue/circle tz), never via
+ * Date#getHours/local-midnight maths — the Fly runtime is TZ=UTC.
+ */
 function whenLine(startsAtMs: number, venueName: string | null): string {
-  const now = new Date();
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const d = new Date(startsAtMs);
+  const tz = DEFAULT_TZ;
+  const now = Date.now();
+  const key = localDateKey(startsAtMs, tz);
   let when: string;
-  if (startsAtMs >= midnight) when = "today";
-  else if (startsAtMs >= midnight - 24 * 60 * 60 * 1000) when = d.getHours() >= 17 ? "last night" : "yesterday";
-  else when = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  if (key === localDateKey(now, tz)) when = "today";
+  else if (key === localDateKey(now - 24 * 60 * 60 * 1000, tz)) {
+    const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", hour12: false }).format(new Date(startsAtMs)));
+    when = hour >= 17 ? "last night" : "yesterday";
+  } else when = formatDate(startsAtMs, tz);
   return venueName ? `${when} at ${venueName}` : when;
 }
 
@@ -47,6 +52,7 @@ export function MatchDetailWide({
   outcome,
   friendly,
   sets,
+  winnerTeam,
   viewerTeam,
   viewerHasConfirmed,
   canAct,
@@ -68,6 +74,8 @@ export function MatchDetailWide({
   outcome: MatchOutcome;
   friendly: boolean;
   sets: { a: number; b: number }[];
+  /** computeWinner over the match's score — the seal card's W/L truth (see sealFactTone). */
+  winnerTeam: Team;
   viewerTeam: Team | null;
   viewerHasConfirmed: boolean;
   canAct: boolean;
@@ -270,6 +278,7 @@ export function MatchDetailWide({
             <SealCard
               friendly={friendly}
               outcome={outcome}
+              winnerTeam={winnerTeam}
               ledgerEvents={ledgerEvents}
               playerNames={playerNames}
               teamAIds={teamAIds}
@@ -311,6 +320,7 @@ export function MatchDetailWide({
 function SealCard({
   friendly,
   outcome,
+  winnerTeam,
   ledgerEvents,
   playerNames,
   teamAIds,
@@ -318,6 +328,7 @@ function SealCard({
 }: {
   friendly: boolean;
   outcome: MatchOutcome;
+  winnerTeam: Team;
   ledgerEvents: readonly LedgerEvent[];
   playerNames: Record<string, string>;
   teamAIds: [string, string];
@@ -344,17 +355,21 @@ function SealCard({
   }
   const teamAEvents = ledgerEvents.filter((e) => teamAIds.includes(e.playerId));
   const teamBEvents = ledgerEvents.filter((e) => teamBIds.includes(e.playerId));
+  const sides = [
+    { events: teamAEvents, won: winnerTeam === "A" },
+    { events: teamBEvents, won: winnerTeam === "B" },
+  ];
   return (
     <div className="animate-cu-seal rounded-[18px] bg-win-tint border border-win/40 px-[18px] py-4 text-center flex flex-col gap-2.5">
       <p className="font-sans font-extrabold text-[14px] text-win">Result sealed, written to both Ledgers</p>
       <div className="flex justify-center gap-10">
-        {[teamAEvents, teamBEvents].map((events, i) => (
+        {sides.map(({ events, won }, i) => (
           <div key={i} className="flex flex-col gap-1">
             {events.map((ev) => (
-              <Fact key={ev.playerId} size="sm" weight="semibold" tone={ratingStillHidden(ev.explanation) ? "muted" : ev.delta >= 0 ? "win" : "loss"}>
+              <Fact key={ev.playerId} size="sm" weight="semibold" tone={sealFactTone(ev.explanation, won)}>
                 {ratingStillHidden(ev.explanation)
                   ? `${playerNames[ev.playerId] ?? "Player"}, Glass still building`
-                  : `${playerNames[ev.playerId] ?? "Player"} ${fmtDelta(ev.delta)} → ${ev.ratingAfter.toFixed(2)}`}
+                  : `${playerNames[ev.playerId] ?? "Player"} ${fmtSealDelta(ev.delta, won)} → ${ev.ratingAfter.toFixed(2)}`}
               </Fact>
             ))}
           </div>

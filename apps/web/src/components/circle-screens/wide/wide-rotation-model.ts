@@ -4,10 +4,15 @@
  * timezone surprises hidden in JSX — every label the wide panels render comes
  * from here so the copy is unit-testable. Same data as the phone card
  * (StandingGameWeekCard's RotationCardView), different anatomy.
+ *
+ * Every time-rendering helper REQUIRES the session's IANA timezone (venue's,
+ * else the Circle's — SessionSummary.timezone). No London default: a silent
+ * fallback is how the raw-UTC hour-early class survived QA (lib/time.ts has
+ * the full story).
  */
 
 /** "Sat 10am" / "Sat 7:30pm" — the design's lock-instant shorthand. */
-export function shortDayTime(ms: number, timeZone = "Europe/London"): string {
+export function shortDayTime(ms: number, timeZone: string): string {
   const d = new Date(ms);
   const weekday = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short" }).format(d);
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "numeric", minute: "2-digit", hour12: true }).formatToParts(d);
@@ -18,7 +23,7 @@ export function shortDayTime(ms: number, timeZone = "Europe/London"): string {
 }
 
 /** "This Sunday · 12 Jul" — the pre-lock availability card's heading. */
-export function thisWeekHeading(startsAtMs: number, timeZone = "Europe/London"): string {
+export function thisWeekHeading(startsAtMs: number, timeZone: string): string {
   const d = new Date(startsAtMs);
   const weekday = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "long" }).format(d);
   const day = new Intl.DateTimeFormat("en-GB", { timeZone, day: "numeric" }).format(d);
@@ -27,7 +32,7 @@ export function thisWeekHeading(startsAtMs: number, timeZone = "Europe/London"):
 }
 
 /** "Sun 12 · 10:00" — THE FOUR header's right-hand session stamp. */
-export function sessionStamp(startsAtMs: number, timeZone = "Europe/London"): string {
+export function sessionStamp(startsAtMs: number, timeZone: string): string {
   const d = new Date(startsAtMs);
   const weekday = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short" }).format(d);
   const day = new Intl.DateTimeFormat("en-GB", { timeZone, day: "numeric" }).format(d);
@@ -40,7 +45,7 @@ export function sessionStamp(startsAtMs: number, timeZone = "Europe/London"): st
  * "THE FOUR · LOCKED" if the lock instant isn't known (shouldn't happen for a
  * locked limited game, but unlimited-mode data never carries one).
  */
-export function lockedHeaderLabel(lockedAtMs: number | null, timeZone = "Europe/London"): string {
+export function lockedHeaderLabel(lockedAtMs: number | null, timeZone: string): string {
   if (lockedAtMs == null) return "THE FOUR · LOCKED";
   return `THE FOUR · LOCKED ${shortDayTime(lockedAtMs, timeZone).toUpperCase()}`;
 }
@@ -85,7 +90,7 @@ export function rotationModePill(mode: "limited" | "unlimited", cutoffHours: num
 }
 
 /** The games-list subline for a rotation fixture: what happens next, honestly. */
-export function rotationListStatus(input: { locked: boolean; mode: "limited" | "unlimited"; locksAtMs: number }, timeZone = "Europe/London"): string {
+export function rotationListStatus(input: { locked: boolean; mode: "limited" | "unlimited"; locksAtMs: number }, timeZone: string): string {
   if (input.locked) return "the four is set";
   if (input.mode === "unlimited") return "re-picks to kickoff";
   return `lineup locks ${shortDayTime(input.locksAtMs, timeZone)}`;

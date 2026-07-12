@@ -12,6 +12,7 @@ import {
   markAvailable,
   markUnavailable,
   offerRotationSlotIfNeeded,
+  rsvpIn,
   rsvpOut,
 } from "@/server/games-service";
 import { claimFourthCallSlot, hasFourthCallInvite } from "@/server/fourth-call";
@@ -45,6 +46,29 @@ async function seedPastSession(f: Fixture, startsAt: Date, playedUserIds: string
   }
   return s;
 }
+
+describe("rsvpIn on rotation games (fix-wave backstop)", () => {
+  it("rejects a bare slot-grab on a GATHERING limited-rotation game", async () => {
+    const now = new Date("2026-01-04T00:00:00.000Z");
+    const { fixture: f, session } = await rotationFixture(now);
+    const uid = f.memberIds[0];
+
+    // The QA8 contradiction path: an 'in' here would show "You're in" while the
+    // lineup (availability-derived) stays empty. Must be structurally impossible.
+    expect(await rsvpIn(f.db, session.id, uid, now)).toEqual({ ok: false, error: "rotation_not_locked" });
+    const [row] = await f.db.select().from(rsvps).where(and(eq(rsvps.sessionId, session.id), eq(rsvps.userId, uid)));
+    expect(row).toBeUndefined();
+  });
+
+  it("still allows the late-fill join once the rotation has locked", async () => {
+    const now = new Date("2026-01-04T00:00:00.000Z");
+    const { fixture: f, session } = await rotationFixture(now);
+    await f.db.update(sessions).set({ rotationLockedAt: now.getTime() }).where(eq(sessions.id, session.id));
+
+    const outcome = await rsvpIn(f.db, session.id, f.memberIds[0], now);
+    expect(outcome.ok).toBe(true);
+  });
+});
 
 describe("markAvailable / markUnavailable", () => {
   it("records availability without holding a slot, idempotently", async () => {

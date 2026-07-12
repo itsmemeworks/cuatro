@@ -1,7 +1,9 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { PLACEMENT_TRIO_SIZE } from "@cuatro/glass";
-import { GenesisRow, LedgerEntryRow } from "@/components/glass/ledger-entry";
+import { GenesisRow, LedgerEntryRow, isGenesisEntry } from "@/components/glass/ledger-entry";
 import { Card, Fact, InfoTerm } from "@/components/ui";
+import { DEFAULT_TZ, formatMonthYear } from "@/lib/time";
 import type { ProfileGlassView } from "@/server/matches-db";
 import type { LedgerEnrichedRow } from "@/server/players";
 
@@ -18,8 +20,9 @@ function monthKey(d: Date): string {
   return `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
 }
 
+/** DEFAULT_TZ (F2 §5): profile-wide surface, no session anchor. */
 function monthLabel(d: Date): string {
-  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(d).toUpperCase();
+  return formatMonthYear(d, DEFAULT_TZ).toUpperCase();
 }
 
 export function LedgerView({
@@ -79,8 +82,17 @@ export function LedgerView({
                 <p className="text-cu-secondary font-extrabold tracking-[0.14em] text-ink-muted">{group.label}</p>
               </div>
               {group.rows.map(({ entry, opponentNames, score, venueName }) =>
-                entry.explanation.startsWith("Placement Trio complete") ? (
-                  <GenesisRow key={entry.id} entry={entry} placementSize={PLACEMENT_TRIO_SIZE} />
+                isGenesisEntry(entry) ? (
+                  // The trio-completing match is BOTH the pour marker AND a
+                  // real match whose delta/factors/damping must be explained
+                  // like any other movement (QA5 finding 2). Newest-first
+                  // puts the "Glass poured" line directly above the entry
+                  // row that poured it, so the statement reconciles top to
+                  // bottom: poured balance = that row's running balance.
+                  <Fragment key={entry.id}>
+                    <GenesisRow entry={entry} placementSize={PLACEMENT_TRIO_SIZE} />
+                    <LedgerEntryRow entry={entry} opponentNames={opponentNames} score={score} venueName={venueName} />
+                  </Fragment>
                 ) : (
                   <LedgerEntryRow key={entry.id} entry={entry} opponentNames={opponentNames} score={score} venueName={venueName} />
                 ),

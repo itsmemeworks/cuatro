@@ -66,8 +66,10 @@ function describeOpponents(ids: readonly [PlayerId, PlayerId], names?: Readonly<
  * "+0.02 · beat a slightly stronger pair, comfortable margin · vs J, K (first meeting, full weight)"
  */
 export function buildExplanation(input: ExplanationInput): string {
-  const sign = input.delta >= 0 ? "+" : "";
-  const deltaStr = `${sign}${input.delta.toFixed(2)}`;
+  // Sign by value, except a fully-damped 0.00 where the RESULT decides —
+  // "+0.00 · lost to ..." is a contradiction the Ledger must never print.
+  const up = input.delta === 0 ? input.won : input.delta > 0;
+  const deltaStr = `${up ? "+" : "-"}${Math.abs(input.delta).toFixed(2)}`;
   const strengthPhrase = describeStrength(input.ownTeamRatingAvg, input.oppTeamRatingAvg);
   const marginPhrase = describeMargin(input.won, input.ownShare);
   const verb = input.won ? "beat" : "lost to";

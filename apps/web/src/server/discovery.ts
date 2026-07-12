@@ -91,6 +91,8 @@ export interface BoardGame {
   levelLine: string;
   /** True when the viewer already has a pending knock on this session — so the UI shows "Asked" rather than a fresh ask. */
   viewerHasPendingKnock: boolean;
+  /** The session's effective IANA timezone (venue's, else the Circle's) — pass to lib/time.ts when rendering startsAt (world-ready rule; the runtime is UTC). */
+  timezone: string;
 }
 
 export interface BoardOptions {
@@ -166,6 +168,8 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
       venueName: venues.name,
       lat: venues.lat,
       lng: venues.lng,
+      venueTimezone: venues.timezone,
+      circleTimezone: circles.timezone,
     })
     .from(sessions)
     .innerJoin(circles, eq(circles.id, sessions.circleId))
@@ -238,6 +242,7 @@ export async function boardGames(db: CuatroDb, viewerId: string, options: BoardO
       distanceLabel: coarseDistanceLabel(km),
       levelLine: levelLineFor(confirmed.map((c) => c.rating)),
       viewerHasPendingKnock: pendingKnockTargets.has(row.sessionId),
+      timezone: row.venueTimezone ?? row.circleTimezone,
       km,
     });
   }

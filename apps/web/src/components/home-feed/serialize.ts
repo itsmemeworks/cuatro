@@ -2,6 +2,7 @@ import type { BoardGame } from "@/server/discovery";
 import type { HomeFeedItem } from "@/server/home-feed";
 import type { BoardCardProps } from "@/components/games/board-card";
 import type { HomeFeedItemData } from "./home-feed-section";
+import { formatDateTime, formatDayTime } from "@/lib/time";
 
 /**
  * server/home-feed.ts → client-serializable view data. Lives beside the
@@ -19,13 +20,7 @@ export function boardGameToCardProps(g: BoardGame): BoardCardProps {
     circleColour: g.circleColour,
     circleEmblem: g.circleEmblem,
     venueName: g.venueName,
-    whenLabel: g.startsAt.toLocaleString("en-GB", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+    whenLabel: formatDateTime(g.startsAt, g.timezone),
     distanceLabel: g.distanceLabel,
     levelLine: g.levelLine,
     slotsOpen: g.slotsOpen,
@@ -34,11 +29,9 @@ export function boardGameToCardProps(g: BoardGame): BoardCardProps {
   };
 }
 
-/** "Thu 20:00" in the session's own timezone (same recipe as circle-tabs' formatWhen, but per-session tz per the world-ready rule). */
+/** "Thu 20:00" in the session's own timezone (per-session tz per the world-ready rule). */
 function slotWhenLabel(startsAt: number, timezone: string): string {
-  return new Date(startsAt)
-    .toLocaleString("en-GB", { timeZone: timezone, weekday: "short", hour: "2-digit", minute: "2-digit" })
-    .replace(",", "");
+  return formatDayTime(startsAt, timezone);
 }
 
 export function serializeHomeFeedItems(items: HomeFeedItem[]): HomeFeedItemData[] {

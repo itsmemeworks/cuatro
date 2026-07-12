@@ -34,6 +34,16 @@ describe("buildExplanation", () => {
     expect(text.startsWith("-0.02")).toBe(true);
   });
 
+  it("signs a fully-damped zero delta by the RESULT, never '+0.00 · lost to'", () => {
+    // A 4th repeat fixture within 30 days can round a narrow loss to exactly
+    // 0.00 (see engine round2) — the sign must follow won, so the Ledger
+    // never prints the contradiction "+0.00 · lost to ...".
+    const lost = buildExplanation({ ...base, delta: 0, won: false, ownShare: 6 / 13, occurrence: 4, dampingMultiplier: 0.216 });
+    expect(lost.startsWith("-0.00 · lost to")).toBe(true);
+    const wonText = buildExplanation({ ...base, delta: 0, won: true, ownShare: 7 / 13, occurrence: 4, dampingMultiplier: 0.216 });
+    expect(wonText.startsWith("+0.00 · beat")).toBe(true);
+  });
+
   describe("strength buckets", () => {
     it("calls a near-identical pair evenly-matched", () => {
       const text = buildExplanation({ ...base, ownTeamRatingAvg: 4.0, oppTeamRatingAvg: 4.02 });

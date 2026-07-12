@@ -6,6 +6,7 @@ import { Avatar, SubmitButton } from "@/components/ui";
 import { UNRATED_GLASS_DISPLAY, circleColorFor, formatGlass } from "@/lib/design";
 import { courtSide as courtSideVocab } from "@/lib/player-attrs";
 import { recordMatchAction } from "@/server/matches-actions";
+import { DEFAULT_TZ, formatDayTimeCompact, formatTime, localDateKey } from "@/lib/time";
 import { seatPair, seatSide } from "@/components/matches/wide/seating";
 import { previewSeal, sealPreviewLine, type PreviewViewerGlass } from "@/components/matches/wide/seal-preview";
 import type { RosterCandidate } from "@/components/matches/roster-entry";
@@ -26,6 +27,8 @@ import type { RosterCandidate } from "@/components/matches/roster-entry";
 export interface RecordableGameRow {
   sessionId: string;
   startsAtMs: number;
+  /** The session's effective IANA timezone (venue's, else the Circle's). Optional so the current builder keeps compiling; falls back to DEFAULT_TZ until it threads one (lib/time contract). */
+  timezone?: string;
   circleId: string;
   circleName: string;
   venueName: string | null;
@@ -51,24 +54,23 @@ export interface WideRosterContext {
 type Slot = WideRosterPlayer & { pending?: boolean };
 type Seats = [Slot | null, Slot | null];
 
-function gameTimeLine(startsAtMs: number, venueName: string | null, circleName: string): string {
-  const d = new Date(startsAtMs);
-  const day = d.toLocaleDateString("en-GB", { weekday: "short" });
-  const mins = d.getMinutes();
-  const hour24 = d.getHours();
-  const h = hour24 % 12 === 0 ? 12 : hour24 % 12;
-  const ampm = hour24 < 12 ? "am" : "pm";
-  const time = mins === 0 ? `${h}${ampm}` : `${h}:${String(mins).padStart(2, "0")}${ampm}`;
-  return [`${day} ${time}`, venueName, circleName].filter(Boolean).join(" · ");
+/** "Tue 8pm · Court X · The Four" — timezone-explicit via lib/time (the guard's F4 delegation: bare getHours/toLocaleDateString rendered raw runtime time on Fly). */
+function gameTimeLine(startsAtMs: number, timeZone: string, venueName: string | null, circleName: string): string {
+  return [formatDayTimeCompact(startsAtMs, timeZone), venueName, circleName].filter(Boolean).join(" · ");
 }
 
-function whenMeta(startsAtMs: number): string {
-  const now = new Date();
-  const then = new Date(startsAtMs);
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  if (startsAtMs >= midnight) return "today";
-  if (startsAtMs >= midnight - 24 * 60 * 60 * 1000) return then.getHours() >= 17 ? "last night" : "yesterday";
-  const days = Math.ceil((midnight - startsAtMs) / (24 * 60 * 60 * 1000));
+/** "today" / "last night" / "3 days ago" — day buckets computed in the session's timezone (localDateKey), never the runtime's midnight. */
+function whenMeta(startsAtMs: number, timeZone: string): string {
+  const nowMs = Date.now();
+  const todayKey = localDateKey(nowMs, timeZone);
+  const thenKey = localDateKey(startsAtMs, timeZone);
+  if (thenKey === todayKey) return "today";
+  if (thenKey === localDateKey(nowMs - 24 * 60 * 60 * 1000, timeZone)) {
+    const hour = Number(formatTime(startsAtMs, timeZone).slice(0, 2));
+    return hour >= 17 ? "last night" : "yesterday";
+  }
+  // Date keys are "YYYY-MM-DD"; parsed as UTC midnights their difference is a whole number of days.
+  const days = Math.round((Date.parse(todayKey) - Date.parse(thenKey)) / (24 * 60 * 60 * 1000));
   return `${days} days ago`;
 }
 
@@ -101,6 +103,28 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
     { a: "", b: "" },
   ]);
   const [retired, setRetired] = useState(false);
+
+  // Step 1's "Log this" navigates to ?session=<id>, which re-renders THIS
+  // mounted component with a fresh `roster` prop — it never remounts, so the
+  // lazy useState initialisers above ran before any game was picked (QA5:
+  // stuck on step 1, RSVP'd four not seated). Re-derive every roster-dependent
+  // piece of state when the picked session changes — React's documented
+  // "adjust state during render" pattern — so ONE click lands on step 2 with
+  // the confirmed pair already seated on their preferred sides.
+  const [rosterKey, setRosterKey] = useState<string | null>(roster?.sessionId ?? null);
+  if ((roster?.sessionId ?? null) !== rosterKey) {
+    setRosterKey(roster?.sessionId ?? null);
+    setStep(roster ? 2 : 1);
+    setSeatsA(defaultSeats(roster, "A"));
+    setSeatsB(defaultSeats(roster, "B"));
+    setSelected(null);
+    setGuestDraft(null);
+    setSets([
+      { a: "", b: "" },
+      { a: "", b: "" },
+    ]);
+    setRetired(false);
+  }
 
   const seated = [...seatsA, ...seatsB].filter((s): s is Slot => s != null);
   const seatedIds = new Set(seated.map((s) => s.id));
@@ -238,7 +262,8 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
                 <p className="px-4 py-4 text-cu-body text-ink-muted">Nothing played in the last two weeks. Results start from a played game.</p>
               )}
               {games.map((g, i) => {
-                const meta = `${whenMeta(g.startsAtMs)} · ${g.gameType === "friendly" ? "friendly" : "rated"}`;
+                const tz = g.timezone ?? DEFAULT_TZ;
+                const meta = `${whenMeta(g.startsAtMs, tz)} · ${g.gameType === "friendly" ? "friendly" : "rated"}`;
                 const sealed = g.match?.status === "verified";
                 const pending = g.match != null && !sealed;
                 const loggable = g.match == null;
@@ -258,7 +283,7 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
                         .toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0 text-left">
-                      <div className="font-sans font-bold text-[13px] text-ink truncate">{gameTimeLine(g.startsAtMs, g.venueName, g.circleName)}</div>
+                      <div className="font-sans font-bold text-[13px] text-ink truncate">{gameTimeLine(g.startsAtMs, tz, g.venueName, g.circleName)}</div>
                       <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                         {sealed ? "logged · sealed ✓" : pending ? "logged · waiting on the other side" : meta}
                       </div>
@@ -568,7 +593,8 @@ function toPreview(s: Slot) {
   return { id: s.id, rating: s.rating };
 }
 
-function defaultSeats(roster: WideRosterContext | null, team: "A" | "B"): Seats {
+/** Default seating from the session's RSVP order: first two vs next two, each pair seated onto preferred sides. Exported for tests (the seat state must derive from the PICKED roster, never a pre-pick null — QA5). */
+export function defaultSeats(roster: WideRosterContext | null, team: "A" | "B"): Seats {
   if (!roster) return [null, null];
   const four = roster.confirmed.slice(0, 4);
   const pair = team === "A" ? four.slice(0, 2) : four.slice(2, 4);

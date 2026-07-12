@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AvatarStack, Card, Meta, PendingSpinner } from "@/components/ui";
+import { Avatar, AvatarStack, Card, Fact, Meta, PendingSpinner, Sheet } from "@/components/ui";
 import { CircleEmblem } from "@/components/games/roster";
-import { circleColorFor } from "@/lib/design";
+import { circleColorFor, formatGlass } from "@/lib/design";
 import type { NearbyCircle } from "@/server/open-door";
 
 /**
@@ -40,6 +41,7 @@ export function DiscoverCircleCard({ data }: { data: NearbyCircle }) {
   const [pending, setPending] = useState(data.hasPendingKnock);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const colour = data.colour ?? circleColorFor(data.circleId);
   const range = levelRangeText(data.level);
@@ -99,47 +101,130 @@ export function DiscoverCircleCard({ data }: { data: NearbyCircle }) {
   }
 
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <CircleEmblem seed={data.circleId} name={data.name} emblem={data.emblem} colour={colour} px={40} />
-        <div className="flex-1 min-w-0">
-          <p className="text-cu-card-title text-[15px] text-ink truncate">{data.name}</p>
-          <Meta as="p" className="mt-0.5 truncate">
-            {subline}
-          </Meta>
-        </div>
-      </div>
-
-      <p className="text-cu-secondary text-ink-muted line-clamp-2">{vibe}</p>
-
-      {data.members.length > 0 && (
-        <AvatarStack people={data.members.map((m) => ({ src: m.avatarUrl, name: m.displayName }))} size="sm" max={6} />
-      )}
-
-      {pending ? (
-        <div className="flex items-center justify-between gap-3">
-          <Meta>knocked, waiting on the organiser</Meta>
-          <button
-            type="button"
-            onClick={withdraw}
-            disabled={busy}
-            className="text-cu-secondary cursor-pointer font-bold text-ink-muted whitespace-nowrap transition-cu-state hover:text-ink disabled:opacity-50"
-          >
-            {busy ? <PendingSpinner /> : null} Withdraw
-          </button>
-        </div>
-      ) : (
+    <>
+      {/* The tile itself opens the Circle's pre-join preview (same public,
+          aggregate-only facts the phone Open Door sheet shows — a non-member
+          can't visit /circles/[id], so the sheet IS the circle's public view).
+          A stretched button overlays the card; the ask/withdraw controls sit
+          above it (position:relative), so no click is ever dead (QA1, 7b). */}
+      <Card className="relative flex flex-col gap-3 transition-cu-state hover:bg-ink-hairline-1">
         <button
           type="button"
-          onClick={knock}
-          disabled={busy}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-button border border-ink-hairline-4 text-ink font-bold text-[12px] text-center py-2.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50"
-        >
-          {busy ? <PendingSpinner /> : null} Ask to join
-        </button>
-      )}
+          onClick={() => setPreviewOpen(true)}
+          aria-label={`Have a look at ${data.name}`}
+          className="absolute inset-0 rounded-card cursor-pointer"
+        />
+        <div className="flex items-center gap-3">
+          <CircleEmblem seed={data.circleId} name={data.name} emblem={data.emblem} colour={colour} px={40} />
+          <div className="flex-1 min-w-0">
+            <p className="text-cu-card-title text-[15px] text-ink truncate">{data.name}</p>
+            <Meta as="p" className="mt-0.5 truncate">
+              {subline}
+            </Meta>
+          </div>
+        </div>
 
-      {error && <Meta tone="action">{KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}</Meta>}
-    </Card>
+        <p className="text-cu-secondary text-ink-muted line-clamp-2">{vibe}</p>
+
+        {data.members.length > 0 && (
+          <AvatarStack people={data.members.map((m) => ({ src: m.avatarUrl, name: m.displayName }))} size="sm" max={6} />
+        )}
+
+        {pending ? (
+          <div className="flex items-center justify-between gap-3">
+            <Meta>knocked, waiting on the organiser</Meta>
+            <button
+              type="button"
+              onClick={withdraw}
+              disabled={busy}
+              className="relative text-cu-secondary cursor-pointer font-bold text-ink-muted whitespace-nowrap transition-cu-state hover:text-ink disabled:opacity-50"
+            >
+              {busy ? <PendingSpinner /> : null} Withdraw
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={knock}
+            disabled={busy}
+            className="relative inline-flex cursor-pointer items-center justify-center gap-2 rounded-button border border-ink-hairline-4 text-ink font-bold text-[12px] text-center py-2.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50"
+          >
+            {busy ? <PendingSpinner /> : null} Ask to join
+          </button>
+        )}
+
+        {error && <Meta tone="action">{KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}</Meta>}
+      </Card>
+
+      {/* Pre-join preview — mirrors the phone Open Door sheet (components/
+          circles/nearby-circle-card.tsx): vibe, the public facts, who plays
+          here, then the same knock affordance. Aggregate/public data only. */}
+      <Sheet open={previewOpen} onClose={() => setPreviewOpen(false)} title={data.name}>
+        <p className="text-cu-body text-ink">{vibe}</p>
+        <div className="mt-4 flex flex-col gap-1">
+          <Meta as="p">
+            {data.venueArea ?? "Nearby"} · {data.distanceLabel}
+          </Meta>
+          {data.cadence && <Meta as="p">plays {data.cadence}</Meta>}
+          <Meta as="p">{subline}</Meta>
+        </div>
+        {data.members.length > 0 && (
+          <div className="mt-4 flex flex-col gap-1">
+            <Meta as="p" className="mb-1">
+              Who plays here
+            </Meta>
+            {data.members.map((m) => (
+              <Link
+                key={m.userId}
+                href={`/players/${m.userId}`}
+                className="flex items-center gap-3 py-1.5 rounded-button transition-cu-state hover:bg-ink-hairline-1 active:bg-ink-hairline-1"
+              >
+                <Avatar src={m.avatarUrl} name={m.displayName} size="md" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-cu-body text-ink truncate">{m.displayName}</span>
+                  {m.role === "organiser" && <Meta as="p">organiser</Meta>}
+                </div>
+                {m.rating != null ? (
+                  <Fact size="md" weight="bold">
+                    {formatGlass(m.rating)}
+                  </Fact>
+                ) : (
+                  <Meta>not rated yet</Meta>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
+        <p className="text-cu-meta text-ink-muted mt-4">
+          Only the organiser sees your knock, nothing about this Circle is shared until you&apos;re in.
+        </p>
+        <div className="mt-4">
+          {pending ? (
+            <button
+              type="button"
+              onClick={withdraw}
+              disabled={busy}
+              className="w-full cursor-pointer rounded-button border border-ink-hairline-4 text-ink font-bold text-[12px] text-center py-2.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50"
+            >
+              {busy ? <PendingSpinner /> : null} Withdraw knock
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={knock}
+              disabled={busy}
+              className="w-full cursor-pointer rounded-button border border-ink-hairline-4 text-ink font-bold text-[12px] text-center py-2.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50"
+            >
+              {busy ? <PendingSpinner /> : null} Ask to join
+            </button>
+          )}
+          {error && (
+            <Meta as="p" tone="action" className="mt-2">
+              {KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}
+            </Meta>
+          )}
+        </div>
+      </Sheet>
+    </>
   );
 }

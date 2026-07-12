@@ -30,14 +30,43 @@ export function resolveShellContext(pathname: string): ShellContext {
  * know it. This extractor names the sessionId when a path needs that lookup;
  * the (app) layout resolves it (server/shell-circle.ts) and overrides the
  * context to circle:games, falling back to resolveShellContext's home:week
- * when the session or membership doesn't check out. /games and /games/standing*
- * stay home:week — standing-game editor routes aren't a session view.
+ * when the session or membership doesn't check out. /games, /games/standing*,
+ * and /games/one-off* stay home:week — game CREATION routes aren't a session
+ * view, and treating their segment as a sessionId would burn a lookup per nav.
  */
 export function gameSessionIdFor(pathname: string): string | null {
   const path = (pathname.split(/[?#]/, 1)[0] || "/").replace(/\/+$/, "");
   const segments = path.split("/").filter(Boolean);
-  if (segments[0] !== "games" || !segments[1] || segments[1] === "standing") return null;
+  if (segments[0] !== "games" || !segments[1] || segments[1] === "standing" || segments[1] === "one-off") return null;
   return segments[1];
+}
+
+/**
+ * The full context derivation INCLUDING the /games/[sessionId]→circle override,
+ * with the data dependencies injected as plain functions so both resolvers can
+ * share it (fix wave F3, the QA7 stale-chrome fix):
+ *   - the (app) layout calls it with the server-side session→circle lookup
+ *     already resolved (SSR initial state), and
+ *   - the client shell (components/shell/use-shell-context.ts) calls it on
+ *     every usePathname() change with its fetch-backed cache.
+ * `sessionCircle` returns the session's circleId, null when the session is
+ * unknown, or undefined when the answer isn't known YET (lookup in flight) —
+ * both fall back to home:week, exactly the layout's old posture. The override
+ * only applies when the viewer is a member of that circle (`isMemberCircle`),
+ * so an outsider's deep link never paints a circle they're not in.
+ */
+export function resolveShellContextWithSession(
+  pathname: string,
+  sessionCircle: (sessionId: string) => string | null | undefined,
+  isMemberCircle: (circleId: string) => boolean,
+): ShellContext {
+  const sessionId = gameSessionIdFor(pathname);
+  if (sessionId) {
+    const circleId = sessionCircle(sessionId);
+    if (circleId && isMemberCircle(circleId)) return { kind: "circle", circleId, active: "games" };
+    return { kind: "home", active: "week" };
+  }
+  return resolveShellContext(pathname);
 }
 
 /**

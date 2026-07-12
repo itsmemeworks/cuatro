@@ -37,7 +37,10 @@ export async function leaveCircleAction(circleId: string): Promise<LifecycleResu
     if (err instanceof NotMemberError) return { ok: false, error: "not_a_member" };
     throw err;
   }
-  revalidatePath(`/circles/${circleId}`);
+  // "layout" so the whole circle subtree (/members, /settings, …) revalidates,
+  // not just the feed route — membership changes surface on the sub-routes
+  // (fix wave F3's join/knock/leave/transfer revalidation cluster).
+  revalidatePath(`/circles/${circleId}`, "layout");
   revalidatePath("/circles");
   return { ok: true };
 }
@@ -57,7 +60,7 @@ export async function removeMemberAction(circleId: string, targetUserId: string)
     if (err instanceof CannotRemoveSelfError) return { ok: false, error: "cannot_remove_self" };
     throw err;
   }
-  revalidatePath(`/circles/${circleId}`);
+  revalidatePath(`/circles/${circleId}`, "layout");
   return { ok: true };
 }
 
@@ -77,6 +80,6 @@ export async function transferOrganiserAction(circleId: string, targetUserId: st
     if (err instanceof CannotTransferToGuestError) return { ok: false, error: "cannot_transfer_to_guest" };
     throw err;
   }
-  revalidatePath(`/circles/${circleId}`);
+  revalidatePath(`/circles/${circleId}`, "layout");
   return { ok: true };
 }

@@ -34,6 +34,7 @@ import {
   type GameType,
 } from "@cuatro/db";
 import { computeNextOccurrence } from "./tz";
+import { DEFAULT_TZ } from "@/lib/time";
 import { resolveVenue, isOrganiser } from "./standing-games-service";
 import { insertNotification } from "./notify";
 import {
@@ -345,7 +346,7 @@ export type RsvpOutcome =
   | { ok: true; status: "in" | "reserve" | "out"; promotedUserId?: string }
   | {
       ok: false;
-      error: "session_not_found" | "not_a_circle_member" | "window_not_open" | "session_started";
+      error: "session_not_found" | "not_a_circle_member" | "window_not_open" | "session_started" | "rotation_not_locked";
     };
 
 /**
@@ -421,6 +422,16 @@ export async function rsvpIn(db: CuatroDb, sessionId: string, userId: string, no
 
     const windowOpensAt = session.startsAt - rsvpWindowDaysFor(standingGame) * DAY_MS;
     if (now.getTime() < windowOpensAt) return { ok: false, error: "window_not_open" };
+
+    // A GATHERING limited-rotation game has no slots to grab — the four come
+    // from 'available' rows only. Reject the bare slot-grab structurally so no
+    // UI (present or future) can recreate QA8's "You're in beside four open
+    // slots" contradiction; callers surface the rotation affordance
+    // (declareRotationAvailability) instead. Locked rotation falls through:
+    // post-lock joins are the deliberate late-fill path.
+    if (standingGame?.rotationEnabled && standingGame.rotationMode === "limited" && !session.rotationLockedAt) {
+      return { ok: false, error: "rotation_not_locked" };
+    }
 
     const [existing] = await tx
       .select()
@@ -1585,6 +1596,8 @@ export type SessionSummary = {
   moneyOptIn: MoneyOptIn;
   /** Fourth Call side hint (issue #21, organiser-set via server/fourth-call.ts): "ideally a left-sider" flavour on call cards. A HINT ONLY — it never filters who sees or can claim a call. 'right' = drive, 'left' = backhand. */
   fourthCallSideHint: "left" | "right" | null;
+  /** The session's effective IANA timezone — venue's, else the Circle's (server/week.ts precedent). EVERY render of this session's startsAt must pass this to lib/time.ts's formatters; a bare toLocaleString renders raw UTC on the Fly runtime (the QA4/7/8 hour-early class). */
+  timezone: string;
 };
 
 /** "£32 court, 4 slots" -> £8 each, floor + payer-absorbs-remainder, reusing tab.ts's computeEqualSplit (design/DESIGN-AUDIT.md F4). Null when there's no cost, or fewer than 2 slots (nothing to split). */
@@ -1669,6 +1682,7 @@ export async function getSessionSummary(
     costPerHeadMinor: computeSessionCostPerHead(costMinor, slots),
     moneyOptIn,
     fourthCallSideHint: session.fourthCallSideHint,
+    timezone: effectiveTimezone(venue, { timezone: circle?.timezone ?? DEFAULT_TZ }),
   };
 }
 

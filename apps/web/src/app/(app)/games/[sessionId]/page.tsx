@@ -17,6 +17,7 @@ import { sessionKnocks } from "@/server/discovery";
 import { FourthCallReceive } from "@/components/circle-screens/fourth-call-receive";
 import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
 import { sessionOgImageUrl } from "@/lib/og";
+import { formatDateTime, formatDayTime, formatDayTimeLong } from "@/lib/time";
 import { GameDetail } from "@/components/circle-screens/wide/wide-game-detail";
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -44,13 +45,7 @@ export async function generateMetadata({ params }: { params: Promise<{ sessionId
     return { title: "CUATRO game" };
   }
 
-  const when = new Date(summary.session.startsAt).toLocaleString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const when = formatDateTime(summary.session.startsAt, summary.timezone);
   const title = `${summary.circleName} · ${when}`;
   const openSlots = summary.slots - summary.confirmed.length;
   const description =
@@ -154,11 +149,7 @@ export default async function SessionDetailPage({
           <FourthCallReceive
             sessionId={sessionId}
             circleName={summary.circleName}
-            whenLabel={new Date(summary.session.startsAt).toLocaleString("en-GB", {
-              weekday: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            whenLabel={formatDayTime(summary.session.startsAt, summary.timezone)}
             venueLabel={summary.venue?.name ?? null}
             confirmed={summary.confirmed}
             levelMatchLabel={levelMatchLabel}
@@ -201,7 +192,7 @@ export default async function SessionDetailPage({
 
   const standingGameTitle = summary.standingGame
     ? `${WEEKDAY_NAMES[summary.standingGame.weekday]}s, ${formatStartTime(summary.standingGame.startTime)}`
-    : new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "long", hour: "numeric", minute: "2-digit" });
+    : formatDayTimeLong(summary.session.startsAt, summary.timezone);
   const rsvpWindowDays = Math.max(1, Math.round((summary.session.startsAt - summary.rsvpWindowOpensAt.getTime()) / (24 * 60 * 60 * 1000)));
 
   // Plain one-line state confirmation at the top — the pattern every
@@ -234,7 +225,7 @@ export default async function SessionDetailPage({
     for (const row of guestRows) guestByUserId[row.id] = row.isGuest;
   }
 
-  const whenShort = new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const whenShort = formatDayTime(summary.session.startsAt, summary.timezone);
   const rsvpWindowOpen = upcoming && Date.now() >= summary.rsvpWindowOpensAt.getTime();
   let viewerStatusLine: string | null = null;
   if (upcoming) {

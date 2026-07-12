@@ -87,9 +87,11 @@ function TeamNamesLinked({ team }: { team: ResultPostTeamData }) {
   );
 }
 
-function formatDelta(delta: number): string {
+/** Sign by value, except the fully Echo-damped 0.00 where the RESULT decides — a losing team's zero delta reads −0.00, never +0.00 (QA5 finding 1). */
+function formatDelta(delta: number, won: boolean): string {
   const abs = Math.abs(delta).toFixed(2);
-  return delta >= 0 ? `+${abs}` : `−${abs}`; // U+2212 minus, not a hyphen
+  const up = delta === 0 ? won : delta > 0;
+  return up ? `+${abs}` : `−${abs}`; // U+2212 minus, not a hyphen
 }
 
 /** "last Tuesday" for the last 2-6 days, else a plain "9 Jul" — mirrors how a person would actually say it, without inventing a real-time-relative library for one line. */
@@ -111,14 +113,14 @@ function relativeDayLabel(iso: string): string {
   return played.toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short" });
 }
 
-/** "Kav +0.04 → 4.91" when a team has a named representative (server/feed.ts's ResultPostTeam.namedDelta), else "Kav & Tom +0.02" using the team average — the same tone-by-sign either way. */
-function teamDeltaDisplay(team: ResultPostTeamData): { text: string; delta: number } | null {
+/** "Kav +0.04 → 4.91" when a team has a named representative (server/feed.ts's ResultPostTeam.namedDelta), else "Kav & Tom +0.02" using the team average. `won` = did THIS team win — it drives the tone and the zero-delta sign (never the delta's sign, QA5 finding 1). */
+function teamDeltaDisplay(team: ResultPostTeamData, won: boolean): { text: string } | null {
   if (team.namedDelta) {
     const firstName = team.namedDelta.displayName.split(" ")[0];
-    return { text: `${firstName} ${formatDelta(team.namedDelta.delta)} → ${team.namedDelta.ratingAfter.toFixed(2)}`, delta: team.namedDelta.delta };
+    return { text: `${firstName} ${formatDelta(team.namedDelta.delta, won)} → ${team.namedDelta.ratingAfter.toFixed(2)}` };
   }
   if (team.avgDelta != null) {
-    return { text: `${teamNames(team)} ${formatDelta(team.avgDelta)}`, delta: team.avgDelta };
+    return { text: `${teamNames(team)} ${formatDelta(team.avgDelta, won)}` };
   }
   return null;
 }
@@ -144,8 +146,8 @@ export function ResultPost({ data, circle }: { data: ResultPostData; circle?: Fe
   const winningTeam = data.winner === "A" ? data.teamA : data.teamB;
   const losingTeam = data.winner === "A" ? data.teamB : data.teamA;
   const heroPlayer = winningTeam.players[0];
-  const winningDelta = teamDeltaDisplay(winningTeam);
-  const losingDelta = teamDeltaDisplay(losingTeam);
+  const winningDelta = teamDeltaDisplay(winningTeam, true);
+  const losingDelta = teamDeltaDisplay(losingTeam, false);
 
   return (
     <Card className="flex flex-col gap-3">
@@ -180,13 +182,16 @@ export function ResultPost({ data, circle }: { data: ResultPostData; circle?: Fe
 
       {(winningDelta || losingDelta) && (
         <div className="flex items-center justify-center gap-3 -mt-1">
+          {/* Tone by which team WON, never the delta's sign — a fully-damped
+              loss rounds to 0.00 and a sign check paints it win-green (QA5
+              finding 1). */}
           {winningDelta && (
-            <Fact size="sm" weight="semibold" tone={winningDelta.delta >= 0 ? "win" : "loss"}>
+            <Fact size="sm" weight="semibold" tone="win">
               {winningDelta.text}
             </Fact>
           )}
           {losingDelta && (
-            <Fact size="sm" weight="semibold" tone={losingDelta.delta >= 0 ? "win" : "loss"}>
+            <Fact size="sm" weight="semibold" tone="loss">
               {losingDelta.text}
             </Fact>
           )}

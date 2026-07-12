@@ -63,7 +63,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
           </div>
         </div>
         <div style={{ display: "flex", marginTop: "auto", fontSize: 24, color: "rgba(245,242,236,.55)" }}>
-          Its chat, history and Standing Games · cuatro.app
+          All the chat, history and Standing Games · cuatro.app
         </div>
       </div>
     ),

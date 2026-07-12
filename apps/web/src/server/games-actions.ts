@@ -1,12 +1,14 @@
 "use server";
 
-import { GAME_TYPES, type GameType } from "@cuatro/db";
+import { GAME_TYPES, circles, venues, type GameType } from "@cuatro/db";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "./games-db";
-import { createStandingGame, updateStandingGame } from "./standing-games-service";
-import { rescheduleUpcomingSessionsForStandingGame } from "./games-service";
+import { createStandingGame, resolveVenue, updateStandingGame } from "./standing-games-service";
+import { createOneOffSession, rescheduleUpcomingSessionsForStandingGame } from "./games-service";
+import { zonedWallTimeToUtc } from "./tz";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
 import { resolveSubmittedVenue, type VenueResolution } from "./venues";
 import { geocodeVenueById } from "./geocode";
@@ -113,6 +115,71 @@ export async function createStandingGameAction(formData: FormData): Promise<void
   // ?matched surfaces a quiet "matched to X, no duplicate" confirmation.
   const matchedParam = venue.outcome === "matched" && venue.matchedName ? `&matched=${encodeURIComponent(venue.matchedName)}` : "";
   redirect(`/games/standing/${result.value.id}?created=1${matchedParam}`);
+}
+
+/**
+ * Creates a one-off session from the /games/one-off/new form (QA4: the API
+ * existed, the UI entry point didn't). The organiser types a wall-clock date +
+ * time; the ONE place that becomes a UTC instant is zonedWallTimeToUtc with
+ * the session's effective timezone — the venue's, else the Circle's (the
+ * standing-game materialiser's exact rule), never the runtime's TZ.
+ */
+export async function createOneOffSessionAction(formData: FormData): Promise<void> {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  const circleId = String(formData.get("circleId") ?? "");
+  const date = String(formData.get("date") ?? "");
+  const startTime = String(formData.get("startTime") ?? "");
+  const backToForm = (error: string) =>
+    `/games/one-off/new?error=${error}${circleId ? `&circleId=${circleId}` : ""}`;
+  if (!circleId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(startTime)) {
+    redirect(backToForm("bad_request"));
+  }
+
+  const client = await getGamesClient();
+  const { db } = client;
+  const [circleRow] = await db.select({ timezone: circles.timezone }).from(circles).where(eq(circles.id, circleId));
+  if (!circleRow) redirect(backToForm("bad_request"));
+
+  // Same picker contract as the standing forms: a chosen venueId, or free-form
+  // name + address that dedupe-matches. Materialise the row NOW (create-or-pick,
+  // the standing service's own helper) so the instant below can anchor to the
+  // venue's timezone rather than resolving the venue after the fact.
+  const venue = await resolveSubmittedVenue(db, {
+    venueId: String(formData.get("venueId") ?? ""),
+    name: String(formData.get("venueName") ?? ""),
+    address: String(formData.get("venueAddress") ?? ""),
+  });
+  const venueId = await resolveVenue(db, circleId, venue.venueId, venue.venueName, venue.venueAddress);
+
+  let timezone = circleRow.timezone;
+  if (venueId) {
+    const [venueRow] = await db.select({ timezone: venues.timezone }).from(venues).where(eq(venues.id, venueId));
+    if (venueRow?.timezone) timezone = venueRow.timezone;
+  }
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = startTime.split(":").map(Number);
+  const startsAt = zonedWallTimeToUtc(year, month - 1, day, hour, minute, timezone);
+  if (startsAt.getTime() <= Date.now()) redirect(backToForm("starts_in_past"));
+
+  const result = await createOneOffSession(db, user.id, {
+    circleId,
+    startsAt,
+    venueId,
+    gameType: parseGameType(formData.get("gameType")),
+    // "Booked on" only — sessions carry no cost column (issue #21), so the
+    // one-off form renders MoneyOptInPicker with allowCost={false}.
+    bookingPlatform: parseBookingField(formData.get("bookingPlatform")) ?? null,
+    bookingUrl: parseBookingField(formData.get("bookingUrl")) ?? null,
+  });
+  if (!result.ok) redirect(backToForm(result.error));
+
+  await geocodeResolvedVenue(client, result.value.venueId);
+  revalidatePath(`/circles/${circleId}/games`);
+  // Land on the game itself — the session page is the success moment (RSVP
+  // grid, share, the lot), no interstitial needed.
+  redirect(`/games/${result.value.id}`);
 }
 
 export async function updateStandingGameAction(id: string, formData: FormData): Promise<void> {

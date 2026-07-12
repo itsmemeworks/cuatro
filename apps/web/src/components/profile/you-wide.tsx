@@ -1,8 +1,10 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import type { PlayerProfile, LedgerEnrichedRow } from "@/server/players";
-import { Fact, Meta } from "@/components/ui";
+import { Fact, InfoTerm, Meta } from "@/components/ui";
+import { DEFAULT_TZ, formatMonthYear } from "@/lib/time";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
-import { LedgerEntryRow, GenesisRow } from "@/components/glass/ledger-entry";
+import { LedgerEntryRow, GenesisRow, isGenesisEntry } from "@/components/glass/ledger-entry";
 import { PLACEMENT_TRIO_SIZE } from "@cuatro/glass";
 
 /** The design's 8 discrete "trend" bars, from the tail of the season sparkline; the last bar is coral (most recent), the rest are muted. */
@@ -40,12 +42,13 @@ function StatTile({ value, label }: { value: string; label: string }) {
 
 function ledgerMonthLabel(rows: LedgerEnrichedRow[]): string {
   const d = rows[0]?.entry.createdAt ?? new Date();
-  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(d).toUpperCase();
+  // DEFAULT_TZ: a profile-wide surface with no session/venue anchor (lib/time contract).
+  return formatMonthYear(d, DEFAULT_TZ).toUpperCase();
 }
 
-/** The genesis "Glass poured" row is the one whose explanation opens the Placement-Trio-complete line — the same discriminator ledger-view.tsx uses (there's no dedicated flag on the entry). */
+/** The genesis "Glass poured" row is the one whose explanation opens the Placement-Trio-complete line — the shared isGenesisEntry discriminator (ledger-entry.tsx), same as ledger-view.tsx. */
 function isGenesis(row: LedgerEnrichedRow): boolean {
-  return row.entry.explanation.startsWith("Placement Trio complete");
+  return isGenesisEntry(row.entry);
 }
 
 /**
@@ -83,11 +86,20 @@ export function YouWide({
         <div className="flex-1 min-w-0">
           <h1 className="text-[25px] leading-none font-extrabold text-ink truncate">{displayName}</h1>
           <div className="flex flex-wrap gap-[7px] mt-2">
-            {glass && (
-              <span className="rounded-chip px-[11px] py-[5px] text-[11px] font-bold bg-win-tint text-win">
-                ✓ Shows up · {glass.reliabilityPct}%
-              </span>
-            )}
+            {/* Reliability chip: before the first RSVP the percentage doesn't
+                exist yet, so render the phone profile's reassurance line
+                (ReliabilityBadge's empty state — same words, same InfoTerm)
+                instead of a green pill with a bare "%" (QA1 blocker / QA8 #2). */}
+            {glass &&
+              (glass.reliabilityPct != null ? (
+                <span className="rounded-chip px-[11px] py-[5px] text-[11px] font-bold bg-win-tint text-win">
+                  ✓ Shows up · {glass.reliabilityPct}%
+                </span>
+              ) : (
+                <span className="rounded-chip px-[11px] py-[5px] text-[11px] font-semibold bg-ink-hairline-2 text-ink-muted">
+                  <InfoTerm term="reliability" label="Reliability" /> appears after your first RSVP
+                </span>
+              ))}
             <span className="rounded-chip px-[11px] py-[5px] text-[11px] font-semibold bg-ink-hairline-2 text-ink">
               {circlesCount} {circlesCount === 1 ? "Circle" : "Circles"}
             </span>
@@ -163,7 +175,14 @@ export function YouWide({
             <>
               {preview.map((r) =>
                 isGenesis(r) ? (
-                  <GenesisRow key={r.entry.id} entry={r.entry} placementSize={PLACEMENT_TRIO_SIZE} />
+                  // The pour is a marker PLUS a normal entry row — the
+                  // trio-completing match's own delta/factors are explained
+                  // like any other movement (QA5 finding 2), same as
+                  // ledger-view.tsx.
+                  <Fragment key={r.entry.id}>
+                    <GenesisRow entry={r.entry} placementSize={PLACEMENT_TRIO_SIZE} />
+                    <LedgerEntryRow entry={r.entry} opponentNames={r.opponentNames} score={r.score} venueName={r.venueName} />
+                  </Fragment>
                 ) : (
                   <LedgerEntryRow
                     key={r.entry.id}

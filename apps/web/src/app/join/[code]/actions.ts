@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { getCirclesStore } from "@/server/circles";
@@ -23,6 +24,15 @@ export async function joinCircleAction(formData: FormData): Promise<void> {
   const result = await store.joinCircle({ inviteCode: code, userId: user.id });
   if (!result) redirect("/circles?error=invalid_invite");
   if (result.full) redirect(`/join/${code}?error=circle_full`);
+
+  // A membership just changed what the circle pages AND the shell chrome
+  // render (fix wave F3, QA7's missing-member investigation): revalidate the
+  // whole circle subtree (members/settings sub-routes included — hence
+  // "layout") plus the lists, so no cached RSC payload can serve a roster
+  // from before this join.
+  revalidatePath(`/circles/${result.circleId}`, "layout");
+  revalidatePath("/circles");
+  revalidatePath("/home");
 
   redirect(`/circles/${result.circleId}`);
 }

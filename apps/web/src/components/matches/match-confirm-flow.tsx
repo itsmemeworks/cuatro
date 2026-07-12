@@ -9,8 +9,25 @@ export type MatchStatus = "pending_confirmation" | "verified" | "disputed" | "vo
 
 type Phase = "idle" | "arriving" | "sealed";
 
-function fmtDelta(delta: number): string {
-  return `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
+/**
+ * Sign follows the RESULT, not the raw float: the engine never moves a
+ * winner down nor a loser up, so the only ambiguous case is a fully
+ * Echo-damped 0.00 delta — which must read −0.00 for the losing team,
+ * never +0.00 (QA5 finding 1). U+2212 minus. Exported (with sealFactTone)
+ * for the seal-card unit tests; match-detail-wide.tsx shares both.
+ */
+export function fmtSealDelta(delta: number, won: boolean): string {
+  return `${won ? "+" : "−"}${Math.abs(delta).toFixed(2)}`;
+}
+
+/**
+ * The tone of one sealed delta line. `won` comes from the MATCH WINNER
+ * (computeWinner over the score, passed down as winnerTeam) — never from
+ * the delta's sign, which paints a fully-damped loss win-green (QA5
+ * finding 1). Mid-Trio players stay muted regardless.
+ */
+export function sealFactTone(explanation: string, won: boolean): "muted" | "win" | "loss" {
+  return ratingStillHidden(explanation) ? "muted" : won ? "win" : "loss";
 }
 
 /**
@@ -68,6 +85,7 @@ export function MatchConfirmFlow({
   friendly = false,
   teamAName,
   teamBName,
+  winnerTeam,
   confirmedTeams,
   viewerTeam,
   canAct,
@@ -84,6 +102,8 @@ export function MatchConfirmFlow({
   friendly?: boolean;
   teamAName: string;
   teamBName: string;
+  /** computeWinner over the match's score — the seal card's W/L truth (see sealFactTone). */
+  winnerTeam: Team;
   confirmedTeams: Team[];
   viewerTeam: Team | null;
   canAct: boolean;
@@ -161,17 +181,21 @@ export function MatchConfirmFlow({
 
     const teamAEvents = ledgerEvents.filter((e) => teamAPlayerIds.includes(e.playerId));
     const teamBEvents = ledgerEvents.filter((e) => teamBPlayerIds.includes(e.playerId));
+    const sides = [
+      { events: teamAEvents, won: winnerTeam === "A" },
+      { events: teamBEvents, won: winnerTeam === "B" },
+    ];
     return (
       <div className="animate-cu-seal rounded-button bg-win-tint border border-win/40 p-4 text-center flex flex-col gap-2.5">
         <p className="text-cu-body font-extrabold text-win">Result sealed, written to both Ledgers</p>
         <div className="flex justify-center gap-6">
-          {[teamAEvents, teamBEvents].map((events, i) => (
+          {sides.map(({ events, won }, i) => (
             <div key={i} className="flex flex-col gap-1">
               {events.map((ev) => (
-                <Fact key={ev.playerId} size="sm" weight="semibold" tone={ratingStillHidden(ev.explanation) ? "muted" : ev.delta >= 0 ? "win" : "loss"}>
+                <Fact key={ev.playerId} size="sm" weight="semibold" tone={sealFactTone(ev.explanation, won)}>
                   {ratingStillHidden(ev.explanation)
                     ? `${players[ev.playerId] ?? "Player"}, Glass still building`
-                    : `${players[ev.playerId] ?? "Player"} ${fmtDelta(ev.delta)} → ${ev.ratingAfter.toFixed(2)}`}
+                    : `${players[ev.playerId] ?? "Player"} ${fmtSealDelta(ev.delta, won)} → ${ev.ratingAfter.toFixed(2)}`}
                 </Fact>
               ))}
             </div>

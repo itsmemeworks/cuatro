@@ -11,9 +11,10 @@ const findOrCreateUserBySupabase = vi.fn();
 // because their mock factories defer the reference inside a not-yet-called
 // nested function; @/server/guest's exports ARE the mocked functions
 // directly, so there's no second closure to hide behind).
-const { getGuestUserId, convertGuestOnAuth } = vi.hoisted(() => ({
+const { getGuestUserId, convertGuestOnAuth, resolveConvertedGuestLanding } = vi.hoisted(() => ({
   getGuestUserId: vi.fn(),
   convertGuestOnAuth: vi.fn(),
+  resolveConvertedGuestLanding: vi.fn(),
 }));
 
 // Both modules are mocked wholesale — the real implementations call
@@ -46,6 +47,14 @@ vi.mock("@/server/games-db", () => ({
   getGamesClient: vi.fn(async () => ({ db: {} })),
 }));
 
+// The landing QUERY is mocked (it needs a real db — covered against PGlite in
+// test/converted-landing.test.ts); the pure isGenericConversionDestination
+// gate stays real so these tests exercise the route's actual upgrade rule.
+vi.mock("@/app/auth/callback/converted-landing", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/auth/callback/converted-landing")>()),
+  resolveConvertedGuestLanding,
+}));
+
 function callbackRequest(query: string, cookies: Record<string, string> = {}): NextRequest {
   const request = new NextRequest(new URL(`https://cuatro.fly.dev/auth/callback${query}`));
   for (const [name, value] of Object.entries(cookies)) request.cookies.set(name, value);
@@ -58,6 +67,7 @@ describe("GET /auth/callback", () => {
     findOrCreateUserBySupabase.mockReset();
     getGuestUserId.mockReset();
     convertGuestOnAuth.mockReset();
+    resolveConvertedGuestLanding.mockReset();
   });
 
   afterEach(() => {
@@ -240,6 +250,73 @@ describe("GET /auth/callback", () => {
     expect(convertGuestOnAuth).toHaveBeenCalledWith({}, "guest-user-id", "resolved-carry");
     expect(res.headers.get("location")).toBe("https://cuatro.fly.dev/home");
     expect(res.cookies.get(GUEST_COOKIE)?.value).toBe("");
+  });
+
+  it("a converted guest's /join/[code] bounce is upgraded to the joined Circle (F5 conversion landing)", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-land", email: "jess@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-land", email: "jess@example.com", displayName: "Jess" });
+    getGuestUserId.mockReturnValue("guest-user-id");
+    convertGuestOnAuth.mockReturnValue({ converted: true, merged: false, carriedName: "Jess" });
+    resolveConvertedGuestLanding.mockResolvedValue("/circles/circle-1");
+
+    const res = await GET(
+      callbackRequest(`?code=abc&next=${encodeURIComponent("/join/R6DSPP2J")}`, { [GUEST_COOKIE]: "raw-guest-token" }),
+    );
+
+    expect(resolveConvertedGuestLanding).toHaveBeenCalledWith({}, "resolved-land", "/join/R6DSPP2J");
+    expect(res.headers.get("location")).toBe("https://cuatro.fly.dev/circles/circle-1");
+  });
+
+  it("a converted guest with a SPECIFIC next (e.g. the Fourth Call game) keeps it — no landing lookup", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-spec", email: "fc@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-spec", email: "fc@example.com", displayName: "Sam" });
+    getGuestUserId.mockReturnValue("guest-user-id");
+    convertGuestOnAuth.mockReturnValue({ converted: true, merged: false, carriedName: null });
+
+    const res = await GET(
+      callbackRequest(`?code=abc&next=${encodeURIComponent("/games/session-9")}`, { [GUEST_COOKIE]: "raw-guest-token" }),
+    );
+
+    expect(resolveConvertedGuestLanding).not.toHaveBeenCalled();
+    expect(res.headers.get("location")).toBe("https://cuatro.fly.dev/games/session-9");
+  });
+
+  it("no conversion (cookie resolved but the guest row was already converted): destination untouched, no landing lookup", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-noconv", email: "old@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-noconv", email: "old@example.com", displayName: "Old Hand" });
+    getGuestUserId.mockReturnValue("guest-user-id");
+    convertGuestOnAuth.mockReturnValue({ converted: false, reason: "not_a_guest" });
+
+    const res = await GET(
+      callbackRequest(`?code=abc&next=${encodeURIComponent("/join/R6DSPP2J")}`, { [GUEST_COOKIE]: "raw-guest-token" }),
+    );
+
+    expect(resolveConvertedGuestLanding).not.toHaveBeenCalled();
+    expect(res.headers.get("location")).toBe("https://cuatro.fly.dev/join/R6DSPP2J");
+  });
+
+  it("a landing that resolves to nothing keeps the original destination", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "sb-null", email: "drift@example.com", user_metadata: {} } },
+      error: null,
+    });
+    findOrCreateUserBySupabase.mockResolvedValue({ id: "resolved-null", email: "drift@example.com", displayName: "Drift" });
+    getGuestUserId.mockReturnValue("guest-user-id");
+    convertGuestOnAuth.mockReturnValue({ converted: true, merged: false, carriedName: "Drift" });
+    resolveConvertedGuestLanding.mockResolvedValue(null);
+
+    const res = await GET(callbackRequest("?code=abc", { [GUEST_COOKIE]: "raw-guest-token" }));
+
+    expect(res.headers.get("location")).toBe("https://cuatro.fly.dev/home");
   });
 
   it("with a guest cookie that no longer resolves (already converted elsewhere): skips conversion but still clears the cookie", async () => {

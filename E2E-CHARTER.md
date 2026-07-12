@@ -55,6 +55,16 @@ For every screen, side-by-side against the prototype:
 - [ ] Tray push enable: row hidden when unsupported/no server key/already subscribed/denied/dismissed; enabling lands a push_subscriptions row and a REAL push arrives; "not now" survives reload; profile toggle unchanged
 - [ ] Push automation traps (document, don't fight): Chrome bans Push API in incognito (persistent profile required); headless never connects to FCM (headed for delivery proof); CDP grant_permissions doesn't reach the profile Preferences file
 
+## C4. Fix-wave regression lines (2026-07-12, pre-launch QA)
+- [ ] A fully-damped 0.00-delta LOSS reads L on seal, profile streak/last-three, Ledger, and feed (never win-green, never "+0.00")
+- [ ] The Ledger renders the trio-completing match as poured-marker PLUS its own entry row; the statement arithmetically reconstructs the header
+- [ ] Match page pending-confirmation self-heals within ~5s with realtime dead (MatchLive poll)
+- [ ] Every rendered time equals the DB value in the session's timezone under TZ=UTC servers (guard test: time-tz-guard)
+- [ ] Shell chrome follows soft navigation (⌘K/g-seq); active-circle unread badge lights live
+- [ ] Gathering limited-rotation games reject bare RSVP 'in' server-side (rotation_not_locked); home/circle cards render the availability affordance
+- [ ] Silence-default games show zero money chrome anywhere
+- [ ] A full session's /fc link lands on the truthful state pre-tap; /join offers sign-in to existing users and recognises members
+
 ## D. Evidence & exit
 - GIF recordings of: join-via-link flow, RSVP morph + live promotion, both-deltas seal, rating reveal, live chat between two tabs
 - Defect list filed with severity; fix wave; re-test failures to green

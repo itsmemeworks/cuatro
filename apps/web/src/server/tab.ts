@@ -23,6 +23,7 @@
 import { and, eq } from "drizzle-orm";
 import {
   circleMembers,
+  circles,
   notifications,
   tabEntries,
   tabs,
@@ -32,6 +33,7 @@ import {
   type TabEntry,
 } from "@cuatro/db";
 import { insertNotification } from "./notify";
+import { formatWeekdayLong, DEFAULT_TZ } from "@/lib/time";
 import { emitCircleEvent, emitUserEvent } from "@/lib/realtime/broadcast";
 
 // ---------------------------------------------------------------------------
@@ -456,10 +458,9 @@ export interface TabEntryView {
   descriptionLabel: string | null;
 }
 
-/** "Tuesday's court split" — the pre-description fallback for a session-linked entry, kept as the fallback now that entries can carry their own description (see TabEntryView.descriptionLabel). */
-function sessionDateFallbackLabel(createdAt: Date): string {
-  const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(createdAt);
-  return `${weekday}'s court split`;
+/** "Tuesday's court split" — the pre-description fallback for a session-linked entry, kept as the fallback now that entries can carry their own description (see TabEntryView.descriptionLabel). Weekday resolves in the Circle's timezone — the split lands right after the session, and a raw-UTC render names the WRONG day for a late-evening game (the QA4 class). */
+function sessionDateFallbackLabel(createdAt: Date, timeZone: string): string {
+  return `${formatWeekdayLong(createdAt, timeZone)}'s court split`;
 }
 
 export interface TabView {
@@ -472,6 +473,8 @@ export interface TabView {
   balances: CounterpartyBalance[];
   /** Every entry (open, nudged, and settled), newest first — the activity ledger. */
   activity: TabEntryView[];
+  /** The Circle's IANA timezone — pass to lib/time.ts formatters for every entry date this view renders (activity feed rows etc.). */
+  timezone: string;
 }
 
 /** Null if `viewerUserId` isn't a member of the Circle (same "don't confirm existence to outsiders" posture as server/circles.ts). */
@@ -479,6 +482,8 @@ export async function getTabView(db: CuatroDb, circleId: string, viewerUserId: s
   if (!(await isCircleMember(db, circleId, viewerUserId))) return null;
 
   const tab = await ensureTabForCircle(db, circleId);
+  const [circle] = await db.select({ timezone: circles.timezone }).from(circles).where(eq(circles.id, circleId));
+  const timezone = circle?.timezone ?? DEFAULT_TZ;
   const members = await listCircleMembers(db, circleId);
   const nameById = new Map(members.map((m) => [m.userId, m.displayName]));
 
@@ -504,7 +509,7 @@ export async function getTabView(db: CuatroDb, circleId: string, viewerUserId: s
         settledAt: r.settledAt == null ? null : new Date(r.settledAt),
         pendingSettleBy: r.status === "settled" ? null : r.settledConfirmedBy,
         description: r.description,
-        descriptionLabel: r.description ?? (r.sessionId ? sessionDateFallbackLabel(createdAt) : null),
+        descriptionLabel: r.description ?? (r.sessionId ? sessionDateFallbackLabel(createdAt, timezone) : null),
       };
     })
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -518,6 +523,7 @@ export async function getTabView(db: CuatroDb, circleId: string, viewerUserId: s
     netPositionByCurrency: computeNetPosition(unsettled, viewerUserId),
     balances: computeCounterpartyBalances(unsettled, viewerUserId),
     activity,
+    timezone,
   };
 }
 

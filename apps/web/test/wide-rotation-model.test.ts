@@ -16,7 +16,11 @@ import {
  * bench standings, the consent-offer cascade — are testable without rendering.
  * Fixed instants below are UTC; expectations are Europe/London (BST in July,
  * so 09:00Z reads as 10am — that skew is exactly what these tests pin down).
+ * The timezone is now a REQUIRED argument (the raw-UTC hour-early QA class),
+ * so each call passes the session tz explicitly, like real callers do.
  */
+
+const TZ = "Europe/London";
 
 // Sun 12 Jul 2026 10:00 Europe/London (BST) = 09:00 UTC.
 const SUN_10AM = Date.UTC(2026, 6, 12, 9, 0);
@@ -27,34 +31,34 @@ const SAT_730PM = Date.UTC(2026, 6, 11, 18, 30);
 
 describe("shortDayTime", () => {
   it("renders the design's lock shorthand, minutes dropped on the hour", () => {
-    expect(shortDayTime(SAT_10AM)).toBe("Sat 10am");
-    expect(shortDayTime(SUN_10AM)).toBe("Sun 10am");
+    expect(shortDayTime(SAT_10AM, TZ)).toBe("Sat 10am");
+    expect(shortDayTime(SUN_10AM, TZ)).toBe("Sun 10am");
   });
 
   it("keeps minutes when they matter", () => {
-    expect(shortDayTime(SAT_730PM)).toBe("Sat 7:30pm");
+    expect(shortDayTime(SAT_730PM, TZ)).toBe("Sat 7:30pm");
   });
 });
 
 describe("thisWeekHeading", () => {
   it("names the day the way the availability card does", () => {
-    expect(thisWeekHeading(SUN_10AM)).toBe("This Sunday · 12 Jul");
+    expect(thisWeekHeading(SUN_10AM, TZ)).toBe("This Sunday · 12 Jul");
   });
 });
 
 describe("sessionStamp", () => {
   it("stamps THE FOUR header with day + 24h time", () => {
-    expect(sessionStamp(SUN_10AM)).toBe("Sun 12 · 10:00");
+    expect(sessionStamp(SUN_10AM, TZ)).toBe("Sun 12 · 10:00");
   });
 });
 
 describe("lockedHeaderLabel", () => {
   it("carries the lock instant, uppercased", () => {
-    expect(lockedHeaderLabel(SAT_10AM)).toBe("THE FOUR · LOCKED SAT 10AM");
+    expect(lockedHeaderLabel(SAT_10AM, TZ)).toBe("THE FOUR · LOCKED SAT 10AM");
   });
 
   it("stays honest when no lock instant exists", () => {
-    expect(lockedHeaderLabel(null)).toBe("THE FOUR · LOCKED");
+    expect(lockedHeaderLabel(null, TZ)).toBe("THE FOUR · LOCKED");
   });
 });
 
@@ -107,14 +111,14 @@ describe("rotationModePill", () => {
 
 describe("rotationListStatus", () => {
   it("says the four is set once locked", () => {
-    expect(rotationListStatus({ locked: true, mode: "limited", locksAtMs: SAT_10AM })).toBe("the four is set");
+    expect(rotationListStatus({ locked: true, mode: "limited", locksAtMs: SAT_10AM }, TZ)).toBe("the four is set");
   });
 
   it("gives the lock instant pre-lock (the games-list subline)", () => {
-    expect(rotationListStatus({ locked: false, mode: "limited", locksAtMs: SAT_10AM })).toBe("lineup locks Sat 10am");
+    expect(rotationListStatus({ locked: false, mode: "limited", locksAtMs: SAT_10AM }, TZ)).toBe("lineup locks Sat 10am");
   });
 
   it("never invents a lock for unlimited games", () => {
-    expect(rotationListStatus({ locked: false, mode: "unlimited", locksAtMs: SAT_10AM })).toBe("re-picks to kickoff");
+    expect(rotationListStatus({ locked: false, mode: "unlimited", locksAtMs: SAT_10AM }, TZ)).toBe("re-picks to kickoff");
   });
 });

@@ -4,11 +4,11 @@ import { formatMoneyWhole } from "@/components/tab/money";
 import { bookingPlatform } from "@/lib/booking";
 import { rotationListStatus } from "./wide-rotation-model";
 import { WidePage, WideHeader, WideCard } from "./wide-shell";
+import { formatTime, formatWeekday, formatWeekdayDay } from "@/lib/time";
 
-function DayTile({ startsAt }: { startsAt: number }) {
-  const d = new Date(startsAt);
-  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" }).format(d).toUpperCase();
-  const time = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+function DayTile({ startsAt, timeZone }: { startsAt: number; timeZone: string }) {
+  const weekday = formatWeekday(startsAt, timeZone).toUpperCase();
+  const time = formatTime(startsAt, timeZone);
   return (
     <div className="w-[46px] text-center flex-none">
       <div className="font-sans font-extrabold text-[15px] leading-none text-ink">{weekday}</div>
@@ -21,9 +21,7 @@ function Pill({ children }: { children: React.ReactNode }) {
   return <span className="border border-ink-hairline-2 text-ink-muted rounded-full px-2.5 py-1 font-mono text-[10px] font-semibold">{children}</span>;
 }
 
-function dateLabel(startsAt: number): string {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric" }).format(new Date(startsAt));
-}
+
 
 /**
  * The "booked on" tile inside a row that is ITSELF a link (issue #21): the
@@ -56,16 +54,16 @@ function GameRow({ s, isLast }: { s: SessionSummary; isLast: boolean }) {
   const money = s.moneyOptIn;
   const rotationLocked = s.rotation?.lockedAt != null;
   const sub = isOneOff
-    ? `${dateLabel(s.session.startsAt)} · ${s.confirmed.length} of ${s.slots} · single session`
+    ? `${formatWeekdayDay(s.session.startsAt, s.timezone)} · ${s.confirmed.length} of ${s.slots} · single session`
     : s.rotation
-      ? `next: ${dateLabel(s.session.startsAt)} · ${rotationListStatus({ locked: rotationLocked, mode: s.rotation.mode, locksAtMs: s.rotation.locksAt.getTime() })}`
-      : `next: ${dateLabel(s.session.startsAt)} · ${s.confirmed.length} of ${s.slots} · slots lock 24h before`;
+      ? `next: ${formatWeekdayDay(s.session.startsAt, s.timezone)} · ${rotationListStatus({ locked: rotationLocked, mode: s.rotation.mode, locksAtMs: s.rotation.locksAt.getTime() }, s.timezone)}`
+      : `next: ${formatWeekdayDay(s.session.startsAt, s.timezone)} · ${s.confirmed.length} of ${s.slots} · slots lock 24h before`;
   return (
     <Link
       href={`/games/${s.session.id}`}
       className={`flex items-center gap-3.5 px-[18px] py-[15px] ${isLast ? "" : "border-b border-ink-hairline-1"} transition-cu-state hover:bg-ink-hairline-1 active:bg-ink-hairline-1`}
     >
-      <DayTile startsAt={s.session.startsAt} />
+      <DayTile startsAt={s.session.startsAt} timeZone={s.timezone} />
       <div className="flex-1 min-w-0">
         <div className="font-sans font-bold text-[13.5px] text-ink truncate">{s.venue?.name ?? "Venue TBC"}</div>
         <div className="font-mono text-[10.5px] text-ink-muted mt-[3px] truncate">{sub}</div>
@@ -105,12 +103,22 @@ export function WideGames({ circleId, isOrganiser, standingRows, oneOffRows }: {
         subtitle="the fixtures the Lot runs, plus one-offs"
         right={
           isOrganiser ? (
-            <Link
-              href={`/games/standing/new?circleId=${circleId}`}
-              className="border border-ink-hairline-4 text-ink rounded-[12px] px-4 py-2.5 font-sans font-bold text-[12px] transition-cu-state hover:bg-ink-hairline-1"
-            >
-              + Add a game
-            </Link>
+            // Both game shapes get a door (QA4: one-offs existed with no UI
+            // entry point — "+ Add a game" only ever led to the weekly form).
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/games/standing/new?circleId=${circleId}`}
+                className="border border-ink-hairline-4 text-ink rounded-[12px] px-4 py-2.5 font-sans font-bold text-[12px] transition-cu-state hover:bg-ink-hairline-1"
+              >
+                + Standing Game
+              </Link>
+              <Link
+                href={`/games/one-off/new?circleId=${circleId}`}
+                className="border border-ink-hairline-4 text-ink rounded-[12px] px-4 py-2.5 font-sans font-bold text-[12px] transition-cu-state hover:bg-ink-hairline-1"
+              >
+                + One-off
+              </Link>
+            </div>
           ) : undefined
         }
       />

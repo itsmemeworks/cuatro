@@ -12,6 +12,8 @@ export type GuestPerson = { src?: string | null; name: string };
 
 export type GuestFlowInitial =
   | { step: "claim" }
+  /** The session is already full at render time — land straight on the honest "Beaten to it" state (QA6: the live "I can play" CTA on a 4/4 game read as bait-and-switch). The reserve-queue path stays live from here. */
+  | { step: "beaten" }
   | { step: "name"; status: "in" | "reserve" }
   | { step: "done"; status: "in" | "reserve"; displayName: string; avatarUrl?: string | null };
 
@@ -76,7 +78,9 @@ export function GuestClaimFlow({
   sideHint?: FourthCallSideHint | null;
 }) {
   const [step, setStep] = useState<"claim" | "beaten" | "name" | "done">(initial.step);
-  const [status, setStatus] = useState<"in" | "reserve">(initial.step === "claim" ? "in" : initial.status);
+  const [status, setStatus] = useState<"in" | "reserve">(
+    initial.step === "claim" || initial.step === "beaten" ? "in" : initial.status,
+  );
   const [displayName, setDisplayName] = useState(initial.step === "done" ? initial.displayName : "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>((initial.step === "done" && initial.avatarUrl) || null);
   const [justArrived, setJustArrived] = useState(false);
@@ -220,6 +224,12 @@ export function GuestClaimFlow({
   if (step === "beaten") {
     return (
       <div className="w-full text-center min-[900px]:max-w-[440px] min-[900px]:mx-auto">
+        {/* Game context up top: this step is also a LANDING state now (a full
+            session renders it before any tap), so it must say which game it is. */}
+        <Meta as="p" className="mb-2">
+          {circleName} · {whenLabel}
+          {venue?.name ? ` · ${venue.name}` : ""}
+        </Meta>
         <h2 className="text-cu-title text-ink">Beaten to it</h2>
         <p className="text-cu-body text-ink-muted mt-1.5">
           Brutal. But there&apos;s a queue, and this Circle plays every week.
@@ -361,7 +371,11 @@ export function GuestClaimFlow({
         )}
       </div>
 
-      <Link href={`/login?next=${encodeURIComponent("/home")}`} className={`${STRONG_LG_LINK_CLASS} mt-5`}>
+      {/* Conversion lands back on THIS game, not a generic surface (QA8: the
+          old /home target read like the join had been undone). Safe even if
+          the magic link is opened on another device (no guest cookie, no
+          conversion): /games/[sessionId] has no membership gate on reads. */}
+      <Link href={`/login?next=${encodeURIComponent(`/games/${sessionId}`)}`} className={`${STRONG_LG_LINK_CLASS} mt-5`}>
         Save your games, send me a magic link
       </Link>
 

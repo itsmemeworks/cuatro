@@ -6,7 +6,7 @@ import { ScoreTable, MatchStatusBadge } from "@/components/matches/score-table";
 import { FriendlyBadge } from "@/components/matches/friendly-badge";
 import { MatchConfirmFlow } from "@/components/matches/match-confirm-flow";
 import { MatchDetailWide } from "@/components/matches/wide/match-detail-wide";
-import { LiveRefresh } from "@/components/realtime/LiveRefresh";
+import { MatchLive } from "@/components/matches/match-live";
 import { Card, Meta } from "@/components/ui";
 
 export default async function MatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -51,8 +51,10 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
 
   return (
     <>
-      {/* One subscription serves both trees (LiveRefresh renders nothing). */}
-      <LiveRefresh sessionId={match.sessionId} />
+      {/* One subscription serves both trees (MatchLive renders nothing). While
+          the match is pending it also polls, so a lost seal broadcast can
+          never strand a live "Confirm result" button (QA5 finding 4). */}
+      <MatchLive sessionId={match.sessionId} pending={match.status === "pending_confirmation"} />
       <main className="px-4 pt-6 pb-6 flex flex-col gap-4 min-[900px]:hidden">
         <div className="flex items-center justify-between">
           <h1 className="text-cu-title text-ink">Match result</h1>
@@ -74,6 +76,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             friendly={isFriendly}
             teamAName={teamAName}
             teamBName={teamBName}
+            winnerTeam={winner}
             confirmedTeams={confirmedTeams}
             viewerTeam={viewerTeam}
             canAct={canAct}
@@ -112,6 +115,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             outcome={match.outcome}
             friendly={isFriendly}
             sets={match.score}
+            winnerTeam={winner}
             viewerTeam={viewerTeam}
             viewerHasConfirmed={viewerHasConfirmed}
             canAct={canAct}

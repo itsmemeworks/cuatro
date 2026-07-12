@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { getGamesClient } from "@/server/games-db";
 import { getSessionSummary } from "@/server/games-service";
+import { formatDayTime } from "@/lib/time";
 
 /**
  * Dynamic OG image for a game/session share link — the surface Fourth Call
@@ -57,11 +58,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const faces = summary.confirmed.slice(0, 3);
   const openSlots = Math.max(0, summary.slots - summary.confirmed.length);
-  const timeLabel = new Date(summary.session.startsAt).toLocaleString("en-GB", {
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const timeLabel = formatDayTime(summary.session.startsAt, summary.timezone);
   const place = summary.venue?.name ?? summary.circleName;
 
   return new ImageResponse(

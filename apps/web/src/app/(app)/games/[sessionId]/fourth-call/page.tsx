@@ -16,6 +16,7 @@ import { getMatchesStore } from "@/server/matches-db";
 import { FourthCallSend, type RingState, type PlayedWithRow } from "@/components/circle-screens/fourth-call-send";
 import { Avatar, Meta } from "@/components/ui";
 import { formatGlass } from "@/lib/design";
+import { formatDayTime } from "@/lib/time";
 
 export default async function FourthCallSendPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const user = await getSessionUser();
@@ -122,11 +123,7 @@ export default async function FourthCallSendPage({ params }: { params: Promise<{
     }
   }
 
-  const whenLabel = new Date(summary.session.startsAt).toLocaleString("en-GB", {
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const whenLabel = formatDayTime(summary.session.startsAt, summary.timezone);
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-4">

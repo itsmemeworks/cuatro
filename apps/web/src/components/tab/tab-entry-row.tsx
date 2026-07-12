@@ -147,8 +147,11 @@ export function TabEntryRow({
             disabled={pending || viewerAlreadyProposed}
             onClick={() => post("settle")}
           >
+            {/* "Settle £X" — the wide Tab's term for the same action (QA6: the
+                phone said "Mark as paid", reading as two different mechanics
+                to anyone switching devices mid-week). */}
             {entry.pendingSettleBy == null
-              ? `Mark as paid ${formatMoneyWhole(entry.amountMinor, entry.currency)}`
+              ? `Settle ${formatMoneyWhole(entry.amountMinor, entry.currency)}`
               : viewerAlreadyProposed
                 ? "Waiting…"
                 : "Confirm ✓"}

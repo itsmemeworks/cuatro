@@ -7,6 +7,7 @@ import { displayNameLooksDerived } from "@/lib/entry-name";
 import { GUEST_COOKIE } from "@/lib/guest-session";
 import { convertGuestOnAuth, getGuestUserId } from "@/server/guest";
 import { getGamesClient } from "@/server/games-db";
+import { isGenericConversionDestination, resolveConvertedGuestLanding } from "./converted-landing";
 
 /**
  * Lands both Supabase auth flows: magic-link OTP (signInWithOtp's
@@ -27,12 +28,14 @@ import { getGamesClient } from "@/server/games-db";
  * merged, it must not keep resolving to the now-inert guest husk. The merge
  * runs at most once per identity (the husk is left isGuest:false), so a
  * double-clicked magic link that replays this callback can't double-merge.
+ * A conversion also upgrades a GENERIC destination (/home, /join/[code]) to
+ * the Circle/game the guest actually joined — see ./converted-landing.ts.
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const next = request.nextUrl.searchParams.get("next");
   const origin = resolveRequestOrigin(request);
-  const destination = isSafeRelativePath(next) ? next : "/home";
+  let destination = isSafeRelativePath(next) ? next : "/home";
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
@@ -66,7 +69,15 @@ export async function GET(request: NextRequest) {
     const guestUserId = await getGuestUserId(db, guestToken);
     if (guestUserId) {
       const conversion = await convertGuestOnAuth(db, guestUserId, resolvedUser.id);
-      if (conversion?.converted && conversion.carriedName) effectiveDisplayName = conversion.carriedName;
+      if (conversion?.converted) {
+        if (conversion.carriedName) effectiveDisplayName = conversion.carriedName;
+        // A converted guest never lands on a generic surface — upgrade /home
+        // and /join/[code] bounces to the Circle they joined (or the game
+        // they claimed). Specific `next` targets pass through untouched.
+        if (isGenericConversionDestination(destination)) {
+          destination = (await resolveConvertedGuestLanding(db, resolvedUser.id, destination)) ?? destination;
+        }
+      }
     }
   }
 

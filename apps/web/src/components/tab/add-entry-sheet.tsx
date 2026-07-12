@@ -8,7 +8,9 @@ import { AddEntryForm, type AddEntryFormMember } from "./add-entry-form";
  * "Add to the Tab" demoted to a compact affordance (design/DESIGN-AUDIT.md
  * T1) — the prototype's Tab screen has no open form up top; adding a split
  * is a quiet "+ Add" that opens the existing form in a sheet instead.
- * AddEntryForm itself is untouched — only its container changes.
+ * Save-then-close (QA6, CLAUDE.md #14): a successful add closes the sheet via
+ * AddEntryForm's onSaved, the same shape as the wide dialog's setOpen(false) —
+ * the sheet lingering open with a reset form read as "did that save?".
  */
 export function AddEntrySheet({
   circleId,
@@ -33,7 +35,13 @@ export function AddEntrySheet({
         + Add
       </button>
       <Sheet open={open} onClose={() => setOpen(false)}>
-        <AddEntryForm circleId={circleId} members={members} payerUserId={payerUserId} defaultCurrency={defaultCurrency} />
+        <AddEntryForm
+          circleId={circleId}
+          members={members}
+          payerUserId={payerUserId}
+          defaultCurrency={defaultCurrency}
+          onSaved={() => setOpen(false)}
+        />
       </Sheet>
     </>
   );
