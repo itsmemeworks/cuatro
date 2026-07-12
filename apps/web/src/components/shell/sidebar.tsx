@@ -288,8 +288,8 @@ function CircleSidebar({ data, context }: { data: ShellData; context: Extract<Sh
         <NavRow href={`${base}/games`} active={context.active === "games"} label="Games" icon={ICONS.games} />
         <NavRow href={`${base}/tab`} active={context.active === "tab"} label="The Tab" icon={ICONS.tab} trailing={<TabNet line={circle?.circleTabNetLine ?? null} owing={circle?.circleTabNetOwing ?? false} />} />
         <NavRow
-          href={base}
-          active={false}
+          href={`${base}/settings`}
+          active={context.active === "settings"}
           label="Settings"
           icon={ICONS.settings}
           trailing={<span style={{ font: `400 10px ${MONO}`, color: "rgba(245,242,236,.35)" }}>organiser</span>}

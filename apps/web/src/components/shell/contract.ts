@@ -88,7 +88,7 @@ export interface ShellData {
 /** Which context the shell is in and which nav item is active, derived from the pathname */
 export type ShellContext =
   | { kind: "home"; active: "week" | "discover" | "tab" | "you" | "other" }
-  | { kind: "circle"; circleId: string; active: "feed" | "chat" | "members" | "games" | "tab" | "other" };
+  | { kind: "circle"; circleId: string; active: "feed" | "chat" | "members" | "games" | "tab" | "settings" | "other" };
 
 /*
  * Route → context mapping (WAVE B revision — B5 implements in lib/shell-context.ts):
@@ -97,7 +97,9 @@ export type ShellContext =
  *   /circles/[id]/members    → circle:members
  *   /circles/[id]/games*     → circle:games
  *   /circles/[id]/tab        → circle:tab
- *   /circles/[id]/<other>    → circle:other (settings etc.)
+ *   /circles/[id]/settings   → circle:settings (organiser surface; the route
+ *                              itself bounces non-organisers to Feed)
+ *   /circles/[id]/<other>    → circle:other
  *   /home, /feed, /matches*, /games, /games/standing* → home:week
  *   /games/[sessionId]       → circle:games for the session's circle (WAVE C:
  *                              data-aware — lib/shell-context.ts gameSessionIdFor
