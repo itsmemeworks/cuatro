@@ -20,7 +20,7 @@
  * in geocode.ts and is triggered by the caller after the row is resolved), so
  * the awaits here are pure DB round-trips.
  */
-import { eq } from "drizzle-orm";
+import { eq, isNotNull, ne } from "drizzle-orm";
 import { circles, sessions, standingGames, venues, type CuatroDb, type Venue } from "@cuatro/db";
 import { extractUkPostcode } from "./geocode";
 
@@ -72,6 +72,67 @@ export function venueAreaHint(address: string | null | undefined): string | null
     .map((p) => p.trim())
     .filter(Boolean);
   return parts.length ? parts[parts.length - 1] : null;
+}
+
+/**
+ * Slugify a venue name into a URL-safe stem: diacritics stripped, everything
+ * that isn't a Unicode letter or number collapsed to a single hyphen, trimmed.
+ * World-ready — non-Latin scripts survive (\p{L}/\p{N}), so it never assumes
+ * ASCII/English. Returns "" for a name with no sluggable characters (the
+ * caller substitutes a fallback stem).
+ */
+export function slugifyVenueName(raw: string | null | undefined): string {
+  return (raw ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Generate a unique venue slug for cuatro.app/courts/<slug>. Base is the
+ * slugified name; on collision it appends an area/postcode-district
+ * disambiguator (the same short hint the picker uses), then a numeric suffix
+ * as the last resort — so two "Padel Social Club"s in different areas get
+ * distinct, human-readable slugs rather than a naked "-2". Read-only (the
+ * caller writes the slug on the venue it's creating); pass `excludeId` when
+ * regenerating a slug for an existing row so it doesn't collide with itself.
+ * World-ready: the disambiguator falls through name → area → number, no UK
+ * hardcoding in the language.
+ */
+export async function generateVenueSlug(
+  db: CuatroDb,
+  name: string | null | undefined,
+  address: string | null | undefined,
+  opts: { excludeId?: string } = {},
+): Promise<string> {
+  const base = slugifyVenueName(name) || "venue";
+
+  const rows = await db
+    .select({ slug: venues.slug })
+    .from(venues)
+    .where(opts.excludeId ? ne(venues.id, opts.excludeId) : isNotNull(venues.slug));
+  const taken = new Set(rows.map((r) => r.slug).filter((s): s is string => !!s));
+
+  if (!taken.has(base)) return base;
+
+  const areaSlug = slugifyVenueName(venueAreaHint(address));
+  if (areaSlug) {
+    const withArea = `${base}-${areaSlug}`;
+    if (!taken.has(withArea)) return withArea;
+  }
+
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
+/** Fetch a venue by its shareable slug (the court-page handle). Null if none. */
+export async function getVenueBySlug(db: CuatroDb, slug: string): Promise<Venue | null> {
+  const [row] = await db.select().from(venues).where(eq(venues.slug, slug)).limit(1);
+  return row ?? null;
 }
 
 export type VenueOption = { id: string; name: string; areaHint: string | null };

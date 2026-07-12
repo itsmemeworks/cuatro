@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#211E1A;font-family:'Archivo',sans-serif}
+a{color:#F5F2EC}a:hover{color:#fff}
+@keyframes cu-pulse{0%{box-shadow:0 0 0 0 rgba(255,92,61,.32)}55%{box-shadow:0 0 0 13px rgba(255,92,61,0)}100%{box-shadow:0 0 0 0 rgba(255,92,61,0)}}
+@keyframes cu-pop{0%{transform:translate(-50%,-50%) scale(.25);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
+@keyframes cu-rise{0%{transform:translateY(26px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes cu-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes cu-fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</helmet>
+
+<!-- DESIGN LAW (unchanged, restated for the Atlas): one coral action per panel, the map IS a panel. Dashed coral circle means a space waiting for a PERSON, nothing else. Facts in IBM Plex Mono. 10px type floor. No em dashes, no exclamation marks. Never GPS: no user pins, no locate-me, people appear only as aggregate counts at venues. Private Circles never appear, anywhere, ever. -->
+
+<div style="min-height:100vh; padding:18px 20px 40px; display:flex; flex-direction:column; align-items:safe center;">
+
+  <!-- ============ SWITCHER CHROME ============ -->
+  <div style="width:100%; max-width:1440px; display:flex; align-items:center; gap:10px; padding:4px 2px 16px; flex-wrap:wrap;">
+    <span style="font:700 10px 'IBM Plex Mono',monospace; letter-spacing:.16em; color:rgba(245,242,236,.45);">CUATRO · THE ATLAS · V1</span>
+    <span style="flex:1;"></span>
+    <div style="display:flex; gap:4px; background:#17150F; border:1px solid rgba(245,242,236,.12); border-radius:999px; padding:4px;">
+      <div onClick="{{setPhone}}" style="cursor:pointer; border-radius:999px; padding:7px 15px; background:{{swPhBg}}; color:{{swPhFg}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Phone · 430</div>
+      <div onClick="{{setTab}}" style="cursor:pointer; border-radius:999px; padding:7px 15px; background:{{swTbBg}}; color:{{swTbFg}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Tablet · 1024</div>
+      <div onClick="{{setDesk}}" style="cursor:pointer; border-radius:999px; padding:7px 15px; background:{{swDkBg}}; color:{{swDkFg}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Desktop · 1440</div>
+    </div>
+    <div onClick="{{toggleTheme}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.15); border-radius:999px; padding:8px 15px; color:rgba(245,242,236,.75); font:700 11.5px 'Archivo',sans-serif; user-select:none;">{{thLbl}}</div>
+    <div onClick="{{toggleSparse}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.15); border-radius:999px; padding:8px 15px; background:{{spBg}}; color:{{spFg}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Sparse town</div>
+    <div onClick="{{toggleNoPatch}}" style="cursor:pointer; border:1px solid rgba(245,242,236,.15); border-radius:999px; padding:8px 15px; background:{{npBg}}; color:{{npFg}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">No patch yet</div>
+    <a href="CUATRO Web v2.dc.html" style="text-decoration:none; border-radius:999px; padding:8px 15px; border:1px solid rgba(245,242,236,.15); color:rgba(245,242,236,.55); font:700 11.5px 'Archivo',sans-serif;">Web app ↗</a>
+  </div>
+  <div style="width:100%; max-width:1440px; padding:0 2px 14px; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.35);">the Atlas is a HOME-context surface · list is the default on phone, map earns the default at 1440 where it shares the width with the list · tap markers, rows, the patch chip, and Add a court</div>
+
+  <!-- ============ APP CANVAS ============ -->
+  <div style="width:{{cvW}}; min-height:{{cvH}}; background:{{tBg}}; border:1px solid rgba(245,242,236,.14); border-radius:24px; overflow:hidden; position:relative; display:flex; flex-direction:column; transition:width 300ms ease, background 300ms ease;">
+
+    <!-- ================= PHONE 430 ================= -->
+    <div data-screen-label="Atlas · Phone" style="display:{{phD}}; flex-direction:column; height:900px;">
+      <div style="flex:none; padding:18px 18px 12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="flex:1;">
+            <div style="font:800 24px/1 'Archivo',sans-serif; letter-spacing:-.01em; color:{{tBone}};">Discover</div>
+            <div style="font:400 11px 'Archivo',sans-serif; color:{{tInk55}}; margin-top:5px;">{{subLoc}}</div>
+          </div>
+          <div onClick="{{openPatch}}" style="cursor:pointer; border:1px solid {{tInk18}}; color:{{tBone}}; border-radius:999px; padding:8px 13px; font:700 11px 'Archivo',sans-serif; user-select:none;">◆ patch · {{patchSize}}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:13px;">
+          <div style="display:flex; gap:3px; background:{{tInk07}}; border:1px solid {{tInk12}}; border-radius:999px; padding:3px;">
+            <div onClick="{{setList}}" style="cursor:pointer; border-radius:999px; padding:7px 16px; background:{{segLBg}}; color:{{segLC}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">List</div>
+            <div onClick="{{setMap}}" style="cursor:pointer; border-radius:999px; padding:7px 16px; background:{{segMBg}}; color:{{segMC}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Map</div>
+          </div>
+          <span style="flex:1;"></span>
+          <div style="border:1px solid {{tInk18}}; color:{{tBone}}; border-radius:999px; padding:8px 13px; font:700 11px 'Archivo',sans-serif;">Level 4.1–5.1 ▾</div>
+        </div>
+      </div>
+
+      <!-- phone · LIST -->
+      <div data-screen-label="Atlas · Phone list" style="display:{{pListD}}; flex:1; overflow-y:auto; padding:2px 18px 16px;">
+        <div style="display:{{seatCardD}};">
+        <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.14em; color:{{tInk5}};">A SEAT NEAR YOU</div>
+        <div style="background:{{tCard}}; border:1px solid {{tInk09}}; border-radius:20px; padding:15px; margin-top:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font:800 10px 'Archivo',sans-serif; letter-spacing:.1em; color:{{tCoralTx}};">SUN 12 · 10:00</span>
+            <span style="flex:1;"></span>
+            <span style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}};">~1 km</span>
+          </div>
+          <div onClick="{{openVic}}" style="cursor:pointer; font:800 16px/1.25 'Archivo',sans-serif; color:{{tBone}}; margin-top:7px;">Victoria Park Padel · court 1</div>
+          <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:{{tInk5}}; margin-top:4px;">hosted by Leo's Lot · level 4.3–4.8 · £7 split</div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:12px;">
+            <div style="display:flex;">
+              <img src="avatars/ana.jpg" alt="Ana" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid {{tCard}};">
+              <img src="avatars/dev.jpg" alt="Dev" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid {{tCard}};margin-left:-10px;">
+              <img src="avatars/tom.jpg" alt="Tom" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid {{tCard}};margin-left:-10px;">
+              <div style="display:{{dashSlotD}};width:30px;height:30px;border-radius:50%;border:2px dashed {{tCoral}};background:{{tCard}};color:{{tCoralTx}};font:800 12px/26px 'Archivo',sans-serif;text-align:center;margin-left:-10px;box-sizing:border-box;">4</div>
+              <img src="avatars/sam.jpg" alt="You" style="display:{{youSlotD}};width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid {{tGoodC}};margin-left:-10px;">
+            </div>
+            <span style="font:500 10.5px 'Archivo',sans-serif; color:{{tInk6}}; flex:1;">{{seatCountLn}}</span>
+            <div onClick="{{claimTap}}" style="cursor:pointer; background:{{clBg}}; color:{{clC}}; border:{{clBd}}; border-radius:11px; padding:11px 15px; font:800 12px 'Archivo',sans-serif; user-select:none; transition:background 250ms ease, color 250ms ease;">{{clLbl}}</div>
+          </div>
+        </div>
+
+        </div>
+        <div style="display:flex; align-items:baseline; gap:8px; margin-top:20px;">
+          <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.14em; color:{{tInk5}};">THE ATLAS · {{atlasHead}}</div>
+          <span style="flex:1;"></span>
+          <span style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}};">{{atlasCount}}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+            <div onClick="{{r.tap}}" style="cursor:pointer; display:flex; align-items:center; gap:12px; background:{{tCard}}; border:1px solid {{tInk09}}; border-radius:16px; padding:12px 14px; user-select:none;">
+              <div style="width:14px; height:14px; flex:none; border-radius:50%; box-sizing:border-box; background:{{r.dbg}}; border:{{r.dbd}};"></div>
+              <div style="flex:1; min-width:0;">
+                <div style="font:700 13px 'Archivo',sans-serif; color:{{tBone}};">{{r.nm}}</div>
+                <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{r.sub}}</div>
+              </div>
+              <div style="font:600 10px 'IBM Plex Mono',monospace; letter-spacing:.06em; color:{{r.rightC}}; flex:none;">{{r.right}}</div>
+            </div>
+          </sc-for>
+          <div onClick="{{openAdd}}" style="cursor:pointer; display:flex; align-items:center; gap:12px; border:1px solid {{tInk18}}; border-radius:16px; padding:13px 14px; user-select:none;">
+            <div style="width:14px; height:14px; flex:none; border-radius:50%; border:1.5px solid {{tInk35}}; box-sizing:border-box; color:{{tInk6}}; font:600 10px/11px 'Archivo',sans-serif; text-align:center;">+</div>
+            <div style="flex:1;">
+              <div style="font:700 13px 'Archivo',sans-serif; color:{{tBone}};">Add a court</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:3px;">know one we don't? Put it on the Atlas</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px; text-align:center; font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}};">1,553 courts · 559 venues · all of them fighting over the 7pm slot</div>
+      </div>
+
+      <!-- phone · MAP -->
+      <div data-screen-label="Atlas · Phone map" style="display:{{pMapD}}; flex:1; position:relative; overflow:hidden; background:{{tMap0}}; transition:background 300ms;">
+        <div style="display:{{roadsD}}; position:absolute; inset:0;">
+          <div style="position:absolute; left:58%; top:10%; width:24%; height:19%; background:{{tMapPark}}; border-radius:14px; transform:rotate(-4deg);"></div>
+          <div style="position:absolute; left:11%; top:7%; width:13%; height:12%; background:{{tMapPark}}; border-radius:12px;"></div>
+          <div style="position:absolute; left:61%; top:57%; width:15%; height:21%; background:{{tMapPark}}; border-radius:12px; transform:rotate(6deg);"></div>
+          <div style="position:absolute; left:-5%; right:-5%; top:44%; height:14px; background:{{tMapWater}}; transform:rotate(4deg); border-radius:8px;"></div>
+          <div style="position:absolute; left:-5%; right:-5%; top:30%; height:11px; background:{{tMap1}}; transform:rotate(-6deg);"></div>
+          <div style="position:absolute; left:-5%; right:-5%; top:63%; height:8px; background:{{tMap2}}; transform:rotate(-3deg);"></div>
+          <div style="position:absolute; top:-5%; bottom:-5%; left:22%; width:8px; background:{{tMap2}}; transform:rotate(10deg);"></div>
+          <div style="position:absolute; top:-5%; bottom:-5%; left:57%; width:11px; background:{{tMap1}}; transform:rotate(8deg);"></div>
+          <div style="position:absolute; top:-5%; bottom:-5%; right:11%; width:7px; background:{{tMap2}}; transform:rotate(-12deg);"></div>
+        </div>
+        <div style="display:{{ukD}}; position:absolute; left:0; right:0; top:14px; text-align:center; font:600 10px 'IBM Plex Mono',monospace; letter-spacing:.2em; color:{{tInk35}};">THE UK, ROUGHLY</div>
+
+        <div style="display:{{blobD}}; position:absolute; left:{{blobX}}; top:{{blobY}}; width:{{blobW}}; height:{{blobW}}; transform:translate(-50%,-50%); transition:left 700ms ease, top 700ms ease, width 400ms ease, height 400ms ease; pointer-events:none;">
+          <div style="position:absolute; inset:0; border-radius:46% 54% 52% 48% / 52% 46% 54% 48%; background:radial-gradient(closest-side, {{tBlobA}} 0%, {{tBlobB}} 55%, transparent 78%); animation:cu-breathe 7s ease-in-out infinite;"></div>
+          <div style="position:absolute; left:50%; bottom:-4px; transform:translateX(-50%); font:600 10px 'IBM Plex Mono',monospace; color:{{tCoralTx}}; opacity:.75; white-space:nowrap;">your patch</div>
+        </div>
+
+        <sc-for list="{{markers}}" as="m" hint-placeholder-count="6">
+          <div onClick="{{m.tap}}" style="position:absolute; left:{{m.x}}; top:{{m.y}}; transform:translate(-50%,-50%); cursor:pointer; z-index:{{m.z}}; display:flex; flex-direction:column; align-items:center; user-select:none; animation:{{m.anim}};">
+            <div style="width:{{m.w}}; height:{{m.w}}; box-sizing:border-box; border-radius:50%; background:{{m.bg}}; border:{{m.bd}}; color:{{m.col}}; font:{{m.font}}; display:flex; align-items:center; justify-content:center; box-shadow:{{m.sh}}; animation:{{m.ring}};"><span>{{m.txt}}</span></div>
+            <div style="margin-top:5px; font:700 10.5px 'Archivo',sans-serif; color:{{m.nmC}}; text-shadow:{{tTs}}; white-space:nowrap;">{{m.nm}}</div>
+            <div style="font:500 10px 'IBM Plex Mono',monospace; color:{{m.subC}}; text-shadow:{{tTs}}; white-space:nowrap; margin-top:2px;">{{m.sub}}</div>
+          </div>
+        </sc-for>
+
+        <div style="display:{{reasD}}; position:absolute; left:12px; right:12px; top:12px; z-index:30; background:{{tCard}}; border:1px solid {{tInk14}}; border-radius:16px; padding:14px 16px; box-shadow:{{tShadow}}; animation:cu-rise 380ms cubic-bezier(.34,1.56,.64,1) both;">
+          <div style="font:800 13px 'Archivo',sans-serif; color:{{tBone}};">This map never asks where you are</div>
+          <div style="font:400 11px/1.6 'Archivo',sans-serif; color:{{tInk6}}; margin-top:5px;">No GPS, no location permission, no locate-me button. The camera opens on your patch, anchored to your home court. Change the court and the patch moves with it.</div>
+          <div style="display:flex; gap:8px; margin-top:11px;">
+            <div onClick="{{dismissReas}}" style="cursor:pointer; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:10px; padding:9px 14px; font:700 11.5px 'Archivo',sans-serif; user-select:none;">Understood</div>
+            <div onClick="{{openPatch}}" style="cursor:pointer; color:{{tInk5}}; padding:9px 6px; font:500 10.5px 'IBM Plex Mono',monospace; user-select:none;">patch settings →</div>
+          </div>
+        </div>
+
+        <div style="display:{{spCardD}}; position:absolute; left:12px; right:12px; bottom:12px; z-index:25; background:{{tCard}}; border:1px solid {{tInk14}}; border-radius:18px; padding:16px; box-shadow:{{tShadow}};">
+          <div style="font:800 15px 'Archivo',sans-serif; color:{{tBone}};">Shrewsbury has courts. And, for once, no queue</div>
+          <div style="font:400 11px/1.6 'Archivo',sans-serif; color:{{tInk6}}; margin-top:5px;">Three courts on the Atlas, zero Circles running them. Someone gets to be first and gets first pick of the good slots.</div>
+          <div onClick="{{startCircle}}" style="cursor:pointer; margin-top:12px; background:{{tCoral}}; color:#fff; border-radius:12px; text-align:center; padding:12px 0; font:800 12.5px 'Archivo',sans-serif; user-select:none;">Start the first Circle here</div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:9px; text-align:center;">every Circle you start seeds the town for the next player</div>
+        </div>
+
+        <div style="display:{{npCardD}}; position:absolute; left:24px; right:24px; top:50%; transform:translateY(-50%); z-index:25; background:{{tCard}}; border:1px solid {{tInk14}}; border-radius:20px; padding:20px; box-shadow:{{tShadow}}; text-align:center;">
+          <div style="width:44px; height:44px; margin:0 auto; border-radius:14px; background:{{tCoralT16}}; color:{{tCoralTx}}; font:800 18px/44px 'Archivo',sans-serif;">◆</div>
+          <div style="font:800 18px 'Archivo',sans-serif; color:{{tBone}}; margin-top:12px;">Set your patch</div>
+          <div style="font:400 11.5px/1.65 'Archivo',sans-serif; color:{{tInk6}}; margin-top:6px;">The Atlas opens on your home court, not on you. Pick where you play and the map is yours. Never GPS.</div>
+          <div onClick="{{openPatch}}" style="cursor:pointer; margin-top:14px; background:{{tCoral}}; color:#fff; border-radius:12px; padding:12px 0; font:800 12.5px 'Archivo',sans-serif; user-select:none;">Set my patch</div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:10px;">559 UK venues seeded and waiting</div>
+        </div>
+
+        <div style="position:absolute; left:12px; bottom:{{bandBtm}}; font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; text-shadow:{{tTs}};">{{bandLn}}</div>
+        <div style="position:absolute; right:12px; bottom:{{bandBtm}}; font:400 10px 'IBM Plex Mono',monospace; color:{{tInk3}}; text-shadow:{{tTs}};">CUATRO tiles · © OpenStreetMap</div>
+      </div>
+
+      <!-- phone bottom nav -->
+      <div style="flex:none; display:flex; border-top:1px solid {{tInk08}}; background:{{tCard}};">
+        <div onClick="{{navToast}}" style="cursor:pointer; flex:1; padding:9px 0 11px; text-align:center; position:relative; user-select:none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{tInk4}}" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="2"></rect><line x1="12" y1="6" x2="12" y2="18"></line></svg>
+          <div style="font:700 9.5px 'Archivo',sans-serif; color:{{tInk4}}; margin-top:2px;">Games</div>
+        </div>
+        <div style="flex:1; padding:9px 0 11px; text-align:center; position:relative; background:{{tInk05}};">
+          <div style="position:absolute; top:0; left:22%; right:22%; height:3px; border-radius:0 0 4px 4px; background:{{tCoral}};"></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{tBone}}" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><rect x="10" y="10" width="4" height="4" transform="rotate(45 12 12)"></rect></svg>
+          <div style="font:700 9.5px 'Archivo',sans-serif; color:{{tBone}}; margin-top:2px;">Discover</div>
+        </div>
+        <div onClick="{{navToast}}" style="cursor:pointer; flex:1; padding:9px 0 11px; text-align:center; user-select:none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{tInk4}}" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="4" width="14" height="16" rx="2"></rect><line x1="9" y1="9" x2="15" y2="9"></line><line x1="9" y1="13" x2="15" y2="13"></line></svg>
+          <div style="font:700 9.5px 'Archivo',sans-serif; color:{{tInk4}}; margin-top:2px;">Tab</div>
+        </div>
+        <div onClick="{{navToast}}" style="cursor:pointer; flex:1; padding:9px 0 11px; text-align:center; user-select:none;">
+          <img src="avatars/sam.jpg" alt="You" style="width:20px;height:20px;border-radius:50%;object-fit:cover;opacity:.6;">
+          <div style="font:700 9.5px 'Archivo',sans-serif; color:{{tInk4}}; margin-top:2px;">You</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= DESKTOP 1440 / TABLET 1024 ================= -->
+    <div style="display:{{dkD}}; flex-direction:column; min-height:920px;">
+      <!-- tablet top bar -->
+      <div style="display:{{tbD}}; align-items:center; gap:12px; padding:0 22px; height:64px; border-bottom:1px solid {{tInk08}}; background:{{tCard}}; flex:none;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font:800 15px 'Archivo',sans-serif; color:{{tCoral}};">◆</span>
+          <span style="font:900 15px 'Archivo',sans-serif; letter-spacing:-.01em; color:{{tBone}};">CUATRO</span>
+        </div>
+        <span style="flex:1;"></span>
+        <div style="display:flex; gap:4px;">
+          <div onClick="{{navToast}}" style="cursor:pointer; border-radius:999px; padding:8px 15px; color:{{tInk55}}; font:700 12px 'Archivo',sans-serif; user-select:none;">Your week</div>
+          <div style="border-radius:999px; padding:8px 15px; background:{{tInk08}}; color:{{tBone}}; font:700 12px 'Archivo',sans-serif;">Discover</div>
+          <div onClick="{{navToast}}" style="cursor:pointer; border-radius:999px; padding:8px 15px; color:{{tInk55}}; font:700 12px 'Archivo',sans-serif; user-select:none;">The Tab</div>
+          <div onClick="{{navToast}}" style="cursor:pointer; border-radius:999px; padding:8px 15px; color:{{tInk55}}; font:700 12px 'Archivo',sans-serif; user-select:none;">You</div>
+        </div>
+        <img src="avatars/sam.jpg" alt="You" style="width:30px;height:30px;border-radius:50%;object-fit:cover;">
+      </div>
+
+      <div style="display:flex; flex:1; min-height:0;">
+        <!-- desktop rail -->
+        <div style="display:{{railD}}; flex-direction:column; width:236px; flex:none; border-right:1px solid {{tInk08}}; background:{{tCard}}; padding:20px 14px;">
+          <div style="display:flex; align-items:center; gap:8px; padding:0 10px 18px;">
+            <span style="font:800 16px 'Archivo',sans-serif; color:{{tCoral}};">◆</span>
+            <span style="font:900 16px 'Archivo',sans-serif; letter-spacing:-.01em; color:{{tBone}};">CUATRO</span>
+          </div>
+          <div onClick="{{navToast}}" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; user-select:none;">
+            <span style="font:700 13px 'Archivo',sans-serif; color:{{tInk55}};">Your week</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; background:{{tInk05}}; position:relative;">
+            <div style="position:absolute; left:-14px; top:9px; bottom:9px; width:3px; border-radius:99px; background:{{tCoral}};"></div>
+            <span style="font:700 13px 'Archivo',sans-serif; color:{{tBone}}; flex:1;">Discover</span>
+            <span style="background:{{tGood13}}; color:{{tGoodC}}; border-radius:999px; padding:2px 8px; font:800 10px 'Archivo',sans-serif;">3</span>
+          </div>
+          <div onClick="{{navToast}}" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; user-select:none;">
+            <span style="font:700 13px 'Archivo',sans-serif; color:{{tInk55}};">The Tab</span>
+          </div>
+          <div onClick="{{navToast}}" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; user-select:none;">
+            <span style="font:700 13px 'Archivo',sans-serif; color:{{tInk55}};">You</span>
+          </div>
+          <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.14em; color:{{tInk35}}; padding:20px 12px 8px;">CIRCLES</div>
+          <div onClick="{{navToast}}" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:12px; user-select:none;">
+            <div style="width:24px;height:24px;border-radius:8px;background:#3E7BFA;color:#fff;font:800 10px/24px 'Archivo',sans-serif;text-align:center;">TN</div>
+            <span style="font:700 12.5px 'Archivo',sans-serif; color:{{tInk7}};">Tuesday Night Lot</span>
+          </div>
+          <div onClick="{{navToast}}" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:12px; user-select:none;">
+            <div style="width:24px;height:24px;border-radius:8px;background:#2FA05A;color:#fff;font:800 10px/24px 'Archivo',sans-serif;text-align:center;">WL</div>
+            <span style="font:700 12.5px 'Archivo',sans-serif; color:{{tInk7}};">Work Lot</span>
+          </div>
+          <span style="flex:1;"></span>
+          <div onClick="{{openPatch}}" style="cursor:pointer; display:flex; align-items:center; gap:9px; padding:11px 12px; border:1px solid {{tInk12}}; border-radius:14px; user-select:none;">
+            <span style="font:800 12px 'Archivo',sans-serif; color:{{tCoralTx}};">◆</span>
+            <div style="flex:1; min-width:0;">
+              <div style="font:700 11.5px 'Archivo',sans-serif; color:{{tBone}}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{homeNm}}</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}};">your patch · {{patchSize}}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- main column -->
+        <div style="flex:1; min-width:0; padding:24px 26px 26px; overflow-y:auto;">
+
+          <!-- ===== ATLAS SCREEN ===== -->
+          <div data-screen-label="Atlas · Desktop" style="display:{{atlasD}};">
+            <div style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+              <div style="flex:1; min-width:260px;">
+                <div style="font:800 29px/1 'Archivo',sans-serif; letter-spacing:-.01em; color:{{tBone}};">Discover</div>
+                <div style="font:400 12.5px 'Archivo',sans-serif; color:{{tInk55}}; margin-top:6px;">{{subLocD}}</div>
+              </div>
+              <div style="display:{{deskSegD}}; gap:3px; background:{{tInk07}}; border:1px solid {{tInk12}}; border-radius:999px; padding:3px;">
+                <div onClick="{{setList}}" style="cursor:pointer; border-radius:999px; padding:8px 17px; background:{{segLBg}}; color:{{segLC}}; font:700 12px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">List</div>
+                <div onClick="{{setMap}}" style="cursor:pointer; border-radius:999px; padding:8px 17px; background:{{segMBg}}; color:{{segMC}}; font:700 12px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Map</div>
+              </div>
+              <div onClick="{{openPatch}}" style="cursor:pointer; border:1px solid {{tInk18}}; color:{{tBone}}; border-radius:999px; padding:9px 15px; font:700 12px 'Archivo',sans-serif; user-select:none;">◆ patch · {{patchSize}}</div>
+              <div style="border:1px solid {{tInk18}}; color:{{tBone}}; border-radius:999px; padding:9px 15px; font:700 12px 'Archivo',sans-serif;">Level 4.1–5.1 ▾</div>
+              <div onClick="{{openAdd}}" style="cursor:pointer; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:999px; padding:9px 15px; font:700 12px 'Archivo',sans-serif; user-select:none;">+ Add a court</div>
+            </div>
+
+            <div style="display:flex; gap:16px; margin-top:18px; align-items:stretch;">
+              <!-- desktop map -->
+              <div data-screen-label="Atlas · Desktop map" style="display:{{dxMapD}}; flex:1; min-width:0; height:700px; position:relative; overflow:hidden; border-radius:20px; border:1px solid {{tInk09}}; background:{{tMap0}}; transition:background 300ms;">
+                <div style="display:{{roadsD}}; position:absolute; inset:0;">
+                  <div style="position:absolute; left:58%; top:10%; width:24%; height:19%; background:{{tMapPark}}; border-radius:14px; transform:rotate(-4deg);"></div>
+                  <div style="position:absolute; left:11%; top:7%; width:13%; height:12%; background:{{tMapPark}}; border-radius:12px;"></div>
+                  <div style="position:absolute; left:61%; top:57%; width:15%; height:21%; background:{{tMapPark}}; border-radius:12px; transform:rotate(6deg);"></div>
+                  <div style="position:absolute; left:-5%; right:-5%; top:44%; height:16px; background:{{tMapWater}}; transform:rotate(4deg); border-radius:8px;"></div>
+                  <div style="position:absolute; left:-5%; right:-5%; top:30%; height:12px; background:{{tMap1}}; transform:rotate(-6deg);"></div>
+                  <div style="position:absolute; left:-5%; right:-5%; top:63%; height:8px; background:{{tMap2}}; transform:rotate(-3deg);"></div>
+                  <div style="position:absolute; top:-5%; bottom:-5%; left:22%; width:9px; background:{{tMap2}}; transform:rotate(10deg);"></div>
+                  <div style="position:absolute; top:-5%; bottom:-5%; left:57%; width:12px; background:{{tMap1}}; transform:rotate(8deg);"></div>
+                  <div style="position:absolute; top:-5%; bottom:-5%; right:11%; width:7px; background:{{tMap2}}; transform:rotate(-12deg);"></div>
+                </div>
+                <div style="display:{{ukD}}; position:absolute; left:0; right:0; top:16px; text-align:center; font:600 10px 'IBM Plex Mono',monospace; letter-spacing:.2em; color:{{tInk35}};">THE UK, ROUGHLY</div>
+
+                <div style="display:{{blobD}}; position:absolute; left:{{blobX}}; top:{{blobY}}; width:{{blobW}}; height:{{blobW}}; transform:translate(-50%,-50%); transition:left 700ms ease, top 700ms ease, width 400ms ease, height 400ms ease; pointer-events:none;">
+                  <div style="position:absolute; inset:0; border-radius:46% 54% 52% 48% / 52% 46% 54% 48%; background:radial-gradient(closest-side, {{tBlobA}} 0%, {{tBlobB}} 55%, transparent 78%); animation:cu-breathe 7s ease-in-out infinite;"></div>
+                  <div style="position:absolute; left:50%; bottom:-4px; transform:translateX(-50%); font:600 10px 'IBM Plex Mono',monospace; color:{{tCoralTx}}; opacity:.75; white-space:nowrap;">your patch</div>
+                </div>
+
+                <sc-for list="{{markers}}" as="m" hint-placeholder-count="6">
+                  <div onClick="{{m.tap}}" style="position:absolute; left:{{m.x}}; top:{{m.y}}; transform:translate(-50%,-50%); cursor:pointer; z-index:{{m.z}}; display:flex; flex-direction:column; align-items:center; user-select:none; animation:{{m.anim}};">
+                    <div style="width:{{m.w}}; height:{{m.w}}; box-sizing:border-box; border-radius:50%; background:{{m.bg}}; border:{{m.bd}}; color:{{m.col}}; font:{{m.font}}; display:flex; align-items:center; justify-content:center; box-shadow:{{m.sh}}; animation:{{m.ring}};"><span>{{m.txt}}</span></div>
+                    <div style="margin-top:5px; font:700 10.5px 'Archivo',sans-serif; color:{{m.nmC}}; text-shadow:{{tTs}}; white-space:nowrap;">{{m.nm}}</div>
+                    <div style="font:500 10px 'IBM Plex Mono',monospace; color:{{m.subC}}; text-shadow:{{tTs}}; white-space:nowrap; margin-top:2px;">{{m.sub}}</div>
+                  </div>
+                </sc-for>
+
+                <div style="display:{{reasD}}; position:absolute; left:16px; top:16px; width:400px; max-width:80%; z-index:30; background:{{tCard}}; border:1px solid {{tInk14}}; border-radius:16px; padding:14px 16px; box-shadow:{{tShadow}}; animation:cu-rise 380ms cubic-bezier(.34,1.56,.64,1) both;">
+                  <div style="font:800 13px 'Archivo',sans-serif; color:{{tBone}};">This map never asks where you are</div>
+                  <div style="font:400 11px/1.6 'Archivo',sans-serif; color:{{tInk6}}; margin-top:5px;">No GPS, no location permission, no locate-me button. The camera opens on your patch, anchored to your home court. Change the court and the patch moves with it.</div>
+                  <div style="display:flex; gap:8px; margin-top:11px;">
+                    <div onClick="{{dismissReas}}" style="cursor:pointer; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:10px; padding:9px 14px; font:700 11.5px 'Archivo',sans-serif; user-select:none;">Understood</div>
+                    <div onClick="{{openPatch}}" style="cursor:pointer; color:{{tInk5}}; padding:9px 6px; font:500 10.5px 'IBM Plex Mono',monospace; user-select:none;">patch settings →</div>
+                  </div>
+                </div>
+
+                <div style="display:{{spCardD}}; position:absolute; left:16px; bottom:16px; width:440px; max-width:86%; z-index:25; background:{{tCard}}; border:1px solid {{tInk14}}; border-radius:18px; padding:16px; box-shadow:{{tShadow}};">
+                  <div style="font:800 15px 'Archivo',sans-serif; color:{{tBone}};">Shrewsbury has courts. And, for once, no queue</div>
+                  <div style="font:400 11px/1.6 'Archivo',sans-serif; color:{{tInk6}}; margin-top:5px;">Three courts on the Atlas, zero Circles running them. Someone gets to be first and gets first pick of the good slots.</div>
+                  <div onClick="{{startCircle}}" style="cursor:pointer; margin-top:12px; background:{{tCoral}}; color:#fff; border-radius:12px; text-align:center; padding:12px 0; font:800 12.5px 'Archivo',sans-serif; user-select:none;">Start the first Circle here</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:9px; text-align:center;">every Circle you start seeds the town for the next player</div>
+                </div>
+
+                <div style="display:{{npCardD}}; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:380px; max-width:84%; z-index:25; background:{{tCard}}; border:1px solid {{tInk14}}; border-radius:20px; padding:20px; box-shadow:{{tShadow}}; text-align:center;">
+                  <div style="width:44px; height:44px; margin:0 auto; border-radius:14px; background:{{tCoralT16}}; color:{{tCoralTx}}; font:800 18px/44px 'Archivo',sans-serif;">◆</div>
+                  <div style="font:800 18px 'Archivo',sans-serif; color:{{tBone}}; margin-top:12px;">Set your patch</div>
+                  <div style="font:400 11.5px/1.65 'Archivo',sans-serif; color:{{tInk6}}; margin-top:6px;">The Atlas opens on your home court, not on you. Pick where you play and the map is yours. Never GPS.</div>
+                  <div onClick="{{openPatch}}" style="cursor:pointer; margin-top:14px; background:{{tCoral}}; color:#fff; border-radius:12px; padding:12px 0; font:800 12.5px 'Archivo',sans-serif; user-select:none;">Set my patch</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:10px;">559 UK venues seeded and waiting</div>
+                </div>
+
+                <div style="position:absolute; left:14px; bottom:12px; font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; text-shadow:{{tTs}};">{{bandLn}}</div>
+                <div style="position:absolute; right:14px; bottom:12px; font:400 10px 'IBM Plex Mono',monospace; color:{{tInk3}}; text-shadow:{{tTs}};">CUATRO tiles · © OpenStreetMap</div>
+              </div>
+
+              <!-- desktop list rail -->
+              <div style="display:{{dxListD}}; flex-direction:column; gap:9px; width:{{dxListW}}; max-width:{{dxListMax}}; margin:{{dxListMg}}; flex:none;">
+                <div style="display:{{seatCardD}}; background:{{tCard}}; border:1px solid {{tInk09}}; border-radius:18px; padding:14px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font:800 10px 'Archivo',sans-serif; letter-spacing:.1em; color:{{tCoralTx}};">SUN 12 · 10:00</span>
+                    <span style="flex:1;"></span>
+                    <span style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}};">~1 km</span>
+                  </div>
+                  <div onClick="{{openVic}}" style="cursor:pointer; font:800 15px/1.25 'Archivo',sans-serif; color:{{tBone}}; margin-top:6px;">Victoria Park Padel · court 1</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk5}}; margin-top:3px;">hosted by Leo's Lot · level 4.3–4.8 · £7 split</div>
+                  <div style="display:flex; align-items:center; gap:10px; margin-top:11px;">
+                    <span style="font:500 10.5px 'Archivo',sans-serif; color:{{tInk6}}; flex:1;">{{seatCountLn}}</span>
+                    <div onClick="{{claimTap}}" style="cursor:pointer; background:{{clBg}}; color:{{clC}}; border:{{clBd}}; border-radius:11px; padding:10px 14px; font:800 12px 'Archivo',sans-serif; user-select:none; transition:background 250ms ease, color 250ms ease;">{{clLbl}}</div>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:baseline; gap:8px; padding:8px 2px 0;">
+                  <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.14em; color:{{tInk5}};">THE ATLAS · {{atlasHead}}</div>
+                  <span style="flex:1;"></span>
+                  <span style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}};">{{atlasCount}}</span>
+                </div>
+                <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+                  <div onClick="{{r.tap}}" style="cursor:pointer; display:flex; align-items:center; gap:12px; background:{{tCard}}; border:1px solid {{tInk09}}; border-radius:16px; padding:12px 14px; user-select:none;">
+                    <div style="width:14px; height:14px; flex:none; border-radius:50%; box-sizing:border-box; background:{{r.dbg}}; border:{{r.dbd}};"></div>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font:700 13px 'Archivo',sans-serif; color:{{tBone}};">{{r.nm}}</div>
+                      <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{r.sub}}</div>
+                    </div>
+                    <div style="font:600 10px 'IBM Plex Mono',monospace; letter-spacing:.06em; color:{{r.rightC}}; flex:none;">{{r.right}}</div>
+                  </div>
+                </sc-for>
+                <div onClick="{{openAdd}}" style="cursor:pointer; display:flex; align-items:center; gap:12px; border:1px solid {{tInk18}}; border-radius:16px; padding:13px 14px; user-select:none;">
+                  <div style="width:14px; height:14px; flex:none; border-radius:50%; border:1.5px solid {{tInk35}}; box-sizing:border-box; color:{{tInk6}}; font:600 10px/11px 'Archivo',sans-serif; text-align:center;">+</div>
+                  <div style="flex:1;">
+                    <div style="font:700 13px 'Archivo',sans-serif; color:{{tBone}};">Add a court</div>
+                    <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:3px;">know one we don't? Put it on the Atlas</div>
+                  </div>
+                </div>
+                <div style="text-align:center; font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; padding-top:6px;">1,553 courts · 559 venues · all of them fighting over the 7pm slot</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== COURT PAGE ===== -->
+          <div data-screen-label="Atlas · Court page" style="display:{{courtD}};">
+            <div onClick="{{backAtlas}}" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; border:1px solid {{tInk18}}; color:{{tBone}}; border-radius:999px; padding:8px 14px; font:700 11.5px 'Archivo',sans-serif; user-select:none;">← the Atlas</div>
+            <div style="display:flex; align-items:flex-end; gap:14px; margin-top:16px; flex-wrap:wrap;">
+              <div style="flex:1; min-width:280px;">
+                <div style="font:800 30px/1.05 'Archivo',sans-serif; letter-spacing:-.01em; color:{{tBone}};">{{vName}}</div>
+                <div style="font:400 11px 'IBM Plex Mono',monospace; color:{{tInk5}}; margin-top:8px;">{{vFactsLn}}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="background:{{tInk05}}; border:1px solid {{tInk12}}; border-radius:10px; padding:9px 13px; font:500 10.5px 'IBM Plex Mono',monospace; color:{{tInk6}};">cuatro.app/courts/{{vSlug}}</div>
+                <div onClick="{{copyLink}}" style="cursor:pointer; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:10px; padding:9px 13px; font:700 11.5px 'Archivo',sans-serif; user-select:none;">Copy link</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+              <span style="background:{{tGood13}}; color:{{tGoodC}}; border-radius:999px; padding:6px 12px; font:700 11px 'Archivo',sans-serif;">{{vHomeLn}}</span>
+              <span style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}};">trust here is players, not stars</span>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1.25fr .75fr; gap:16px; margin-top:20px; align-items:start;">
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <div style="background:{{tCard}}; border:1px solid {{tInk09}}; border-radius:20px; padding:17px;">
+                  <div style="font:800 10.5px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk5}};">WHO PLAYS HERE</div>
+                  <div style="display:{{vCircD}}; flex-direction:column; margin-top:6px;">
+                    <sc-for list="{{vCircles}}" as="c" hint-placeholder-count="2">
+                      <div style="display:flex; align-items:center; gap:11px; padding:11px 0; border-bottom:1px solid {{tInk07}};">
+                        <div style="width:36px;height:36px;border-radius:12px;background:{{c.c}};color:#fff;font:800 12px/36px 'Archivo',sans-serif;text-align:center;flex:none;">{{c.g}}</div>
+                        <div style="flex:1; min-width:0;">
+                          <div style="font:800 13.5px 'Archivo',sans-serif; color:{{tBone}};">{{c.nm}}</div>
+                          <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:2px;">{{c.meta}}</div>
+                        </div>
+                        <span style="background:{{c.tierBg}}; color:{{c.tierC}}; border-radius:999px; padding:4px 10px; font:700 10px 'Archivo',sans-serif; letter-spacing:.05em;">{{c.tier}}</span>
+                        <div onClick="{{c.prev}}" style="cursor:pointer; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:999px; padding:7px 12px; font:700 11px 'Archivo',sans-serif; user-select:none;">Preview</div>
+                      </div>
+                    </sc-for>
+                    <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; padding-top:10px;">invite-only Circles join by link · private Circles never appear here, or anywhere</div>
+                  </div>
+                  <div style="display:{{vQuietD}}; margin-top:10px;">
+                    <div style="font:400 12px/1.65 'Archivo',sans-serif; color:{{tInk6}};">No one runs this court yet. Somewhere else in the UK a 7pm slot just went in four seconds. Not here.</div>
+                    <div onClick="{{startCircle}}" style="cursor:pointer; margin-top:12px; background:{{tCoral}}; color:#fff; border-radius:12px; text-align:center; padding:12px 0; font:800 12.5px 'Archivo',sans-serif; user-select:none;">Be the first · start a Circle here</div>
+                    <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:9px; text-align:center;">a name, a flag, one link. Done</div>
+                  </div>
+                </div>
+
+                <div style="display:{{vGameD}}; background:{{tCard}}; border:1px solid {{tInk09}}; border-radius:20px; padding:17px;">
+                  <div style="font:800 10.5px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk5}};">OPEN GAMES</div>
+                  <div style="display:flex; align-items:center; gap:12px; margin-top:12px;">
+                    <div style="flex:1; min-width:0;">
+                      <div style="font:800 14px 'Archivo',sans-serif; color:{{tBone}};">{{vGameWhen}}</div>
+                      <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:3px;">{{vGameLine}}</div>
+                    </div>
+                    <div onClick="{{vClaimTap}}" style="cursor:pointer; background:{{vClBg}}; color:{{vClC}}; border:{{vClBd}}; border-radius:11px; padding:11px 15px; font:800 12px 'Archivo',sans-serif; user-select:none; transition:background 250ms ease, color 250ms ease;">{{vClLbl}}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <div style="background:{{tCard}}; border:1px solid {{tInk09}}; border-radius:20px; overflow:hidden;">
+                  <div style="height:150px; position:relative; background:{{tMap0}};">
+                    <div style="position:absolute; left:-10%; right:-10%; top:38%; height:9px; background:{{tMap1}}; transform:rotate(-6deg);"></div>
+                    <div style="position:absolute; top:-10%; bottom:-10%; left:56%; width:8px; background:{{tMap2}}; transform:rotate(9deg);"></div>
+                    <div style="position:absolute; left:64%; top:10%; width:26%; height:34%; background:{{tMapPark}}; border-radius:10px;"></div>
+                    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:26px; height:26px; box-sizing:border-box; border-radius:50%; background:{{tCard}}; border:1.5px solid {{tInk25}}; color:{{tBone}}; font:700 11px 'IBM Plex Mono',monospace; display:flex; align-items:center; justify-content:center;">{{vMkTxt}}</div>
+                    <div style="position:absolute; right:10px; bottom:8px; font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}};">map preview · position is postcode-rough</div>
+                  </div>
+                  <div style="padding:13px 15px;">
+                    <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:{{tInk6}};">{{vDistLn}}</div>
+                  </div>
+                </div>
+                <div style="display:{{vBookD}}; background:{{tInk05}}; border:1px solid {{tInk09}}; border-radius:16px; padding:13px 15px;">
+                  <div style="font:500 10.5px 'IBM Plex Mono',monospace; color:{{tInk6}};">court time here books on {{vBook}} ↗</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:3px;">CUATRO points at where padel lives and stays out of the till</div>
+                </div>
+                <div style="background:{{tCard}}; border:1px solid {{tInk09}}; border-radius:16px; padding:14px 15px;">
+                  <div style="font:700 12px 'Archivo',sans-serif; color:{{tBone}};">Something off?</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:3px;">facts are community filled, all of them optional</div>
+                  <div onClick="{{fixFacts}}" style="cursor:pointer; margin-top:10px; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:10px; text-align:center; padding:10px 0; font:700 11.5px 'Archivo',sans-serif; user-select:none;">Add or fix a fact</div>
+                </div>
+                <div style="text-align:center; font:400 10px 'IBM Plex Mono',monospace; color:{{tInk3}};">added by the community · verified by players calling it home</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= OVERLAY SHEETS ================= -->
+    <div onClick="{{closeSheet}}" style="display:{{ovD}}; position:absolute; inset:0; z-index:60; background:{{tScrim}}; align-items:{{ovAlign}}; justify-content:center; animation:cu-fade 200ms ease both;">
+      <div onClick="{{eat}}" style="width:{{shW}}; max-height:86%; overflow-y:auto; background:{{tCard}}; border-radius:{{shRad}}; box-shadow:{{tShadow}}; animation:cu-rise 380ms cubic-bezier(.34,1.56,.64,1) both;">
+
+        <!-- VENUE SHEET -->
+        <div data-screen-label="Atlas · Venue sheet" style="display:{{shVenD}}; padding:14px 20px 22px;">
+          <div style="width:36px; height:4px; border-radius:99px; background:{{tInk18}}; margin:0 auto 14px; display:{{grabD}};"></div>
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <div style="flex:1;">
+              <div style="font:800 20px/1.15 'Archivo',sans-serif; letter-spacing:-.01em; color:{{tBone}};">{{vName}}</div>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:{{tInk5}}; margin-top:6px;">{{vFactsLn}}</div>
+            </div>
+            <div onClick="{{closeSheet}}" style="cursor:pointer; width:30px; height:30px; border-radius:50%; background:{{tInk07}}; color:{{tInk6}}; font:400 14px/30px 'Archivo',sans-serif; text-align:center; user-select:none;">×</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:11px;">
+            <span style="background:{{tGood13}}; color:{{tGoodC}}; border-radius:999px; padding:5px 11px; font:700 10.5px 'Archivo',sans-serif;">{{vHomeLn}}</span>
+          </div>
+
+          <div style="display:{{vCircD}}; flex-direction:column; margin-top:14px;">
+            <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk5}};">WHO PLAYS HERE</div>
+            <sc-for list="{{vCircles}}" as="c" hint-placeholder-count="2">
+              <div style="display:flex; align-items:center; gap:11px; padding:11px 0; border-bottom:1px solid {{tInk07}};">
+                <div style="width:34px;height:34px;border-radius:11px;background:{{c.c}};color:#fff;font:800 11.5px/34px 'Archivo',sans-serif;text-align:center;flex:none;">{{c.g}}</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="font:800 13px 'Archivo',sans-serif; color:{{tBone}};">{{c.nm}}</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:2px;">{{c.meta}}</div>
+                </div>
+                <span style="background:{{c.tierBg}}; color:{{c.tierC}}; border-radius:999px; padding:4px 9px; font:700 10px 'Archivo',sans-serif; letter-spacing:.05em;">{{c.tier}}</span>
+                <div onClick="{{c.prev}}" style="cursor:pointer; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:999px; padding:6px 11px; font:700 10.5px 'Archivo',sans-serif; user-select:none;">Preview</div>
+              </div>
+            </sc-for>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; padding-top:9px;">private Circles never appear here, or anywhere</div>
+          </div>
+
+          <div style="display:{{vQuietD}}; margin-top:14px; background:{{tInk05}}; border-radius:16px; padding:15px;">
+            <div style="font:800 13.5px 'Archivo',sans-serif; color:{{tBone}};">No one runs this court yet</div>
+            <div style="font:400 11px/1.6 'Archivo',sans-serif; color:{{tInk6}}; margin-top:4px;">Somewhere else in the UK a 7pm slot just went in four seconds. Not here.</div>
+            <div onClick="{{startCircle}}" style="cursor:pointer; margin-top:11px; background:{{tCoral}}; color:#fff; border-radius:11px; text-align:center; padding:11px 0; font:800 12px 'Archivo',sans-serif; user-select:none;">Be the first · start a Circle here</div>
+          </div>
+
+          <div style="display:{{vGameD}}; margin-top:14px;">
+            <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk5}};">OPEN GAMES</div>
+            <div style="display:flex; align-items:center; gap:12px; margin-top:9px; background:{{tInk05}}; border-radius:14px; padding:12px 13px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font:800 13px 'Archivo',sans-serif; color:{{tBone}};">{{vGameWhen}}</div>
+                <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:3px;">{{vGameLine}}</div>
+              </div>
+              <div onClick="{{vClaimTap}}" style="cursor:pointer; background:{{vClBg}}; color:{{vClC}}; border:{{vClBd}}; border-radius:11px; padding:10px 14px; font:800 12px 'Archivo',sans-serif; user-select:none; transition:background 250ms ease, color 250ms ease;">{{vClLbl}}</div>
+            </div>
+          </div>
+
+          <div style="display:{{vBookD}}; margin-top:12px; background:{{tInk05}}; border-radius:13px; padding:11px 13px;">
+            <div style="font:500 10.5px 'IBM Plex Mono',monospace; color:{{tInk6}};">court time here books on {{vBook}} ↗</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:2px;">CUATRO stays out of the till</div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px; margin-top:14px;">
+            <div style="flex:1; background:{{tInk05}}; border:1px solid {{tInk09}}; border-radius:10px; padding:9px 12px; font:500 10px 'IBM Plex Mono',monospace; color:{{tInk5}}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">cuatro.app/courts/{{vSlug}}</div>
+            <div onClick="{{copyLink}}" style="cursor:pointer; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:10px; padding:9px 13px; font:700 11px 'Archivo',sans-serif; user-select:none; flex:none;">Copy link</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+            <div onClick="{{fixFacts}}" style="cursor:pointer; flex:1; border:1px solid {{tInk18}}; color:{{tBone}}; border-radius:10px; text-align:center; padding:10px 0; font:700 11.5px 'Archivo',sans-serif; user-select:none;">Add or fix a fact</div>
+            <div onClick="{{openCourtPage}}" style="display:{{cpLinkD}}; cursor:pointer; flex:1; border:1px solid {{tInk18}}; color:{{tBone}}; border-radius:10px; text-align:center; padding:10px 0; font:700 11.5px 'Archivo',sans-serif; user-select:none;">Open the court page →</div>
+          </div>
+        </div>
+
+        <!-- ADD A COURT -->
+        <div data-screen-label="Atlas · Add a court" style="display:{{shAddD}}; padding:14px 20px 22px;">
+          <div style="width:36px; height:4px; border-radius:99px; background:{{tInk18}}; margin:0 auto 14px; display:{{grabD}};"></div>
+
+          <div style="display:{{aFormD}};">
+            <div style="display:flex; align-items:flex-start; gap:10px;">
+              <div style="flex:1;">
+                <div style="font:800 20px 'Archivo',sans-serif; color:{{tBone}};">Add a court</div>
+                <div style="font:400 11px 'Archivo',sans-serif; color:{{tInk55}}; margin-top:5px;">every court you add is visible to every player after you</div>
+              </div>
+              <div onClick="{{closeSheet}}" style="cursor:pointer; width:30px; height:30px; border-radius:50%; background:{{tInk07}}; color:{{tInk6}}; font:400 14px/30px 'Archivo',sans-serif; text-align:center; user-select:none;">×</div>
+            </div>
+            <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk5}}; margin-top:16px;">VENUE NAME</div>
+            <input value="{{addName}}" onChange="{{addNameCh}}" placeholder="Hackney Wick Padel" style="width:100%; box-sizing:border-box; margin-top:7px; background:{{tInk05}}; border:1px solid {{tInk14}}; border-radius:12px; padding:12px 14px; font:600 14px 'Archivo',sans-serif; color:{{tBone}}; outline:none;">
+            <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk5}}; margin-top:14px;">POSTCODE</div>
+            <input value="{{addPc}}" onChange="{{addPcCh}}" placeholder="E9 5EN" style="width:140px; box-sizing:border-box; margin-top:7px; background:{{tInk05}}; border:1px solid {{tInk14}}; border-radius:12px; padding:12px 14px; font:600 13px 'IBM Plex Mono',monospace; color:{{tBone}}; outline:none; text-transform:uppercase;">
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:7px;">{{pcHint}}</div>
+            <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk35}}; margin-top:16px;">OPTIONAL · THE COMMUNITY FILLS THE REST</div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:9px; flex-wrap:wrap;">
+              <div style="display:flex; gap:3px; background:{{tInk05}}; border:1px solid {{tInk12}}; border-radius:999px; padding:3px;">
+                <div onClick="{{ioIndoor}}" style="cursor:pointer; border-radius:999px; padding:7px 13px; background:{{ioInBg}}; color:{{ioInC}}; font:700 11px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Indoor</div>
+                <div onClick="{{ioOutdoor}}" style="cursor:pointer; border-radius:999px; padding:7px 13px; background:{{ioOutBg}}; color:{{ioOutC}}; font:700 11px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Outdoor</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:9px; border:1px solid {{tInk12}}; border-radius:999px; padding:4px 6px;">
+                <div onClick="{{ctMinus}}" style="cursor:pointer; width:26px; height:26px; border-radius:50%; background:{{tInk07}}; color:{{tBone}}; font:600 14px/26px 'Archivo',sans-serif; text-align:center; user-select:none;">−</div>
+                <span style="font:700 12px 'IBM Plex Mono',monospace; color:{{tBone}}; min-width:66px; text-align:center;">{{ctLbl}}</span>
+                <div onClick="{{ctPlus}}" style="cursor:pointer; width:26px; height:26px; border-radius:50%; background:{{tInk07}}; color:{{tBone}}; font:600 14px/26px 'Archivo',sans-serif; text-align:center; user-select:none;">+</div>
+              </div>
+            </div>
+            <div onClick="{{addGo}}" style="cursor:pointer; margin-top:18px; background:{{tCoral}}; color:#fff; border-radius:13px; text-align:center; padding:13px 0; font:800 13.5px 'Archivo',sans-serif; user-select:none;">Pin it to the Atlas</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:10px; text-align:center;">no moderation queue. It earns trust as players call it home</div>
+          </div>
+
+          <div style="display:{{aDedD}};">
+            <div style="font:800 20px 'Archivo',sans-serif; color:{{tBone}};">Hold on. Did you mean this one?</div>
+            <div style="font:400 11px 'Archivo',sans-serif; color:{{tInk55}}; margin-top:5px;">{{dedEcho}}</div>
+            <div style="margin-top:14px; background:{{tInk05}}; border:1px solid {{tInk12}}; border-radius:16px; padding:14px 15px;">
+              <div style="font:800 14.5px 'Archivo',sans-serif; color:{{tBone}};">Victoria Park Padel</div>
+              <div style="font:400 10.5px 'IBM Plex Mono',monospace; color:{{tInk5}}; margin-top:4px;">OUTDOOR · 4 COURTS · E9 7DE · same postcode area, ~400 m from your pin</div>
+              <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:3px;">home court to 14 players · 2 Circles play here</div>
+            </div>
+            <div onClick="{{addAccept}}" style="cursor:pointer; margin-top:14px; background:{{tCoral}}; color:#fff; border-radius:13px; text-align:center; padding:13px 0; font:800 13.5px 'Archivo',sans-serif; user-select:none;">That's the one</div>
+            <div onClick="{{addNew}}" style="cursor:pointer; margin-top:9px; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:13px; text-align:center; padding:12px 0; font:700 12.5px 'Archivo',sans-serif; user-select:none;">No, mine is new · pin it</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:10px; text-align:center;">one venue, one page. Duplicates split the town in two</div>
+          </div>
+
+          <div style="display:{{aDoneD}}; text-align:center; padding:8px 0 4px;">
+            <div style="width:52px; height:52px; margin:0 auto; border-radius:50%; background:{{tAmberT}}; border:2px solid {{tAmberC}}; color:{{tAmberC}}; font:800 20px/48px 'Archivo',sans-serif; box-sizing:border-box; animation:cu-rise 450ms ease 120ms both;">◆</div>
+            <div style="font:800 21px 'Archivo',sans-serif; color:{{tBone}}; margin-top:14px;">{{doneNm}}, welcome to the Atlas</div>
+            <div style="font:400 11px/1.7 'IBM Plex Mono',monospace; color:{{tInk5}}; margin-top:8px;">first court in E9 added by a player.<br>That player is you.</div>
+            <div onClick="{{addSee}}" style="cursor:pointer; margin-top:16px; background:{{tCoral}}; color:#fff; border-radius:13px; text-align:center; padding:13px 0; font:800 13.5px 'Archivo',sans-serif; user-select:none;">See it on the map</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:10px;">every player in E9 can see it now · it earns trust as players call it home</div>
+          </div>
+        </div>
+
+        <!-- PATCH CONTROL -->
+        <div data-screen-label="Atlas · Patch control" style="display:{{shPatchD}}; padding:14px 20px 22px;">
+          <div style="width:36px; height:4px; border-radius:99px; background:{{tInk18}}; margin:0 auto 14px; display:{{grabD}};"></div>
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <div style="flex:1;">
+              <div style="font:800 20px 'Archivo',sans-serif; color:{{tBone}};">Your patch</div>
+              <div style="font:400 11px/1.6 'Archivo',sans-serif; color:{{tInk55}}; margin-top:5px;">a soft area around your home court. It's where the map opens and what "near you" means. Never GPS, never a crosshair.</div>
+            </div>
+            <div onClick="{{closeSheet}}" style="cursor:pointer; width:30px; height:30px; border-radius:50%; background:{{tInk07}}; color:{{tInk6}}; font:400 14px/30px 'Archivo',sans-serif; text-align:center; user-select:none;">×</div>
+          </div>
+
+          <div style="margin-top:14px; height:130px; position:relative; overflow:hidden; border-radius:14px; background:{{tMap0}}; border:1px solid {{tInk09}};">
+            <div style="position:absolute; left:-10%; right:-10%; top:44%; height:8px; background:{{tMap1}}; transform:rotate(-5deg);"></div>
+            <div style="position:absolute; top:-10%; bottom:-10%; left:48%; width:7px; background:{{tMap2}}; transform:rotate(9deg);"></div>
+            <div style="position:absolute; left:{{miniX}}; top:{{miniY}}; width:{{miniW}}; height:{{miniW}}; transform:translate(-50%,-50%); transition:left 700ms ease, top 700ms ease, width 400ms ease, height 400ms ease;">
+              <div style="position:absolute; inset:0; border-radius:46% 54% 52% 48% / 52% 46% 54% 48%; background:radial-gradient(closest-side, {{tBlobA}} 0%, {{tBlobB}} 55%, transparent 78%);"></div>
+            </div>
+            <div style="position:absolute; left:{{miniX}}; top:{{miniY}}; transform:translate(-50%,-50%); width:20px; height:20px; border-radius:50%; background:{{tBone}}; color:{{tOnBone}}; font:800 9.5px/20px 'Archivo',sans-serif; text-align:center; transition:left 700ms ease, top 700ms ease;">◆</div>
+          </div>
+
+          <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk5}}; margin-top:15px;">HOME COURT · THE ONLY ANCHOR</div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+            <sc-for list="{{patchRows}}" as="p" hint-placeholder-count="2">
+              <div onClick="{{p.pick}}" style="cursor:pointer; display:flex; align-items:center; gap:11px; background:{{p.bg}}; border:1px solid {{p.bd}}; border-radius:13px; padding:11px 13px; user-select:none; transition:background 200ms, border 200ms;">
+                <div style="flex:1;">
+                  <div style="font:700 12.5px 'Archivo',sans-serif; color:{{tBone}};">{{p.nm}}</div>
+                  <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:2px;">{{p.meta}}</div>
+                </div>
+                <span style="font:700 12px 'Archivo',sans-serif; color:{{tGoodC}};">{{p.tick}}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:7px;">change it any time and your patch moves with it</div>
+
+          <div style="font:800 10px 'Archivo',sans-serif; letter-spacing:.13em; color:{{tInk5}}; margin-top:15px;">PATCH SIZE</div>
+          <div style="display:flex; gap:3px; background:{{tInk05}}; border:1px solid {{tInk12}}; border-radius:999px; padding:3px; margin-top:8px;">
+            <div onClick="{{szTight}}" style="cursor:pointer; flex:1; text-align:center; border-radius:999px; padding:8px 0; background:{{szTBg}}; color:{{szTC}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Tight</div>
+            <div onClick="{{szLocal}}" style="cursor:pointer; flex:1; text-align:center; border-radius:999px; padding:8px 0; background:{{szLBg}}; color:{{szLC}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Local</div>
+            <div onClick="{{szWide}}" style="cursor:pointer; flex:1; text-align:center; border-radius:999px; padding:8px 0; background:{{szWBg}}; color:{{szWC}}; font:700 11.5px 'Archivo',sans-serif; user-select:none; transition:background 200ms;">Wide</div>
+          </div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk45}}; margin-top:7px; text-align:center;">{{szHint}}</div>
+
+          <div onClick="{{closeSheet}}" style="cursor:pointer; margin-top:16px; border:1px solid {{tInk25}}; color:{{tBone}}; border-radius:13px; text-align:center; padding:12px 0; font:700 12.5px 'Archivo',sans-serif; user-select:none;">Done</div>
+          <div style="font:400 10px 'IBM Plex Mono',monospace; color:{{tInk35}}; margin-top:10px; text-align:center;">others only ever see rough distances · no locate-me button exists, anywhere</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TOAST -->
+    <div style="display:{{toastD}}; position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:90; background:{{tBone}}; color:{{tOnBone}}; border-radius:999px; padding:10px 17px; font:600 12px 'Archivo',sans-serif; white-space:nowrap; box-shadow:{{tShadow}}; animation:cu-rise 300ms ease both;">{{toast}}</div>
+  </div>
+
+  <div style="width:100%; max-width:1440px; padding:14px 2px 0; font:400 10px 'IBM Plex Mono',monospace; color:rgba(245,242,236,.35);">laws restated: never GPS, venue-anchored only, people appear only as aggregate counts at venues · dashed coral = a space waiting for a person, one coral moment per panel (the map is a panel) · private Circles are invisible everywhere · map tiles are CUATRO-styled MapLibre, not a satnav · full delta in HANDOFF-DELTA-ATLAS.md</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    vw: 'desk', theme: 'dark',
+    pMode: 'list', dScr: 'atlas',
+    sheet: null, selV: 'vic',
+    sparse: false, noPatch: false,
+    reassure: true, claimed: false,
+    added: false, addStep: 'form', addName: '', addPc: '', addIO: '', addCourts: 0, addedNm: '',
+    patchSize: 'local', homeKey: 'pl', toast: ''
+  };
+
+  static THEMES = {
+    dark: {
+      tBg: '#131210', tCard: '#1E1C19', tBone: '#F5F2EC', tOnBone: '#17150F',
+      tCoral: '#FF5C3D', tCoralTx: '#FF7A5C', tCoralT16: 'rgba(255,92,61,.16)',
+      tGoodC: '#4BC98B', tGood13: 'rgba(75,201,139,.13)',
+      tAmberC: '#F2B33D', tAmberT: 'rgba(242,179,61,.12)',
+      tInk05: 'rgba(245,242,236,.05)', tInk07: 'rgba(245,242,236,.07)', tInk08: 'rgba(245,242,236,.08)', tInk09: 'rgba(245,242,236,.09)',
+      tInk12: 'rgba(245,242,236,.12)', tInk14: 'rgba(245,242,236,.14)', tInk18: 'rgba(245,242,236,.18)', tInk25: 'rgba(245,242,236,.25)',
+      tInk3: 'rgba(245,242,236,.3)', tInk35: 'rgba(245,242,236,.35)', tInk4: 'rgba(245,242,236,.4)', tInk45: 'rgba(245,242,236,.45)',
+      tInk5: 'rgba(245,242,236,.5)', tInk55: 'rgba(245,242,236,.55)', tInk6: 'rgba(245,242,236,.6)', tInk7: 'rgba(245,242,236,.7)',
+      tMap0: '#171A20', tMap1: '#242933', tMap2: '#20242D', tMapPark: 'rgba(75,201,139,.08)', tMapWater: 'rgba(120,170,255,.10)',
+      tBlobA: 'rgba(255,92,61,.14)', tBlobB: 'rgba(255,92,61,.05)',
+      tScrim: 'rgba(0,0,0,.55)', tTs: '0 1px 5px rgba(19,18,16,.7)', tShadow: '0 14px 34px rgba(0,0,0,.35)'
+    },
+    light: {
+      tBg: '#FAF8F4', tCard: '#FFFFFF', tBone: '#191713', tOnBone: '#FAF8F4',
+      tCoral: '#FF4D2E', tCoralTx: '#D8401F', tCoralT16: 'rgba(216,64,31,.12)',
+      tGoodC: '#1F8A5B', tGood13: 'rgba(31,138,91,.13)',
+      tAmberC: '#8F6400', tAmberT: 'rgba(242,179,61,.22)',
+      tInk05: 'rgba(25,23,19,.05)', tInk07: 'rgba(25,23,19,.07)', tInk08: 'rgba(25,23,19,.08)', tInk09: 'rgba(25,23,19,.09)',
+      tInk12: 'rgba(25,23,19,.12)', tInk14: 'rgba(25,23,19,.14)', tInk18: 'rgba(25,23,19,.18)', tInk25: 'rgba(25,23,19,.25)',
+      tInk3: 'rgba(25,23,19,.3)', tInk35: 'rgba(25,23,19,.35)', tInk4: 'rgba(25,23,19,.4)', tInk45: 'rgba(25,23,19,.45)',
+      tInk5: 'rgba(25,23,19,.5)', tInk55: 'rgba(25,23,19,.55)', tInk6: 'rgba(25,23,19,.6)', tInk7: 'rgba(25,23,19,.7)',
+      tMap0: '#ECE8E0', tMap1: '#DBD5C9', tMap2: '#E2DDD2', tMapPark: 'rgba(31,138,91,.10)', tMapWater: 'rgba(90,130,200,.14)',
+      tBlobA: 'rgba(216,64,31,.10)', tBlobB: 'rgba(216,64,31,.04)',
+      tScrim: 'rgba(25,23,19,.45)', tTs: '0 1px 5px rgba(250,248,244,.9)', tShadow: '0 14px 34px rgba(25,23,19,.14)'
+    }
+  };
+
+  static CIRCLES = {
+    LL: { g: 'LL', c: '#E8A33D', nm: "Leo's Lot", meta: '12 members · Sundays', tier: 'OPEN' },
+    CC: { g: 'CC', c: '#3BB8CE', nm: 'Canal Club', meta: '8 members · Wednesdays', tier: 'INVITE-ONLY' },
+    TN: { g: 'TN', c: '#3E7BFA', nm: 'Tuesday Night Lot', meta: '8 members · Tuesdays 20:00', tier: 'INVITE-ONLY' },
+    WL: { g: 'WL', c: '#2FA05A', nm: 'Work Lot', meta: '6 members · Thursdays', tier: 'INVITE-ONLY' },
+    SS: { g: 'SS', c: '#8C6BF0', nm: 'Shoreditch Socials', meta: '12 members · Sundays', tier: 'OPEN' },
+    BB: { g: 'BB', c: '#C4562C', nm: 'Bow Baseline', meta: '10 members · Saturdays', tier: 'OPEN' }
+  };
+
+  static VENUES = {
+    pl:    { nm: 'Powerleague Shoreditch', x: 36, y: 56, kind: 'home',   facts: 'INDOOR · 4 COURTS · E1 6PJ',  home: 14, dist: 'your home court', circles: ['TN', 'WL'], slug: 'powerleague-shoreditch', rowSub: 'INDOOR · 4 COURTS · 2 Circles play here', right: 'HOME' },
+    vic:   { nm: 'Victoria Park Padel',    x: 63, y: 27, kind: 'seat',   facts: 'OUTDOOR · 4 COURTS · E9 7DE', home: 14, dist: '~1 km', circles: ['LL', 'CC'], game: { when: 'SUN 12 · 10:00', line: "hosted by Leo's Lot · level 4.3–4.8 · £7 split", inBand: true }, slug: 'victoria-park-padel', book: 'Playtomic', rowSub: 'OUTDOOR · 4 COURTS · 2 Circles play here' },
+    strat: { nm: 'Stratford Padel Club',   x: 84, y: 47, kind: 'seatOut',facts: 'INDOOR · 6 COURTS · E20 2ST', home: 9,  dist: '~4 km', circles: ['SS'], game: { when: 'MON 13 · 19:00', line: 'hosted by Shoreditch Socials · level 3.9–4.5 · £6 split', inBand: false }, slug: 'stratford-padel-club', book: 'MATCHi', rowSub: 'INDOOR · 6 COURTS · 1 Circle plays here', right: 'OFF BAND' },
+    mile:  { nm: 'Padel Social Mile End',  x: 52, y: 74, kind: 'active', facts: 'OUTDOOR · 2 COURTS · E3 4QY', home: 11, dist: '~2 km', circles: ['BB', 'SS'], slug: 'padel-social-mile-end', book: 'Playtomic', rowSub: 'OUTDOOR · 2 COURTS · 2 Circles play here', right: '2 CIRCLES' },
+    lf:    { nm: 'London Fields Padel',    x: 26, y: 20, kind: 'quiet',  facts: 'OUTDOOR · 2 COURTS · E8 3EU', home: 0,  dist: '~2 km', circles: [], slug: 'london-fields-padel', rowSub: 'OUTDOOR · 2 COURTS · no one runs this court yet', right: 'QUIET' },
+    mep:   { nm: 'Mile End Park Courts',   x: 70, y: 64, kind: 'quiet',  facts: 'OUTDOOR · 1 COURT · E3 4HL',  home: 0,  dist: '~2 km', circles: [], slug: 'mile-end-park-courts', rowSub: 'OUTDOOR · 1 COURT · no one runs this court yet', right: 'QUIET' },
+    hw:    { nm: 'Hackney Wick Padel',     x: 76, y: 13, kind: 'new',    facts: 'E9 5EN · facts wanted',       home: 0,  dist: '~2 km', circles: [], slug: 'hackney-wick-padel', rowSub: 'E9 · facts wanted · added by you', right: 'NEW' },
+    s1:    { nm: 'The Quarry Courts',      x: 40, y: 38, kind: 'home',   facts: 'OUTDOOR · 2 COURTS · SY1 1RN',home: 1,  dist: 'your home court', circles: [], slug: 'the-quarry-courts', rowSub: 'OUTDOOR · 2 COURTS · no Circles yet', right: 'HOME' },
+    s2:    { nm: 'Shrewsbury Sports Village', x: 66, y: 26, kind: 'quiet', facts: 'INDOOR · 2 COURTS · SY1 4RQ', home: 0, dist: '~3 km', circles: [], slug: 'shrewsbury-sports-village', rowSub: 'INDOOR · 2 COURTS · no one runs this court yet', right: 'QUIET' },
+    s3:    { nm: 'Monkmoor Rec',           x: 56, y: 68, kind: 'quiet',  facts: 'OUTDOOR · 1 COURT · SY2 5TF', home: 0,  dist: '~2 km', circles: [], slug: 'monkmoor-rec', rowSub: 'OUTDOOR · 1 COURT · no one runs this court yet', right: 'QUIET' }
+  };
+
+  static CLUSTERS = [
+    { nm: 'LONDON', n: 214, x: 63, y: 79 }, { nm: 'MANCHESTER', n: 89, x: 46, y: 46 },
+    { nm: 'BIRMINGHAM', n: 71, x: 52, y: 61 }, { nm: 'NEWCASTLE', n: 44, x: 57, y: 22 },
+    { nm: 'BRISTOL', n: 38, x: 36, y: 74 }, { nm: 'GLASGOW', n: 27, x: 42, y: 10 }
+  ];
+
+  componentWillUnmount() { clearTimeout(this._tt); }
+
+  _t(msg) {
+    clearTimeout(this._tt);
+    this.setState({ toast: msg });
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 2400);
+  }
+
+  _openV(k) { this.setState({ selV: k, sheet: 'venue' }); }
+
+  _pickHome(k) {
+    const s = this.state;
+    if (s.noPatch) { this.setState({ homeKey: k, noPatch: false, sheet: null }); this._t('patch set · the map opens here now'); }
+    else if (k !== s.homeKey) { this.setState({ homeKey: k }); this._t('home court changed · your patch moved with it'); }
+  }
+
+  renderVals() {
+    const s = this.state, T = Component.THEMES[s.theme], V = Component.VENUES, C = Component.CIRCLES;
+    const show = b => b ? 'block' : 'none', flex = b => b ? 'flex' : 'none';
+    const phone = s.vw === 'phone', tab = s.vw === 'tab', desk = s.vw === 'desk';
+    const pillOn = { bg: '#F5F2EC', fg: '#17150F' }, pillOff = { bg: 'transparent', fg: 'rgba(245,242,236,.6)' };
+    const seg = on => ({ bg: on ? T.tBone : 'transparent', c: on ? T.tOnBone : T.tInk55 });
+
+    // ---- markers + rows ----
+    const monoF = "700 12px 'IBM Plex Mono',monospace";
+    const keys = s.sparse ? ['s1', 's2', 's3'] : ['pl', 'vic', 'strat', 'mile', 'lf', 'mep'].concat(s.added ? ['hw'] : []);
+    const markers = s.noPatch
+      ? Component.CLUSTERS.map(c => ({
+          x: c.x + '%', y: c.y + '%', w: '42px', bg: T.tCard, bd: '1px solid ' + T.tInk18, col: T.tInk7, font: monoF,
+          txt: String(c.n), sh: T.tShadow, ring: 'none', anim: 'none', nm: c.nm, nmC: T.tInk45, sub: '', subC: T.tInk35, z: 5,
+          tap: () => this._t('set your patch first · the map opens on it, not on you')
+        }))
+      : keys.map(k => {
+          const v = V[k];
+          let kind = v.kind;
+          if (k === 'vic' && s.claimed) kind = 'active';
+          const base = { x: v.x + '%', y: v.y + '%', z: 6, nm: v.nm, nmC: T.tBone, sub: '', subC: T.tInk45, sh: 'none', ring: 'none', anim: 'none', font: monoF, tap: () => this._openV(k) };
+          if (kind === 'home') return Object.assign(base, { w: '30px', bg: T.tBone, bd: 'none', col: T.tOnBone, font: "800 12px 'Archivo',sans-serif", txt: '◆', sh: '0 0 0 5px ' + T.tInk12, sub: 'your patch anchors here', z: 8 });
+          if (kind === 'seat') return Object.assign(base, { w: '36px', bg: T.tCard, bd: '2px dashed ' + T.tCoral, col: T.tCoralTx, txt: '1', ring: 'cu-pulse 3.4s ease-out infinite', sub: '1 seat · Sun 10:00', subC: T.tCoralTx, z: 9 });
+          if (kind === 'seatOut') return Object.assign(base, { w: '32px', bg: T.tCard, bd: '2px dashed ' + T.tInk35, col: T.tInk6, txt: '1', sub: '1 seat · off your band', z: 6 });
+          if (kind === 'active') return Object.assign(base, { w: '32px', bg: T.tCard, bd: '1.5px solid ' + T.tInk25, col: T.tBone, txt: String(v.circles.length), sub: k === 'vic' ? 'full · game on' : v.circles.length + ' Circles', z: 7 });
+          if (kind === 'new') return Object.assign(base, { w: '18px', bg: T.tCard, bd: '2px solid ' + T.tAmberC, col: 'transparent', txt: '', nm: s.addedNm || v.nm, sub: 'just added · by you', subC: T.tAmberC, anim: 'cu-pop 380ms cubic-bezier(.34,1.56,.64,1) both', z: 8 });
+          return Object.assign(base, { w: '13px', bg: 'transparent', bd: '2px solid ' + T.tInk3, col: 'transparent', txt: '', nmC: T.tInk5, z: 5 });
+        });
+
+    const rows = keys.map(k => {
+      const v = V[k];
+      let kind = v.kind; if (k === 'vic' && s.claimed) kind = 'active';
+      const dot = kind === 'home' ? { dbg: T.tBone, dbd: 'none' }
+        : kind === 'seat' ? { dbg: 'transparent', dbd: '2px dashed ' + T.tCoral }
+        : kind === 'seatOut' ? { dbg: 'transparent', dbd: '2px dashed ' + T.tInk35 }
+        : kind === 'active' ? { dbg: 'transparent', dbd: '2px solid ' + T.tInk4 }
+        : kind === 'new' ? { dbg: 'transparent', dbd: '2px solid ' + T.tAmberC }
+        : { dbg: 'transparent', dbd: '2px solid ' + T.tInk3 };
+      let right = v.right || '', rightC = T.tInk45;
+      if (k === 'vic') { right = s.claimed ? 'FULL ✓' : '1 SEAT'; rightC = s.claimed ? T.tGoodC : T.tCoralTx; }
+      if (kind === 'quiet') rightC = T.tInk35;
+      if (kind === 'new') { rightC = T.tAmberC; }
+      return Object.assign({ tap: () => this._openV(k), nm: k === 'hw' ? (s.addedNm || v.nm) : v.nm, sub: v.rowSub, right, rightC }, dot);
+    });
+
+    // ---- selected venue ----
+    const v = V[s.selV] || V.vic;
+    const vClaimed = s.selV === 'vic' && s.claimed;
+    const vGame = v.game || null;
+    const vCircles = (v.circles || []).map(k => {
+      const c = C[k];
+      return Object.assign({}, c, {
+        tierBg: c.tier === 'OPEN' ? T.tGood13 : T.tInk08,
+        tierC: c.tier === 'OPEN' ? T.tGoodC : T.tInk6,
+        prev: () => this._t('opens the public preview sheet · shipped pattern')
+      });
+    });
+    let vClBg, vClC, vClBd, vClLbl;
+    if (vClaimed) { vClBg = T.tGood13; vClC = T.tGoodC; vClBd = '1px solid transparent'; vClLbl = "You're in · SUN 10:00 ✓"; }
+    else if (vGame && vGame.inBand) { vClBg = T.tCoral; vClC = '#fff'; vClBd = '1px solid transparent'; vClLbl = 'Claim the seat'; }
+    else { vClBg = 'transparent'; vClC = T.tBone; vClBd = '1px solid ' + T.tInk25; vClLbl = 'I can play'; }
+    const doClaim = () => {
+      if (s.selV === 'vic' && vGame && vGame.inBand && !s.claimed) { this.setState({ claimed: true }); this._t('seat claimed · the four is full. See you Sunday'); }
+      else if (vGame && !vGame.inBand) this._t('sends your ask to the host · they see your Glass and show-up rate');
+    };
+
+    // ---- claim card (Victoria Park, list panels) ----
+    const clBg = s.claimed ? T.tGood13 : T.tCoral;
+    const clC = s.claimed ? T.tGoodC : '#fff';
+    const clLbl = s.claimed ? "You're in ✓" : 'Claim the seat';
+
+    // ---- patch ----
+    const ALL = V;
+    const homeV = ALL[s.homeKey] || V.pl;
+    const sizes = { tight: 110, local: 170, wide: 240 };
+    const szHints = { tight: 'your corner of town', local: 'a sensible cycle', wide: 'worth the trip for a good four' };
+    const patchKeys = s.sparse ? ['s1', 's2'] : ['pl', 'mile'];
+    const patchRows = patchKeys.map(k => ({
+      nm: ALL[k].nm, meta: ALL[k].facts,
+      bg: k === s.homeKey ? T.tInk05 : 'transparent',
+      bd: k === s.homeKey ? T.tInk18 : T.tInk09,
+      tick: k === s.homeKey ? '✓' : '',
+      pick: () => this._pickHome(k)
+    }));
+
+    // ---- add flow ----
+    const pcOk = s.addPc.trim().length >= 5;
+    const nameEcho = s.addName.trim() || 'Hackney Wick Padel';
+
+    return {
+      // chrome
+      swPhBg: (phone ? pillOn : pillOff).bg, swPhFg: (phone ? pillOn : pillOff).fg,
+      swTbBg: (tab ? pillOn : pillOff).bg, swTbFg: (tab ? pillOn : pillOff).fg,
+      swDkBg: (desk ? pillOn : pillOff).bg, swDkFg: (desk ? pillOn : pillOff).fg,
+      thLbl: s.theme === 'dark' ? '☾ Dark' : '☀ Light',
+      spBg: s.sparse ? '#F5F2EC' : 'transparent', spFg: s.sparse ? '#17150F' : 'rgba(245,242,236,.7)',
+      npBg: s.noPatch ? '#F5F2EC' : 'transparent', npFg: s.noPatch ? '#17150F' : 'rgba(245,242,236,.7)',
+      setPhone: () => this.setState({ vw: 'phone', sheet: null }),
+      setTab: () => this.setState({ vw: 'tab', dScr: 'atlas', sheet: null }),
+      setDesk: () => this.setState({ vw: 'desk', dScr: 'atlas', sheet: null }),
+      toggleTheme: () => this.setState({ theme: s.theme === 'dark' ? 'light' : 'dark' }),
+      toggleSparse: () => this.setState({ sparse: !s.sparse, noPatch: false, sheet: null, homeKey: !s.sparse ? 's1' : 'pl', dScr: 'atlas' }),
+      toggleNoPatch: () => this.setState({ noPatch: !s.noPatch, sheet: null, pMode: 'map', dScr: 'atlas' }),
+
+      // theme tokens
+      ...T,
+
+      // layout
+      cvW: phone ? '430px' : tab ? '1024px' : '1440px',
+      cvH: phone ? '900px' : '920px',
+      phD: flex(phone), dkD: flex(!phone),
+      tbD: flex(tab), railD: flex(desk),
+      atlasD: show(!phone && s.dScr === 'atlas'), courtD: show(!phone && s.dScr === 'court'),
+      pListD: show(phone && s.pMode === 'list' && !s.noPatch),
+      pMapD: show(phone && (s.pMode === 'map' || s.noPatch)),
+      deskSegD: flex(tab),
+      dxMapD: show(desk || (tab && (s.pMode === 'map' || s.noPatch))),
+      dxListD: (!s.noPatch && (desk || (tab && s.pMode === 'list'))) ? 'flex' : 'none',
+      seatCardD: show(!s.sparse && !s.noPatch),
+      dxListW: desk ? '354px' : '100%', dxListMax: desk ? '354px' : '720px', dxListMg: desk ? '0' : '0 auto',
+
+      // header copy
+      subLoc: s.noPatch ? 'the Atlas · every UK court, one map' : s.sparse ? 'around your patch in Shrewsbury · never GPS' : 'around your patch in E1 · never GPS',
+      subLocD: s.noPatch ? 'the Atlas · every UK court, one map · set a patch to bring it home' : s.sparse ? 'the Atlas · courts, Circles and open seats around your patch in Shrewsbury' : 'the Atlas · courts, Circles and open seats around your patch in E1',
+      patchSize: s.patchSize, homeNm: homeV.nm,
+      setList: () => this.setState({ pMode: 'list' }), setMap: () => this.setState({ pMode: 'map' }),
+      segLBg: seg(s.pMode === 'list').bg, segLC: seg(s.pMode === 'list').c,
+      segMBg: seg(s.pMode === 'map').bg, segMC: seg(s.pMode === 'map').c,
+
+      // map
+      markers, rows,
+      roadsD: show(!s.noPatch), ukD: show(s.noPatch),
+      blobD: show(!s.noPatch),
+      blobX: homeV.x + '%', blobY: homeV.y + '%', blobW: sizes[s.patchSize] + 'px',
+      reasD: show(s.reassure && !s.noPatch),
+      dismissReas: () => this.setState({ reassure: false }),
+      spCardD: show(s.sparse && !s.noPatch && !s.reassure), npCardD: show(s.noPatch),
+      bandBtm: '14px',
+      bandLn: s.noPatch ? 'venues only · people are never on this map' : 'your band 4.1–5.1 · the map is a projection of Discover',
+      atlasHead: s.sparse ? 'COURTS IN SHREWSBURY' : 'COURTS NEAR YOUR PATCH',
+      atlasCount: s.sparse ? '3 within ~5 km' : (s.added ? '7' : '6') + ' within ~5 km',
+
+      // seat card
+      openVic: () => this._openV('vic'),
+      dashSlotD: s.claimed ? 'none' : 'block', youSlotD: s.claimed ? 'block' : 'none',
+      seatCountLn: s.claimed ? '4 of 4 · game on' : '3 of 4 · one seat waiting',
+      clBg, clC, clBd: '1px solid transparent', clLbl,
+      claimTap: () => { if (!s.claimed) { this.setState({ claimed: true }); this._t('seat claimed · the four is full. See you Sunday'); } },
+
+      // sheets
+      ovD: flex(!!s.sheet), ovAlign: phone ? 'flex-end' : 'center',
+      shW: phone ? '100%' : '470px', shRad: phone ? '26px 26px 0 0' : '22px',
+      grabD: phone ? 'block' : 'none',
+      closeSheet: () => this.setState({ sheet: null, addStep: 'form' }),
+      eat: (e) => e.stopPropagation(),
+      shVenD: show(s.sheet === 'venue'), shAddD: show(s.sheet === 'add'), shPatchD: show(s.sheet === 'patch'),
+      navToast: () => this._t('that surface lives in CUATRO Web v2 ↗'),
+      startCircle: () => this._t('opens Start a Circle · a name, a flag, one link'),
+      copyLink: () => this._t('link copied · drop it in the club WhatsApp'),
+      fixFacts: () => this._t('facts are community filled · edits land instantly'),
+
+      // venue sheet / court page
+      vName: s.selV === 'hw' ? (s.addedNm || v.nm) : v.nm,
+      vFactsLn: v.facts + ' · ' + v.dist,
+      vSlug: v.slug,
+      vHomeLn: v.home > 1 ? 'home court to ' + v.home + ' players' : v.home === 1 ? 'home court to 1 player' : 'home court to no one yet',
+      vCircD: flex(vCircles.length > 0), vQuietD: show(vCircles.length === 0),
+      vCircles,
+      vGameD: show(!!vGame), vGameWhen: vGame ? vGame.when : '', vGameLine: vGame ? vGame.line : '',
+      vClBg, vClC, vClBd, vClLbl, vClaimTap: doClaim,
+      vBookD: show(!!v.book), vBook: v.book || '',
+      vMkTxt: String((v.circles || []).length || ''),
+      vDistLn: v.dist === 'your home court' ? 'your home court · your patch anchors here' : v.dist + ' from your patch · distances are rough on purpose',
+      cpLinkD: phone ? 'none' : 'block',
+      openCourtPage: () => this.setState({ sheet: null, dScr: 'court' }),
+      backAtlas: () => this.setState({ dScr: 'atlas' }),
+
+      // add a court
+      openAdd: () => this.setState({ sheet: 'add', addStep: 'form' }),
+      openPatch: () => this.setState({ sheet: 'patch' }),
+      aFormD: show(s.addStep === 'form'), aDedD: show(s.addStep === 'dedupe'), aDoneD: show(s.addStep === 'done'),
+      addName: s.addName, addNameCh: e => this.setState({ addName: e.target.value }),
+      addPc: s.addPc, addPcCh: e => this.setState({ addPc: e.target.value }),
+      pcHint: pcOk ? '✓ ' + s.addPc.trim().toUpperCase() + ' checks out · the pin lands there, roughly. Rough is the point' : 'the postcode places the pin, roughly. Rough is the point',
+      ioIndoor: () => this.setState({ addIO: s.addIO === 'indoor' ? '' : 'indoor' }),
+      ioOutdoor: () => this.setState({ addIO: s.addIO === 'outdoor' ? '' : 'outdoor' }),
+      ioInBg: s.addIO === 'indoor' ? T.tBone : 'transparent', ioInC: s.addIO === 'indoor' ? T.tOnBone : T.tInk55,
+      ioOutBg: s.addIO === 'outdoor' ? T.tBone : 'transparent', ioOutC: s.addIO === 'outdoor' ? T.tOnBone : T.tInk55,
+      ctMinus: () => this.setState({ addCourts: Math.max(0, s.addCourts - 1) }),
+      ctPlus: () => this.setState({ addCourts: Math.min(20, s.addCourts + 1) }),
+      ctLbl: s.addCourts === 0 ? 'courts · ?' : 'courts · ' + s.addCourts,
+      addGo: () => this.setState({ addStep: 'dedupe' }),
+      dedEcho: 'you typed "' + nameEcho + '" in E9. The Atlas already knows a court there.',
+      addAccept: () => this.setState({ sheet: 'venue', selV: 'vic', addStep: 'form' }),
+      addNew: () => this.setState({ addStep: 'done', added: true, addedNm: nameEcho }),
+      doneNm: s.addedNm || nameEcho,
+      addSee: () => this.setState({ sheet: null, pMode: 'map', addStep: 'form' }),
+
+      // patch sheet
+      patchRows,
+      miniX: homeV.x + '%', miniY: homeV.y + '%', miniW: Math.round(sizes[s.patchSize] * .55) + 'px',
+      szTight: () => this.setState({ patchSize: 'tight' }), szLocal: () => this.setState({ patchSize: 'local' }), szWide: () => this.setState({ patchSize: 'wide' }),
+      szTBg: seg(s.patchSize === 'tight').bg, szTC: seg(s.patchSize === 'tight').c,
+      szLBg: seg(s.patchSize === 'local').bg, szLC: seg(s.patchSize === 'local').c,
+      szWBg: seg(s.patchSize === 'wide').bg, szWC: seg(s.patchSize === 'wide').c,
+      szHint: szHints[s.patchSize],
+
+      // toast
+      toastD: show(!!s.toast), toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

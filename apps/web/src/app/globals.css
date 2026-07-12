@@ -48,6 +48,16 @@
   --color-strong-bg: var(--color-ink);
   --color-strong-fg: var(--color-ground);
 
+  /* ---- Atlas map (design/HANDOFF-DELTA-ATLAS.md: tMap0/1/2, tMapPark,
+     tMapWater, tBlobA/B). The map must look like CUATRO, not a satnav. ---- */
+  --color-map-land: #171a20;
+  --color-map-road-1: #242933;
+  --color-map-road-2: #20242d;
+  --color-map-park: rgba(75, 201, 139, 0.08);
+  --color-map-water: rgba(120, 170, 255, 0.1);
+  --color-patch-blob-a: rgba(255, 92, 61, 0.14);
+  --color-patch-blob-b: rgba(255, 92, 61, 0.05);
+
   /* ---- theme-independent ---- */
   --color-court: rgba(120, 170, 255, 0.5);
   /* Text-on-dark tints, fixed regardless of theme — surface-feature is a
@@ -158,6 +168,14 @@
     --color-loss-tint: rgba(194, 59, 34, 0.13);
     --color-streak: #b4530a;
     --color-streak-tint: #fff1d6;
+
+    --color-map-land: #ece8e0;
+    --color-map-road-1: #dbd5c9;
+    --color-map-road-2: #e2ddd2;
+    --color-map-park: rgba(31, 138, 91, 0.1);
+    --color-map-water: rgba(90, 130, 200, 0.14);
+    --color-patch-blob-a: rgba(216, 64, 31, 0.1);
+    --color-patch-blob-b: rgba(216, 64, 31, 0.04);
   }
 }
 
@@ -183,6 +201,13 @@
   --color-loss-tint: rgba(229, 107, 79, 0.13);
   --color-streak: #f2b33d;
   --color-streak-tint: rgba(242, 179, 61, 0.13);
+  --color-map-land: #171a20;
+  --color-map-road-1: #242933;
+  --color-map-road-2: #20242d;
+  --color-map-park: rgba(75, 201, 139, 0.08);
+  --color-map-water: rgba(120, 170, 255, 0.1);
+  --color-patch-blob-a: rgba(255, 92, 61, 0.14);
+  --color-patch-blob-b: rgba(255, 92, 61, 0.05);
 }
 
 :root[data-theme="light"] {
@@ -204,6 +229,13 @@
   --color-loss-tint: rgba(194, 59, 34, 0.13);
   --color-streak: #b4530a;
   --color-streak-tint: #fff1d6;
+  --color-map-land: #ece8e0;
+  --color-map-road-1: #dbd5c9;
+  --color-map-road-2: #e2ddd2;
+  --color-map-park: rgba(31, 138, 91, 0.1);
+  --color-map-water: rgba(90, 130, 200, 0.14);
+  --color-patch-blob-a: rgba(216, 64, 31, 0.1);
+  --color-patch-blob-b: rgba(216, 64, 31, 0.04);
 }
 
 /* Map semantic tokens into Tailwind's theme so utilities like `bg-ground`,
@@ -232,6 +264,13 @@
   --color-strong-bg: var(--color-strong-bg);
   --color-strong-fg: var(--color-strong-fg);
   --color-court: var(--color-court);
+  --color-map-land: var(--color-map-land);
+  --color-map-road-1: var(--color-map-road-1);
+  --color-map-road-2: var(--color-map-road-2);
+  --color-map-park: var(--color-map-park);
+  --color-map-water: var(--color-map-water);
+  --color-patch-blob-a: var(--color-patch-blob-a);
+  --color-patch-blob-b: var(--color-patch-blob-b);
   --color-action-on-feature-label: var(--color-action-on-feature-label);
   --color-action-on-feature-link: var(--color-action-on-feature-link);
   --color-ink-on-feature: var(--color-ink-on-feature);
@@ -502,6 +541,60 @@
   animation: cu-court-flick 6s linear infinite;
 }
 
+/* Atlas patch blob idle motion (HANDOFF-DELTA-ATLAS.md) */
+@keyframes cu-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.animate-cu-breathe {
+  animation: cu-breathe 7s ease-in-out infinite;
+}
+
+/* THE ATLAS open-seat marker pulse (HANDOFF-DELTA-ATLAS.md: box-shadow ring
+   0→13px fade, 3.4s loop, "slow, ambient, not a nag"). Distinct from the
+   Board's .animate-cu-pulse (24px/2.2s). Coral via --color-action so it
+   re-themes with the map. Lives on the marker's circle child (maplibre owns
+   the marker root's transform, so this must not set transform). */
+@keyframes cu-seat-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-action) 32%, transparent);
+  }
+  55% {
+    box-shadow: 0 0 0 13px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.animate-cu-seat-pulse {
+  animation: cu-seat-pulse 3.4s ease-out infinite;
+}
+
+/* Just-added venue marker pop (HANDOFF-DELTA-ATLAS.md first-court celebration:
+   new marker pops in, 380ms arrive curve). Scale+opacity only — no translate,
+   because maplibre owns the marker root transform. */
+@keyframes cu-marker-pop {
+  0% {
+    transform: scale(0.25);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-cu-marker-pop {
+  animation: cu-marker-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-cu-arrive,
   .animate-cu-seal,
@@ -511,12 +604,19 @@
     transform: none !important;
   }
   .animate-cu-pulse,
-  .animate-cu-pulse-once {
+  .animate-cu-pulse-once,
+  .animate-cu-seat-pulse {
     animation: none !important;
+  }
+  .animate-cu-marker-pop {
+    animation-duration: 200ms !important;
+    animation-timing-function: ease !important;
+    transform: none !important;
   }
   .animate-cu-court-kb,
   .animate-cu-court-sweep,
-  .animate-cu-court-flick {
+  .animate-cu-court-flick,
+  .animate-cu-breathe {
     animation: none !important;
   }
   .transition-cu-state {

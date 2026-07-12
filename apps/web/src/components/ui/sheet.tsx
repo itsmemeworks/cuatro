@@ -36,14 +36,17 @@ export function Sheet({
         onClick={onClose}
         aria-hidden
       />
+      {/* max-h + overflow: a sheet taller than the viewport anchors to the
+          bottom and pushes its own top (and controls) unreachably off-screen —
+          long content must scroll inside the panel instead. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full max-w-md bg-surface rounded-t-[36px] pb-safe animate-cu-seal"
+        className="relative flex max-h-[88dvh] w-full max-w-md flex-col bg-surface rounded-t-[36px] pb-safe animate-cu-seal"
       >
-        <div className="mx-auto mt-3 h-1 w-9 rounded-chip bg-ink-hairline-3" aria-hidden />
-        <div className="p-5">
+        <div className="mx-auto mt-3 h-1 w-9 flex-none rounded-chip bg-ink-hairline-3" aria-hidden />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
           {title && <h2 className="text-cu-card-title text-ink mb-3">{title}</h2>}
           {children}
         </div>

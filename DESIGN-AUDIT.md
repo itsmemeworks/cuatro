@@ -83,3 +83,16 @@ Implementation spec: `WEB-SHELL-SPEC.md`. Verification bar for the web wave: scr
 
 # Home feed delta — 2026-07-12 (Pete-directed, beyond the authoritative design)
 /home is now week + living feed at every width: below the week grid (wide) and the phone home's sections, an "Across your Circles" section merges recent results + Glass reveals from every circle (each tagged with its circle), own-circle open-slot opportunities and up to 3 Board games (wide only; the phone keeps its Near you section instead). New aggregate `server/home-feed.ts`; posts reuse the circle feed components with a new circle-tag header; opportunities are quiet links, home's one coral action stays with the needs-answer card/panel.
+
+# THE ATLAS import — 2026-07-12
+
+**`design/CUATRO-Atlas-LATEST.dc.html` is now the authoritative ATLAS design** (imported byte-complete from claude.ai/design project root file "CUATRO Atlas.dc.html", 88,505 bytes; tokens/motion/copy delta in `design/HANDOFF-DELTA-ATLAS.md`; brief in `../DESIGN-BRIEF-GEO.md`). Serve `design/` on :8791 as usual.
+
+What it adds (one DC state machine, screens display-toggled): Discover map mode (phone + desktop side-by-side at 1440), venue sheet, public court page, add-a-court (form → dedupe guard → amber celebration), patch control (mini-map + tight/local/wide), never-GPS reassure card, sparse-town and no-patch country-view states, toast. Both themes; map tile tokens `tMap*`/`tBlob*` are NEW (landed in `globals.css` as `--color-map-*`/`--color-patch-blob-*`).
+
+Laws restated for map surfaces (in-file comments, lines 26 + 636): never GPS (no user pins, no locate-me, people only as aggregate counts at venues); the map IS a panel → at most ONE dashed-coral marker (the single best in-band open seat, decided by the caller); add-a-court affordances never dashed coral; private Circles never appear anywhere; distances rough with mandatory tilde.
+
+Implementation deltas accepted at the 2026-07-12 gate (honest, Pete-visible):
+- Court page is public/unpersonalised in v1: no viewer distance line or in-band claim styling; open games are neutral outline links to the session pages where the viewer-aware claim/ask lives.
+- Dedupe card omits the "N Circles play here" line (crosses into circle reads); shows real home-player count instead.
+- Country-view cluster bubbles are non-interactive (the panel's action is the set-my-patch card).

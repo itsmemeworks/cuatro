@@ -1,0 +1,7728 @@
+[
+  {
+    "name": "Padel Tide",
+    "postcode": "TR11 4JB",
+    "lat": 50.157043,
+    "lng": -5.095155,
+    "indoorOutdoor": "indoor",
+    "website": "https://Padeltide.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Heron Tennis",
+    "postcode": "TR7 2LZ",
+    "lat": 50.410482,
+    "lng": -5.068405,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.heron-tennis.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "UK Padel SeaSpace Newquay",
+    "postcode": "TR7 3LX",
+    "lat": 50.428934,
+    "lng": -5.053642,
+    "indoorOutdoor": "outdoor",
+    "website": "https://sn.ukpadel.org/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Trevose Tennis Club",
+    "postcode": "PL28 8JB",
+    "lat": 50.531069,
+    "lng": -5.009852,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PDL Padel United Plymouth",
+    "postcode": "PL6 8BH",
+    "lat": 50.420852,
+    "lng": -4.110786,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padeluniteduk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Abbey Park",
+    "postcode": "TQ2 5HP",
+    "lat": 50.465019,
+    "lng": -3.536682,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PDL Padel United - Torquay",
+    "postcode": "TQ2 5LZ",
+    "lat": 50.464496,
+    "lng": -3.538849,
+    "indoorOutdoor": "outdoor",
+    "website": "https://WWW.PADELUNITEDUK.COM",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Torquay Tennis Club Limited",
+    "postcode": "TQ2 5HP",
+    "lat": 50.465019,
+    "lng": -3.536682,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Point at Polzeath Tennis Club",
+    "postcode": "PL27 6QT",
+    "lat": 50.567252,
+    "lng": -4.895172,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Woodbury Park Golf Club",
+    "postcode": "EX5 1JJ",
+    "lat": 50.69117,
+    "lng": -3.374915,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "City Padel Exeter",
+    "postcode": "EX5 1SB",
+    "lat": 50.710845,
+    "lng": -3.415912,
+    "indoorOutdoor": "indoor",
+    "courtCount": 7,
+    "website": "https://www.citypadelexeter.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Tapnell Farm Padel Club",
+    "postcode": "PO41 0YJ",
+    "lat": 50.678874,
+    "lng": -1.472684,
+    "indoorOutdoor": "indoor",
+    "website": "https://tapnellfarm.com/play/padel-court-at-tapnell-farm",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ryde Lawn Tennis & Croquet Club",
+    "postcode": "PO33 3LJ",
+    "lat": 50.721214,
+    "lng": -1.172805,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.rydelawn.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Manor House Hotel",
+    "postcode": "EX20 4NA",
+    "lat": 50.730728,
+    "lng": -4.042803,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.manorandashburyresorts.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Slazenger Padel Clubs - Exeter",
+    "postcode": "EX2 8BY",
+    "lat": 50.714595,
+    "lng": -3.531629,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.slazengerpadelclubs.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The AxClub",
+    "postcode": "EX13 5PQ",
+    "lat": 50.776778,
+    "lng": -3.004564,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Poole",
+    "postcode": "BH17 7BX",
+    "lat": 50.743724,
+    "lng": -1.990616,
+    "indoorOutdoor": "outdoor",
+    "website": "https://sportsm.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cross Court Padel Club",
+    "postcode": "BH17 7AH",
+    "lat": 50.738149,
+    "lng": -1.994542,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.crosscourtpadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "East Dorset Lawn Tennis & Croquet Club",
+    "postcode": "BH14 8BL",
+    "lat": 50.720055,
+    "lng": -1.953066,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/eastdorsetltcc",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The West Hants Club",
+    "postcode": "BH3 7EF",
+    "lat": 50.737939,
+    "lng": -1.885961,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.westhants.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelStars Bournemouth",
+    "postcode": "BH22 9PH",
+    "lat": 50.821289,
+    "lng": -1.900168,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The PicklePad by SMEDA Sports",
+    "postcode": "BH23 4HD",
+    "lat": 50.738336,
+    "lng": -1.735818,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.sportsport.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Advantage Padel - Mudeford",
+    "postcode": "BH23 4FL",
+    "lat": 50.739421,
+    "lng": -1.734253,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.advantagepadel.co.uk/mudeford",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Ringwood",
+    "postcode": "BH24 3AS",
+    "lat": 50.83729,
+    "lng": -1.783473,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel4all Fareham",
+    "postcode": "PO16 7JU",
+    "lat": 50.858676,
+    "lng": -1.185007,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padel4all.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Punk Padel - Sindles Farm",
+    "postcode": "PO10 8QS",
+    "lat": 50.880455,
+    "lng": -0.914262,
+    "indoorOutdoor": "indoor",
+    "website": "https://booking.punkpadel.com/court/18",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vida de padel - Chichester",
+    "postcode": "PO19 7JU",
+    "lat": 50.841166,
+    "lng": -0.761637,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Chichester Racquets & Fitness Club",
+    "postcode": "PO19 6AR",
+    "lat": 50.841282,
+    "lng": -0.775183,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.crafc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "West Worthing Tennis and Squash Club",
+    "postcode": "BN13 3RT",
+    "lat": 50.829717,
+    "lng": -0.434971,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.wwc.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Project UK - Worthing",
+    "postcode": "BN16 4AX",
+    "lat": 50.820476,
+    "lng": -0.47614,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelprojectuk.com/worthing",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hove Beach Park - Tennis & Padel",
+    "postcode": "BN3 4FB",
+    "lat": 50.825906,
+    "lng": -0.188285,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 4,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Game4Padel | Withdean Sports Complex",
+    "postcode": "BN1 5JD",
+    "lat": 50.853489,
+    "lng": -0.159932,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://www.game4padel.com/withdean-sports-complex",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel4all Eastbourne",
+    "postcode": "BN21 1EA",
+    "lat": 50.765188,
+    "lng": 0.275328,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padel4all.com/eastbourne/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Eastbourne",
+    "postcode": "BN22 9PZ",
+    "lat": 50.791837,
+    "lng": 0.275373,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bittescombe Lodge",
+    "postcode": "TA4 2QL",
+    "lat": 51.033847,
+    "lng": -3.408737,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.bittescombe.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padelstars Taunton",
+    "postcode": "TA1 2RW",
+    "lat": 51.009438,
+    "lng": -3.073841,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padelstars.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Smash Padel Taunton",
+    "postcode": "TA1 4QS",
+    "lat": 51.001968,
+    "lng": -3.116682,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "City Padel Taunton",
+    "postcode": "TA2 8QY",
+    "lat": 51.029111,
+    "lng": -3.08097,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.citypadelexeter.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hamptworth Golf & Country Club",
+    "postcode": "SP5 2DU",
+    "lat": 50.977982,
+    "lng": -1.656985,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ],
+    "needsReview": "shares postcode + name tokens with \"Hamptworth Padel Club\" \u2014 possible duplicate"
+  },
+  {
+    "name": "Hamptworth Padel Club",
+    "postcode": "SP5 2DU",
+    "lat": 50.977982,
+    "lng": -1.656985,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.hamptworthgolf.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Headlands Farm Padel Court",
+    "postcode": "SO51 6BG",
+    "lat": 50.973977,
+    "lng": -1.56905,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Southampton",
+    "postcode": "SO16 0XS",
+    "lat": 50.936001,
+    "lng": -1.46671,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PADELHUB Southampton",
+    "postcode": "SO16 0AS",
+    "lat": 50.938114,
+    "lng": -1.470628,
+    "indoorOutdoor": "indoor",
+    "website": "https://Padelhub.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padelstars Southampton",
+    "postcode": "SO50 9HT",
+    "lat": 50.950952,
+    "lng": -1.382047,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Southampton West End",
+    "postcode": "SO30 3XA",
+    "lat": 50.92567,
+    "lng": -1.32443,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Long lane",
+    "postcode": "GU29 0AF",
+    "lat": 50.966262,
+    "lng": -0.735115,
+    "indoorOutdoor": "outdoor",
+    "website": "https://longlane.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Punk Padel - Ides Barn",
+    "postcode": "PO18 0JH",
+    "lat": 50.910065,
+    "lng": -0.710437,
+    "indoorOutdoor": "indoor",
+    "website": "https://booking.punkpadel.com/court/20",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pro Padel Forest Mere",
+    "postcode": "GU30 7JG",
+    "lat": 51.060047,
+    "lng": -0.829997,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Wickwoods",
+    "postcode": "BN6 9DY",
+    "lat": 50.919803,
+    "lng": -0.22354,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 3,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Weald Racquets Club",
+    "postcode": "BN6 8JP",
+    "lat": 50.923571,
+    "lng": -0.149681,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.thewealdclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Henfield Leisure Centre",
+    "postcode": "BN5 9QB",
+    "lat": 50.934012,
+    "lng": -0.279006,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.henfieldleisurecentre.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Eixo Padel",
+    "postcode": "BN6 9ZN",
+    "lat": 50.964456,
+    "lng": -0.165688,
+    "website": "https://eixopadel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Triangle Leisure Centre",
+    "postcode": "RH15 8WA",
+    "lat": 50.964954,
+    "lng": -0.152239,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Smash Padel Mid Sussex",
+    "postcode": "RH17 5HX",
+    "lat": 51.01466,
+    "lng": -0.150721,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://www.smashpadel.co/midsussex",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "The Padel Hub RH17",
+    "postcode": "RH17 5JS",
+    "lat": 51.025315,
+    "lng": -0.196997,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.thepadelhubrh17.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Crowborough Tennis And Squash Club",
+    "postcode": "TN6 1BN",
+    "lat": 51.053991,
+    "lng": 0.157249,
+    "indoorOutdoor": "outdoor",
+    "website": "https://ebookingonline.net/box/box3.php?id=9",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel People - Sedlescombe",
+    "postcode": "TN33 0SG",
+    "lat": 50.916377,
+    "lng": 0.537488,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rye LTC",
+    "postcode": "TN31 7NY",
+    "lat": 50.958512,
+    "lng": 0.739005,
+    "indoorOutdoor": "outdoor",
+    "website": "https://ryelawntennisclub.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel People - Shepton Mallet",
+    "postcode": "BA4 6LX",
+    "lat": 51.131461,
+    "lng": -2.516422,
+    "indoorOutdoor": "indoor",
+    "website": "https://padelpeople.co.uk/locations/shepton-mallet/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Racquet Garden",
+    "postcode": "BA13 4AQ",
+    "lat": 51.231343,
+    "lng": -2.229572,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.racquetgarden.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PIK Padel",
+    "postcode": "SP11 8SH",
+    "lat": 51.171052,
+    "lng": -1.626647,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.pikpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Andover Lawn Tennis Club Limited",
+    "postcode": "SP11 7LW",
+    "lat": 51.196173,
+    "lng": -1.498458,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/AndoverLawnTennisClub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Winchester Racquets and Fitness",
+    "postcode": "SO22 6AN",
+    "lat": 51.071244,
+    "lng": -1.329032,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://www.winchesterracquetsandfitness.net",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Star Padel - Bordon",
+    "postcode": "GU35 9HG",
+    "lat": 51.123438,
+    "lng": -0.879825,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.starpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Advantage Padel - Kingsley",
+    "postcode": "GU35 9NG",
+    "lat": 51.136542,
+    "lng": -0.879994,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.advantagepadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Punk Padel - Grammarsham Barn",
+    "postcode": "RG25 2HW",
+    "lat": 51.21477,
+    "lng": -1.101106,
+    "indoorOutdoor": "indoor",
+    "website": "https://booking.punkpadel.com/court/22",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Mission Padel - RAF Odiham",
+    "postcode": "RG29 1QT",
+    "lat": 51.24118,
+    "lng": -0.945933,
+    "indoorOutdoor": "outdoor",
+    "website": "https://missionpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Bourne Club Limited",
+    "postcode": "GU9 8HB",
+    "lat": 51.202619,
+    "lng": -0.794012,
+    "indoorOutdoor": "outdoor",
+    "website": "https://http://www.bourneclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Surrey Sports Park",
+    "postcode": "GU2 7AD",
+    "lat": 51.238255,
+    "lng": -0.604732,
+    "indoorOutdoor": "outdoor",
+    "website": "https://surreysportspark.co.uk/tennis",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hurlands Pickleball + Padel Club",
+    "postcode": "GU99NN",
+    "lat": 51.222062,
+    "lng": -0.774259,
+    "indoorOutdoor": "indoor",
+    "website": "https://hurlands.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Farnham",
+    "postcode": "GU9 9ND",
+    "lat": 51.226516,
+    "lng": -0.777048,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bluecoat Sports Health and Fitness Club",
+    "postcode": "RH13 0YB",
+    "lat": 51.045156,
+    "lng": -0.360772,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.bluecoatsports.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cottesmore Hotel, Golf and Country Club",
+    "postcode": "RH11 9AT",
+    "lat": 51.085854,
+    "lng": -0.223245,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "East Grinstead Sports Club",
+    "postcode": "RH19 4NJ",
+    "lat": 51.114059,
+    "lng": -0.005379,
+    "indoorOutdoor": "outdoor",
+    "website": "https://egsc.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Groombridge Tennis Club.",
+    "postcode": "TN3 9PP",
+    "lat": 51.108092,
+    "lng": 0.183596,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.groombridgetennisclub.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Hub TN2",
+    "postcode": "TN2 3EF",
+    "lat": 51.152976,
+    "lng": 0.276663,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Marden Tennis Club",
+    "postcode": "TN12 9AG",
+    "lat": 51.177507,
+    "lng": 0.503927,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Square One Padel Club - Ashford",
+    "postcode": "TN23 4TU",
+    "lat": 51.14675,
+    "lng": 0.85614,
+    "indoorOutdoor": "indoor",
+    "website": "https://squareonepadel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Wye LTC",
+    "postcode": "TN25 5EA",
+    "lat": 51.183329,
+    "lng": 0.932934,
+    "indoorOutdoor": "outdoor",
+    "website": "https://uttp://wyetennis.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelStars Folkestone",
+    "postcode": "CT19 5JU",
+    "lat": 51.08687,
+    "lng": 1.16036,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelstars.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Brean Padel",
+    "postcode": "TA8 2FG",
+    "lat": 51.279063,
+    "lng": -3.012588,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.breancountryclub.co.uk/the-padel-courts",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Mad Swans in the Mendips",
+    "postcode": "BS39 6TS",
+    "lat": 51.290478,
+    "lng": -2.528043,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel People - Basingstoke",
+    "postcode": "RG21 6SZ",
+    "lat": 51.267643,
+    "lng": -1.090456,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelpeople.co.uk/locations/basingstoke/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "MANYDOWN TENNIS CENTRE",
+    "postcode": "RG23 8PE",
+    "lat": 51.275721,
+    "lng": -1.153232,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.manydowntennis.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Beechdown Health Club",
+    "postcode": "RG22 4ES",
+    "lat": 51.247583,
+    "lng": -1.123806,
+    "indoorOutdoor": "outdoor",
+    "website": "https://beechdown.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Barnsgrove: Palace Padel",
+    "postcode": "RG29 1GF",
+    "lat": 51.252175,
+    "lng": -0.984326,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.barnsgrove.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Hub GU52",
+    "postcode": "GU52 8DY",
+    "lat": 51.259731,
+    "lng": -0.826886,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Royal Berkshire",
+    "postcode": "RG12 7PB",
+    "lat": 51.386865,
+    "lng": -0.746968,
+    "indoorOutdoor": "outdoor",
+    "website": "https://reception.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Wokingham Padel",
+    "postcode": "RG41 2PR",
+    "lat": 51.4041,
+    "lng": -0.84581,
+    "indoorOutdoor": "indoor",
+    "website": "https://Wokinghampadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel4all Bracknell",
+    "postcode": "RG12 9SE",
+    "lat": 51.404803,
+    "lng": -0.747714,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padel4all.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "CourtFit Padel",
+    "postcode": "KT11 1EW",
+    "lat": 51.334462,
+    "lng": -0.434961,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.courtfitpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Oxshott Village Sports Club",
+    "postcode": "KT22 0RF",
+    "lat": 51.33126,
+    "lng": -0.365723,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.ovsc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Weybridge Padel Limited",
+    "postcode": "KT13 8QA",
+    "lat": 51.377864,
+    "lng": -0.445421,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://www.ezeepadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Beaverbrook Hotel & Spa",
+    "postcode": "KT22 8QX",
+    "lat": 51.277854,
+    "lng": -0.307657,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ashtead Squash & Tennis Club",
+    "postcode": "KT21 2NN",
+    "lat": 51.308647,
+    "lng": -0.30839,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.ashteadsquashtennis.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Foxhills LTC",
+    "postcode": "KT16 0EL",
+    "lat": 51.371666,
+    "lng": -0.54603,
+    "indoorOutdoor": "outdoor",
+    "website": "https://Foxhills.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Esher Tennis & Padel Club",
+    "postcode": "KT10 9DU",
+    "lat": 51.363677,
+    "lng": -0.361314,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://www.eshertennis.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Epsom LTC",
+    "postcode": "KT18 7QN",
+    "lat": 51.326515,
+    "lng": -0.271963,
+    "indoorOutdoor": "outdoor",
+    "website": "https://Clubspark.lta.org.uk/EpsomLTC",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Tennis England Club Imber Court",
+    "postcode": "KT8 0BT",
+    "lat": 51.390687,
+    "lng": -0.350039,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.englandsportsgroup.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Wentworth Tennis & Health Club",
+    "postcode": "GU25 4LS",
+    "lat": 51.398339,
+    "lng": -0.592484,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Reigate LTC",
+    "postcode": "RH2 9LA",
+    "lat": 51.244421,
+    "lng": -0.21392,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.reigateltc.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Purley Sports Club",
+    "postcode": "CR8 3PF",
+    "lat": 51.344894,
+    "lng": -0.139183,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.purleysportsclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Social Sports Society - Sutton",
+    "postcode": "SM2 5NS",
+    "lat": 51.358117,
+    "lng": -0.187037,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Purley",
+    "postcode": "CR0 4RW",
+    "lat": 51.357258,
+    "lng": -0.124434,
+    "indoorOutdoor": "outdoor",
+    "website": "https://davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Hub KT19 Ltd",
+    "postcode": "KT19 9BE",
+    "lat": 51.341789,
+    "lng": -0.263808,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelhub.uk/epsom",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Limpsfield Club",
+    "postcode": "RH8 0DH",
+    "lat": 51.258088,
+    "lng": 0.008659,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.limpsfieldtennis.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Raynes Park",
+    "postcode": "SW20 8TE",
+    "lat": 51.404743,
+    "lng": -0.223575,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 3,
+    "website": "https://davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Surbiton Racket & Fitness Club",
+    "postcode": "KT5 8JT",
+    "lat": 51.393658,
+    "lng": -0.290049,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.surbiton.org",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hollybush Padel",
+    "postcode": "TN13 3XN",
+    "lat": 51.279736,
+    "lng": 0.199685,
+    "indoorOutdoor": "outdoor",
+    "website": "https://thepadelacademy.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Sevenoaks Padel Club",
+    "postcode": "TN14 7AD",
+    "lat": 51.331722,
+    "lng": 0.149573,
+    "indoorOutdoor": "outdoor",
+    "website": "https://sevenoaksPadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Square One Padel Club - Maidstone",
+    "postcode": "ME20 6SQ",
+    "lat": 51.306136,
+    "lng": 0.451608,
+    "indoorOutdoor": "indoor",
+    "website": "https://squareonepadel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Platform 26 Padel",
+    "postcode": "ME4 4JT",
+    "lat": 51.382103,
+    "lng": 0.521917,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://platform26padel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Frindsbury LTC",
+    "postcode": "ME2 4UX",
+    "lat": 51.408821,
+    "lng": 0.518761,
+    "indoorOutdoor": "outdoor",
+    "website": "https://frindsburytennisandpadelclub-gb.matchpoint.com.es/Pages/12-contact_frindsbury_tennis__padel_club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Square One Padel Club - Sittingbourne",
+    "postcode": "ME10 3US",
+    "lat": 51.344265,
+    "lng": 0.750706,
+    "indoorOutdoor": "indoor",
+    "website": "https://squareonepadel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Brakepoint Padel Club",
+    "postcode": "CT1 3RA",
+    "lat": 51.274344,
+    "lng": 1.070586,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://brakepointpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Smash Padel Whitstable",
+    "postcode": "CT5 3QS",
+    "lat": 51.357529,
+    "lng": 1.061407,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.smashpadel.co/whitstable",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Herne Bay",
+    "postcode": "CT6 6GZ",
+    "lat": 51.361942,
+    "lng": 1.150016,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.davidlloyd.co.uk/clubs/herne-bay/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Play Padel Club : Deal",
+    "postcode": "CT14 9AL",
+    "lat": 51.218949,
+    "lng": 1.394234,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.playpadelclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Kenfig Club",
+    "postcode": "SA13 2PE",
+    "lat": 51.536423,
+    "lng": -3.735236,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.theKenfigClub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pontyclun Padel",
+    "postcode": "CF72 9EW",
+    "lat": 51.527999,
+    "lng": -3.399258,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.lyonsdengym.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Unbound Padel",
+    "postcode": "CF72 8YW",
+    "lat": 51.553528,
+    "lng": -3.392541,
+    "indoorOutdoor": "indoor",
+    "website": "https://unboundpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Windsor LTC Penarth",
+    "postcode": "CF64 3JJ",
+    "lat": 51.430991,
+    "lng": -3.180265,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.windsorlawntennisclub.org.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padium - Cardiff",
+    "postcode": "CF11 0JR",
+    "lat": 51.457292,
+    "lng": -3.185708,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padium.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cardiff City House of Sport",
+    "postcode": "CF11 8AW",
+    "lat": 51.470646,
+    "lng": -3.200938,
+    "indoorOutdoor": "indoor",
+    "courtCount": 3,
+    "website": "https://www.cardiffcityhouseofsport.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Smash Padel Cardiff",
+    "postcode": "CF11 9HZ",
+    "lat": 51.491763,
+    "lng": -3.203829,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Cardiff",
+    "postcode": "CF23 9AQ",
+    "lat": 51.49977,
+    "lng": -3.14601,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rocket Padel Bristol",
+    "postcode": "BS4 4EB",
+    "lat": 51.453596,
+    "lng": -2.548096,
+    "indoorOutdoor": "indoor",
+    "courtCount": 16,
+    "website": "https://www.rocketpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "The Padel Team - Bristol",
+    "postcode": "BS5 0HU",
+    "lat": 51.456623,
+    "lng": -2.56954,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://wearepadel.com/uk/bristol",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Surge Padel - Bristol",
+    "postcode": "BS16 3JB",
+    "lat": 51.475659,
+    "lng": -2.535592,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.surgepadel.co.uk/bristol",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel4all Lockleaze",
+    "postcode": "BS7 9XF",
+    "lat": 51.495103,
+    "lng": -2.56718,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padel4all.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Bristol Emersons Green",
+    "postcode": "BS16 7PF",
+    "lat": 51.490621,
+    "lng": -2.468402,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Redland Green Club",
+    "postcode": "BS6 7HF",
+    "lat": 51.474221,
+    "lng": -2.605739,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.redlandgreen.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Social Sports Society - Bristol (Filton)",
+    "postcode": "BS34 8SP",
+    "lat": 51.507259,
+    "lng": -2.550415,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Bristol Westbury",
+    "postcode": "BS10 6AZ",
+    "lat": 51.498276,
+    "lng": -2.613938,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Future Padel",
+    "postcode": "BS37 5NG",
+    "lat": 51.548066,
+    "lng": -2.434048,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.futurepadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel People - Corsham",
+    "postcode": "SN13 9RS",
+    "lat": 51.421297,
+    "lng": -2.199949,
+    "indoorOutdoor": "indoor",
+    "website": "https://padelpeople.co.uk/locations/corsham/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel People Corsham",
+    "postcode": "SN139SW",
+    "lat": 51.419357,
+    "lng": -2.198805,
+    "indoorOutdoor": "indoor",
+    "website": "https://padelpeople.co.uk/locations/corsham/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel4all Basset Down",
+    "postcode": "SN4 9QW",
+    "lat": 51.530457,
+    "lng": -1.840476,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padel4all.com/basset-down/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Nova",
+    "postcode": "SN5 7EX",
+    "lat": 51.56971,
+    "lng": -1.825158,
+    "indoorOutdoor": "indoor",
+    "website": "https://padelnova.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Hub RG1 Ltd",
+    "postcode": "RG1 3DH",
+    "lat": 51.457215,
+    "lng": -0.957825,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://www.padelhub.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Padelstars Reading",
+    "postcode": "RG4 6ST",
+    "lat": 51.46937,
+    "lng": -0.913126,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padelstars.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Simply Padel",
+    "postcode": "RG30 6AY",
+    "lat": 51.466167,
+    "lng": -1.014649,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Atrium Health Club",
+    "postcode": "RG30 6AY",
+    "lat": 51.466167,
+    "lng": -1.014649,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Wargrave Tennis Club",
+    "postcode": "RG10 8BG",
+    "lat": 51.501526,
+    "lng": -0.858305,
+    "indoorOutdoor": "outdoor",
+    "website": "https://wargravetennis.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelStars Bracknell",
+    "postcode": "RG42 4EX",
+    "lat": 51.422817,
+    "lng": -0.778634,
+    "website": "https://padelstars.co.uk/padelstars-bracknell/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelStars Egham",
+    "postcode": "TW20 8NL",
+    "lat": 51.43062,
+    "lng": -0.538853,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelstars.co.uk/padelstars-egham/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Hub SL2",
+    "postcode": "SL2 5DT",
+    "lat": 51.512597,
+    "lng": -0.586038,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelhub.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Stoke Park",
+    "postcode": "SL2 4PG",
+    "lat": 51.538288,
+    "lng": -0.595767,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.stokepark.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Maidenhead Ltd",
+    "postcode": "SL6 1BN",
+    "lat": 51.515484,
+    "lng": -0.719057,
+    "website": "https://www.padelberkshire.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Powerhouse - Burnham",
+    "postcode": "SL1 8DL",
+    "lat": 51.538422,
+    "lng": -0.644601,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/padel-powerhouse-burnham",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "UK PADEL @ The South Buckinghamshire Golf Course",
+    "postcode": "SL2 4PJ",
+    "lat": 51.540603,
+    "lng": -0.604363,
+    "indoorOutdoor": "outdoor",
+    "website": "https://sb.ukpadel.org/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | Bloom Heathrow",
+    "postcode": "TW14 8HA",
+    "lat": 51.44697,
+    "lng": -0.445351,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Montrose Padel Club",
+    "postcode": "TW10 7AD",
+    "lat": 51.445689,
+    "lng": -0.301953,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "The Lensbury Club",
+    "postcode": "TW11 9NU",
+    "lat": 51.427933,
+    "lng": -0.318922,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.lensbury.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Playtime Padel Ltd",
+    "postcode": "KT2 6LX",
+    "lat": 51.412919,
+    "lng": -0.298564,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.playtimepadelclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "National Tennis Centre",
+    "postcode": "SW15 5JQ",
+    "lat": 51.46279,
+    "lng": -0.250238,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/PadelNTC",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rydell High",
+    "postcode": "SW15 5JQ",
+    "lat": 51.46279,
+    "lng": -0.250238,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Roehampton Club",
+    "postcode": "SW15 5LR",
+    "lat": 51.462976,
+    "lng": -0.245192,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.roehamptonclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Virgin Active Chiswick Riverside",
+    "postcode": "W4 2SX",
+    "lat": 51.47547,
+    "lng": -0.25632,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.virginactive.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "BEST - Tennis Courts",
+    "postcode": "SW13 9SA",
+    "lat": 51.475501,
+    "lng": -0.232515,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/BEST",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rocks Lane Tennis Club",
+    "postcode": "SW13 0BY",
+    "lat": 51.471972,
+    "lng": -0.237648,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.rockslane.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rocks Lane Multi Sports Centre Chiswick",
+    "postcode": "W4 1RZ",
+    "lat": 51.493803,
+    "lng": -0.259683,
+    "website": "https://rockslane.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pavilion Club",
+    "postcode": "KT8 9DX",
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ],
+    "needsReview": "postcode not found by postcodes.io \u2014 verify/re-geocode"
+  },
+  {
+    "name": "Lammas Park",
+    "postcode": "W13 9NJ",
+    "lat": 51.50616,
+    "lng": -0.309596,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://www.parksports.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "The Hurlingham Club",
+    "postcode": "SW6 3PR",
+    "lat": 51.468307,
+    "lng": -0.204227,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 3,
+    "website": "https://www.hurlinghamclub.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "All Star Tennis - King Georges Park",
+    "postcode": "SW18 4DN",
+    "lat": 51.452826,
+    "lng": -0.192701,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.allstartennis.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | The Padel Yard Wandsworth",
+    "postcode": "SW18 1SH",
+    "lat": 51.45935,
+    "lng": -0.19122,
+    "website": "https://www.game4padel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Queens Club Limited",
+    "postcode": "W14 9EQ",
+    "lat": 51.486848,
+    "lng": -0.212243,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.queensclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Mode Club",
+    "postcode": "W3 7AU",
+    "lat": 51.507809,
+    "lng": -0.251584,
+    "indoorOutdoor": "outdoor",
+    "website": "https://modeclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Acton Park",
+    "postcode": "W3 7HB",
+    "lat": 51.511947,
+    "lng": -0.253457,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel People Wimbledon",
+    "postcode": "SW17 0RF",
+    "lat": 51.4307,
+    "lng": -0.186022,
+    "indoorOutdoor": "indoor",
+    "website": "https://padelpeople.co.uk/locations/wimbledon/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Harbour Club Chelsea",
+    "postcode": "SW6 2RR",
+    "lat": 51.467767,
+    "lng": -0.187734,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.harbourclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | Parkside Padel Club",
+    "postcode": "UB1 1GH",
+    "lat": 51.506048,
+    "lng": -0.388755,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://www.game4padel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Campden Hill Lawn Tennis Club",
+    "postcode": "W8 7JH",
+    "lat": 51.506181,
+    "lng": -0.201586,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.chltc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Racketeer",
+    "postcode": "NW10 6PH",
+    "lat": 51.53155,
+    "lng": -0.258834,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Battersea Park Millennium Arena Padel",
+    "postcode": "SW11 4NJ",
+    "lat": 51.476233,
+    "lng": -0.160801,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.enableleisure.co.uk/padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ],
+    "needsReview": "shares postcode + name tokens with \"Battersea Park Tennis Courts\" \u2014 possible duplicate"
+  },
+  {
+    "name": "Hyde Park Tennis Courts",
+    "postcode": "W2 2UH",
+    "lat": 51.503152,
+    "lng": -0.173703,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://sportsandleisure.royalparks.org.uk/hyde-park",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Battersea Park Tennis Courts",
+    "postcode": "SW11 4NJ",
+    "lat": 51.476233,
+    "lng": -0.160801,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel and Coffee",
+    "postcode": "UB6 8UP",
+    "lat": 51.540735,
+    "lng": -0.360236,
+    "indoorOutdoor": "indoor",
+    "website": "https://padelcoffee.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rocket Padel Battersea Power Station",
+    "postcode": "SW11 8AL",
+    "lat": 51.482786,
+    "lng": -0.142613,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://www.rocketpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Game4Padel | The Padel Yard - Vauxhall Square",
+    "postcode": "SW8 2LX",
+    "lat": 51.483436,
+    "lng": -0.126722,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Sudbury Hill",
+    "postcode": "UB6 0UX",
+    "lat": 51.555826,
+    "lng": -0.343739,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Regents Park Tennis Courts",
+    "postcode": "NW1 4NU",
+    "lat": 51.525966,
+    "lng": -0.153114,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://sportsandleisure.royalparks.org.uk/regents-park",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Cumberland Lawn Tennis Club & Hampstead Cricket Club",
+    "postcode": "NW6 1JD",
+    "lat": 51.55159,
+    "lng": -0.186741,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.cltc-hcc.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The 108 London Baseball & Padel Centre",
+    "postcode": "NW2 1LT",
+    "lat": 51.571338,
+    "lng": -0.226735,
+    "indoorOutdoor": "indoor",
+    "website": "https://the108.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Social Sports Society - Brent Cross",
+    "postcode": "NW4 3AY",
+    "lat": 51.574448,
+    "lng": -0.223079,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "\u00a1PADEL PADEL!  Eltham",
+    "postcode": "SE9 6SF",
+    "lat": 51.451579,
+    "lng": 0.052432,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padel-padel.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | Coldharbour Leisure Centre",
+    "postcode": "SE9 3LX",
+    "lat": 51.437061,
+    "lng": 0.053608,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Sundridge Park Club",
+    "postcode": "BR1 3NA",
+    "lat": 51.416949,
+    "lng": 0.023457,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://www.thesundridgeparkclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Bromley Sports Club",
+    "postcode": "BR1 3AS",
+    "lat": 51.407533,
+    "lng": 0.031175,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.bromleysportsclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Tour Padel - Avery Hill",
+    "postcode": "SE9 2UG",
+    "lat": 51.446183,
+    "lng": 0.080987,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/tour-padel-avery-hill-campus",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Crescent Lawn Tennis Club",
+    "postcode": "DA14 6RA",
+    "lat": 51.425597,
+    "lng": 0.091645,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.crescenttennisclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Beckenham",
+    "postcode": "BR3 3HL",
+    "lat": 51.395771,
+    "lng": -0.0354,
+    "indoorOutdoor": "outdoor",
+    "website": "https://beckenham@davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Box Bermondsey",
+    "postcode": "SE15 1EP",
+    "lat": 51.483666,
+    "lng": -0.050348,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelbox.club/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | Crystal Palace National Sports Centre",
+    "postcode": "SE19 2BB",
+    "lat": 51.418998,
+    "lng": -0.067743,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rocket Padel Beckton",
+    "postcode": "E6 5LW",
+    "lat": 51.513692,
+    "lng": 0.056045,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.rocketpadel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bexley Lawn Tennis, Squash and Racketball Club",
+    "postcode": "DA5 1AX",
+    "lat": 51.444878,
+    "lng": 0.148306,
+    "indoorOutdoor": "outdoor",
+    "website": "https://Bexleylawntennis",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Stratford Padel Club",
+    "postcode": "E15 2AE",
+    "lat": 51.534693,
+    "lng": -0.005559,
+    "website": "https://www.stratfordpadelclub.org",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Shoreditch",
+    "postcode": "E1 6GJ",
+    "lat": 51.523293,
+    "lng": -0.075699,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/location/shoreditch",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel United Erith",
+    "postcode": "DA8 3AT",
+    "lat": 51.476968,
+    "lng": 0.174469,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padeluniteduk.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rocket Padel Ilford",
+    "postcode": "IG1 3PS",
+    "lat": 51.571669,
+    "lng": 0.056523,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.rocketpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Dartford",
+    "postcode": "DA1 1NJ",
+    "lat": 51.439088,
+    "lng": 0.225364,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "House of Racquet",
+    "postcode": "N7 9AH",
+    "lat": 51.542642,
+    "lng": -0.123757,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.houseofracquet.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Chafford Hundred Health Club & Spa",
+    "postcode": "RM16 6YJ",
+    "lat": 51.490756,
+    "lng": 0.290602,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.bannatyne.co.uk/health-club/chafford-hundred",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Virgin Active Clearview Health and Racquets Club",
+    "postcode": "CM13 3EN",
+    "lat": 51.572181,
+    "lng": 0.315749,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.virginactive.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Club Kingswood",
+    "postcode": "SS16 5JP",
+    "lat": 51.559024,
+    "lng": 0.45894,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Brentwood Padel Club",
+    "postcode": "CM13 3FD",
+    "lat": 51.594142,
+    "lng": 0.313473,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padel123.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Heron Padel Club",
+    "postcode": "CM13 3LW",
+    "lat": 51.584599,
+    "lng": 0.362301,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.heroncountryclub.uk/theheronpadelclub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel4all Garon Park",
+    "postcode": "SS2 4FA",
+    "lat": 51.55435,
+    "lng": 0.734742,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padel4all.com/garon-park/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Southend",
+    "postcode": "SS2 6XT",
+    "lat": 51.565324,
+    "lng": 0.667505,
+    "indoorOutdoor": "outdoor",
+    "website": "https://sportsm.davidlloyd.co.uk/en/home",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pure Swansea Padel",
+    "postcode": "SA5 7HR",
+    "lat": 51.659689,
+    "lng": -3.94975,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.pureswansea.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Jaxx Padel",
+    "postcode": "SA7 0AE",
+    "indoorOutdoor": "indoor",
+    "website": "https://jaxxpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ],
+    "needsReview": "postcode not found by postcodes.io \u2014 verify/re-geocode"
+  },
+  {
+    "name": "The Welsh Padel Centre",
+    "postcode": "NP44 2DZ",
+    "lat": 51.658105,
+    "lng": -3.011228,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.welshpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Tetbury Padel Barn",
+    "postcode": "GL8 8RS",
+    "lat": 51.633561,
+    "lng": -2.13007,
+    "indoorOutdoor": "indoor",
+    "website": "https://Coming Soon",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelX The RAU",
+    "postcode": "GL7 6JS",
+    "lat": 51.709513,
+    "lng": -1.994908,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padelx.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Slazenger Padel Clubs - Swindon",
+    "postcode": "SN3 3HT",
+    "lat": 51.568569,
+    "lng": -1.755619,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.slazengerpadelclubs.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Chiltern Padel",
+    "postcode": "OX9 7EB",
+    "lat": 51.692839,
+    "lng": -0.97358,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/chiltern-padel-club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hazlemere Tennis  & Padel Club",
+    "postcode": "HP15 7QW",
+    "lat": 51.648345,
+    "lng": -0.720402,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/HazlemereTennisClub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "UK PADEL @ Holmer Green Padel",
+    "postcode": "HP15 6PG",
+    "lat": 51.667228,
+    "lng": -0.707231,
+    "indoorOutdoor": "outdoor",
+    "website": "https://hg.ukpadel.org/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Lacey Green & Loosley Row Padel & Tennis",
+    "postcode": "HP27 0PW",
+    "lat": 51.690405,
+    "lng": -0.802821,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/LaceyGreenTennis",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Great Missenden LTC",
+    "postcode": "HP16 0DG",
+    "lat": 51.693572,
+    "lng": -0.698102,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.gmltc.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "UK PADEL Princes Risborough",
+    "postcode": "HP27 9NE",
+    "lat": 51.716141,
+    "lng": -0.845263,
+    "indoorOutdoor": "outdoor",
+    "website": "https://ukpadel.org/uk-padel-clubs/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Chesham 1879 Lawn Tennis & Squash Club",
+    "postcode": "HP5 2JU",
+    "lat": 51.703379,
+    "lng": -0.621381,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.chesham1879.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rulo Clubs",
+    "postcode": "HP5 2ZE",
+    "lat": 51.718037,
+    "lng": -0.622209,
+    "indoorOutdoor": "indoor",
+    "website": "https://ruloclubs.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Northwood",
+    "postcode": "HA6 2DR",
+    "lat": 51.612672,
+    "lng": -0.443337,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel United Bushey (North London)",
+    "postcode": "WD23 2TD",
+    "lat": 51.655628,
+    "lng": -0.373584,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padeluniteduk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Watford",
+    "postcode": "WD23 2TY",
+    "lat": 51.658487,
+    "lng": -0.369014,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel-Tree Bushey",
+    "postcode": "WD23 2TR",
+    "lat": 51.658642,
+    "lng": -0.366565,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Bushey",
+    "postcode": "WD23 2DL",
+    "lat": 51.66339,
+    "lng": -0.36531,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelStars Watford",
+    "postcode": "WD25 7HH",
+    "lat": 51.694954,
+    "lng": -0.392822,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelstars.co.uk/padelstars-watford/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Hive London",
+    "postcode": "HA8 6AG",
+    "lat": 51.60152,
+    "lng": -0.288851,
+    "indoorOutdoor": "outdoor",
+    "website": "https://thehivelondon.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Encourt Padel & Wellness",
+    "postcode": "AL2 2DB",
+    "lat": 51.710572,
+    "lng": -0.326369,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.encourtpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Tree - Arkley",
+    "postcode": "EN5 3LD",
+    "lat": 51.642631,
+    "lng": -0.243005,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Zing Padel Hemel Hempstead",
+    "postcode": "HP3 8QZ",
+    "lat": 51.746092,
+    "lng": -0.437407,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.zing-padel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Mill Hill",
+    "postcode": "NW7 2BB",
+    "lat": 51.607541,
+    "lng": -0.226726,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hazelwood Lawn Tennis & Squash Club",
+    "postcode": "N21 2AJ",
+    "lat": 51.63725,
+    "lng": -0.087262,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://hazelwood.clubsolution.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Georgians & Holly Park Tennis Club",
+    "postcode": "N8 8JJ",
+    "lat": 51.582336,
+    "lng": -0.130066,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://www.georgiansclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel Tree - Finchley",
+    "postcode": "N12 0PD",
+    "lat": 51.605922,
+    "lng": -0.172735,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Finchley",
+    "postcode": "N12 0QZ",
+    "lat": 51.605856,
+    "lng": -0.174312,
+    "indoorOutdoor": "outdoor",
+    "website": "https://reception.davidlloyd.co.uk/en/booking",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Hub N20",
+    "postcode": "N20 9LB",
+    "lat": 51.633805,
+    "lng": -0.178435,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelhub.uk/n20",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Chandos Lawn Tennis Club",
+    "postcode": "N2 0RZ",
+    "lat": 51.592195,
+    "lng": -0.180591,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.chandosltc.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Woodford Wells Club",
+    "postcode": "IG8 0NL",
+    "lat": 51.614914,
+    "lng": 0.028115,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.woodfordwellsclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Project UK - Potters Bar",
+    "postcode": "EN6 4NF",
+    "lat": 51.703394,
+    "lng": -0.162632,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padelprojectuk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel District - Waltham Abbey",
+    "postcode": "EN9 1JH",
+    "lat": 51.681775,
+    "lng": -0.003356,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelStars Chigwell",
+    "postcode": "IG7 5AB",
+    "lat": 51.617576,
+    "lng": 0.060664,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Chigwell",
+    "postcode": "IG9 6BJ",
+    "lat": 51.627508,
+    "lng": 0.051159,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.davidlloyd.co.uk/clubs/chigwell/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Broxbourne Sports Club",
+    "postcode": "EN10 7BA",
+    "lat": 51.743728,
+    "lng": -0.018907,
+    "indoorOutdoor": "outdoor",
+    "website": "https://broxbournesportsclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel 4 Everyone",
+    "postcode": "RM3 9DJ",
+    "lat": 51.608806,
+    "lng": 0.223918,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Romford",
+    "postcode": "RM7 7AY",
+    "lat": 51.584466,
+    "lng": 0.167934,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/padel-romford",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Epping Golf Course",
+    "postcode": "CM16 7NJ",
+    "lat": 51.687175,
+    "lng": 0.118105,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Basildon",
+    "postcode": "SS14 3DG",
+    "lat": 51.583846,
+    "lng": 0.461103,
+    "website": "https://reception.davidlloyd.co.uk/en/tennis-courts/view",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelStars Basildon",
+    "postcode": "SS14 3GR",
+    "lat": 51.578804,
+    "lng": 0.448476,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PDL Padel United - Chelmsford",
+    "postcode": "CM2 9RL",
+    "lat": 51.719175,
+    "lng": 0.494475,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padeluniteduk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PDL Padel United Maldon",
+    "postcode": "CM9 5JQ",
+    "lat": 51.723115,
+    "lng": 0.689254,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padeluniteduk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Ranch Padel",
+    "postcode": "SA67 8TX",
+    "lat": 51.800257,
+    "lng": -4.729999,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Four Seasons Padel Wales",
+    "postcode": "SA32 7NY",
+    "lat": 51.881153,
+    "lng": -4.184623,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Shift - Elkstone Studios",
+    "postcode": "GL53 9PQ",
+    "lat": 51.798421,
+    "lng": -2.047697,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://padelshift.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "The Padel Club (Gloucester Quays)",
+    "postcode": "GL1 5SF",
+    "lat": 51.857602,
+    "lng": -2.253616,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.thepadelclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Kingsholm Square Lawn Tennis Club",
+    "postcode": "GL1 2QJ",
+    "lat": 51.870715,
+    "lng": -2.253192,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 4,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "East Gloucestershire Club",
+    "postcode": "GL53 7DF",
+    "lat": 51.886149,
+    "lng": -2.06738,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 3,
+    "website": "https://www.eastglos.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "The Padel Club (Cheltenham)",
+    "postcode": "GL51 9NQ",
+    "lat": 51.918516,
+    "lng": -2.097145,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.thepadelclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cotswold Padel Club",
+    "postcode": "GL54 3AP",
+    "lat": 51.817138,
+    "lng": -1.861936,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.cotswoldpadel.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Leys Recreation Ground",
+    "postcode": "OX28 4AR",
+    "lat": 51.778555,
+    "lng": -1.486883,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 3,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "North Oxford Lawn Tennis Club",
+    "postcode": "OX2 8EG",
+    "lat": 51.791704,
+    "lng": -1.271593,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/NorthOxfordLawnTennisClub/Booking",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Oxford Sports Lawn Tennis Club",
+    "postcode": "OX2 0NA",
+    "lat": 51.743013,
+    "lng": -1.278908,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 3,
+    "website": "https://www.oxfordsportsltc.org",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ],
+    "needsReview": "shares postcode + name tokens with \"Smash Padel Oxford\" \u2014 possible duplicate"
+  },
+  {
+    "name": "Smash Padel Oxford",
+    "postcode": "OX2 0NA",
+    "lat": 51.743975,
+    "lng": -1.281384,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bicester Garrison",
+    "postcode": "OX25 1PP",
+    "lat": 51.84486,
+    "lng": -1.107134,
+    "indoorOutdoor": "indoor",
+    "website": "https://@bicestergarrisongym",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Smash Padel Bicester HGS",
+    "postcode": "OX26 1TH",
+    "lat": 51.886394,
+    "lng": -1.197342,
+    "indoorOutdoor": "outdoor",
+    "website": "https://smashpadel.co",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Bicester",
+    "postcode": "OX25 2BX",
+    "lat": 51.886371,
+    "lng": -1.168224,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "JetPadel",
+    "postcode": "OX9 3SG",
+    "lat": 51.757877,
+    "lng": -0.98486,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel King",
+    "postcode": "HP22 5RN",
+    "lat": 51.794321,
+    "lng": -0.749027,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padel-king.co.uk/home/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Berko Padel",
+    "postcode": "HP23 5RF",
+    "lat": 51.783653,
+    "lng": -0.614673,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.berkohockeyclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padelstars St Albans",
+    "postcode": "AL3 5XA",
+    "lat": 51.767396,
+    "lng": -0.3546,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelstars.co.uk/padelstars-st-albans/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Batchwood Tennis Centre",
+    "postcode": "AL3 5XA",
+    "lat": 51.767396,
+    "lng": -0.3546,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.everyoneactive.com/centre/batchwood-golf-and-sports-centre/#activities",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Pass Luton",
+    "postcode": "LU1 3JH",
+    "lat": 51.873071,
+    "lng": -0.398986,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelpass.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "BETTER Gosling Tennis Centre",
+    "postcode": "AL8 6XE",
+    "lat": 51.790714,
+    "lng": -0.213026,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.better.org.uk/leisure-centre/welwyn/gosling-sports-park",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Hatfield",
+    "postcode": "AL10 9AX",
+    "lat": 51.765164,
+    "lng": -0.243889,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Harlow",
+    "postcode": "CM17 9LX",
+    "lat": 51.773515,
+    "lng": 0.13299,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bishops Stortford Lawn Tennis Club",
+    "postcode": "CM23 2TD",
+    "lat": 51.876958,
+    "lng": 0.150202,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.bsltc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bishop's Stortford Padel Club",
+    "postcode": "CM23 5RG",
+    "lat": 51.872735,
+    "lng": 0.193171,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://www.bishopstortfordpadelclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel United Stansted",
+    "postcode": "CM24 8TZ",
+    "lat": 51.89375,
+    "lng": 0.206394,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padeluniteduk.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Beaulieu Padel",
+    "postcode": "CM3 3FB",
+    "lat": 51.768607,
+    "lng": 0.492143,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.beaulieupadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Prested Padel Tennis",
+    "postcode": "CO5 9EE",
+    "lat": 51.844939,
+    "lng": 0.73037,
+    "website": "https://prested.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Essex Golf & Country Club",
+    "postcode": "CO6 2NS",
+    "lat": 51.907739,
+    "lng": 0.682331,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.theessexgolfandcountryclub.com/tennis/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PDL Padel United - Colchester",
+    "postcode": "CO2 7XE",
+    "lat": 51.877999,
+    "lng": 0.877857,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padeluniteduk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hereford Squash Tennis & Racketball Centre",
+    "postcode": "HR4 0LX",
+    "lat": 52.060188,
+    "lng": -2.737675,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/herefordsquashtenniscentre",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Shift - The Club by Bamford",
+    "postcode": "GL56 0YG",
+    "lat": 51.929057,
+    "lng": -1.642689,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padelshift.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel X Club Todenham",
+    "postcode": "GL56 9NW",
+    "lat": 51.999794,
+    "lng": -1.675483,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelx.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ],
+    "needsReview": "shares postcode + name tokens with \"Padel X Todenham Barn\" \u2014 possible duplicate"
+  },
+  {
+    "name": "Padel X Todenham Barn",
+    "postcode": "GL56 9NW",
+    "lat": 51.999794,
+    "lng": -1.675483,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelx.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cotswolds Hotel & Spa",
+    "postcode": "OX7 5QH",
+    "lat": 51.942603,
+    "lng": -1.511636,
+    "indoorOutdoor": "outdoor",
+    "website": "https://cotswoldsclub.co.uk/padel/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Soho Farmhouse",
+    "postcode": "OX7 4JS",
+    "lat": 51.939152,
+    "lng": -1.422531,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PADEL VAULT",
+    "postcode": "MK5 8HL",
+    "lat": 52.021765,
+    "lng": -0.771685,
+    "indoorOutdoor": "indoor",
+    "website": "https://padelvault.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Milton Keynes",
+    "postcode": "MK15 0DL",
+    "lat": 52.053025,
+    "lng": -0.732369,
+    "indoorOutdoor": "outdoor",
+    "website": "https://reception.davidlloyd.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vida Padel",
+    "postcode": "MK14 6DT",
+    "lat": 52.05997,
+    "lng": -0.769178,
+    "indoorOutdoor": "outdoor",
+    "website": "https://vidapadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Zone",
+    "postcode": "SG4 0TJ",
+    "lat": 51.965861,
+    "lng": -0.262969,
+    "indoorOutdoor": "indoor",
+    "website": "https://padel-zone.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Evolution LTD",
+    "postcode": "CO100QB",
+    "lat": 52.031955,
+    "lng": 0.775454,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelevolution.org/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ultimate Padel Club",
+    "postcode": "CO4 5WY",
+    "lat": 51.924942,
+    "lng": 0.908704,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Utopia Padel Ipswich",
+    "postcode": "IP8 3JN",
+    "lat": 52.027018,
+    "lng": 1.079974,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.utopiapadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ipswich Sports Club",
+    "postcode": "IP1 4NJ",
+    "lat": 52.073066,
+    "lng": 1.152063,
+    "indoorOutdoor": "outdoor",
+    "website": "https://ipswichsportsclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Warehouse by Padel Ipswich",
+    "postcode": "IP1 5LT",
+    "lat": 52.080687,
+    "lng": 1.120879,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelipswich.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel + Play Worcester",
+    "postcode": "WR2 5XU",
+    "lat": 52.18845,
+    "lng": -2.247626,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelandplay.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel+Play Stratford-upon-Avon",
+    "postcode": "CV37 9RQ",
+    "lat": 52.192788,
+    "lng": -1.762239,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelandplay.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Social House",
+    "postcode": "NN4 7EX",
+    "lat": 52.220689,
+    "lng": -0.857908,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelsocialhouse.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Marvel Padel",
+    "postcode": "NN3 9HG",
+    "lat": 52.244838,
+    "lng": -0.832227,
+    "indoorOutdoor": "indoor",
+    "website": "https://marvelpadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Northampton County Lawn Tennis Club",
+    "postcode": "NN3 3BX",
+    "lat": 52.248315,
+    "lng": -0.846506,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/northamptoncountylawntennisclub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Power",
+    "postcode": "NN5 7PP",
+    "lat": 52.25397,
+    "lng": -0.914688,
+    "indoorOutdoor": "indoor",
+    "website": "https://PadelPower.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Play Padel Grendon",
+    "postcode": "NN7 1JW",
+    "lat": 52.237329,
+    "lng": -0.712807,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playpadelgrendon.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Cambridge",
+    "postcode": "CB1 3LH",
+    "lat": 52.195958,
+    "lng": 0.167528,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "University of Cambridge Sports Centre",
+    "postcode": "CB3 0AS",
+    "lat": 52.209296,
+    "lng": 0.086064,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.sport.cam.ac.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel United Cambridge",
+    "postcode": "CB4 2GR",
+    "lat": 52.23344,
+    "lng": 0.115812,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padeluniteduk.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PADALL Club Haverhill",
+    "postcode": "CB90AW",
+    "lat": 52.085777,
+    "lng": 0.447249,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padallclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Risbygate Sports Club",
+    "postcode": "IP33 3RR",
+    "lat": 52.246423,
+    "lng": 0.694852,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.risbygatesportsclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Bury St Edmunds",
+    "postcode": "IP32 6JD",
+    "lat": 52.267855,
+    "lng": 0.695521,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ombersley Tennis & Padel Club",
+    "postcode": "WR9 0DR",
+    "lat": 52.271709,
+    "lng": -2.226575,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/ombersleydoverdaletennisclub/Padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "OMNI Padel UK",
+    "postcode": "B96 6HH",
+    "lat": 52.254468,
+    "lng": -1.953202,
+    "website": "https://www.omnipadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Barnt Green Sports Club",
+    "postcode": "B45 8LR",
+    "lat": 52.364517,
+    "lng": -1.987744,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.barntgreensportsclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Te Amo Padel (at The Hayes)",
+    "postcode": "B38 9EL",
+    "lat": 52.39179,
+    "lng": -1.945754,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Connect Padel Birmingham",
+    "postcode": "B13 0HN",
+    "lat": 52.428448,
+    "lng": -1.871029,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.connectpadeluk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Kenilworth Tennis Squash & Croquet Club",
+    "postcode": "CV8 2JS",
+    "lat": 52.356914,
+    "lng": -1.571447,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://ktscc.clubnet.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Coventry & N. Warks Tennis Club",
+    "postcode": "CV3 1HB",
+    "lat": 52.406374,
+    "lng": -1.475112,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.coventrytennis.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Napton Padel Club",
+    "postcode": "CV47 8PJ",
+    "lat": 52.24905,
+    "lng": -1.316749,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.naptonpadel.org",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Rugby",
+    "postcode": "CV23 0AB",
+    "lat": 52.356349,
+    "lng": -1.192269,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.davidlloyd.co.uk/clubs/rugby/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Brampton Heath Golf Centre",
+    "postcode": "NN6 8AX",
+    "lat": 52.285176,
+    "lng": -0.940416,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.bhgc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Mews",
+    "postcode": "NN14 4BH",
+    "lat": 52.366689,
+    "lng": -0.597339,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | St Ives Golf Club",
+    "postcode": "PE27 4AD",
+    "lat": 52.337717,
+    "lng": -0.044725,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.game4padel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ely Padel Club",
+    "postcode": "CB6 2SH",
+    "lat": 52.410661,
+    "lng": 0.249246,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Stourbridge Lawn Tennis & Squash Club",
+    "postcode": "DY7 6PS",
+    "lat": 52.438927,
+    "lng": -2.173092,
+    "indoorOutdoor": "outdoor",
+    "website": "https://Stourbridge-tennis-squash.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Tipton Sports Academy",
+    "postcode": "DY4 0BS",
+    "lat": 52.545998,
+    "lng": -2.049764,
+    "indoorOutdoor": "indoor",
+    "website": "https://korewellness.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Warehouse 52",
+    "postcode": "WV4 6FG",
+    "lat": 52.564355,
+    "lng": -2.104899,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelwarehouse52.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Edgbaston Priory Club",
+    "postcode": "B15 2UZ",
+    "lat": 52.458935,
+    "lng": -1.912841,
+    "indoorOutdoor": "outdoor",
+    "website": "https://edgbastonpriory.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Wolverhampton Lawn Tennis & Squash Club Limited",
+    "postcode": "WV6 0LH",
+    "lat": 52.594867,
+    "lng": -2.160524,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.wltsc.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Dome Padel",
+    "postcode": "B33 9AN",
+    "lat": 52.486743,
+    "lng": -1.807801,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Core Padel Tyseley",
+    "postcode": "B11 2BE",
+    "lat": 52.458017,
+    "lng": -1.841937,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.corepadel.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Haus Fort Dunlop",
+    "postcode": "B24 9FE",
+    "lat": 52.509997,
+    "lng": -1.811367,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padelhaus.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Solihull Arden Club",
+    "postcode": "B91 1RG",
+    "lat": 52.416642,
+    "lng": -1.798474,
+    "indoorOutdoor": "outdoor",
+    "website": "https://sac.mycourts.co.uk/bookings.asp",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Birmingham",
+    "postcode": "B6 7TG",
+    "lat": 52.508398,
+    "lng": -1.864741,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/location/birmingham",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Sutton Coldfield Tennis Club",
+    "postcode": "B73 5QB",
+    "lat": 52.54973,
+    "lng": -1.827418,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Birmingham",
+    "postcode": "B44 9ER",
+    "lat": 52.552454,
+    "lng": -1.895827,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Four Oaks Tennis Club",
+    "postcode": "B74 2QR",
+    "lat": 52.575565,
+    "lng": -1.838267,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/FourOaksTennisClub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Streetly Academy",
+    "postcode": "B74 2EX",
+    "lat": 52.568119,
+    "lng": -1.882216,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Studios Coventry",
+    "postcode": "CV7 9QS",
+    "lat": 52.468458,
+    "lng": -1.47277,
+    "indoorOutdoor": "indoor",
+    "website": "https://Padel studios.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Barn",
+    "postcode": "CV13 6PA",
+    "lat": 52.619003,
+    "lng": -1.462382,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.the-padelbarn.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel T Limited",
+    "postcode": "LE8 0NB",
+    "lat": 52.54112,
+    "lng": -0.993161,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Leicester Padel Centre",
+    "postcode": "LE2 5JJ",
+    "lat": 52.591007,
+    "lng": -1.087352,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Market Harborough Squash & Padel Club",
+    "postcode": "LE16 9QH",
+    "lat": 52.480688,
+    "lng": -0.926834,
+    "indoorOutdoor": "outdoor",
+    "website": "https://harboroughcsc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Corby Tennis Centre",
+    "postcode": "NN17 2FB",
+    "lat": 52.506925,
+    "lng": -0.716737,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/CorbyTennisCentre/Padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Peterborough",
+    "postcode": "PE7 3BY",
+    "lat": 52.547801,
+    "lng": -0.226096,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Shrewsbury",
+    "postcode": "SY1 4RG",
+    "lat": 52.728201,
+    "lng": -2.715447,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.theshrewsburyclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Soul Padel - Loughborough",
+    "postcode": "LE11 3TU",
+    "lat": 52.764847,
+    "lng": -1.229512,
+    "indoorOutdoor": "outdoor",
+    "website": "https://soulpadel.co.uk/locations/loughborough-university-club/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Grace Dieu Padel",
+    "postcode": "LE67 5UG",
+    "lat": 52.759569,
+    "lng": -1.349501,
+    "indoorOutdoor": "indoor",
+    "website": "https://playtomic.com/clubs/grace-dieu-padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Loughborough Padel Centre",
+    "postcode": "LE11 2AG",
+    "lat": 52.769061,
+    "lng": -1.201885,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.loughboroughpadelcentre.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Rally Hub",
+    "postcode": "LE7 3BQ",
+    "lat": 52.669312,
+    "lng": -1.023316,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.therallyhub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Beedles Lake Padel",
+    "postcode": "LE7 3WQ",
+    "lat": 52.717221,
+    "lng": -1.052227,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.beedleslake.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Play PDL",
+    "postcode": "LE13 0PB",
+    "lat": 52.77019,
+    "lng": -0.89138,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.playpdl.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rutland Watermill",
+    "postcode": "LE15 8NG",
+    "lat": 52.61275,
+    "lng": -0.605119,
+    "indoorOutdoor": "outdoor",
+    "website": "https://info@rutlandwatermill.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelX Burghley Park",
+    "postcode": "PE9 3JX",
+    "lat": 52.63776,
+    "lng": -0.458434,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padelx.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Royal Norwich",
+    "postcode": "NR9 5JE",
+    "lat": 52.717893,
+    "lng": 1.114122,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Blazing Padels",
+    "postcode": "NR10 4SB",
+    "lat": 52.77766,
+    "lng": 1.11179,
+    "website": "https://www.blazingpadels.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bannatyne Health Club & Spa Norwich",
+    "postcode": "NR7 0HT",
+    "lat": 52.631499,
+    "lng": 1.366325,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.bannatyne.co.uk/health-club/norwich",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Court De Padel Norwich",
+    "postcode": "NR3 2AL",
+    "indoorOutdoor": "indoor",
+    "website": "https://www.courtdepadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ],
+    "needsReview": "postcode not found by postcodes.io \u2014 verify/re-geocode"
+  },
+  {
+    "name": "Padel at The Nest",
+    "postcode": "NR10 3AQ",
+    "lat": 52.678378,
+    "lng": 1.260801,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.thenest.org.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ace Padel Club",
+    "postcode": "SY11 3EN",
+    "lat": 52.913642,
+    "lng": -3.042887,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Stafford Padel Club",
+    "postcode": "ST16 3WB",
+    "lat": 52.801296,
+    "lng": -2.104893,
+    "indoorOutdoor": "outdoor",
+    "website": "https://staffordpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Draycott Sports Centre Ltd",
+    "postcode": "ST11 9AF",
+    "lat": 52.95788,
+    "lng": -2.032245,
+    "indoorOutdoor": "outdoor",
+    "website": "https://draycottfitness.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Church Broughton Tennis Club",
+    "postcode": "DE65 5BA",
+    "lat": 52.887004,
+    "lng": -1.682748,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/ChurchBroughtonTennisClub/Booking/BookByDate",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Your Padel",
+    "postcode": "ST14 5AU",
+    "lat": 52.90815,
+    "lng": -1.864069,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.yourpadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Derbyshire Tennis Centre",
+    "postcode": "DE23 8BF",
+    "lat": 52.904189,
+    "lng": -1.486489,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.derbyshiretenniscentre.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Just Padel - Derby",
+    "postcode": "DE24 8BW",
+    "lat": 52.915969,
+    "lng": -1.444683,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://wearepadel.com/l/derby",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Derby",
+    "postcode": "DE24 8HY",
+    "lat": 52.916818,
+    "lng": -1.453844,
+    "indoorOutdoor": "outdoor",
+    "website": "https://reception.davidlloyd.co.uk/en/booking",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Social Sports Society - Derby",
+    "postcode": "DE1 2AZ",
+    "lat": 52.920842,
+    "lng": -1.472356,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://socialsportssociety.com/venue/derby/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Mickleover Padel Club",
+    "postcode": "DE3 9FB",
+    "lat": 52.921153,
+    "lng": -1.541751,
+    "indoorOutdoor": "outdoor",
+    "website": "https://mickleoverpadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club West Bridgford",
+    "postcode": "NG2 7HX",
+    "lat": 52.921816,
+    "lng": -1.139156,
+    "indoorOutdoor": "outdoor",
+    "website": "https://reception.davidlloyd.co.uk/en",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "PadelMews Melton Mowbray",
+    "postcode": "LE14 4UD",
+    "lat": 52.810026,
+    "lng": -0.881006,
+    "indoorOutdoor": "indoor",
+    "website": "https://padelmews.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Nottingham Padel Centre",
+    "postcode": "NG2 3HJ",
+    "lat": 52.942263,
+    "lng": -1.136102,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pure Padel - Nottingham",
+    "postcode": "NG2 3HU",
+    "lat": 52.943548,
+    "lng": -1.138379,
+    "indoorOutdoor": "indoor",
+    "courtCount": 6,
+    "website": "https://www.purepadelclubs.co.uk/padel-nottingham/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Advantage Padel - Nottingham",
+    "postcode": "NG2 3GJ",
+    "lat": 52.946807,
+    "lng": -1.126118,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://www.advantagepadel.co.uk/nottingham",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Nottingham Tennis Centre",
+    "postcode": "NG7 2QH",
+    "lat": 52.934577,
+    "lng": -1.190316,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://www.nottinghamtenniscentre.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Norfolk Padel",
+    "postcode": "NR21 0LA",
+    "lat": 52.85199,
+    "lng": 0.851122,
+    "website": "https://www.norfolkpadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Wrexham Tennis & Padel Centre",
+    "postcode": "LL11 2BW",
+    "lat": 53.05704,
+    "lng": -3.004884,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.wrexhamtenniscentre.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cheshire Padel",
+    "postcode": "CW5 7EP",
+    "lat": 53.059389,
+    "lng": -2.477712,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://www.cpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Crewe Vagrants Sports Club",
+    "postcode": "CW5 7EP",
+    "lat": 53.059795,
+    "lng": -2.477776,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Everybody Padel - The Barony",
+    "postcode": "CW5 5QY",
+    "lat": 53.072432,
+    "lng": -2.517006,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/everybody-padel-the-barony",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Stoke Trentham Lakes",
+    "postcode": "ST4 4TN",
+    "lat": 52.98641,
+    "lng": -2.170484,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/padel-stoke",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Alsager Padel",
+    "postcode": "CW11 4XU",
+    "lat": 53.116076,
+    "lng": -2.332714,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel T - Ilkeston",
+    "postcode": "DE7 5GH",
+    "lat": 52.970438,
+    "lng": -1.3192,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Liberty Leisure - Stapleford Community Pavillion",
+    "postcode": "NG9 8PB",
+    "lat": 52.934483,
+    "lng": -1.271186,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Equinox Padel",
+    "postcode": "NG24 3NG",
+    "lat": 53.045255,
+    "lng": -0.776312,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "That Padel Club",
+    "postcode": "NG24 2DY",
+    "lat": 53.084396,
+    "lng": -0.788625,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Destino Padel - Farnsfield",
+    "postcode": "NG22 8HW",
+    "lat": 53.094398,
+    "lng": -1.062334,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.destinopadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rhosneigr Sports Club",
+    "postcode": "LL64 5QX",
+    "lat": 53.234268,
+    "lng": -4.513523,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.rhosneigrsports.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Byw'n Iach",
+    "postcode": "LL55 1DU",
+    "lat": 53.147653,
+    "lng": -4.258395,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.bywniach.cymru",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Sheds",
+    "postcode": "CH1 4QX",
+    "lat": 53.191391,
+    "lng": -2.924178,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelsheds.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Cheshire Oaks",
+    "postcode": "CH65 9JN",
+    "lat": 53.263725,
+    "lng": -2.891403,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.davidlloyd.co.uk/clubs/cheshire-oaks/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Frodsham Padel Club",
+    "postcode": "WA6 6SU",
+    "lat": 53.276249,
+    "lng": -2.698132,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.frodshampadelclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hartford Tennis Club Ltd",
+    "postcode": "CW8 1LW",
+    "lat": 53.249506,
+    "lng": -2.541139,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/HartfordBowlsTennisClub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Club@Hartford Golf",
+    "postcode": "CW8 3AP",
+    "lat": 53.254987,
+    "lng": -2.547653,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Destination Padel - Northwich",
+    "postcode": "CW8 4DL",
+    "lat": 53.257122,
+    "lng": -2.538732,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Sandbach Padel Club - Sandbach Rugby Club",
+    "postcode": "CW11 1RA",
+    "lat": 53.155356,
+    "lng": -2.367114,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/sandbach-padel-club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Den - Elworth Cricket Club",
+    "postcode": "CW11 3BF",
+    "lat": 53.153709,
+    "lng": -2.395706,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Everybody Padel - Holmes Chapel",
+    "postcode": "CW4 8AA",
+    "lat": 53.19939,
+    "lng": -2.349915,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/holmes-chapel-community-centre",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "GSM Padel Congleton",
+    "postcode": "CW124SN",
+    "lat": 53.172155,
+    "lng": -2.266187,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.gsmpadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Hangar",
+    "postcode": "WA16 9JN",
+    "lat": 53.243796,
+    "lng": -2.406081,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.thepadelhangar.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pure Padel - Alderley Park",
+    "postcode": "SK10 4TG",
+    "lat": 53.277552,
+    "lng": -2.230069,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.purepadelclubs.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cross Padel",
+    "postcode": "S45 9JA",
+    "lat": 53.171567,
+    "lng": -1.398439,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.crospadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "World Padel Academy - WPA Mansfield",
+    "postcode": "NG18 5DA",
+    "lat": 53.137455,
+    "lng": -1.200133,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.worldpadelacademy.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Doddington Hall",
+    "postcode": "LN6 4RU",
+    "lat": 53.219584,
+    "lng": -0.654018,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.doddingtonhall.com/padel/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vida Del Padel - Lincoln",
+    "postcode": "LN2 4ZS",
+    "lat": 53.237252,
+    "lng": -0.511328,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.vidadelpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Spa Padel",
+    "postcode": "LN10 6YQ",
+    "lat": 53.16691,
+    "lng": -0.171149,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.spapadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Skegness Padel",
+    "postcode": "PE24 4RG",
+    "lat": 53.132112,
+    "lng": 0.301486,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Heswall Rackets Club",
+    "postcode": "CH60 1XG",
+    "lat": 53.325446,
+    "lng": -3.07939,
+    "indoorOutdoor": "outdoor",
+    "website": "https://Heswall Rackets Club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Oxton Cricket & Sports Club",
+    "postcode": "CH43 2LH",
+    "lat": 53.379997,
+    "lng": -3.056776,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.oxtoncricketclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Village Health and Wellness Clubs - Wirral",
+    "postcode": "CH62 4UE",
+    "lat": 53.348576,
+    "lng": -2.98589,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Republic Wirral",
+    "postcode": "CH44 7JY",
+    "lat": 53.405884,
+    "lng": -3.023978,
+    "indoorOutdoor": "indoor",
+    "website": "https://playtomic.com/clubs/padel-republic-wallasey",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Port Sunlight LTC",
+    "postcode": "CH62 3QQ",
+    "lat": 53.326955,
+    "lng": -2.960827,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/PortSunlightLTC/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Liverpool Cricket Club",
+    "postcode": "L19 3QF",
+    "lat": 53.36413,
+    "lng": -2.91909,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.liverpoolcricketclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ignite Padel - Cheshire Oaks",
+    "postcode": "CH65 4DR",
+    "lat": 53.273233,
+    "lng": -2.874776,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | The Wirral - Vauxhall Sports Club",
+    "postcode": "CH66 1NJ",
+    "lat": 53.297771,
+    "lng": -2.942392,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Widnes Tennis Club",
+    "postcode": "WA8 7DW",
+    "lat": 53.37342,
+    "lng": -2.739883,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.widnestennisclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Velocity Padel - Widnes",
+    "postcode": "WA8 0GW",
+    "lat": 53.371485,
+    "lng": -2.703221,
+    "indoorOutdoor": "indoor",
+    "website": "https://velocitypadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ignite Padel - Liverpool",
+    "postcode": "L13 0AG",
+    "lat": 53.422239,
+    "lng": -2.912503,
+    "indoorOutdoor": "outdoor",
+    "website": "https://ignitepadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "West Derby Padel",
+    "postcode": "L12 9HQ",
+    "lat": 53.427851,
+    "lng": -2.885834,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/west-derby-padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "On Padel",
+    "postcode": "WA5 2UW",
+    "lat": 53.377405,
+    "lng": -2.67569,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Soul Padel - St Helens",
+    "postcode": "WA10 2LT",
+    "lat": 53.455038,
+    "lng": -2.749944,
+    "indoorOutdoor": "outdoor",
+    "website": "https://soulpadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Centre Court Padel",
+    "postcode": "WA10 6RP",
+    "lat": 53.458996,
+    "lng": -2.756656,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.centrecourtpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Warrington",
+    "postcode": "WA5 1HH",
+    "lat": 53.387687,
+    "lng": -2.624745,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.Davidlloyd.co.uk/warrington",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Grappenhall Village Lawn Tennis Club",
+    "postcode": "WA4 3HQ",
+    "lat": 53.371821,
+    "lng": -2.560746,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://gvltc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Barnton Cricket Club",
+    "postcode": "CW8 4QL",
+    "lat": 53.276059,
+    "lng": -2.551043,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Central (Partington)",
+    "postcode": "M31 4BU",
+    "lat": 53.412244,
+    "lng": -2.432057,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Dunham Forest Golf and Country Club",
+    "postcode": "WA14 4TY",
+    "lat": 53.387364,
+    "lng": -2.378895,
+    "indoorOutdoor": "outdoor",
+    "website": "https://Dunhamforest.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "CPASE Health Club",
+    "postcode": "WA16 7RN",
+    "lat": 53.303869,
+    "lng": -2.299824,
+    "indoorOutdoor": "outdoor",
+    "website": "https://cpase.co.uk/padel-park/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hale Country Club & Spa",
+    "postcode": "WA15 7AF",
+    "lat": 53.387803,
+    "lng": -2.314412,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "VIP Padel",
+    "postcode": "WA12 9XE",
+    "lat": 53.458091,
+    "lng": -2.62742,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/vip-padel-newton-le-willows",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Club (Wilmslow)",
+    "postcode": "SK9 3PE",
+    "lat": 53.349297,
+    "lng": -2.196171,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "The Hook Club",
+    "postcode": "SK10 4QT",
+    "lat": 53.308807,
+    "lng": -2.17711,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Everybody Padel - Wilmslow",
+    "postcode": "SK9 1BU",
+    "lat": 53.327345,
+    "lng": -2.22768,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/everybody-padel-wilmslow",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pure Padel - Stockport",
+    "postcode": "SK10 4NL",
+    "lat": 53.337781,
+    "lng": -2.132688,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.purepadelclubs.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Leisure Cheadle",
+    "postcode": "SK8 3FL",
+    "lat": 53.377663,
+    "lng": -2.218433,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Manchester Padel Club",
+    "postcode": "SK8 4RZ",
+    "lat": 53.377376,
+    "lng": -2.227661,
+    "indoorOutdoor": "outdoor",
+    "website": "https://manchesterpadel.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Life Leisure Gran Central",
+    "postcode": "SK1 3TA",
+    "lat": 53.406922,
+    "lng": -2.160926,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Soul Padel - Stockport",
+    "postcode": "SK4 1DN",
+    "lat": 53.411442,
+    "lng": -2.16936,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://soulpadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Northern Lawn Tennis Club",
+    "postcode": "M20 3YA",
+    "lat": 53.42361,
+    "lng": -2.237946,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.thenorthern.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Manchester Met University",
+    "postcode": "M20 3YA",
+    "lat": 53.42361,
+    "lng": -2.237946,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Life Leisure",
+    "postcode": "SK6 1QX",
+    "lat": 53.428873,
+    "lng": -2.103669,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Carbon Padel Club",
+    "postcode": "M12 5BT",
+    "lat": 53.47104,
+    "lng": -2.200217,
+    "indoorOutdoor": "indoor",
+    "website": "https://carbonpadelclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Manchester Nicholls",
+    "postcode": "M12 6BN",
+    "lat": 53.470081,
+    "lng": -2.219148,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/padel-manchester",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Play Padel Sheffield",
+    "postcode": "S17 3LJ",
+    "lat": 53.325255,
+    "lng": -1.520834,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ecclesall Lawn Tennis Club",
+    "postcode": "S11 9HP",
+    "lat": 53.355096,
+    "lng": -1.509487,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/EcclesallLawnTennisClub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hallamshire Tennis & Squash Club Limited",
+    "postcode": "S11 8TA",
+    "lat": 53.367032,
+    "lng": -1.504901,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.globusdata.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "This is Padel - Dronfield",
+    "postcode": "S18 2XR",
+    "lat": 53.300842,
+    "lng": -1.45582,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Club de Padel - Sheffield",
+    "postcode": "S3 8AS",
+    "lat": 53.394116,
+    "lng": -1.477627,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://www.clubdepadel.co.uk/location/sheffield",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel Elite",
+    "postcode": "S4 7TA",
+    "lat": 53.386834,
+    "lng": -1.453516,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://www.padelelite.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Hillsborough Park",
+    "postcode": "S6 2AA",
+    "lat": 53.40841,
+    "lng": -1.498079,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Uno Padel - Sheffield",
+    "postcode": "S9 5NF",
+    "lat": 53.391504,
+    "lng": -1.40548,
+    "indoorOutdoor": "indoor",
+    "website": "https://unopadelclub.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vida del padel Sheffield",
+    "postcode": "S20 3FS",
+    "lat": 53.332968,
+    "lng": -1.333585,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Go2Padel",
+    "postcode": "S66 8QL",
+    "lat": 53.424637,
+    "lng": -1.247307,
+    "indoorOutdoor": "indoor",
+    "website": "https://go2padel.org",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Northern Padel House",
+    "postcode": "DN10 6AB",
+    "lat": 53.422161,
+    "lng": -1.024204,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Neo Padel Gainsborough",
+    "postcode": "DN21 1QB",
+    "lat": 53.402932,
+    "lng": -0.747445,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.neopadelclubs.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Louth Padel Co",
+    "postcode": "LN11 0WD",
+    "lat": 53.385264,
+    "lng": -0.009528,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/louth-padel-co",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Formby Village Tennis Club",
+    "postcode": "L37 3HA",
+    "lat": 53.557756,
+    "lng": -3.065503,
+    "indoorOutdoor": "outdoor",
+    "website": "https://formbyvillagetennis.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Formby Lawn Tennis Club",
+    "postcode": "L37 7DF",
+    "lat": 53.565068,
+    "lng": -3.065053,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/FormbyLawnTennisClub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vibe Club and Lounge",
+    "postcode": "L40 8LB",
+    "lat": 53.597134,
+    "lng": -2.865135,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Velocity Padel - Wigan",
+    "postcode": "WN3 6XU",
+    "lat": 53.518336,
+    "lng": -2.653362,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Parx Wigan",
+    "postcode": "WN3 5BE",
+    "lat": 53.540242,
+    "lng": -2.639892,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.padelparx.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Wigan Sports Club",
+    "postcode": "WN1 1RU",
+    "lat": 53.550728,
+    "lng": -2.637197,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel 16 - Worsley",
+    "postcode": "M28 2RZ",
+    "lat": 53.510884,
+    "lng": -2.39025,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Manchester Trafford City",
+    "postcode": "M17 8RH",
+    "lat": 53.470018,
+    "lng": -2.360228,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Club Trafford City",
+    "postcode": "M41 7JA",
+    "lat": 53.468046,
+    "lng": -2.361492,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.thepadelclub.co.uk/the-clubs/club-2-traffordcity",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pure Padel - Manchester",
+    "postcode": "M3 1LE",
+    "lat": 53.489808,
+    "lng": -2.243786,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.purepadelclubs.co.uk/pure-padel-manchester/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Pollen Club",
+    "postcode": "M3 2EQ",
+    "lat": 53.484077,
+    "lng": -2.2463,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Heart of Padel",
+    "postcode": "M26 2ZT",
+    "lat": 53.570815,
+    "lng": -2.311661,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/heart-of-padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Manchester North",
+    "postcode": "M24 4TH",
+    "lat": 53.55493,
+    "lng": -2.234425,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Holcombe Brook Sports Club",
+    "postcode": "BL0 9FS",
+    "lat": 53.623036,
+    "lng": -2.325683,
+    "indoorOutdoor": "outdoor",
+    "website": "https://yes",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Tame Valley Tennis & Squash Club",
+    "postcode": "OL3 7EW",
+    "lat": 53.53536,
+    "lng": -2.009268,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.tamevalley.info/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Stay Padel",
+    "postcode": "SK15 1SY",
+    "lat": 53.479808,
+    "lng": -2.069741,
+    "indoorOutdoor": "indoor",
+    "website": "https://playtomic.com/clubs/stay-padel?date=2026-06-26",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Glossop Padel Ltd",
+    "postcode": "SK13 2NX",
+    "lat": 53.458564,
+    "lng": -1.985607,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://www.glossoppadel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Peak Padel - Holmfirth",
+    "postcode": "HD9 2PX",
+    "lat": 53.564509,
+    "lng": -1.803838,
+    "indoorOutdoor": "indoor",
+    "website": "https://peakpadelholmfirth.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Thongsbridge Tennis & Fitness Club",
+    "postcode": "HD9 7RY",
+    "lat": 53.583563,
+    "lng": -1.777529,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.thongsbridge.org",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Barnsley Padel Club",
+    "postcode": "S70 6HZ",
+    "lat": 53.548852,
+    "lng": -1.496641,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel Master Doncaster",
+    "postcode": "DN59TP",
+    "lat": 53.53121,
+    "lng": -1.146061,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelmasteruk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Lake Y",
+    "postcode": "DN9 3NP",
+    "lat": 53.489839,
+    "lng": -1.028756,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Project UK - Lowther Gardens",
+    "postcode": "FY8 5QQ",
+    "lat": 53.735494,
+    "lng": -2.971606,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelprojectuk.com/lowther-gardens",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Just Padel - Blackpool",
+    "postcode": "FY4 3RN",
+    "lat": 53.780447,
+    "lng": -3.027415,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Just Padel - Preston",
+    "postcode": "PR1 2UQ",
+    "lat": 53.760725,
+    "lng": -2.705869,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Republic Preston",
+    "postcode": "PR1 1NR",
+    "lat": 53.768606,
+    "lng": -2.701495,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Chorley",
+    "postcode": "PR6 8AB",
+    "lat": 53.67791,
+    "lng": -2.620962,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | West View Leisure Centre",
+    "postcode": "PR1 5EP",
+    "lat": 53.769216,
+    "lng": -2.678369,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Performance Padel Preston",
+    "postcode": "PR2 9ZB",
+    "lat": 53.794305,
+    "lng": -2.688687,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Slazenger Padel Clubs - Blackburn",
+    "postcode": "BB1 2EE",
+    "lat": 53.730697,
+    "lng": -2.452581,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.slazengerpadelclubs.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Clubhouse Blackburn",
+    "postcode": "BB1 3HT",
+    "lat": 53.76,
+    "lng": -2.448366,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://www.theclubhouseuk.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Blackburn Northern",
+    "postcode": "BB1 8QA",
+    "lat": 53.767602,
+    "lng": -2.486779,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.blackburnnorthern.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Club at Mytton",
+    "postcode": "BB6 8AB",
+    "lat": 53.809936,
+    "lng": -2.440117,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.myttonfold.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Spot",
+    "postcode": "OL12 7LQ",
+    "lat": 53.628021,
+    "lng": -2.184221,
+    "indoorOutdoor": "indoor",
+    "website": "https://playtomic.com/clubs/the-padel-spot?date=2026-06-17",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Deuce Padel - Rochdale",
+    "postcode": "OL12 6AE",
+    "lat": 53.616738,
+    "lng": -2.167378,
+    "indoorOutdoor": "indoor",
+    "website": "https://deuce-padel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Goat Haus",
+    "postcode": "HX5 0HQ",
+    "lat": 53.681276,
+    "lng": -1.834925,
+    "indoorOutdoor": "indoor",
+    "website": "https://goathaus.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Huddersfield Lawn Tennis & Squash Club",
+    "postcode": "HD1 5NF",
+    "lat": 53.653231,
+    "lng": -1.793155,
+    "indoorOutdoor": "outdoor",
+    "website": "https://hltsc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hat-Tricks",
+    "postcode": "HD1 3DY",
+    "lat": 53.640883,
+    "lng": -1.783853,
+    "indoorOutdoor": "indoor",
+    "website": "https://hat-tricks.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Big Box Padel Club",
+    "postcode": "HD5 0AL",
+    "lat": 53.647513,
+    "lng": -1.732794,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padelshedclub.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Strike Padel",
+    "postcode": "BD7 2BR",
+    "lat": 53.78419,
+    "lng": -1.784471,
+    "indoorOutdoor": "indoor",
+    "website": "https://strikepadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel & Co",
+    "postcode": "WF17 7NZ",
+    "lat": 53.707603,
+    "lng": -1.632612,
+    "indoorOutdoor": "outdoor",
+    "website": "https://playtomic.com/clubs/padel-co",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Salus Padel - Bradford",
+    "postcode": "BD5 0AG",
+    "lat": 53.790348,
+    "lng": -1.756601,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Optimum Padel",
+    "postcode": "LS9 0SJ",
+    "lat": 53.785026,
+    "lng": -1.509047,
+    "indoorOutdoor": "indoor",
+    "website": "https://Www.optimumpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Last Sun Dance",
+    "postcode": "LS9 0TN",
+    "lat": 53.789302,
+    "lng": -1.499798,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Selby Padel Club",
+    "postcode": "YO89TP",
+    "lat": 53.771693,
+    "lng": -1.089437,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "East Coast Padel",
+    "postcode": "HU5 4JF",
+    "lat": 53.755904,
+    "lng": -0.38081,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cottingham Lawn Tennis Club",
+    "postcode": "HU16 4PX",
+    "lat": 53.776,
+    "lng": -0.397974,
+    "indoorOutdoor": "indoor",
+    "website": "https://clubspark.lta.org.uk/CottinghamLawnTennisClub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Cottingham Lawn Tennis Club (Partnered with Hull University Students Union)",
+    "postcode": "HU6 7RX",
+    "lat": 53.771798,
+    "lng": -0.36639,
+    "indoorOutdoor": "indoor",
+    "website": "https://hulluniunion.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Broughton Padel",
+    "postcode": "PR3 5DA",
+    "lat": 53.811234,
+    "lng": -2.720158,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/BroughtonPadel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ribble Valley Tennis Centre",
+    "postcode": "BB7 3LA",
+    "lat": 53.868918,
+    "lng": -2.411615,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.ribblevalleytenniscentre.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pendle Padel Club",
+    "postcode": "BB9 5SR",
+    "lat": 53.833441,
+    "lng": -2.235557,
+    "indoorOutdoor": "indoor",
+    "website": "https://pendlepadelclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ilkley Lawn Tennis & Squash Club Limited",
+    "postcode": "LS29 9BG",
+    "lat": 53.928697,
+    "lng": -1.835522,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.iltsc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Skipton Tennis Centre",
+    "postcode": "BD23 1UP",
+    "lat": 53.956226,
+    "lng": -2.034591,
+    "indoorOutdoor": "outdoor",
+    "website": "https://skiptontennis.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Voltage padel",
+    "postcode": "BD17 7QD",
+    "lat": 53.856535,
+    "lng": -1.743554,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.voltagepadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Rawdon Golf, Lawn Tennis & Padel Club",
+    "postcode": "LS19 6BB",
+    "lat": 53.85146,
+    "lng": -1.687873,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.rgltpc.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Chapel Allerton Lawn Tennis and Squash Club",
+    "postcode": "LS7 3QX",
+    "lat": 53.829303,
+    "lng": -1.541378,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.chapel-a.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pure Padel - North Leeds",
+    "postcode": "LS17 9NH",
+    "lat": 53.869914,
+    "lng": -1.480392,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.purepadelclubs.co.uk/padel-darlington/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Surge Padel - Harrogate",
+    "postcode": "HG2 8QT",
+    "lat": 53.978214,
+    "lng": -1.522775,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://www.surgepadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Wetherby Padel Club",
+    "postcode": "LS22 5NB",
+    "lat": 53.918191,
+    "lng": -1.375255,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.wetherbypadelclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club York",
+    "postcode": "YO10 3LG",
+    "lat": 53.951029,
+    "lng": -1.047739,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 2,
+    "website": "https://www.sportm.davidlloyd.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Harrogate",
+    "postcode": "HG1 2LA",
+    "lat": 54.000579,
+    "lng": -1.55442,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Harrogate Spa Tennis Centre",
+    "postcode": "HG1 4BB",
+    "lat": 54.003989,
+    "lng": -1.520391,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.spatennis.org.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Harrogate Sports and Fitness Club",
+    "postcode": "HG2 8PN",
+    "lat": 53.985164,
+    "lng": -1.510268,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.harrogatesfc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Poppleton Lawn Tennis Club",
+    "postcode": "YO26 6JT",
+    "lat": 53.983827,
+    "lng": -1.155565,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/PoppletonLawnTennisClub/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "York St John University Tennis Centre",
+    "postcode": "YO31 8TA",
+    "lat": 53.976566,
+    "lng": -1.077403,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/DownTheLineSportsCoaching",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Farm",
+    "postcode": "YO61 1EE",
+    "lat": 54.078079,
+    "lng": -1.057043,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Casa del Padel",
+    "postcode": "YO17 6AS",
+    "lat": 54.123651,
+    "lng": -0.818961,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.casadelpadel.club",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Ripon Tennis Centre",
+    "postcode": "HG4 3HJ",
+    "lat": 54.157771,
+    "lng": -1.523915,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.ripontenniscentre.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Shed Thirsk",
+    "postcode": "YO7 3HF",
+    "lat": 54.217294,
+    "lng": -1.353853,
+    "indoorOutdoor": "indoor",
+    "website": "https://playtomic.com/clubs/padel-shed-thirsk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "WePlay Padel",
+    "postcode": "YO62 6YB",
+    "lat": 54.265732,
+    "lng": -0.931841,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.weplaypadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Scarborough Rugby Union Football Club",
+    "postcode": "YO13 0NL",
+    "lat": 54.30984,
+    "lng": -0.445201,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.scarboroughrugby.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Racquet Club 24",
+    "postcode": "CA14 1NH",
+    "lat": 54.65658,
+    "lng": -3.555472,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://racquetclub24.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Pure Padel - Darlington",
+    "postcode": "DL1 2BJ",
+    "lat": 54.534148,
+    "lng": -1.531743,
+    "website": "https://www.purepadelclubs.co.uk/padel-darlington/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Kip and Nook Padel",
+    "postcode": "DL2 2RD",
+    "lat": 54.510079,
+    "lng": -1.638695,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Padel Barn",
+    "postcode": "TS21 1LG",
+    "lat": 54.611185,
+    "lng": -1.416118,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Up Teesside",
+    "postcode": "TS18 3BP",
+    "lat": 54.541783,
+    "lng": -1.325079,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.padel-up.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bannatyne Health Club Ingleby Barwick",
+    "postcode": "TS17 0WA",
+    "lat": 54.518292,
+    "lng": -1.31904,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.bannatyne.co.uk/health-club/ingleby-barwick",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Tennis World",
+    "postcode": "TS4 3SA",
+    "lat": 54.542233,
+    "lng": -1.209438,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.tennisworldmiddlesbrough.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vida del padel Eston",
+    "postcode": "TS6 9AE",
+    "lat": 54.569574,
+    "lng": -1.165507,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vida Del Padel Guisborough",
+    "postcode": "TS14 7DL",
+    "lat": 54.532381,
+    "lng": -1.056037,
+    "indoorOutdoor": "indoor",
+    "website": "https://vidadelpadel.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vida Del Padel Hartlepool",
+    "postcode": "TS25 1PE",
+    "lat": 54.662068,
+    "lng": -1.214075,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.vidadelpadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "DHM Padel",
+    "postcode": "DH6 5JQ",
+    "lat": 54.706558,
+    "lng": -1.565363,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "True Padel - Durham",
+    "postcode": "DH1 1HP",
+    "lat": 54.788524,
+    "lng": -1.543041,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.truepadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hexham Tennis and Padel  Club, Tynedale",
+    "postcode": "NE46 3EW",
+    "lat": 54.97453,
+    "lng": -2.109647,
+    "indoorOutdoor": "outdoor",
+    "website": "https://tynedaletennisclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Vallum Padel",
+    "postcode": "NE18 0LL",
+    "lat": 55.008992,
+    "lng": -1.926367,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.vallumfarm.co.uk/padel",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "True Padel - Sunderland",
+    "postcode": "SR5 3FR",
+    "lat": 54.918872,
+    "lng": -1.432284,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Pikup Padel",
+    "postcode": "NE10 8YA",
+    "lat": 54.936266,
+    "lng": -1.519052,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Padel Project UK - South Shields",
+    "postcode": "NE33 4EA",
+    "lat": 54.986292,
+    "lng": -1.425645,
+    "indoorOutdoor": "outdoor",
+    "website": "https://padelprojectuk.com/south-shields",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "West of Scotland Padel",
+    "postcode": "KA20 3LR",
+    "lat": 55.633249,
+    "lng": -4.738779,
+    "indoorOutdoor": "indoor",
+    "website": "https://app.courtreserve.com/Online/Portal/Index/11285",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Kilmarnock Tennis Club",
+    "postcode": "KA3 7AA",
+    "lat": 55.609571,
+    "lng": -4.492977,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/KilmarnockTennisClub",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Border Padel Co.",
+    "postcode": "TD5 7QE",
+    "lat": 55.62825,
+    "lng": -2.407781,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Rouken Glen",
+    "postcode": "G46 7UY",
+    "lat": 55.798987,
+    "lng": -4.323597,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Newlands LTC",
+    "postcode": "G43 2QE",
+    "lat": 55.817567,
+    "lng": -4.276879,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.newlandsltc.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Paisley",
+    "postcode": "PA1 1TD",
+    "lat": 55.839723,
+    "lng": -4.412996,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/padel-paisley",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Court Padel & Pickleball Club",
+    "postcode": "G45 9SA",
+    "lat": 55.80587,
+    "lng": -4.248796,
+    "indoorOutdoor": "indoor",
+    "website": "https://thecourtpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "IT'S PADEL",
+    "postcode": "G75 0YA",
+    "lat": 55.749707,
+    "lng": -4.170875,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Renfrew",
+    "postcode": "PA4 0RA",
+    "lat": 55.862174,
+    "lng": -4.407053,
+    "indoorOutdoor": "outdoor",
+    "website": "https://sportsm.davidlloyd.co.uk/en/home",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Racket Barn Glasgow",
+    "postcode": "G51 3HB",
+    "lat": 55.861302,
+    "lng": -4.311447,
+    "indoorOutdoor": "indoor",
+    "website": "https://racketbarn.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Soul Padel - Braehead",
+    "postcode": "PA4 8XJ",
+    "lat": 55.874337,
+    "lng": -4.371756,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.soulpadel.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | Great Western Golf",
+    "postcode": "G81 2XT",
+    "lat": 55.912242,
+    "lng": -4.390584,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | GOLF IT",
+    "postcode": "G33 1AH",
+    "lat": 55.876617,
+    "lng": -4.175464,
+    "indoorOutdoor": "outdoor",
+    "courtCount": 1,
+    "website": "https://www.matchi.se/facilities/game4padelgolfit",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta",
+      "osm"
+    ]
+  },
+  {
+    "name": "Nuffield Milngavie",
+    "postcode": "G62 8HJ",
+    "lat": 55.946189,
+    "lng": -4.304235,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.nuffieldhealth.com/gyms/milngavie",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Xcite Bathgate",
+    "postcode": "EH48 4LA",
+    "lat": 55.909016,
+    "lng": -3.636861,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.westlothianleisure.com/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Hatton Sports Club",
+    "postcode": "EH27 8EA",
+    "lat": 55.901642,
+    "lng": -3.389449,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.hattonsportsclub.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | Edinburgh Park Padel & Tennis",
+    "postcode": "EH12 9GR",
+    "lat": 55.930649,
+    "lng": -3.314762,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.matchi.se/facilities/game4padeledinburghpark",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Edinburgh",
+    "postcode": "EH12 8GZ",
+    "lat": 55.938976,
+    "lng": -3.303198,
+    "indoorOutdoor": "outdoor",
+    "website": "https://bookings.davidlloyd.co.uk/Login.aspx",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Sighthill",
+    "postcode": "EH11 4EQ",
+    "lat": 55.927818,
+    "lng": -3.297045,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/padel-sighthill",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Barnton Park LTC",
+    "postcode": "EH4 6JF",
+    "lat": 55.967428,
+    "lng": -3.279658,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.barntonparkltc.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | Thistle Padel Club",
+    "postcode": "EH14 1JF",
+    "lat": 55.914302,
+    "lng": -3.253891,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Craigmillar Park Tennis & Padel Club (SCIO - SC051550)",
+    "postcode": "EH16 5TZ",
+    "lat": 55.924253,
+    "lng": -3.164675,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.craigmillarparktennis.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "David Lloyd Club Edinburgh Shawfair",
+    "postcode": "EH22 1FD",
+    "lat": 55.907118,
+    "lng": -3.10021,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Powerleague Portobello",
+    "postcode": "EH15 1DR",
+    "lat": 55.957057,
+    "lng": -3.1183,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.powerleague.com/padel-portobello-edinburgh",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Edinburgh Sports Club Ltd",
+    "postcode": "EH4 3DH",
+    "lat": 55.949805,
+    "lng": -3.225238,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.edinburghsportsclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "The Grange Club",
+    "postcode": "EH4 1HQ",
+    "lat": 55.959662,
+    "lng": -3.214272,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/GrangeDyvoursLTC/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Bridge Of Allan Sports Club",
+    "postcode": "FK9 4DT",
+    "lat": 56.155851,
+    "lng": -3.942046,
+    "indoorOutdoor": "outdoor",
+    "website": "https://www.boasc.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Elie Sports Club",
+    "postcode": "KY9 1AS",
+    "lat": 56.191363,
+    "lng": -2.828433,
+    "indoorOutdoor": "outdoor",
+    "website": "https://eliesportsclub.co.uk",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Gleneagles Sporting Club",
+    "postcode": "PH3 1NF",
+    "lat": 56.283361,
+    "lng": -3.75208,
+    "indoorOutdoor": "indoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Game4Padel | Forthill Community Sports Club",
+    "postcode": "DD5 3BL",
+    "lat": 56.474733,
+    "lng": -2.879466,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ],
+    "needsReview": "shares postcode + name tokens with \"G4P Forthill Padel Club\" \u2014 possible duplicate"
+  },
+  {
+    "name": "G4P Forthill Padel Club",
+    "postcode": "DD5 3BL",
+    "lat": 56.474733,
+    "lng": -2.879466,
+    "indoorOutdoor": "outdoor",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Aberdeen Tennis Centre",
+    "postcode": "AB25 3DE",
+    "lat": 57.155254,
+    "lng": -2.122989,
+    "indoorOutdoor": "outdoor",
+    "website": "https://clubspark.lta.org.uk/AberdeenTennisCentre",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Strikers Indoor Padel (Aberdeen)",
+    "postcode": "AB23 8EE",
+    "lat": 57.185605,
+    "lng": -2.094205,
+    "indoorOutdoor": "indoor",
+    "website": "https://www.strikerspadel.com",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "lta"
+    ]
+  },
+  {
+    "name": "Club de Padel",
+    "postcode": "M15 4YB",
+    "lat": 53.472441,
+    "lng": -2.253113,
+    "courtCount": 2,
+    "website": "https://www.clubdepadel.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "nearest LTA \"The Pollen Club\" 1370m away \u2014 possible duplicate"
+  },
+  {
+    "name": "Padel X",
+    "postcode": "LA1 4SQ",
+    "lat": 54.028285,
+    "lng": -2.794953,
+    "courtCount": 1,
+    "website": "https://padelx.club/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ]
+  },
+  {
+    "name": "Padels Up",
+    "postcode": "M33 5SL",
+    "lat": 53.432887,
+    "lng": -2.354395,
+    "courtCount": 1,
+    "website": "https://padels-up-landing.lovable.app/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel venue (TN33 0SP)",
+    "postcode": "TN33 0SP",
+    "lat": 50.904243,
+    "lng": 0.478113,
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue"
+  },
+  {
+    "name": "Farm Padel",
+    "postcode": "WD7 9EW",
+    "lat": 51.686457,
+    "lng": -0.272526,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "website": "https://thepadelpod.co.uk/",
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel venue (KT10 0QX)",
+    "postcode": "KT10 0QX",
+    "lat": 51.36228,
+    "lng": -0.34603,
+    "courtCount": 2,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue; nearest LTA \"Esher Tennis & Padel Club\" 1040m away \u2014 possible duplicate"
+  },
+  {
+    "name": "Court 9",
+    "postcode": "E14 4DE",
+    "lat": 51.503329,
+    "lng": -0.023331,
+    "indoorOutdoor": "indoor",
+    "courtCount": 9,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "OSM pitch-label name \"Court 9\" (not a venue name); nearest LTA \"Padel Box Bermondsey\" 2877m away \u2014 possible duplicate"
+  },
+  {
+    "name": "Wembley Padel",
+    "postcode": "HA9 0FD",
+    "lat": 51.556369,
+    "lng": -0.282586,
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel venue (TW20 0YL)",
+    "postcode": "TW20 0YL",
+    "lat": 51.438361,
+    "lng": -0.588783,
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue"
+  },
+  {
+    "name": "Padel venue (SN7 8BF)",
+    "postcode": "SN7 8BF",
+    "lat": 51.654896,
+    "lng": -1.568988,
+    "courtCount": 3,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue"
+  },
+  {
+    "name": "Padel venue (BT74 4EE)",
+    "postcode": "BT74 4EE",
+    "lat": 54.331239,
+    "lng": -7.620806,
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue"
+  },
+  {
+    "name": "InstantPadel",
+    "postcode": "SE16 2AJ",
+    "lat": 51.496072,
+    "lng": -0.048316,
+    "courtCount": 5,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "nearest LTA \"Padel Box Bermondsey\" 1387m away \u2014 possible duplicate"
+  },
+  {
+    "name": "Padel venue (OX20 1AU)",
+    "postcode": "OX20 1AU",
+    "lat": 51.893869,
+    "lng": -1.386385,
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue"
+  },
+  {
+    "name": "Padel venue (CM21 9ET)",
+    "postcode": "CM21 9ET",
+    "lat": 51.810627,
+    "lng": 0.147946,
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue"
+  },
+  {
+    "name": "Padel Social Club",
+    "postcode": "SE10 0TX",
+    "lat": 51.504668,
+    "lng": 0.002289,
+    "courtCount": 2,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ]
+  },
+  {
+    "name": "TC60 Padel",
+    "postcode": "HU13 0FA",
+    "lat": 53.723557,
+    "lng": -0.463748,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ]
+  },
+  {
+    "name": "Padel venue (CT4 6QF)",
+    "postcode": "CT4 6QF",
+    "lat": 51.200526,
+    "lng": 1.163212,
+    "courtCount": 2,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue"
+  },
+  {
+    "name": "Padel venue (NG12 2LU)",
+    "postcode": "NG12 2LU",
+    "lat": 52.941521,
+    "lng": -1.090575,
+    "indoorOutdoor": "indoor",
+    "courtCount": 4,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ],
+    "needsReview": "unnamed OSM venue; nearest LTA \"Advantage Padel - Nottingham\" 2455m away \u2014 possible duplicate"
+  },
+  {
+    "name": "Padel @ Bottersford",
+    "postcode": "NG13 0GY",
+    "lat": 52.944852,
+    "lng": -0.815538,
+    "indoorOutdoor": "indoor",
+    "courtCount": 1,
+    "countryCode": "GB",
+    "timezone": "Europe/London",
+    "sources": [
+      "osm"
+    ]
+  }
+]

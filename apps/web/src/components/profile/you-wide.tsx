@@ -5,6 +5,9 @@ import { Fact, InfoTerm, Meta } from "@/components/ui";
 import { DEFAULT_TZ, formatMonthYear } from "@/lib/time";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { LedgerEntryRow, GenesisRow, isGenesisEntry } from "@/components/glass/ledger-entry";
+import { PatchChip } from "@/components/atlas/patch-chip";
+import type { PatchVenueOption } from "@/components/atlas/patch-control";
+import type { PatchSize } from "@/lib/geo";
 import { PLACEMENT_TRIO_SIZE } from "@cuatro/glass";
 
 /** The design's 8 discrete "trend" bars, from the tail of the season sparkline; the last bar is coral (most recent), the rest are muted. */
@@ -66,12 +69,25 @@ export function YouWide({
   ledgerRows,
   displayName,
   avatarUrl,
+  patch,
+  patchSize,
+  homeVenueId,
+  homeVenueName,
+  findable,
+  venueOptions,
 }: {
   profile: PlayerProfile;
   /** The full enriched Ledger (newest first) — the card previews the top few and links to /profile/ledger for the rest. */
   ledgerRows: LedgerEnrichedRow[];
   displayName: string;
   avatarUrl: string | null;
+  /** Current resolved patch (server/patch.ts) — powers the patch chip's mini-map; null when no home court pins yet. */
+  patch: { lat: number; lng: number; radiusKm: number } | null;
+  patchSize: PatchSize;
+  homeVenueId: string | null;
+  homeVenueName: string | null;
+  findable: boolean;
+  venueOptions: PatchVenueOption[];
 }) {
   const { glass, history, streak, bestWin, deltaSinceFirst, sparklineValues, circlesCount } = profile;
   const rated = glass?.status === "rated";
@@ -103,6 +119,14 @@ export function YouWide({
             <span className="rounded-chip px-[11px] py-[5px] text-[11px] font-semibold bg-ink-hairline-2 text-ink">
               {circlesCount} {circlesCount === 1 ? "Circle" : "Circles"}
             </span>
+            <PatchChip
+              patch={patch}
+              size={patchSize}
+              homeVenueId={homeVenueId}
+              homeVenueName={homeVenueName}
+              findable={findable}
+              venueOptions={venueOptions}
+            />
             <Link
               href="/profile/settings"
               className="rounded-chip px-[11px] py-[5px] text-[11px] font-semibold border border-ink-hairline-3 text-ink"

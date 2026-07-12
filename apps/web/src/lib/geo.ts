@@ -16,6 +16,21 @@
 export const DEFAULT_RADIUS_KM = 10
 
 /**
+ * THE ATLAS patch sizes — the coarse, human "how far is near me?" control on
+ * the map (never surfaced as kilometres). Three fixed radii in km; the UI
+ * renders them as tight / local / wide with copy, never numbers. Stored per
+ * user as `users.patchSize`; resolve to a radius with `patchRadiusKm`.
+ */
+export const PATCH_SIZES = { tight: 1.2, local: 2.5, wide: 5 } as const
+export type PatchSize = keyof typeof PATCH_SIZES
+
+/** The discovery radius (km) for a patch size. Falls back to 'local' for anything unrecognised. */
+export function patchRadiusKm(size: PatchSize | string | null | undefined): number {
+  if (size != null && size in PATCH_SIZES) return PATCH_SIZES[size as PatchSize]
+  return PATCH_SIZES.local
+}
+
+/**
  * GLASS band half-width. Two rated players are "a fair match" when their
  * Glass numbers are within ±GLASS_BAND of each other. The Glass scale is
  * 1.00–7.00, so 0.75 is roughly one skill tier.

@@ -13,6 +13,7 @@ import { HomeCourtPicker, homeCourtErrorCopy } from "@/components/profile/home-c
 import { PushToggle } from "@/components/profile/push-toggle";
 import { COURT_SIDES, DOMINANT_HANDS } from "@/lib/player-attrs";
 import { AttrSegments, courtSideSegmentLabel, type VenueOption } from "@/components/profile/settings-sheet";
+import type { PatchSize } from "@/lib/geo";
 
 /** Section shell — bone label + hairline card, matching the design's Settings cards. No coral here; the one strong action is Save (design/CUATRO-Web-LATEST.dc.html "Home · Settings"). */
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
@@ -69,6 +70,7 @@ export function SettingsWide({
   homeVenueId,
   homeVenueName,
   venueOptions,
+  patchSize,
   dominantHand = null,
   courtSide = null,
   notifyFourthCall,
@@ -82,6 +84,8 @@ export function SettingsWide({
   homeVenueId: string | null;
   homeVenueName: string | null;
   venueOptions: VenueOption[];
+  /** Stored coarse patch size (users.patchSize) — the size segment in YOUR PATCH, saved on change. */
+  patchSize: PatchSize;
   /** ON COURT attributes (issue #21) — the stored values; null renders both pickers unset. */
   dominantHand?: string | null;
   courtSide?: string | null;
@@ -96,6 +100,7 @@ export function SettingsWide({
   const [showCamera, setShowCamera] = useState(false);
   const [findableOn, setFindableOn] = useState(findable);
   const [venue, setVenue] = useState(homeVenueId ?? "");
+  const [patchSizeSel, setPatchSizeSel] = useState<PatchSize>(patchSize);
   // Add-a-new-court state (choose-OR-ADD, same contract as the standing-game
   // venue picker). `addingCourt` is separate from `venue` so revealing the
   // add fields never clobbers the persisted selection — a findable toggle
@@ -126,10 +131,11 @@ export function SettingsWide({
   // Findable + home venue share one server action (an absent `findable`
   // reads as "not findable"), so every discovery change submits BOTH current
   // values together — never one without the other.
-  function saveDiscovery(nextFindable: boolean, nextVenue: string) {
+  function saveDiscovery(nextFindable: boolean, nextVenue: string, nextSize: PatchSize = patchSizeSel) {
     const fd = new FormData();
     if (nextFindable) fd.set("findable", "on");
     if (nextVenue) fd.set("homeVenueId", nextVenue);
+    fd.set("patchSize", nextSize);
     startSaveDiscovery(async () => {
       await updateDiscoverySettingsAction(fd);
       router.refresh();
@@ -255,6 +261,11 @@ export function SettingsWide({
                 onCourtAddressChange={setCourtAddress}
                 error={courtError}
                 disabled={savingDiscovery}
+                patchSize={patchSizeSel}
+                onPatchSizeChange={(next) => {
+                  setPatchSizeSel(next);
+                  saveDiscovery(findableOn, venue, next);
+                }}
                 fieldClassName="w-full bg-ground border border-ink-hairline-2 rounded-[11px] px-3 py-2.5 text-[13px] text-ink outline-none"
               />
               {addingCourt && (

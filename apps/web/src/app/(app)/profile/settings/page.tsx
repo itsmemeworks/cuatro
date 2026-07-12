@@ -23,6 +23,7 @@ export default async function SettingsPage() {
     .select({
       findable: users.findable,
       homeVenueId: users.homeVenueId,
+      patchSize: users.patchSize,
       dominantHand: users.dominantHand,
       courtSide: users.courtSide,
       notifyFourthCall: users.notifyFourthCall,
@@ -51,6 +52,7 @@ export default async function SettingsPage() {
         homeVenueId={discoveryRow?.homeVenueId ?? null}
         homeVenueName={homeVenueName}
         venueOptions={venueOptions}
+        patchSize={discoveryRow?.patchSize ?? "local"}
         dominantHand={discoveryRow?.dominantHand ?? null}
         courtSide={discoveryRow?.courtSide ?? null}
         notifyFourthCall={discoveryRow?.notifyFourthCall ?? true}

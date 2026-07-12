@@ -16,11 +16,13 @@
  * `gameInViewerBand`, which reuses the shared GLASS_BAND half-width so the
  * colour matches the same ±band the rest of discovery reasons about.
  */
-import { GLASS_BAND, glassBandFor } from "@/lib/geo";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { GLASS_BAND, glassBandFor, type PatchSize } from "@/lib/geo";
 import { boardGames, type BoardConfirmedPlayer } from "@/server/discovery";
 import { nearbyCircles, type NearbyCircle } from "@/server/open-door";
 import { resolvePatch } from "@/server/patch";
-import type { CuatroDb } from "@cuatro/db";
+import { getAtlasView, type AtlasView } from "@/server/atlas";
+import { users, venues, type CuatroDb } from "@cuatro/db";
 
 /** A confirmed slot-holder as a Discover game card shows them (mirror of BoardConfirmedPlayer). */
 export interface DiscoverConfirmedPlayer {
@@ -63,6 +65,31 @@ export interface DiscoverView {
   games: DiscoverGame[];
   /** Only OPEN-tier Circles surface here (the "Circles open to join" heading); invite-only Circles reach players through their games in `games`. */
   openCircles: NearbyCircle[];
+  /**
+   * The map projection of this same surface — the venue markers / patch / band
+   * (patched viewer) or the country-view clusters (no patch). Discover's Map
+   * mode renders this; getAtlasView is the frozen, self-contained read model
+   * (server/atlas.ts) and applies the same patch + band + privacy rules the
+   * list above does, so List and Map can never disagree.
+   */
+  atlas: AtlasView;
+  /**
+   * Everything the on-surface PatchChip needs to render + open its PatchControl
+   * (the patch entry point now lives ON Discover, not the shell chrome). Present
+   * in BOTH states — the chip is also how a patch-less viewer sets their first.
+   */
+  patchControl: DiscoverPatchControl;
+}
+
+/** The PatchChip's data island (mirror of the component's props, sourced here). */
+export interface DiscoverPatchControl {
+  /** The viewer's chosen patch size (defaults to `local` when never set). */
+  size: PatchSize;
+  homeVenueId: string | null;
+  homeVenueName: string | null;
+  findable: boolean;
+  /** Every pinned venue the viewer could pick as their home court (name-ordered). */
+  venueOptions: { id: string; name: string; areaHint?: string | null }[];
 }
 
 /**
@@ -112,6 +139,27 @@ export async function getDiscoverView(
   opts: { viewerRating: number | null; patchAreaLabel: string | null },
 ): Promise<DiscoverView> {
   const patch = await resolvePatch(db, viewerId);
+
+  // PatchChip data — needed in BOTH states (the chip is the entry to set/adjust
+  // the patch, so it renders even when there is no patch yet).
+  const [userRow] = await db
+    .select({ patchSize: users.patchSize, homeVenueId: users.homeVenueId, findable: users.findable })
+    .from(users)
+    .where(eq(users.id, viewerId))
+    .limit(1);
+  const venueOptions = await db
+    .select({ id: venues.id, name: venues.name })
+    .from(venues)
+    .where(and(isNotNull(venues.lat), isNotNull(venues.lng)))
+    .orderBy(asc(venues.name));
+  const patchControl: DiscoverPatchControl = {
+    size: (patch?.size ?? (userRow?.patchSize as PatchSize | null) ?? "local") as PatchSize,
+    homeVenueId: userRow?.homeVenueId ?? null,
+    homeVenueName: opts.patchAreaLabel,
+    findable: userRow?.findable ?? false,
+    venueOptions,
+  };
+
   if (!patch) {
     return {
       hasPatch: false,
@@ -119,12 +167,18 @@ export async function getDiscoverView(
       viewerRating: opts.viewerRating,
       games: [],
       openCircles: [],
+      // No patch → the map falls back to the country view (clusters only, no
+      // markers). getAtlasView returns exactly that shape for an unpatched
+      // viewer, so Map mode still has something honest to show.
+      atlas: await getAtlasView(db, viewerId),
+      patchControl,
     };
   }
 
-  const [board, circles] = await Promise.all([
+  const [board, circles, atlas] = await Promise.all([
     boardGames(db, viewerId),
     nearbyCircles(db, viewerId),
+    getAtlasView(db, viewerId),
   ]);
 
   const games: DiscoverGame[] = board.map((g) => ({
@@ -158,5 +212,7 @@ export async function getDiscoverView(
     viewerRating: opts.viewerRating,
     games,
     openCircles,
+    atlas,
+    patchControl,
   };
 }

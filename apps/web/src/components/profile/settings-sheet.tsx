@@ -7,6 +7,7 @@ import { updateDiscoverySettingsAction } from "@/app/(app)/profile/discovery-act
 import { updatePlayerAttrsAction } from "@/app/(app)/profile/player-attrs-actions";
 import { HomeCourtPicker, homeCourtErrorCopy } from "@/components/profile/home-court-picker";
 import { COURT_SIDES, DOMINANT_HANDS } from "@/lib/player-attrs";
+import type { PatchSize } from "@/lib/geo";
 
 export interface VenueOption {
   id: string;
@@ -87,6 +88,7 @@ export function SettingsSheet({
   findable,
   homeVenueId,
   venueOptions,
+  patchSize,
   dominantHand,
   courtSide,
 }: {
@@ -95,6 +97,8 @@ export function SettingsSheet({
   findable: boolean;
   homeVenueId: string | null;
   venueOptions: VenueOption[];
+  /** Stored coarse patch size (users.patchSize). Threaded into the home-court picker's size segment. */
+  patchSize: PatchSize;
   /** ON COURT attributes (issue #21): pass the STORED values (null = unset). Leaving both undefined hides the whole ON COURT card — a picker that can't see the stored value must not render, or a reopened sheet would show "unset" over a real value and a re-save would null it (the CLAUDE.md #14 stale-default data-loss shape, sans React). */
   dominantHand?: string | null;
   courtSide?: string | null;
@@ -112,6 +116,9 @@ export function SettingsSheet({
   const [findableOn, setFindableOn] = useState(findable);
   const [addingCourt, setAddingCourt] = useState(false);
   const [homeVenue, setHomeVenue] = useState(homeVenueId ?? "");
+  // Controlled like the rest of the discovery form (survives the failed-save
+  // remount, and rides the same form via the picker's hidden patchSize input).
+  const [patchSizeSel, setPatchSizeSel] = useState<PatchSize>(patchSize);
   const [courtName, setCourtName] = useState("");
   const [courtAddress, setCourtAddress] = useState("");
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
@@ -229,6 +236,8 @@ export function SettingsSheet({
                 onCourtAddressChange={setCourtAddress}
                 error={discoveryError}
                 selectId="homeVenueId"
+                patchSize={patchSizeSel}
+                onPatchSizeChange={setPatchSizeSel}
                 fieldClassName="w-full rounded-button px-4 py-3 text-cu-body outline-none bg-ground border border-ink-hairline-2 text-ink min-h-[var(--touch-target)]"
               />
 

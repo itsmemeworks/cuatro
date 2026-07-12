@@ -27,6 +27,7 @@ export default async function ProfilePage() {
     .select({
       findable: users.findable,
       homeVenueId: users.homeVenueId,
+      patchSize: users.patchSize,
       dominantHand: users.dominantHand,
       courtSide: users.courtSide,
     })
@@ -83,6 +84,7 @@ export default async function ProfilePage() {
           findable={discoveryRow?.findable ?? true}
           homeVenueId={discoveryRow?.homeVenueId ?? null}
           venueOptions={venueOptions}
+          patchSize={discoveryRow?.patchSize ?? "local"}
           dominantHand={discoveryRow?.dominantHand ?? null}
           courtSide={discoveryRow?.courtSide ?? null}
         />
@@ -95,6 +97,12 @@ export default async function ProfilePage() {
           ledgerRows={ledger?.rows ?? []}
           displayName={user.displayName ?? user.email}
           avatarUrl={user.avatarUrl}
+          patch={patch ? { lat: patch.lat, lng: patch.lng, radiusKm: patch.radiusKm } : null}
+          patchSize={discoveryRow?.patchSize ?? "local"}
+          homeVenueId={discoveryRow?.homeVenueId ?? null}
+          homeVenueName={homeVenueName}
+          findable={discoveryRow?.findable ?? true}
+          venueOptions={venueOptions}
         />
       </div>
     </>

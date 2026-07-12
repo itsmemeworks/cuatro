@@ -16,6 +16,9 @@ primary_region = "lhr"
     NEXT_PUBLIC_SUPABASE_URL = "https://cmqicxumhmthbuoehoju.supabase.co"
     NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtcWljeHVtaG10aGJ1b2Vob2p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkxMDksImV4cCI6MjA5OTI3NTEwOX0.nJUasMQtYA4QzP10Q3lCAjNVAQcpUMZT6gJOuhela0E"
     NEXT_PUBLIC_APP_ENV = "staging"
+    # THE ATLAS map tiles: self-hosted Protomaps PMTiles (GB+NI z14) on a Fly
+    # Tigris bucket, read by the browser via HTTP Range. Public basemap, no key.
+    NEXT_PUBLIC_TILES_URL = "pmtiles://https://cuatro-tiles.fly.storage.tigris.dev/cuatro-uk-z14-2026-07.pmtiles"
 
 [env]
   # AVATAR_DIR stays on the /data volume (avatars only). DATABASE_URL is a Fly
