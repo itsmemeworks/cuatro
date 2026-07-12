@@ -68,6 +68,8 @@ describe("resolvePatch", () => {
       lat: 51.5265,
       lng: -0.0805,
       source: "home_venue",
+      size: "local",
+      radiusKm: 2.5,
     });
   });
 
@@ -78,6 +80,8 @@ describe("resolvePatch", () => {
       lat: 51.51,
       lng: -0.12,
       source: "explicit",
+      size: "local",
+      radiusKm: 2.5,
     });
   });
 

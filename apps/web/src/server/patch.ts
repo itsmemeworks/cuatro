@@ -19,9 +19,18 @@
 import { eq, inArray, or } from 'drizzle-orm'
 import { matches, rsvps, sessions, users, venues } from '@cuatro/db'
 import type { CuatroDb } from '@cuatro/db'
+import { patchRadiusKm, type PatchSize } from '@/lib/geo'
 
 export type PatchSource = 'home_venue' | 'explicit' | 'inferred'
-export type ResolvedPatch = { lat: number; lng: number; source: PatchSource } | null
+/**
+ * A resolved patch carries the anchor point AND the viewer's chosen patch size
+ * (THE ATLAS) with its resolved radius. `size`/`radiusKm` are additive: existing
+ * consumers read only lat/lng/source and are unaffected; the Atlas map uses
+ * `radiusKm` as its "near you" reach instead of the board's fixed DEFAULT_RADIUS_KM.
+ */
+export type ResolvedPatch =
+  | { lat: number; lng: number; source: PatchSource; size: PatchSize; radiusKm: number }
+  | null
 
 /**
  * Resolve a user's discovery patch (see file header for the priority order).
@@ -32,17 +41,21 @@ export async function resolvePatch(db: CuatroDb, userId: string): Promise<Resolv
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
   if (!user) return null
 
+  // The viewer's patch size travels with every resolved patch (see ResolvedPatch).
+  const size = user.patchSize as PatchSize
+  const radiusKm = patchRadiusKm(size)
+
   // 1. Home venue pin.
   if (user.homeVenueId) {
     const [home] = await db.select().from(venues).where(eq(venues.id, user.homeVenueId)).limit(1)
     if (home && home.lat != null && home.lng != null) {
-      return { lat: home.lat, lng: home.lng, source: 'home_venue' }
+      return { lat: home.lat, lng: home.lng, source: 'home_venue', size, radiusKm }
     }
   }
 
   // 2. Explicit chosen area.
   if (user.patchLat != null && user.patchLng != null) {
-    return { lat: user.patchLat, lng: user.patchLng, source: 'explicit' }
+    return { lat: user.patchLat, lng: user.patchLng, source: 'explicit', size, radiusKm }
   }
 
   // 3. Inferred from where they actually play. Gather venue ids from every
@@ -88,7 +101,7 @@ export async function resolvePatch(db: CuatroDb, userId: string): Promise<Resolv
       best = { lat: venue.lat, lng: venue.lng, count, id: venue.id }
     }
   }
-  if (best) return { lat: best.lat, lng: best.lng, source: 'inferred' }
+  if (best) return { lat: best.lat, lng: best.lng, source: 'inferred', size, radiusKm }
 
   return null
 }

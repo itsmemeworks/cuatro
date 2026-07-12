@@ -35,6 +35,14 @@ export async function seed(db: CuatroDb) {
   const shoreditchVenueId = uuid()
   const wandsworthVenueId = uuid()
   const stratfordVenueId = uuid()
+  // THE ATLAS demo venues, clustered around Shoreditch (all inside a 'local'
+  // ~2.5 km patch anchored at Alex's home court) so the map has something to
+  // show: a busy court with an open seat + a Circle (Hoxton), courts carrying
+  // indoor/outdoor + court-count facts (Hoxton, Bethnal Green), and a truly
+  // quiet court with no CUATRO activity at all (London Fields).
+  const hoxtonVenueId = uuid()
+  const bethnalVenueId = uuid()
+  const londonFieldsVenueId = uuid()
 
   // `home`/`patch`/`findable` seed the geo-discovery branches:
   //  - home venue pin: most players anchor to their circle's club.
@@ -84,31 +92,89 @@ export async function seed(db: CuatroDb) {
   const shoreditchVenue = {
     id: shoreditchVenueId,
     name: 'Powerleague Shoreditch',
+    slug: 'powerleague-shoreditch',
     address: 'Bethnal Green Rd, London EC2A 3AR',
     lat: 51.5265,
     lng: -0.0805,
+    indoorOutdoor: 'mixed' as const,
+    courtCount: 6,
     countryCode: 'GB',
     timezone: 'Europe/London',
   }
   const wandsworthVenue = {
     id: wandsworthVenueId,
     name: 'Rocket Padel Wandsworth',
+    slug: 'rocket-padel-wandsworth',
     address: 'Buckhold Rd, London SW18 1UJ',
     lat: 51.4571,
     lng: -0.1931,
+    indoorOutdoor: 'indoor' as const,
+    courtCount: 4,
     countryCode: 'GB',
     timezone: 'Europe/London',
   }
   const stratfordVenue = {
     id: stratfordVenueId,
     name: 'Padel Social Club Stratford',
+    slug: 'padel-social-club-stratford',
     address: 'Queen Elizabeth Olympic Park, London E20 1EJ',
     lat: 51.5432,
     lng: -0.0125,
+    indoorOutdoor: 'outdoor' as const,
+    courtCount: 3,
     countryCode: 'GB',
     timezone: 'Europe/London',
   }
-  await db.insert(venues).values([shoreditchVenue, wandsworthVenue, stratfordVenue])
+  // Hoxton: a busy court just north of Shoreditch — it hosts the Hoxton Social
+  // Circle's open game, and carries indoor + court-count facts.
+  const hoxtonVenue = {
+    id: hoxtonVenueId,
+    name: 'Hoxton Padel Club',
+    slug: 'hoxton-padel-club',
+    address: 'Hoxton St, London N1 6SH',
+    lat: 51.529,
+    lng: -0.081,
+    indoorOutdoor: 'indoor' as const,
+    courtCount: 4,
+    countryCode: 'GB',
+    timezone: 'Europe/London',
+  }
+  // Bethnal Green: a pinned court with facts but no CUATRO activity yet — an
+  // "on the Atlas, nobody playing here yet" court.
+  const bethnalVenue = {
+    id: bethnalVenueId,
+    name: 'Bethnal Green Padel',
+    slug: 'bethnal-green-padel',
+    address: 'Old Ford Rd, London E2 9PL',
+    lat: 51.527,
+    lng: -0.06,
+    indoorOutdoor: 'outdoor' as const,
+    courtCount: 2,
+    countryCode: 'GB',
+    timezone: 'Europe/London',
+  }
+  // London Fields: the genuinely quiet court — pinned, no facts, no Circles, no
+  // games, no home players. The Atlas renders it as a faint quiet marker.
+  const londonFieldsVenue = {
+    id: londonFieldsVenueId,
+    name: 'London Fields Padel',
+    slug: 'london-fields-padel',
+    address: 'London Fields, London E8 3EU',
+    lat: 51.541,
+    lng: -0.062,
+    countryCode: 'GB',
+    timezone: 'Europe/London',
+  }
+  await db
+    .insert(venues)
+    .values([
+      shoreditchVenue,
+      wandsworthVenue,
+      stratfordVenue,
+      hoxtonVenue,
+      bethnalVenue,
+      londonFieldsVenue,
+    ])
 
   await db.insert(users).values(userRows)
 
@@ -154,7 +220,21 @@ export async function seed(db: CuatroDb) {
     vibeLine: 'Saturday-morning weekend four in Wandsworth. Competitive but friendly.',
     createdBy: nadia.id,
   }
-  await db.insert(circles).values([tuesdayCircle, weekendCircle])
+  // Hoxton Social: a THIRD Circle anchored at Hoxton, board-enabled + open
+  // door, that Alex is NOT in — so its open game surfaces on Alex's Atlas as a
+  // dashed open-seat marker and its presence gives Hoxton a circle count.
+  const hoxtonCircle = {
+    id: uuid(),
+    name: 'Hoxton Social',
+    emblem: '🌙',
+    colour: '#4BC98B',
+    countryCode: 'GB',
+    timezone: 'Europe/London',
+    inviteCode: 'HOXTON4',
+    vibeLine: 'Weeknight doubles at Hoxton. Newcomers welcome, one seat usually going.',
+    createdBy: priya.id,
+  }
+  await db.insert(circles).values([tuesdayCircle, weekendCircle, hoxtonCircle])
 
   // Jordan plays in both — players belong to many Circles by design.
   await db.insert(circleMembers).values([
@@ -185,6 +265,18 @@ export async function seed(db: CuatroDb) {
       role,
       joinedAt: now - (25 - i) * DAY_MS,
     })),
+    // Hoxton Social — Priya (organiser), Kwame, Sofia. Alex is deliberately NOT
+    // here, so Hoxton's open game is discoverable to Alex on the Atlas.
+    ...[
+      { name: 'Priya Shah', role: 'organiser' as const },
+      { name: 'Kwame Osei', role: 'member' as const },
+      { name: 'Sofia Reyes', role: 'member' as const },
+    ].map(({ name, role }, i) => ({
+      circleId: hoxtonCircle.id,
+      userId: byName(name).id,
+      role,
+      joinedAt: now - (15 - i) * DAY_MS,
+    })),
   ])
 
   // ---- Standing Games ----
@@ -210,7 +302,18 @@ export async function seed(db: CuatroDb) {
     rsvpWindowDays: 6,
     active: true,
   }
-  await db.insert(standingGames).values([tuesdayStanding, weekendStanding])
+  const hoxtonStanding = {
+    id: uuid(),
+    circleId: hoxtonCircle.id,
+    venueId: hoxtonVenue.id,
+    weekday: 4, // Thursday
+    startTime: '19:00',
+    durationMinutes: 90,
+    slots: 4,
+    rsvpWindowDays: 6,
+    active: true,
+  }
+  await db.insert(standingGames).values([tuesdayStanding, weekendStanding, hoxtonStanding])
 
   // ---- Sessions ----
   const tuesdayPlayed1 = {
@@ -253,9 +356,26 @@ export async function seed(db: CuatroDb) {
     startsAt: now + 3 * DAY_MS,
     status: 'upcoming' as const,
   }
+  // Hoxton's upcoming game: RSVP window open, 3 of 4 in, ONE seat waiting —
+  // the Atlas open-seat marker (in Alex's Glass band).
+  const hoxtonUpcoming = {
+    id: uuid(),
+    standingGameId: hoxtonStanding.id,
+    circleId: hoxtonCircle.id,
+    venueId: hoxtonVenue.id,
+    startsAt: now + 4 * DAY_MS,
+    status: 'upcoming' as const,
+  }
   await db
     .insert(sessions)
-    .values([tuesdayPlayed1, tuesdayPlayed2, tuesdayUpcoming, weekendPlayed1, weekendUpcoming])
+    .values([
+      tuesdayPlayed1,
+      tuesdayPlayed2,
+      tuesdayUpcoming,
+      weekendPlayed1,
+      weekendUpcoming,
+      hoxtonUpcoming,
+    ])
 
   // ---- RSVPs (upcoming sessions) ----
   await db.insert(rsvps).values([
@@ -271,6 +391,11 @@ export async function seed(db: CuatroDb) {
     { sessionId: weekendUpcoming.id, userId: owen.id, status: 'in' },
     { sessionId: weekendUpcoming.id, userId: jordan.id, status: 'in' },
     { sessionId: weekendUpcoming.id, userId: marcus.id, status: 'reserve', position: 1 },
+
+    // Hoxton: 3 in, one seat open (Priya 3.7, Kwame 3.65, Sofia 3.4 → in Alex's band).
+    { sessionId: hoxtonUpcoming.id, userId: priya.id, status: 'in' },
+    { sessionId: hoxtonUpcoming.id, userId: kwame.id, status: 'in' },
+    { sessionId: hoxtonUpcoming.id, userId: sofia.id, status: 'in' },
   ])
 
   // ---- Match 1 (tuesdayPlayed1): the DESIGN.md worked example ----

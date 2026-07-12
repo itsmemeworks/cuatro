@@ -57,6 +57,12 @@ export const users = pgTable(
     homeVenueId: text('home_venue_id').references(() => venues.id),
     patchLat: real('patch_lat'),
     patchLng: real('patch_lng'),
+    // THE ATLAS patch size — how far "near you" reaches on the map. A coarse,
+    // human control (never a km slider); the three values map to fixed radii
+    // in apps/web/src/lib/geo.ts (PATCH_SIZES). Default 'local'.
+    patchSize: text('patch_size', { enum: ['tight', 'local', 'wide'] })
+      .notNull()
+      .default('local'),
 
     // GLASS rating state
     // `rating` is null while Unrated (before the Placement Trio completes).
@@ -106,6 +112,10 @@ export const users = pgTable(
     courtSideCheck: check(
       'users_court_side_check',
       sql`${table.courtSide} in ('right', 'left', 'both')`,
+    ),
+    patchSizeCheck: check(
+      'users_patch_size_check',
+      sql`${table.patchSize} in ('tight', 'local', 'wide')`,
     ),
   }),
 )

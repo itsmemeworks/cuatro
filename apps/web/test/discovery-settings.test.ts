@@ -55,7 +55,7 @@ describe("updateDiscoverySettingsAction", () => {
     expect(row?.homeVenueId).toBe(venue.id);
 
     const patch = await resolvePatch(client.db, h.userId);
-    expect(patch).toEqual({ lat: 51.5265, lng: -0.0805, source: "home_venue" });
+    expect(patch).toEqual({ lat: 51.5265, lng: -0.0805, source: "home_venue", size: "local", radiusKm: 2.5 });
   });
 
   it("an unchecked findable box turns discovery off", async () => {
@@ -136,7 +136,7 @@ describe("updateDiscoverySettingsAction", () => {
     const [row] = await client.db.select().from(users).where(eq(users.id, h.userId));
     expect(row?.homeVenueId).toBe(all[0].id);
     const patch = await resolvePatch(client.db, h.userId);
-    expect(patch).toEqual({ lat: 51.5033, lng: -0.1195, source: "home_venue" });
+    expect(patch).toEqual({ lat: 51.5033, lng: -0.1195, source: "home_venue", size: "local", radiusKm: 2.5 });
   });
 
   it("a postcode that doesn't resolve saves NOTHING — no venue row, home court untouched", async () => {

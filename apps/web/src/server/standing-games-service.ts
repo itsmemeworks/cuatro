@@ -27,6 +27,7 @@ import {
 } from "@cuatro/db";
 import { BOOKING_PLATFORM_IDS } from "@/lib/booking";
 import { captureEvent } from "@/lib/analytics";
+import { generateVenueSlug } from "@/server/venues";
 
 export type ServiceResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -131,10 +132,13 @@ export async function resolveVenue(
       resolvedId = existing.id;
     } else {
       const [circle] = await db.select().from(circles).where(eq(circles.id, circleId));
+      // Every venue needs a slug or it has no court page on the Atlas.
+      const slug = await generateVenueSlug(db, name, venueAddress?.trim() || null);
       const [created] = await db
         .insert(venues)
         .values({
           name,
+          slug,
           address: venueAddress?.trim() || null,
           countryCode: circle?.countryCode ?? "GB",
           timezone: circle?.timezone ?? "Europe/London",

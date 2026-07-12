@@ -5,8 +5,9 @@ import { eq } from "drizzle-orm";
 import { users, venues } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
-import { resolveSubmittedVenue } from "@/server/venues";
+import { resolveSubmittedVenue, generateVenueSlug } from "@/server/venues";
 import { geocodeAddress } from "@/server/geocode";
+import { PATCH_SIZES, type PatchSize } from "@/lib/geo";
 
 /**
  * What a discovery-settings save reports back to the (client) settings
@@ -47,6 +48,14 @@ export async function updateDiscoverySettingsAction(formData: FormData): Promise
 
   // An unchecked checkbox submits nothing, so absence = not findable.
   const findable = formData.get("findable") != null;
+
+  // Coarse patch size (THE ATLAS). Only written when a valid value is
+  // submitted — a discovery form that doesn't carry patchSize (the shipped
+  // settings forms predate it) must leave the stored size untouched, never
+  // reset it to the default.
+  const rawSize = formData.get("patchSize");
+  const patchSize: PatchSize | null =
+    typeof rawSize === "string" && rawSize in PATCH_SIZES ? (rawSize as PatchSize) : null;
 
   const rawVenue = formData.get("homeVenueId");
   let pickedId: string | null = null;
@@ -99,6 +108,8 @@ export async function updateDiscoverySettingsAction(formData: FormData): Promise
       // venues table untouched — nothing half-saved.
       const point = await geocodeAddress(newAddress);
       if (!point) return { ok: false, error: "postcode_unresolved" };
+      // Every new court needs a slug or it has no shareable court page.
+      const slug = await generateVenueSlug(db, newName, newAddress || null);
       // UK-only launch defaults, same fallback resolveVenue uses (country and
       // timezone are data columns, so this stays world-ready).
       const [created] = await db
@@ -108,6 +119,7 @@ export async function updateDiscoverySettingsAction(formData: FormData): Promise
           address: newAddress || null,
           lat: point.lat,
           lng: point.lng,
+          slug,
           countryCode: "GB",
           timezone: "Europe/London",
         })
@@ -116,7 +128,10 @@ export async function updateDiscoverySettingsAction(formData: FormData): Promise
     }
   }
 
-  await db.update(users).set({ findable, homeVenueId }).where(eq(users.id, user.id));
+  await db
+    .update(users)
+    .set({ findable, homeVenueId, ...(patchSize ? { patchSize } : {}) })
+    .where(eq(users.id, user.id));
 
   revalidatePath("/profile");
   revalidatePath("/profile/settings");

@@ -1,7 +1,8 @@
 "use client";
 
-import { InfoTerm, Meta } from "@/components/ui";
+import { InfoTerm, Meta, SegmentedControl } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
+import type { PatchSize } from "@/lib/geo";
 
 /**
  * The home-court control for profile settings, choose-OR-ADD: the same
@@ -39,6 +40,18 @@ export interface HomeCourtOption {
   name: string;
 }
 
+/** The coarse patch-size options + their human hints (never km — convention: the Atlas surfaces sizes, not distances). */
+const PATCH_SIZE_OPTIONS: { value: PatchSize; label: string }[] = [
+  { value: "tight", label: "Tight" },
+  { value: "local", label: "Local" },
+  { value: "wide", label: "Wide" },
+];
+const PATCH_SIZE_HINT: Record<PatchSize, string> = {
+  tight: "your corner of town",
+  local: "a sensible cycle",
+  wide: "worth the trip for a good four",
+};
+
 export function HomeCourtPicker({
   venues,
   adding,
@@ -53,6 +66,8 @@ export function HomeCourtPicker({
   disabled,
   fieldClassName,
   selectId,
+  patchSize,
+  onPatchSizeChange,
 }: {
   venues: HomeCourtOption[];
   /** True when the free-form add-a-new-court fields are revealed. */
@@ -71,6 +86,15 @@ export function HomeCourtPicker({
   /** Field styling per surface (the sheet and the wide page use different input scales). */
   fieldClassName: string;
   selectId?: string;
+  /**
+   * The coarse patch size (tight/local/wide). Optional: pass BOTH this and
+   * onPatchSizeChange to reveal the "Patch size" segment (the Atlas control
+   * shares this picker). The hidden `patchSize` input rides the same form as
+   * the home court, so a form-based save (settings sheet) persists it; the
+   * wide surface saves on change through the callback.
+   */
+  patchSize?: PatchSize;
+  onPatchSizeChange?: (size: PatchSize) => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -145,6 +169,16 @@ export function HomeCourtPicker({
         Your home court sets <InfoTerm term="patch" label="your patch" />, everything near you is measured from it,
         court to court. Never GPS.
       </Meta>
+
+      {patchSize != null && onPatchSizeChange && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-cu-secondary font-semibold text-ink-muted">Patch size</span>
+          {/* Rides the home-court form so a form-based save persists it too. */}
+          <input type="hidden" name="patchSize" value={patchSize} />
+          <SegmentedControl options={PATCH_SIZE_OPTIONS} value={patchSize} onChange={onPatchSizeChange} />
+          <Meta as="p">{PATCH_SIZE_HINT[patchSize]}, never a distance you have to do the maths on.</Meta>
+        </div>
+      )}
     </div>
   );
 }

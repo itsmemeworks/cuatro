@@ -12,6 +12,7 @@
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
     "seed": "tsx src/seed.ts",
+    "seed:uk": "tsx src/seed-venues-uk.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

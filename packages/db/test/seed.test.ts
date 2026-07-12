@@ -17,11 +17,11 @@ describe('seed', () => {
     await client.close()
   })
 
-  it('inserts 12 users and 2 circles', async () => {
+  it('inserts 12 users and 3 circles', async () => {
     const allUsers = await client.db.select().from(users)
     const allCircles = await client.db.select().from(circles)
     expect(allUsers).toHaveLength(12)
-    expect(allCircles).toHaveLength(2)
+    expect(allCircles).toHaveLength(3)
   })
 
   it('resolves circle -> members -> users through the relational query API', async () => {

@@ -54,6 +54,37 @@ describe('geo schema', () => {
     expect(u.homeVenueId).toBe(v.id)
   })
 
+  it('defaults patchSize to local on a plain user', async () => {
+    const [u] = await client.db
+      .insert(users)
+      .values({ email: 'patch@example.com', displayName: 'Patch' })
+      .returning()
+    expect(u.patchSize).toBe('local')
+  })
+
+  it('stores optional venue facts and leaves them null by default', async () => {
+    const [plain] = await client.db
+      .insert(venues)
+      .values({ name: 'Plain Court', slug: 'plain-court' })
+      .returning()
+    expect(plain.indoorOutdoor).toBeNull()
+    expect(plain.courtCount).toBeNull()
+
+    const [facted] = await client.db
+      .insert(venues)
+      .values({ name: 'Indoor Court', slug: 'indoor-court', indoorOutdoor: 'indoor', courtCount: 4 })
+      .returning()
+    expect(facted.indoorOutdoor).toBe('indoor')
+    expect(facted.courtCount).toBe(4)
+  })
+
+  it('enforces venue slug uniqueness', async () => {
+    await client.db.insert(venues).values({ name: 'A', slug: 'dup-slug' })
+    await expect(
+      client.db.insert(venues).values({ name: 'B', slug: 'dup-slug' }),
+    ).rejects.toThrow()
+  })
+
   it('rejects a second OPEN knock on the same target from the same user', async () => {
     const [u] = await client.db
       .insert(users)
