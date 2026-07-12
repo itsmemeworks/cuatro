@@ -58,6 +58,8 @@ function circleActiveFor(subSegment: string | undefined): Extract<ShellContext, 
       return "games";
     case "tab":
       return "tab";
+    case "settings":
+      return "settings";
     default:
       return "other";
   }

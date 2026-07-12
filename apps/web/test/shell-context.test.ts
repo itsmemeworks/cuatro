@@ -43,8 +43,12 @@ describe("resolveShellContext — circle context", () => {
     expect(resolveShellContext("/circles/c-1/tab")).toEqual({ kind: "circle", circleId: "c-1", active: "tab" });
   });
 
+  it("maps /circles/[id]/settings to the settings row", () => {
+    expect(resolveShellContext("/circles/c-1/settings")).toEqual({ kind: "circle", circleId: "c-1", active: "settings" });
+  });
+
   it("maps an unknown deeper circle path to the circle context with no tab highlighted", () => {
-    expect(resolveShellContext("/circles/c-1/settings")).toEqual({ kind: "circle", circleId: "c-1", active: "other" });
+    expect(resolveShellContext("/circles/c-1/anything-else")).toEqual({ kind: "circle", circleId: "c-1", active: "other" });
   });
 
   it("does NOT treat /circles/new as a circle (create route, not a clubhouse)", () => {

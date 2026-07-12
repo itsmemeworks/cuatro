@@ -92,7 +92,7 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
           <Pill href={`${base}/games`} active={circleActive === "games"}>
             Games
           </Pill>
-          <Pill href={base} active={false}>
+          <Pill href={`${base}/settings`} active={circleActive === "settings"}>
             ⚙
           </Pill>
           <Pill href={`${base}/tab`} active={circleActive === "tab"}>
