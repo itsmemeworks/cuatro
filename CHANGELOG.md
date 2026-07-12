@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/itsmemeworks/cuatro/compare/v1.3.0...v1.4.0) (2026-07-12)
+
+
+### Features
+
+* **home:** cross-circle living feed below the week (Pete-directed) ([#31](https://github.com/itsmemeworks/cuatro/issues/31)) ([79de18d](https://github.com/itsmemeworks/cuatro/commit/79de18d2a731dbc32de0a9ca4a2453323c4ef76f))
+
+
+### Bug Fixes
+
+* make Next's image-optimizer cache writable after the root drop ([#30](https://github.com/itsmemeworks/cuatro/issues/30)) ([f87ccce](https://github.com/itsmemeworks/cuatro/commit/f87ccce91c5091e07c554a1228d06543a55b9ad6))
+
 ## [1.3.0](https://github.com/itsmemeworks/cuatro/compare/v1.2.0...v1.3.0) (2026-07-12)
 
 
