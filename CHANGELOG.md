@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/itsmemeworks/cuatro/compare/v1.4.0...v1.4.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* launch blockers — Glass truth, timezone class, live shell, honest doors ([#33](https://github.com/itsmemeworks/cuatro/issues/33)) ([c7fcf09](https://github.com/itsmemeworks/cuatro/commit/c7fcf0958906ea9dd68cf9335c20c6ff17124dc4))
+
 ## [1.4.0](https://github.com/itsmemeworks/cuatro/compare/v1.3.0...v1.4.0) (2026-07-12)
 
 
