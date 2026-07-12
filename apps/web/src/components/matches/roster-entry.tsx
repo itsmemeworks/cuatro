@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Avatar, Button, Card, Chip, DashedSlot, Fact, Meta, Sheet } from "@/components/ui";
 import { formatGlass } from "@/lib/design";
-import { ResultEntryForm, type ResultEntryPlayer } from "@/components/matches/result-entry-form";
+import { ResultEntryForm, type AdHocFormContext, type ResultEntryPlayer } from "@/components/matches/result-entry-form";
 
 /** A player already on court, or in the pool that can be added. Mirrors matches-db's RosterPlayer. */
 export interface RosterCandidate {
@@ -28,11 +28,14 @@ type Slot = ResultEntryPlayer & { isGuest: boolean };
  */
 export function RosterEntry({
   sessionId,
+  adhoc,
   viewerId,
   confirmed,
   candidates,
 }: {
-  sessionId: string;
+  /** The session being recorded — omit for an ad-hoc match (pass `adhoc` instead; issue #28). */
+  sessionId?: string;
+  adhoc?: AdHocFormContext;
   viewerId: string;
   confirmed: RosterCandidate[];
   candidates: RosterCandidate[];
@@ -131,6 +134,7 @@ export function RosterEntry({
         <ResultEntryForm
           key={roster.map((p) => p.id).join("|")}
           sessionId={sessionId}
+          adhoc={adhoc}
           players={roster}
           viewerId={viewerId}
         />

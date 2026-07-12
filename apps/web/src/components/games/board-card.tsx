@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Card, DashedSlot, Fact, Meta, Sheet } from "@/components/ui";
+import { Button, Card, DashedSlot, Fact, InfoTerm, Meta, Sheet } from "@/components/ui";
 import { CircleEmblem, RosterList, RosterNames, circleColour, type RosterPlayer } from "./roster";
+import { CirclePreviewSheet } from "@/components/discover/circle-preview-sheet";
 import { errorCopy } from "@/lib/error-copy";
 
 /**
@@ -13,6 +15,14 @@ import { errorCopy } from "@/lib/error-copy";
  * per screen" rule in cuatro/CLAUDE.md). Tapping opens a bottom sheet with an
  * optional note; sending posts to /api/knocks/session and flips the card to
  * an "Asked" state with a quiet withdraw.
+ *
+ * Every Board game is from a Circle the viewer is NOT in (server/discovery.ts
+ * scopes to non-member Circles), so the circle emblem + name open the Circle's
+ * PUBLIC preview sheet (Pete, 2026-07-11: "I should be able to click circles
+ * to view them before asking to join"), and the tile itself links to the game
+ * detail (law 7b: every game tile links to its detail page — game reads are
+ * ungated). The inline controls sit above the stretched link
+ * (position:relative), so nothing loses its click.
  */
 export interface BoardCardProps {
   sessionId: string;
@@ -35,6 +45,7 @@ export interface BoardCardProps {
 export function BoardCard(props: BoardCardProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [pending, setPending] = useState(props.initialPending);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -92,20 +103,45 @@ export function BoardCard(props: BoardCardProps) {
 
   return (
     <>
-      <Card padded={false} className="overflow-hidden flex items-stretch">
+      <Card padded={false} className="relative overflow-hidden flex items-stretch transition-cu-state hover:bg-ink-hairline-1">
+        {/* The tile navigates to the game detail (law 7b) — reads are ungated,
+            so an outsider can look before they ask. */}
+        <Link
+          href={`/games/${props.sessionId}`}
+          aria-label={`${props.circleName}, ${props.whenLabel}`}
+          className="absolute inset-0"
+        />
         <span aria-hidden className="w-1.5 shrink-0" style={{ background: circleColour(colourSeed, props.circleColour) }} />
         <div className="flex flex-col gap-2 flex-1 min-w-0 px-3.5 py-3">
         <div className="flex items-start gap-3">
-          <CircleEmblem seed={colourSeed} name={props.circleName} emblem={props.circleEmblem} colour={props.circleColour} px={20} />
           <div className="flex-1 min-w-0">
-            <p className="text-cu-card-title text-[15px] truncate">{props.circleName}</p>
-            <p className="text-cu-secondary text-ink-muted mt-0.5 truncate">
+            {/* Circle flag + name open the Circle's public preview (non-member
+                by construction). Falls back to plain text without a circleId. */}
+            {props.circleId ? (
+              <button
+                type="button"
+                onClick={() => setPreviewOpen(true)}
+                aria-label={`Have a look at ${props.circleName}`}
+                className="relative flex items-center gap-3 max-w-full min-w-0 text-left cursor-pointer group"
+              >
+                <CircleEmblem seed={colourSeed} name={props.circleName} emblem={props.circleEmblem} colour={props.circleColour} px={20} />
+                <span className="text-cu-card-title text-[15px] truncate transition-cu-state group-hover:underline">
+                  {props.circleName}
+                </span>
+              </button>
+            ) : (
+              <span className="flex items-center gap-3 min-w-0">
+                <CircleEmblem seed={colourSeed} name={props.circleName} emblem={props.circleEmblem} colour={props.circleColour} px={20} />
+                <span className="text-cu-card-title text-[15px] truncate">{props.circleName}</span>
+              </span>
+            )}
+            <p className="text-cu-secondary text-ink-muted mt-0.5 truncate pl-8">
               {props.whenLabel}
               {props.venueName ? ` · ${props.venueName}` : ""}
             </p>
           </div>
-          <Fact size="meta" tone="muted" className="shrink-0 whitespace-nowrap">
-            {props.distanceLabel}
+          <Fact size="meta" tone="muted" className="relative shrink-0 whitespace-nowrap">
+            <InfoTerm term="patch" label={props.distanceLabel} />
           </Fact>
         </div>
         {/* One dashed-coral circle per open spot — the canonical "space waiting for a person". */}
@@ -128,12 +164,12 @@ export function BoardCard(props: BoardCardProps) {
               type="button"
               onClick={withdraw}
               disabled={busy}
-              className="text-cu-secondary font-bold text-ink-muted whitespace-nowrap disabled:opacity-50"
+              className="relative text-cu-secondary cursor-pointer font-bold text-ink-muted whitespace-nowrap transition-cu-state hover:text-ink disabled:opacity-50"
             >
               Asked · withdraw
             </button>
           ) : (
-            <Button variant="strong" onClick={() => setOpen(true)} className="shrink-0">
+            <Button variant="strong" onClick={() => setOpen(true)} className="relative shrink-0">
               Ask to join
             </Button>
           )}
@@ -141,6 +177,15 @@ export function BoardCard(props: BoardCardProps) {
         {error && <p className="text-cu-secondary text-loss">{error}</p>}
         </div>
       </Card>
+
+      {props.circleId && (
+        <CirclePreviewSheet
+          circleId={props.circleId}
+          circleName={props.circleName}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
 
       <Sheet open={open} onClose={() => (busy ? undefined : setOpen(false))} title="Ask to join">
         <div className="flex flex-col gap-3">

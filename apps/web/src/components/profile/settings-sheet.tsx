@@ -5,6 +5,7 @@ import { Button, Card, InfoTerm, Meta, Sheet, SubmitButton } from "@/components/
 import { updateDisplayNameAction } from "@/lib/actions";
 import { updateDiscoverySettingsAction } from "@/app/(app)/profile/discovery-actions";
 import { updatePlayerAttrsAction } from "@/app/(app)/profile/player-attrs-actions";
+import { HomeCourtPicker, homeCourtErrorCopy } from "@/components/profile/home-court-picker";
 import { COURT_SIDES, DOMINANT_HANDS } from "@/lib/player-attrs";
 
 export interface VenueOption {
@@ -104,6 +105,23 @@ export function SettingsSheet({
   // form-reset-on-resolve, and the segments need local state anyway.
   const [hand, setHand] = useState(dominantHand ?? "");
   const [side, setSide] = useState(courtSide ?? "");
+  // The discovery form is fully controlled too, because it can FAIL and stay
+  // open: an add-a-new-court save with a bad postcode resolves with an error,
+  // and React 19's form-reset-on-resolve would wipe uncontrolled fields (the
+  // typed name and postcode included) the instant the action returned.
+  const [findableOn, setFindableOn] = useState(findable);
+  const [addingCourt, setAddingCourt] = useState(false);
+  const [homeVenue, setHomeVenue] = useState(homeVenueId ?? "");
+  const [courtName, setCourtName] = useState("");
+  const [courtAddress, setCourtAddress] = useState("");
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  // Bumped on every FAILED discovery save to remount the form. React 19's
+  // form-reset-on-resolve rewrites the DOM under React, and a controlled
+  // <select> whose value prop didn't change skips its DOM write — so after a
+  // failed save the select would DISPLAY the first option while state still
+  // says "add a new court" (verified live). Remounting re-asserts every
+  // controlled value from the state above, which the reset can't touch.
+  const [discoveryFormEpoch, setDiscoveryFormEpoch] = useState(0);
   const showOnCourt = dominantHand !== undefined || courtSide !== undefined;
 
   // Close the sheet once a save lands. This is load-bearing, not cosmetic:
@@ -121,6 +139,25 @@ export function SettingsSheet({
       await action(formData);
       setOpen(false);
     };
+  }
+
+  // The discovery save can FAIL (add-a-new-court with a postcode that doesn't
+  // resolve), in which case the sheet stays open showing the friendly line —
+  // its fields are controlled, so nothing snaps back. On success it follows
+  // save-then-close like the other forms.
+  async function saveDiscovery(formData: FormData) {
+    const result = await updateDiscoverySettingsAction(formData);
+    if (!result.ok) {
+      setDiscoveryError(homeCourtErrorCopy(result.error));
+      setDiscoveryFormEpoch((n) => n + 1); // remount past the form reset (see above)
+      return;
+    }
+    setHomeVenue(result.homeVenueId ?? "");
+    setAddingCourt(false);
+    setCourtName("");
+    setCourtAddress("");
+    setDiscoveryError(null);
+    setOpen(false);
   }
 
   return (
@@ -155,7 +192,7 @@ export function SettingsSheet({
           </Card>
 
           <Card className="flex flex-col gap-3">
-            <form action={saveThenClose(updateDiscoverySettingsAction)} className="flex flex-col gap-3">
+            <form key={discoveryFormEpoch} action={saveDiscovery} className="flex flex-col gap-3">
               <p className="text-cu-secondary font-semibold text-ink-muted">
                 Games <InfoTerm term="board" label="near you" />
               </p>
@@ -164,7 +201,8 @@ export function SettingsSheet({
                 <input
                   type="checkbox"
                   name="findable"
-                  defaultChecked={findable}
+                  checked={findableOn}
+                  onChange={(e) => setFindableOn(e.target.checked)}
                   className="size-5 accent-[var(--color-action)]"
                 />
                 <span className="text-cu-body text-ink flex-1">Let nearby games find me</span>
@@ -173,24 +211,26 @@ export function SettingsSheet({
                 Only Circles you don&apos;t belong to see you, and only as a rough distance, never your exact location.
               </Meta>
 
-              <label htmlFor="homeVenueId" className="text-cu-secondary font-semibold text-ink-muted mt-1">
-                Home venue
-              </label>
-              <select
-                id="homeVenueId"
-                name="homeVenueId"
-                defaultValue={homeVenueId ?? ""}
-                className="w-full rounded-button px-4 py-3 text-cu-body outline-none bg-ground border border-ink-hairline-2 text-ink"
-                style={{ minHeight: "var(--touch-target)" }}
-              >
-                <option value="">No home venue</option>
-                {venueOptions.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
-              <Meta as="p">This is what places you on The Board, pick where you usually play.</Meta>
+              <p className="text-cu-secondary font-semibold text-ink-muted mt-1">
+                <InfoTerm term="homeCourt" label="Home court" />
+              </p>
+              <HomeCourtPicker
+                venues={venueOptions}
+                adding={addingCourt}
+                onAddingChange={(next) => {
+                  setAddingCourt(next);
+                  setDiscoveryError(null);
+                }}
+                venueId={homeVenue}
+                onVenueIdChange={setHomeVenue}
+                courtName={courtName}
+                onCourtNameChange={setCourtName}
+                courtAddress={courtAddress}
+                onCourtAddressChange={setCourtAddress}
+                error={discoveryError}
+                selectId="homeVenueId"
+                fieldClassName="w-full rounded-button px-4 py-3 text-cu-body outline-none bg-ground border border-ink-hairline-2 text-ink min-h-[var(--touch-target)]"
+              />
 
               <SubmitButton variant="strong" size="lg" fullWidth>
                 Save

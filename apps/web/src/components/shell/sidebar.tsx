@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ShellCircle, ShellContext, ShellData } from "./contract";
+import { ChatDockPill } from "./chat-dock-pill";
 import { QuickSwitchHint } from "./hotkeys";
 
 /*
@@ -282,7 +283,14 @@ function CircleSidebar({ data, context }: { data: ShellData; context: Extract<Sh
           active={context.active === "chat"}
           label="Chat"
           icon={ICONS.chat}
-          trailing={<UnreadPill count={circle?.unreadChatCount ?? 0} />}
+          // Design order: dock pill, then the unread pill (issue #29). The
+          // fragment's children pick up the NavRow flex gap as siblings.
+          trailing={
+            <>
+              <ChatDockPill />
+              <UnreadPill count={circle?.unreadChatCount ?? 0} />
+            </>
+          }
         />
         <NavRow href={`${base}/members`} active={context.active === "members"} label="Members" icon={ICONS.members} />
         <NavRow href={`${base}/games`} active={context.active === "games"} label="Games" icon={ICONS.games} />
@@ -379,7 +387,7 @@ export function Sidebar({ data, context, className = "" }: { data: ShellData; co
           <div style={{ font: `400 10px ${MONO}`, color: BONE_MUTED }}>{data.identity.factLine}</div>
         </div>
       </Link>
-      <div style={{ marginTop: 10, textAlign: "center", font: `400 10px ${MONO}`, color: "rgba(245,242,236,.3)" }}>no fees · no ads · no dark patterns</div>
+      <div style={{ marginTop: 10, textAlign: "center", font: `400 10px ${MONO}`, color: "rgba(245,242,236,.3)" }}>no fees · no ads · no sneaky lobs</div>
     </aside>
   );
 }

@@ -1,11 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Avatar, AvatarStack, Card, Fact, Meta, PendingSpinner, Sheet } from "@/components/ui";
+import { AvatarStack, Card, Meta, PendingSpinner, Sheet } from "@/components/ui";
 import { CircleEmblem } from "@/components/games/roster";
-import { circleColorFor, formatGlass } from "@/lib/design";
+import { circleColorFor } from "@/lib/design";
+import {
+  CirclePreviewBody,
+  circleSubline,
+  circleVibeLine,
+  knockErrorCopy,
+} from "@/components/discover/circle-preview-sheet";
 import type { NearbyCircle } from "@/server/open-door";
 
 /**
@@ -15,26 +20,12 @@ import type { NearbyCircle } from "@/server/open-door";
  * (/api/knocks/circle); no new mutation this wave. Outline "Ask to join" per
  * the design — the card carries no coral (the panel's optional coral budget is
  * spent by the games grid, and a directory card asking to join is a quiet act).
+ *
+ * The pre-join preview sheet body is the SHARED CirclePreviewBody (circle-
+ * preview-sheet.tsx) — the same preview a Board card or an outsider's game page
+ * opens — rendered here from the card's own already-loaded data, with the
+ * card's knock state driving both surfaces so "Asked" can never drift.
  */
-
-// Human copy for the circle-knock error codes — a page-local map, matching the
-// phone Open Door card (components/circles/nearby-circle-card.tsx). Kept out of
-// the shared lib/error-copy.ts because these codes are specific to this flow.
-const KNOCK_ERROR_COPY: Record<string, string> = {
-  door_closed: "This Circle just closed its door, try another one near you.",
-  already_member: "You're already in this Circle.",
-  already_knocked: "You've already knocked here, the organiser will get back to you.",
-  is_guest: "Claim your account first, then you can knock.",
-  circle_not_found: "That Circle isn't around any more.",
-  circle_full: "That Circle is at its limit, so no one new can join right now.",
-  network_error: "Couldn't reach the server, check your connection and try again.",
-  something_went_wrong: "That didn't go through. Give it another tap.",
-};
-
-function levelRangeText(level: NearbyCircle["level"]): string | null {
-  if (!level) return null;
-  return level.min === level.max ? level.min.toFixed(2) : `${level.min.toFixed(2)}–${level.max.toFixed(2)}`;
-}
 
 export function DiscoverCircleCard({ data }: { data: NearbyCircle }) {
   const router = useRouter();
@@ -44,16 +35,10 @@ export function DiscoverCircleCard({ data }: { data: NearbyCircle }) {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const colour = data.colour ?? circleColorFor(data.circleId);
-  const range = levelRangeText(data.level);
   // "12 members · Sundays" style subline — the design's mono fact under the name.
-  const subline = [
-    `${data.memberCount} member${data.memberCount === 1 ? "" : "s"}`,
-    data.cadence,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const subline = circleSubline(data.memberCount, data.cadence);
   // "Level 3.8–4.6 · rotating pairs" — level first, then the Circle's own vibe line.
-  const vibe = [range ? `Level ${range}` : "Levels forming", data.vibeLine].filter(Boolean).join(" · ");
+  const vibe = circleVibeLine(data.level, data.vibeLine);
 
   async function knock() {
     setBusy(true);
@@ -153,77 +138,28 @@ export function DiscoverCircleCard({ data }: { data: NearbyCircle }) {
           </button>
         )}
 
-        {error && <Meta tone="action">{KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}</Meta>}
+        {error && <Meta tone="action">{knockErrorCopy(error)}</Meta>}
       </Card>
 
-      {/* Pre-join preview — mirrors the phone Open Door sheet (components/
-          circles/nearby-circle-card.tsx): vibe, the public facts, who plays
-          here, then the same knock affordance. Aggregate/public data only. */}
+      {/* Pre-join preview — the shared sheet body, fed from this card's data
+          (no refetch) and this card's knock state (card + sheet stay in step). */}
       <Sheet open={previewOpen} onClose={() => setPreviewOpen(false)} title={data.name}>
-        <p className="text-cu-body text-ink">{vibe}</p>
-        <div className="mt-4 flex flex-col gap-1">
-          <Meta as="p">
-            {data.venueArea ?? "Nearby"} · {data.distanceLabel}
-          </Meta>
-          {data.cadence && <Meta as="p">plays {data.cadence}</Meta>}
-          <Meta as="p">{subline}</Meta>
-        </div>
-        {data.members.length > 0 && (
-          <div className="mt-4 flex flex-col gap-1">
-            <Meta as="p" className="mb-1">
-              Who plays here
-            </Meta>
-            {data.members.map((m) => (
-              <Link
-                key={m.userId}
-                href={`/players/${m.userId}`}
-                className="flex items-center gap-3 py-1.5 rounded-button transition-cu-state hover:bg-ink-hairline-1 active:bg-ink-hairline-1"
-              >
-                <Avatar src={m.avatarUrl} name={m.displayName} size="md" />
-                <div className="flex-1 min-w-0">
-                  <span className="text-cu-body text-ink truncate">{m.displayName}</span>
-                  {m.role === "organiser" && <Meta as="p">organiser</Meta>}
-                </div>
-                {m.rating != null ? (
-                  <Fact size="md" weight="bold">
-                    {formatGlass(m.rating)}
-                  </Fact>
-                ) : (
-                  <Meta>not rated yet</Meta>
-                )}
-              </Link>
-            ))}
-          </div>
-        )}
-        <p className="text-cu-meta text-ink-muted mt-4">
-          Only the organiser sees your knock, nothing about this Circle is shared until you&apos;re in.
-        </p>
-        <div className="mt-4">
-          {pending ? (
-            <button
-              type="button"
-              onClick={withdraw}
-              disabled={busy}
-              className="w-full cursor-pointer rounded-button border border-ink-hairline-4 text-ink font-bold text-[12px] text-center py-2.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50"
-            >
-              {busy ? <PendingSpinner /> : null} Withdraw knock
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={knock}
-              disabled={busy}
-              className="w-full cursor-pointer rounded-button border border-ink-hairline-4 text-ink font-bold text-[12px] text-center py-2.5 transition-cu-state hover:bg-ink-hairline-1 active:opacity-80 disabled:opacity-50"
-            >
-              {busy ? <PendingSpinner /> : null} Ask to join
-            </button>
-          )}
-          {error && (
-            <Meta as="p" tone="action" className="mt-2">
-              {KNOCK_ERROR_COPY[error] ?? KNOCK_ERROR_COPY.something_went_wrong}
-            </Meta>
-          )}
-        </div>
+        <CirclePreviewBody
+          data={{
+            circleId: data.circleId,
+            name: data.name,
+            vibeLine: data.vibeLine,
+            level: data.level,
+            venueArea: data.venueArea,
+            distanceLabel: data.distanceLabel,
+            cadence: data.cadence,
+            memberCount: data.memberCount,
+            members: data.members,
+            openDoor: data.tier === "open",
+            hasPendingKnock: pending,
+          }}
+          knock={{ pending, busy, error, onKnock: knock, onWithdraw: withdraw }}
+        />
       </Sheet>
     </>
   );

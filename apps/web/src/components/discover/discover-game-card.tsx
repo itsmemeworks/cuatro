@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Avatar, Button, Card, DashedSlot, Fact, Meta, PendingSpinner, Sheet } from "@/components/ui";
+import { Avatar, Button, Card, DashedSlot, Fact, InfoTerm, Meta, PendingSpinner, Sheet } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
+import { CirclePreviewSheet } from "@/components/discover/circle-preview-sheet";
 import type { DiscoverConfirmedPlayer, DiscoverGame } from "@/server/discover-page";
 
 /**
@@ -75,6 +76,7 @@ function SlotRow({
 export function DiscoverGameCard({ game }: { game: DiscoverGame }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [pending, setPending] = useState(game.viewerHasPendingKnock);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -152,14 +154,28 @@ export function DiscoverGameCard({ game }: { game: DiscoverGame }) {
             {whenLabel(game.startsAtMs)}
           </span>
           <span className="flex-1" />
-          <Fact size="meta" tone="muted" className="whitespace-nowrap">
-            {game.distanceLabel}
+          <Fact size="meta" tone="muted" className="relative whitespace-nowrap">
+            <InfoTerm term="patch" label={game.distanceLabel} />
           </Fact>
         </div>
 
         <p className="text-cu-card-title text-[17px] leading-tight text-ink truncate">{title}</p>
+        {/* The hosting Circle is tappable (Pete, 2026-07-11: "I should be able
+            to click circles to view them before asking to join") — every game
+            here is from a Circle the viewer is NOT in (boardGames scopes to
+            non-member Circles), so it opens the public preview sheet. Sits
+            above the stretched detail link (position:relative). */}
         <Fact as="p" size="meta" tone="muted" className="truncate">
-          hosted by {game.circleName} · {game.levelLine}
+          hosted by{" "}
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            aria-label={`Have a look at ${game.circleName}`}
+            className="relative cursor-pointer underline decoration-dotted underline-offset-2 transition-cu-state hover:text-ink"
+          >
+            {game.circleName}
+          </button>{" "}
+          · {game.levelLine}
         </Fact>
 
         <div className="flex items-center gap-3 mt-1">
@@ -186,6 +202,13 @@ export function DiscoverGameCard({ game }: { game: DiscoverGame }) {
         </div>
         {error && <Meta tone="loss">{error}</Meta>}
       </Card>
+
+      <CirclePreviewSheet
+        circleId={game.circleId}
+        circleName={game.circleName}
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+      />
 
       <Sheet open={open} onClose={() => (busy ? undefined : setOpen(false))} title="Ask to join">
         <div className="flex flex-col gap-3">

@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "@/server/games-db";
 import { checkFourthCallLevel1, getSessionSummary, lockRotationIfDue, offerRotationSlotIfNeeded, DEFAULT_SESSION_DURATION_MINUTES } from "@/server/games-service";
 import { hasFourthCallInvite } from "@/server/fourth-call";
+import { getSessionViewerContext } from "@/server/session-viewer";
 import { isOrganiser } from "@/server/standing-games-service";
 import { getMatchesStore } from "@/server/matches-db";
 import { listNotificationsForUser } from "@/server/notifications";
@@ -19,6 +20,7 @@ import { ToastBoundary } from "@/components/circle-screens/toast-boundary";
 import { sessionOgImageUrl } from "@/lib/og";
 import { formatDateTime, formatDayTime, formatDayTimeLong } from "@/lib/time";
 import { GameDetail } from "@/components/circle-screens/wide/wide-game-detail";
+import { outsiderCanAsk } from "@/components/circle-screens/wide/wide-game-detail-model";
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -168,6 +170,13 @@ export default async function SessionDetailPage({
   const upcoming = summary.session.status === "upcoming" && Date.now() < summary.session.startsAt;
   const viewerIsOrganiser = await isOrganiser(db, summary.circleId, user.id);
 
+  // Who's looking? Game READS are ungated, so a signed-in NON-member can land
+  // here from Discover/The Board/a shared link — they get the shop-window
+  // treatment (Discover back-link, circle preview, read-only roster, the ask
+  // affordance) instead of member chrome (server/session-viewer.ts).
+  const viewerContext = await getSessionViewerContext(db, { circleId: summary.circleId, sessionId, userId: user.id });
+  const viewerIsMember = viewerContext.viewerIsMember;
+
   // Pending asks-to-join (Board knocks) — only the organiser decides them.
   const knockRows: KnockRow[] = viewerIsOrganiser
     ? (await sessionKnocks(db, sessionId)).map((k) => ({
@@ -186,7 +195,9 @@ export default async function SessionDetailPage({
   const durationMinutes = summary.standingGame?.durationMinutes ?? DEFAULT_SESSION_DURATION_MINUTES;
   const alreadySplit = isPast && summary.costMinor != null ? await hasTabSplitForSession(db, sessionId) : false;
   const boundCreateSplit = createTabSplitForSessionAction.bind(null, sessionId);
-  const boundPinLocation = summary.venue
+  // Pinning a venue is a member act (the action gates server-side too) — an
+  // outsider's venue card is display-only.
+  const boundPinLocation = summary.venue && viewerIsMember
     ? pinVenueLocationAction.bind(null, summary.circleId, summary.venue.name, summary.venue.address ?? null)
     : null;
 
@@ -238,8 +249,24 @@ export default async function SessionDetailPage({
       viewerStatusLine = `You're available this week · ${whenShort}`;
     else if (summary.viewerStatus === "out")
       viewerStatusLine = summary.rotation ? "You said you're not available this week" : "You said you can't make this one";
-    else if (rsvpWindowOpen) viewerStatusLine = "You haven't answered yet";
+    // "You haven't answered yet" is a member's RSVP nudge — an outsider has no
+    // RSVP to answer (their states above CAN apply: an accepted knocker or
+    // Fourth Call claimant holds a slot without membership).
+    else if (rsvpWindowOpen && viewerIsMember) viewerStatusLine = "You haven't answered yet";
   }
+
+  // The outsider ask affordance (same knock the Board cards fire) — only when
+  // asking could actually succeed (createSessionKnock's own gate, mirrored in
+  // outsiderCanAsk).
+  const outsiderAsk = outsiderCanAsk({
+    viewerIsMember,
+    upcoming,
+    gameFull,
+    rsvpWindowOpen,
+    viewerStatus: summary.viewerStatus,
+  })
+    ? { initialPending: viewerContext.viewerHasPendingSessionKnock }
+    : null;
 
   return (
     <ToastBoundary>
@@ -249,6 +276,9 @@ export default async function SessionDetailPage({
         glassByUserId={glassByUserId}
         guestByUserId={guestByUserId}
         viewerIsOrganiser={viewerIsOrganiser}
+        viewerIsMember={viewerIsMember}
+        circlePreviewEnabled={viewerContext.circlePreviewEnabled}
+        outsiderAsk={outsiderAsk}
         upcoming={upcoming}
         gameFull={gameFull}
         isPast={isPast}

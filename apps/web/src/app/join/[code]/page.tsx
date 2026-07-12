@@ -72,7 +72,7 @@ function CircleFullNotice({
           </p>
         </div>
       </div>
-      <Meta>no fees · no ads · no dark patterns</Meta>
+      <Meta>no fees · no ads · no sneaky lobs</Meta>
     </main>
   );
 }
@@ -171,7 +171,7 @@ export default async function JoinPage({
             initial={initial}
           />
         </div>
-        <Meta>no fees · no ads · no dark patterns</Meta>
+        <Meta>no fees · no ads · no sneaky lobs</Meta>
       </main>
     );
   }
@@ -211,7 +211,7 @@ export default async function JoinPage({
           </Link>
         </div>
 
-        <Meta>no fees · no ads · no dark patterns</Meta>
+        <Meta>no fees · no ads · no sneaky lobs</Meta>
       </main>
     );
   }

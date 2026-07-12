@@ -3,7 +3,7 @@
 import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Avatar, Button, Meta } from "@/components/ui";
+import { Avatar, Button, InfoTerm, Meta } from "@/components/ui";
 import { saveDoorSettings } from "@/app/(app)/circles/[id]/door-actions";
 import { removeMemberAction } from "@/app/(app)/circles/[id]/lifecycle-actions";
 import type { MemberListItem } from "@/components/circles/member-list";
@@ -397,6 +397,12 @@ export function WideSettings({
                     <div className="font-sans font-bold text-[12.5px] text-ink mt-0.5">{f.value}</div>
                   </div>
                 ))}
+              </div>
+
+              {/* Venue-anchored discovery, said out loud: a Circle's games are its address. */}
+              <div className="px-[18px] -mt-1 pb-2.5 font-mono text-[10px] text-ink-muted">
+                {primaryGame.venueName ? `${primaryGame.venueName} · ` : ""}the venue sets{" "}
+                <InfoTerm term="circleLocation" label="where this Circle appears" /> for nearby players
               </div>
 
               <div className="flex items-center gap-3 px-[18px] pb-3.5">

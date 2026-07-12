@@ -30,10 +30,71 @@
  *   here — the thread arrives via CircleChat's existing
  *   GET /api/circles/[id]/messages backfill, no new layout queries).
  */
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { CircleChat } from "@/components/circles/circle-chat";
+import { BookingChip } from "@/components/games/booking-chip";
+import { whenLabel } from "@/components/week/format";
 import { Meta } from "@/components/ui";
 import { setChatDockPref, useChatDockPref, useDesktopWide } from "@/lib/chat-dock";
 import type { ShellCircle } from "./contract";
+import { parsePinnedGameResponse, pinnedStatusLine, type DockPinnedGame } from "./docked-pinned-game";
+
+/**
+ * The dock's pinned-game card (issue #29; design "docked chat rail"): the
+ * circle's pinned game — the same first-upcoming session PinnedGameBar shows
+ * on the circle pages — compact under the dock header. One light fetch per
+ * circle from GET /api/circles/[id]/pinned-game (which wraps the circle
+ * pages' existing pinned-game read), gated on the live ≥1440 check like the
+ * chat mount so phone/tablet viewports never pay for it. Best-effort: any
+ * error or "nothing upcoming" renders no card, never a broken one.
+ *
+ * The whole card is a Link to the game (every rendered game is actionable,
+ * CLAUDE.md 7b) — so the BookingChip drops its outbound URL exactly like the
+ * week grid's cells (a nested <a> is invalid HTML); the game detail behind
+ * the link carries the tappable "pay on X ↗" chip.
+ */
+function DockedPinnedGame({ circleId, colour, wide }: { circleId: string; colour: string; wide: boolean }) {
+  const [game, setGame] = useState<DockPinnedGame | null>(null);
+
+  useEffect(() => {
+    if (!wide) return;
+    let cancelled = false;
+    setGame(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/circles/${circleId}/pinned-game`);
+        if (!res.ok) return;
+        const parsed = parsePinnedGameResponse(await res.json());
+        if (!cancelled) setGame(parsed);
+      } catch {
+        // Best-effort — the dock just shows no card until the next mount.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [circleId, wide]);
+
+  if (!game) return null;
+  return (
+    <Link
+      href={`/games/${game.sessionId}`}
+      className="block mx-3 mt-2.5 rounded-[12px] px-3 py-2 transition-cu-state hover:opacity-85"
+      style={{ background: `${colour}22`, border: `1px solid ${colour}` }}
+    >
+      <p className="font-sans font-bold text-[11.5px] leading-[1.3] text-ink truncate">
+        📌 {whenLabel(game.startsAt, game.timezone)} · {game.venueName ?? "Venue TBC"}
+      </p>
+      <p className="font-mono text-[10px] text-ink-muted mt-0.5">{pinnedStatusLine(game.slots, game.confirmedCount)}</p>
+      {game.booking && (
+        <div className="mt-1">
+          <BookingChip booking={{ platform: game.booking.platform, url: null }} size={16} />
+        </div>
+      )}
+    </Link>
+  );
+}
 
 export function DockedChat({
   circleId,
@@ -98,6 +159,10 @@ export function DockedChat({
             undock
           </button>
         </div>
+        {/* The circle's pinned game rides under the header (issue #29, the
+            design's dock card) — fetched client-side, ≥1440-gated like the
+            chat mount below. */}
+        {circle && <DockedPinnedGame circleId={circleId} colour={circle.color} wide={wide} />}
         {/* Chat mounts only once the ≥1440 media gate is live-verified —
             see the file header. Until then (SSR/hydration, or a narrower
             viewport where CSS hides this column anyway) the body is an

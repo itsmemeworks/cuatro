@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/session";
 import { getGamesClient } from "./games-db";
-import { createStandingGame, resolveVenue, updateStandingGame } from "./standing-games-service";
+import { createStandingGame, InvalidVenueError, resolveVenue, updateStandingGame } from "./standing-games-service";
 import { createOneOffSession, rescheduleUpcomingSessionsForStandingGame } from "./games-service";
 import { zonedWallTimeToUtc } from "./tz";
 import { emitCircleEvent, emitSessionEvent } from "@/lib/realtime/broadcast";
@@ -151,7 +151,13 @@ export async function createOneOffSessionAction(formData: FormData): Promise<voi
     name: String(formData.get("venueName") ?? ""),
     address: String(formData.get("venueAddress") ?? ""),
   });
-  const venueId = await resolveVenue(db, circleId, venue.venueId, venue.venueName, venue.venueAddress);
+  let venueId: string | null;
+  try {
+    venueId = await resolveVenue(db, circleId, venue.venueId, venue.venueName, venue.venueAddress);
+  } catch (err) {
+    if (err instanceof InvalidVenueError) redirect(backToForm("invalid_venue"));
+    throw err;
+  }
 
   let timezone = circleRow.timezone;
   if (venueId) {

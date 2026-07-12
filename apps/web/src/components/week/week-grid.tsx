@@ -70,15 +70,15 @@ function FillMeta({ session, onFeature = false }: { session: WeekSession; onFeat
   // The needs-answer cell sits on the fixed-dark surface-feature card, where
   // theme-reactive ink-muted goes dark-on-dark — use the on-feature muted ink
   // there (same rule as components/ui/button.tsx's onFeature). The booking
-  // tile is skipped on that card too: BookingChip's theme-reactive tile is
-  // equally invisible there, and the design's needs-answer cell carries no
-  // chip — the game detail behind the cell's link has the full signpost.
+  // tile rides the same switch: BookingChip's `onFeature` variant (issue #29)
+  // renders fixed bone inks, so the booked-on tile now shows on that card too
+  // instead of Wave C's deliberate omission.
   const mutedClass = onFeature ? "text-ink-on-feature-muted" : "text-ink-muted";
-  const booking = !onFeature && session.moneyOptIn?.kind === "booking" ? session.moneyOptIn.booking : null;
+  const booking = session.moneyOptIn?.kind === "booking" ? session.moneyOptIn.booking : null;
   if (!booking) return <div className={`text-[10px] font-mono mt-1 ${mutedClass}`}>{fillMeta(session)}</div>;
   return (
     <div className="flex items-center gap-1.5 mt-1">
-      <BookingChip booking={{ platform: booking.platform, url: null }} size={16} showLabel={false} />
+      <BookingChip booking={{ platform: booking.platform, url: null }} size={16} showLabel={false} onFeature={onFeature} />
       <span className={`text-[10px] font-mono ${mutedClass}`}>{fillMeta(session)}</span>
     </div>
   );

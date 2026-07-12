@@ -34,6 +34,11 @@ export function dockPrefFromStorage(raw: string | null): boolean {
   return raw !== "0";
 }
 
+/** Pure: the sidebar Chat row's dock-pill text (design: `docked ✓` when docked, `dock` when not). */
+export function dockPillLabel(docked: boolean): string {
+  return docked ? "docked ✓" : "dock";
+}
+
 const prefListeners = new Set<() => void>();
 let storageBound = false;
 

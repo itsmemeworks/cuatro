@@ -233,7 +233,7 @@ export function OnboardingWelcome({
         </div>
 
         <Meta as="p" className="text-center mt-6">
-          no fees · no ads · no dark patterns
+          no fees · no ads · no sneaky lobs
         </Meta>
       </div>
     </main>

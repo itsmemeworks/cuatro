@@ -41,6 +41,21 @@ export const GLOSSARY = {
     plain: "The people you've shared a court with in a confirmed game. When your Circle is short, the Fourth Call reaches them before it looks any wider.",
     why: "The four you already know comes first. Only games both teams confirmed count, so it's people you've genuinely played with, not passing strangers.",
   },
+  patch: {
+    term: "Your patch",
+    plain: "The area you play in, anchored to your home court. Everything 'near you' is measured court to court from there, roughly on purpose.",
+    why: "CUATRO never reads your GPS. Pick a home court and that's your patch; change it any time and your patch moves with it.",
+  },
+  homeCourt: {
+    term: "Home court",
+    plain: "The court you usually play at. It sets your patch, which is how nearby games and Circles find you.",
+    why: "One venue, not a pin on your house. If your court isn't listed yet, add it by name and postcode and it's on the map for everyone.",
+  },
+  circleLocation: {
+    term: "Where a Circle lives",
+    plain: "A Circle shows up wherever its games are played, its venues are its address.",
+    why: "No one sets a Circle's location by hand. Book your games at a court and that's where nearby players will find you.",
+  },
   localRing: {
     term: "Local Ring",
     plain: "When your Circle can't fill a game, the Fourth Call reaches nearby players at your level who've said they're up for games.",

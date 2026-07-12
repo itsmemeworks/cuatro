@@ -194,7 +194,7 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
         </>
       )}
 
-      <Meta>no fees · no ads · no dark patterns</Meta>
+      <Meta>no fees · no ads · no sneaky lobs</Meta>
     </main>
   );
 }
