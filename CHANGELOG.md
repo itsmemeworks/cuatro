@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0](https://github.com/itsmemeworks/cuatro/compare/v1.2.0...v1.3.0) (2026-07-12)
+
+
+### Features
+
+* desktop-native shell (Wave D), quick switcher, docked chat, browser notifications ([#26](https://github.com/itsmemeworks/cuatro/issues/26)) ([4371220](https://github.com/itsmemeworks/cuatro/commit/4371220ee048bdd21699c9da4924986b30cc772b))
+* responsive web shell (Wave A), two-context chrome at 1440 and 1024 ([#22](https://github.com/itsmemeworks/cuatro/issues/22)) ([46d5f4b](https://github.com/itsmemeworks/cuatro/commit/46d5f4b21626e386e1ab2cf9781623a803609b04))
+* the flows at every width (Wave C) with money opt-in, hand/side, and interaction affordances ([#25](https://github.com/itsmemeworks/cuatro/issues/25)) ([9f40efd](https://github.com/itsmemeworks/cuatro/commit/9f40efd35bd39b137d83c1fd26572a324a588251))
+* wide read surfaces (Wave B), the two-context shell filled in ([#24](https://github.com/itsmemeworks/cuatro/issues/24)) ([7556f0c](https://github.com/itsmemeworks/cuatro/commit/7556f0c65a395e7b2d9f20f489a5793a59bdadd7))
+
+
+### Bug Fixes
+
+* give circle Settings a real route; shell Settings nav landed on the Feed ([#27](https://github.com/itsmemeworks/cuatro/issues/27)) ([be84541](https://github.com/itsmemeworks/cuatro/commit/be84541a0f6d66dab5b77f454c189035c67bffac))
+
 ## [1.2.0](https://github.com/itsmemeworks/cuatro/compare/v1.1.1...v1.2.0) (2026-07-11)
 
 
