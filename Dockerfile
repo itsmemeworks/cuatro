@@ -28,8 +28,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # client keys (anon/publishable), so safe to have flow through build args.
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_TILES_URL
+ARG NEXT_PUBLIC_APP_ENV
 ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+ENV NEXT_PUBLIC_TILES_URL=${NEXT_PUBLIC_TILES_URL}
+ENV NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV}
 # @cuatro/glass's package.json points main/types at dist/, which only
 # exists after this tsc build — must run before the Next build below.
 RUN npm run build --workspace=@cuatro/glass
