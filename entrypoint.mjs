@@ -21,6 +21,20 @@ try {
   console.warn(`[entrypoint] could not prepare ${dataDir}:`, err instanceof Error ? err.message : err);
 }
 
+// Next's image optimizer writes its disk LRU cache under the app's
+// .next/cache at runtime. The image fs is root-owned and we drop privileges
+// below, so without this the first /_next/image request throws an unhandled
+// EACCES (Sentry CUATRO-5) — avatars render through next/image, so that's a
+// real user path, not scanner noise. Standalone output nests the server
+// under apps/web (see the Dockerfile COPY notes).
+const nextCacheDir = "/app/apps/web/.next/cache";
+try {
+  fs.mkdirSync(nextCacheDir, { recursive: true });
+  fs.chownSync(nextCacheDir, APP_UID, APP_GID);
+} catch (err) {
+  console.warn(`[entrypoint] could not prepare ${nextCacheDir}:`, err instanceof Error ? err.message : err);
+}
+
 process.setgid(APP_GID);
 process.setuid(APP_UID);
 
