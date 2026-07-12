@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, Card, Fact, Meta } from "@/components/ui";
+import { FeedCircleTag, type FeedCircleTagData } from "./result-post";
 import { useRespectToggle } from "./use-respect-toggle";
 
 export interface PlacementRevealPostData {
@@ -27,11 +28,13 @@ export interface PlacementRevealPostData {
  * "her", but Cuatro doesn't collect gender, so this deliberately stays
  * neutral rather than guessing.
  */
-export function PlacementRevealPost({ data }: { data: PlacementRevealPostData }) {
+export function PlacementRevealPost({ data, circle }: { data: PlacementRevealPostData; circle?: FeedCircleTagData }) {
   const { respected, count, pending, toggle } = useRespectToggle(data.matchId, data.viewerRespected, data.respectCount);
 
   return (
-    <Card className="flex items-center gap-3">
+    <Card className="flex flex-col gap-2.5">
+      {circle && <FeedCircleTag circle={circle} />}
+      <div className="flex items-center gap-3">
       <Avatar src={data.avatarUrl} name={data.displayName} size="md" />
       <div className="flex-1 min-w-0">
         <p className="text-cu-body text-ink leading-snug">
@@ -54,6 +57,7 @@ export function PlacementRevealPost({ data }: { data: PlacementRevealPostData })
       >
         <span aria-hidden>👏</span> {count}
       </button>
+      </div>
     </Card>
   );
 }

@@ -20,6 +20,9 @@ import { resolvePatch } from "@/server/patch";
 import type { BoardCardProps } from "@/components/games/board-card";
 import { getWeekData } from "@/server/week";
 import { WeekView } from "@/components/week/week-view";
+import { getHomeFeed } from "@/server/home-feed";
+import { HomeFeedSection } from "@/components/home-feed/home-feed-section";
+import { boardGameToCardProps, serializeHomeFeedItems } from "@/components/home-feed/serialize";
 
 /**
  * `quiet` (design/DESIGN-AUDIT.md H4's "'Manage' quiet") is ink-muted, not
@@ -379,27 +382,25 @@ export default async function HomePage() {
   // untouched (byte-for-byte); the two branches are CSS-selected, never a JS
   // width switch. Phone-home dedup onto this aggregate is deferred (Wave B
   // "(later)", WEB-SHELL-SPEC.md §New product surface 4).
-  const weekData = await getWeekData(user.id, new Date(now));
-  const boardCards: BoardCardProps[] = board.map((g) => ({
-    sessionId: g.sessionId,
-    circleId: g.circleId,
-    circleName: g.circleName,
-    circleColour: g.circleColour,
-    circleEmblem: g.circleEmblem,
-    venueName: g.venueName,
-    whenLabel: g.startsAt.toLocaleString("en-GB", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    distanceLabel: g.distanceLabel,
-    levelLine: g.levelLine,
-    slotsOpen: g.slotsOpen,
-    confirmed: g.confirmed,
-    initialPending: g.viewerHasPendingKnock,
-  }));
+  // The cross-circle feed (server/home-feed.ts) rides the same request:
+  // read-only, batched, and handed the Board list already fetched above so
+  // discovery's queries are never paid twice. See that file's cost profile.
+  const [weekData, homeFeed] = await Promise.all([
+    getWeekData(user.id, new Date(now)),
+    getHomeFeed(user.id, { board, now: new Date(now) }),
+  ]);
+  const boardCards: BoardCardProps[] = board.map(boardGameToCardProps);
+  const feedItems = serializeHomeFeedItems(homeFeed.items);
+  // Phone: the "Near you" BoardSection below already owns Board cards, and the
+  // featured NeedsAnswerCard already owns its session — don't say either twice.
+  const phoneFeedItems = feedItems.filter(
+    (i) => i.kind !== "board_game" && !(i.kind === "open_slot" && i.slot.sessionId === featured?.session.id),
+  );
+  // Wide: the needs-answer panel under the grid owns ITS session; the Board has
+  // no other wide surface, so board cards stay in the feed here.
+  const wideFeedItems = feedItems.filter(
+    (i) => !(i.kind === "open_slot" && i.slot.sessionId === weekData.needsAnswer?.sessionId),
+  );
 
   return (
     <>
@@ -512,6 +513,11 @@ export default async function HomePage() {
         </section>
       )}
 
+          {/* The cross-circle feed (Pete, 2026-07-12) — activity and open spots
+              from every Circle, below the diary sections. A circle-less viewer
+              keeps the existing empty home untouched. */}
+          {!hasNoCircles && <HomeFeedSection variant="phone" items={phoneFeedItems} />}
+
           <BoardSection hasPatch={patch !== null} games={boardCards} />
         </main>
       </div>
@@ -524,6 +530,9 @@ export default async function HomePage() {
           data={weekData}
           viewer={{ userId: user.id, displayName: user.displayName || name, avatarUrl: user.avatarUrl }}
         />
+        {/* Below the week: the living feed across every Circle (Pete,
+            2026-07-12 — "home should be a feed, not just the calendar"). */}
+        {!weekData.hasNoCircles && <HomeFeedSection variant="wide" items={wideFeedItems} className="mt-8" />}
       </div>
     </>
   );

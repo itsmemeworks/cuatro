@@ -80,3 +80,6 @@ Delta vs the phone prototype (what the web design ADDS, all Pete-reviewed and pu
 - Design laws restated in a comment at the top of the file, incl. the desktop restatement: **one coral action per PANEL**.
 
 Implementation spec: `WEB-SHELL-SPEC.md`. Verification bar for the web wave: screenshots at 1440 AND 1024 vs this file, plus 430px unchanged vs the phone prototype.
+
+# Home feed delta — 2026-07-12 (Pete-directed, beyond the authoritative design)
+/home is now week + living feed at every width: below the week grid (wide) and the phone home's sections, an "Across your Circles" section merges recent results + Glass reveals from every circle (each tagged with its circle), own-circle open-slot opportunities and up to 3 Board games (wide only; the phone keeps its Near you section instead). New aggregate `server/home-feed.ts`; posts reuse the circle feed components with a new circle-tag header; opportunities are quiet links, home's one coral action stays with the needs-answer card/panel.

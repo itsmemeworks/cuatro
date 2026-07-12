@@ -3,8 +3,35 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Avatar, Card, Chip, Fact, Meta } from "@/components/ui";
+import { CircleEmblem } from "@/components/games/roster";
 import { CommentSheet } from "./comment-sheet";
 import { useRespectToggle } from "./use-respect-toggle";
+
+/** Which Circle a cross-circle surface (the /home feed) attributes a post to — inside a circle's own Feed this is omitted and nothing renders. */
+export interface FeedCircleTagData {
+  circleId: string;
+  circleName: string;
+  circleColour: string | null;
+  circleEmblem: string | null;
+}
+
+/**
+ * The small emblem + name line above a feed post when it renders OUTSIDE its
+ * own circle (the /home cross-circle feed). Lives here, in the result post's
+ * file, so the placement-reveal post reuses it rather than copying the markup.
+ * Links into the circle (7b: no dead tiles) with a hover affordance.
+ */
+export function FeedCircleTag({ circle }: { circle: FeedCircleTagData }) {
+  return (
+    <Link
+      href={`/circles/${circle.circleId}`}
+      className="flex items-center gap-1.5 self-start text-[11px] font-bold text-ink-muted transition-cu-state hover:text-ink"
+    >
+      <CircleEmblem seed={circle.circleId} name={circle.circleName} emblem={circle.circleEmblem} colour={circle.circleColour} px={16} />
+      <span className="truncate">{circle.circleName}</span>
+    </Link>
+  );
+}
 
 export interface ResultPostPlayer {
   userId: string;
@@ -109,7 +136,7 @@ function teamDeltaDisplay(team: ResultPostTeamData): { text: string; delta: numb
  * team-average line ("Kav & Tom +0.02") when neither teammate's rating is
  * visible yet — see teamDeltaDisplay.
  */
-export function ResultPost({ data }: { data: ResultPostData }) {
+export function ResultPost({ data, circle }: { data: ResultPostData; circle?: FeedCircleTagData }) {
   const { respected, count, pending, toggle: toggleRespect } = useRespectToggle(data.matchId, data.viewerRespected, data.respectCount);
   const [commentCount, setCommentCount] = useState(data.commentCount);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -122,6 +149,7 @@ export function ResultPost({ data }: { data: ResultPostData }) {
 
   return (
     <Card className="flex flex-col gap-3">
+      {circle && <FeedCircleTag circle={circle} />}
       {data.outcome !== "completed" && (
         <Chip tone="neutral" className="self-start">
           {data.outcome === "retired" ? "retired" : "walkover"}
