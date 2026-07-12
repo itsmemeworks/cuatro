@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/itsmemeworks/cuatro/compare/v1.4.1...v1.5.0) (2026-07-12)
+
+
+### Features
+
+* ad-hoc matches, real notification prefs, outsider views, add-a-court, shell polish ([#35](https://github.com/itsmemeworks/cuatro/issues/35)) ([bf14609](https://github.com/itsmemeworks/cuatro/commit/bf1460934584467b9a1e87efe6869ccb3e4b4f21))
+
 ## [1.4.1](https://github.com/itsmemeworks/cuatro/compare/v1.4.0...v1.4.1) (2026-07-12)
 
 
