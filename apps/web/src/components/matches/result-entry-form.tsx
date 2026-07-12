@@ -3,7 +3,14 @@
 import { useMemo, useState } from "react";
 import { Avatar, Card, Fact, SubmitButton } from "@/components/ui";
 import { formatGlass } from "@/lib/design";
-import { recordMatchAction } from "@/server/matches-actions";
+import { recordAdHocMatchAction, recordMatchAction } from "@/server/matches-actions";
+
+/** Ad-hoc wiring (issue #28): when set, the form posts recordAdHocMatchAction with a circle + played-at + chosen game type instead of a session id. Everything else (slots, sets, guests) is the same wire format. */
+export interface AdHocFormContext {
+  circleId: string;
+  playedAtMs: number;
+  gameType: "competitive" | "friendly";
+}
 
 export interface ResultEntryPlayer {
   id: string;
@@ -118,10 +125,13 @@ function SetScoreInput({
 
 export function ResultEntryForm({
   sessionId,
+  adhoc,
   players,
   viewerId,
 }: {
-  sessionId: string;
+  /** The session being recorded — omit for an ad-hoc match (pass `adhoc` instead). */
+  sessionId?: string;
+  adhoc?: AdHocFormContext;
   players: ResultEntryPlayer[];
   viewerId: string;
 }) {
@@ -184,8 +194,16 @@ export function ResultEntryForm({
   }
 
   return (
-    <form action={recordMatchAction} className="flex flex-col gap-4">
-      <input type="hidden" name="sessionId" value={sessionId} />
+    <form action={adhoc ? recordAdHocMatchAction : recordMatchAction} className="flex flex-col gap-4">
+      {adhoc ? (
+        <>
+          <input type="hidden" name="circleId" value={adhoc.circleId} />
+          <input type="hidden" name="playedAt" value={adhoc.playedAtMs} />
+          <input type="hidden" name="gameType" value={adhoc.gameType} />
+        </>
+      ) : (
+        <input type="hidden" name="sessionId" value={sessionId ?? ""} />
+      )}
       <input type="hidden" name="teamA1" value={teamA[0]} />
       <input type="hidden" name="teamA2" value={teamA[1]} />
       <input type="hidden" name="teamB1" value={teamB[0]} />

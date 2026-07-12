@@ -83,6 +83,17 @@ export const users = pgTable(
     dominantHand: text('dominant_hand', { enum: ['left', 'right', 'both'] }),
     courtSide: text('court_side', { enum: ['right', 'left', 'both'] }),
 
+    // Per-type notification preferences (the Settings NOTIFICATIONS card).
+    // Default ON — opting out means server/notify.ts creates NOTHING for that
+    // type (no row, no push, no realtime). Only these three are user-facing
+    // choices; every other notification type is a consequence of the user's
+    // own commitments (seals, promotions, knocks, ...) and stays always-on.
+    // Enforcement lives in apps/web/src/server/notify.ts, the one place every
+    // notification is written.
+    notifyFourthCall: booleanColumn('notify_fourth_call').notNull().default(true),
+    notifyRotation: booleanColumn('notify_rotation').notNull().default(true),
+    notifyTabNudge: booleanColumn('notify_tab_nudge').notNull().default(true),
+
     createdAt: createdAtColumn(),
     updatedAt: createdAtColumn('updated_at'),
   },

@@ -35,7 +35,7 @@ import {
 } from "@cuatro/db";
 import { computeNextOccurrence } from "./tz";
 import { DEFAULT_TZ } from "@/lib/time";
-import { resolveVenue, isOrganiser } from "./standing-games-service";
+import { InvalidVenueError, resolveVenue, isOrganiser } from "./standing-games-service";
 import { insertNotification } from "./notify";
 import {
   computeRotation,
@@ -316,7 +316,13 @@ export async function createOneOffSession(db: CuatroDb, userId: string, input: O
   if (!bookingUrlResult.ok) return { ok: false, error: "invalid_booking_url" };
   const bookingUrl = bookingPlatform ? bookingUrlResult.url : null;
 
-  const venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName);
+  let venueId: string | null;
+  try {
+    venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName);
+  } catch (err) {
+    if (err instanceof InvalidVenueError) return { ok: false, error: "invalid_venue" };
+    throw err;
+  }
   const [circleRow] = await db
     .select({ defaultGameType: circles.defaultGameType })
     .from(circles)

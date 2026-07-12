@@ -25,6 +25,9 @@ export default async function SettingsPage() {
       homeVenueId: users.homeVenueId,
       dominantHand: users.dominantHand,
       courtSide: users.courtSide,
+      notifyFourthCall: users.notifyFourthCall,
+      notifyRotation: users.notifyRotation,
+      notifyTabNudge: users.notifyTabNudge,
     })
     .from(users)
     .where(eq(users.id, user.id))
@@ -50,6 +53,9 @@ export default async function SettingsPage() {
         venueOptions={venueOptions}
         dominantHand={discoveryRow?.dominantHand ?? null}
         courtSide={discoveryRow?.courtSide ?? null}
+        notifyFourthCall={discoveryRow?.notifyFourthCall ?? true}
+        notifyRotation={discoveryRow?.notifyRotation ?? true}
+        notifyTabNudge={discoveryRow?.notifyTabNudge ?? true}
       />
     </div>
   );

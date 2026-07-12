@@ -21,6 +21,13 @@ async function seedUser(email = "a@example.com") {
   return row;
 }
 
+/** insertNotification for a type this suite only ever uses with always-on delivery — narrows away the per-type opt-out null (see notify.test.ts for the gating itself). */
+async function insertDelivered(input: Parameters<typeof insertNotification>[1]) {
+  const row = await insertNotification(db, input);
+  if (!row) throw new Error("expected the notification to be delivered");
+  return row;
+}
+
 /** Backdates a just-written notification's createdAt (insertNotification always stamps "now"). createdAt is epoch-ms now. */
 async function backdate(id: string, date: Date) {
   await db.update(notifications).set({ createdAt: date.getTime() }).where(eq(notifications.id, id));
@@ -30,13 +37,13 @@ describe("listNotificationsForUser", () => {
   it("groups by day, newest first within a day, newest day first", async () => {
     const user = await seedUser();
     const now = new Date("2026-08-10T18:00:00.000Z");
-    const today1 = await insertNotification(db, { userId: user.id, type: "game_filled", payload: { sessionId: "s1" } });
+    const today1 = await insertDelivered({ userId: user.id, type: "game_filled", payload: { sessionId: "s1" } });
     await backdate(today1.id, new Date("2026-08-10T09:00:00.000Z"));
-    const today2 = await insertNotification(db, { userId: user.id, type: "slot_promoted", payload: { sessionId: "s2" } });
+    const today2 = await insertDelivered({ userId: user.id, type: "slot_promoted", payload: { sessionId: "s2" } });
     await backdate(today2.id, new Date("2026-08-10T12:00:00.000Z"));
-    const yesterday = await insertNotification(db, { userId: user.id, type: "dropout", payload: { sessionId: "s3", userId: user.id } });
+    const yesterday = await insertDelivered({ userId: user.id, type: "dropout", payload: { sessionId: "s3", userId: user.id } });
     await backdate(yesterday.id, new Date("2026-08-09T10:00:00.000Z"));
-    const lastWeek = await insertNotification(db, { userId: user.id, type: "result_disputed", payload: { matchId: "m1" } });
+    const lastWeek = await insertDelivered({ userId: user.id, type: "result_disputed", payload: { matchId: "m1" } });
     await backdate(lastWeek.id, new Date("2026-08-01T10:00:00.000Z"));
 
     const groups = await listNotificationsForUser(db, user.id, now);
@@ -80,7 +87,7 @@ describe("read / unread", () => {
 
   it("markNotificationRead flips exactly one row and is idempotent", async () => {
     const user = await seedUser();
-    const n = await insertNotification(db, { userId: user.id, type: "game_filled", payload: { sessionId: "s1" } });
+    const n = await insertDelivered({ userId: user.id, type: "game_filled", payload: { sessionId: "s1" } });
 
     expect(await markNotificationRead(db, n.id, user.id)).toBe(true);
     expect(await getUnreadCount(db, user.id)).toBe(0);
@@ -91,7 +98,7 @@ describe("read / unread", () => {
   it("markNotificationRead refuses to touch another user's notification", async () => {
     const alex = await seedUser("alex@example.com");
     const priya = await seedUser("priya@example.com");
-    const n = await insertNotification(db, { userId: alex.id, type: "game_filled", payload: { sessionId: "s1" } });
+    const n = await insertDelivered({ userId: alex.id, type: "game_filled", payload: { sessionId: "s1" } });
 
     expect(await markNotificationRead(db, n.id, priya.id)).toBe(false);
     expect(await getUnreadCount(db, alex.id)).toBe(1);

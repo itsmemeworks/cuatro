@@ -99,6 +99,14 @@ export async function isOrganiser(db: CuatroDb, circleId: string, userId: string
  * resolves to — an existing venue's address is editable this way too, not
  * just a freshly-created one's.
  */
+/** Thrown when a caller supplies a venueId that doesn't exist — API misuse; callers surface it as the `invalid_venue` code instead of letting the insert hit the FK (Sentry CUATRO-8). */
+export class InvalidVenueError extends Error {
+  constructor() {
+    super("invalid_venue");
+    this.name = "InvalidVenueError";
+  }
+}
+
 export async function resolveVenue(
   db: CuatroDb,
   circleId: string,
@@ -109,6 +117,10 @@ export async function resolveVenue(
   let resolvedId: string | null;
 
   if (venueId) {
+    // Verify the reference — a garbage id previously flowed straight into the
+    // sessions/standing_games insert and 500'd on the FK (Sentry CUATRO-8).
+    const [exists] = await db.select({ id: venues.id }).from(venues).where(eq(venues.id, venueId));
+    if (!exists) throw new InvalidVenueError();
     resolvedId = venueId;
   } else {
     const name = venueName?.trim();
@@ -205,7 +217,13 @@ export async function createStandingGame(
   const bookingUrlResult = normalizeBookingUrl(input.bookingUrl);
   const bookingUrl = bookingPlatform && bookingUrlResult.ok ? bookingUrlResult.url : null;
 
-  const venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName, input.venueAddress);
+  let venueId: string | null;
+  try {
+    venueId = await resolveVenue(db, input.circleId, input.venueId, input.venueName, input.venueAddress);
+  } catch (err) {
+    if (err instanceof InvalidVenueError) return { ok: false, error: "invalid_venue" };
+    throw err;
+  }
 
   const [circleRow] = await db
     .select({ defaultGameType: circles.defaultGameType })
@@ -323,10 +341,15 @@ export async function updateStandingGame(
     // only if there's a venue to attach it to; a standing game with none yet
     // has nowhere for a bare address to go.
     let venueId: string | null | undefined;
-    if (patch.venueId !== undefined || patch.venueName !== undefined) {
-      venueId = await resolveVenue(tx, existing.circleId, patch.venueId, patch.venueName, patch.venueAddress);
-    } else if (patch.venueAddress !== undefined && existing.venueId) {
-      venueId = await resolveVenue(tx, existing.circleId, existing.venueId, undefined, patch.venueAddress);
+    try {
+      if (patch.venueId !== undefined || patch.venueName !== undefined) {
+        venueId = await resolveVenue(tx, existing.circleId, patch.venueId, patch.venueName, patch.venueAddress);
+      } else if (patch.venueAddress !== undefined && existing.venueId) {
+        venueId = await resolveVenue(tx, existing.circleId, existing.venueId, undefined, patch.venueAddress);
+      }
+    } catch (err) {
+      if (err instanceof InvalidVenueError) return { ok: false, error: "invalid_venue" };
+      throw err;
     }
 
     const [updated] = await tx

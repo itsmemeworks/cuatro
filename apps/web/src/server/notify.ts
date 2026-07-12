@@ -7,9 +7,9 @@
  *  - the copy rules from design/HANDOFF.md screen 11: title says WHAT, body
  *    says WHY, no exclamation marks from the system. ("Never nag twice" is
  *    enforced by each call site's own idempotency check — e.g.
- *    checkFourthCallLevel1/2's "already notified" guards — not here; this
- *    module only renders copy and writes rows, it doesn't decide whether a
- *    write should happen.)
+ *    checkFourthCallLevel1/2's "already notified" guards — not here; the one
+ *    delivery decision this module DOES own is the per-type preference gate
+ *    described below.)
  *  - best-effort web push delivery via ../lib/push, deferred until after the
  *    caller's transaction has committed.
  *  - a realtime broadcast to the recipient's `cuatro:user:{userId}` channel
@@ -33,6 +33,26 @@
  * occur. Documented limitation, not solved generically. The realtime
  * broadcast piggybacks on the same setImmediate for the same "after commit"
  * reason.
+ *
+ * PER-TYPE PREFERENCES (the Settings NOTIFICATIONS card): before anything is
+ * created, insertNotification checks the TARGET user's preference for the
+ * type. The mapping (PREF_COLUMN_FOR_TYPE below):
+ *   - fourth_call                          -> users.notifyFourthCall
+ *   - rotation_selected/rotation_sitting_out -> users.notifyRotation
+ *   - tab_nudge                            -> users.notifyTabNudge
+ * An opted-out type creates NOTHING — no row, no push, no realtime; that is
+ * the quiet the user asked for — and insertNotification returns null so a
+ * caller can tell. Every other type stays always-on: they are consequences
+ * of the user's own commitments (seals, promotions, knocks, reschedules,
+ * organiser handovers), not broadcast noise. (One deliberate carve-out: the
+ * rotation-offer fourth_call in games-service.ts's offer cascade is inserted
+ * directly, not through here — that row IS the claim grant and the offer
+ * state the cascade advances on, a consequence of the user's own
+ * standing-game availability, so it is always-on by design.) Callers' own
+ * idempotency
+ * markers are deliberately OUTSIDE this gate — e.g. tab.ts's nudgeEntry sets
+ * `nudgedAt` before calling here, so an opted-out debtor still consumes the
+ * payer's one nudge (nudge-once holds) even though no notification lands.
  */
 import { eq } from "drizzle-orm";
 import { notifications, sessions, circles, users, venues, type CuatroDb, type Notification } from "@cuatro/db";
@@ -375,12 +395,43 @@ function scheduleRealtimeBroadcast(userId: string, notificationId: string, type:
 }
 
 /**
+ * The three user-controllable notification types and the users column each
+ * one answers to. Absent from this map = always-on (see file header).
+ */
+const PREF_COLUMN_FOR_TYPE = {
+  fourth_call: "notifyFourthCall",
+  rotation_selected: "notifyRotation",
+  rotation_sitting_out: "notifyRotation",
+  tab_nudge: "notifyTabNudge",
+} as const satisfies Partial<Record<NotificationType, "notifyFourthCall" | "notifyRotation" | "notifyTabNudge">>;
+
+/** True when `userId` has opted out of `type` — the caller should create nothing. */
+async function isOptedOut(tx: CuatroDb, userId: string, type: NotificationType): Promise<boolean> {
+  const prefColumn = PREF_COLUMN_FOR_TYPE[type as keyof typeof PREF_COLUMN_FOR_TYPE];
+  if (!prefColumn) return false;
+  const [pref] = await tx
+    .select({
+      notifyFourthCall: users.notifyFourthCall,
+      notifyRotation: users.notifyRotation,
+      notifyTabNudge: users.notifyTabNudge,
+    })
+    .from(users)
+    .where(eq(users.id, userId));
+  // No user row: let the insert below fail on its FK rather than silently
+  // swallowing a programming error as an "opt-out".
+  return pref ? !pref[prefColumn] : false;
+}
+
+/**
  * Drop-in for `tx.insert(notifications).values({...}).run()`. Same insert,
  * plus centralised copy + a best-effort push (see file header for why push
- * is deferred rather than awaited).
+ * is deferred rather than awaited). Returns null without creating ANYTHING
+ * (no row, no push, no realtime) when the target user has opted out of the
+ * input's type — see PREF_COLUMN_FOR_TYPE.
  */
-export async function insertNotification(tx: CuatroDb, input: InsertNotificationInput): Promise<Notification> {
+export async function insertNotification(tx: CuatroDb, input: InsertNotificationInput): Promise<Notification | null> {
   const { userId, ...rest } = input;
+  if (await isOptedOut(tx, userId, rest.type)) return null;
   const [row] = await tx.insert(notifications).values({ userId, type: rest.type, payload: rest.payload }).returning();
   const copy = await renderNotificationCopy(tx, rest);
   schedulePush(userId, copy, deepLinkFor(rest));

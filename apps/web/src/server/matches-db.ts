@@ -162,6 +162,49 @@ export interface RecordMatchInput {
   newGuests?: PendingGuest[];
 }
 
+/** One circle the viewer can hang an ad-hoc match on (issue #28) — a row in the wide overlay's and the phone picker's circle list. `gameType` is the circle's default classification, which the ad-hoc match inherits unless the recorder switches it at score time (same inheritance rule as a one-off session). */
+export interface AdHocCircleOption {
+  circleId: string;
+  circleName: string;
+  gameType: GameType;
+  memberCount: number;
+}
+
+/** Roster context for an ad-hoc match (no session exists yet): the recorder pre-seated, the circle's other members as the pool. Mirrors RosterContext minus the session — the synthetic session is minted inside recordAdHocMatch's own transaction. */
+export interface AdHocRosterContext {
+  circleId: string;
+  circleName: string;
+  /** The circle's default classification — the ad-hoc match's starting game type, switchable at record time. */
+  gameType: GameType;
+  /** The viewer, pre-seated (they must be one of the four — they're recording it). */
+  confirmed: RosterPlayer[];
+  /** The circle's other members. */
+  candidates: RosterPlayer[];
+  viewerGlass: ViewerGlassContext | null;
+}
+
+export interface RecordAdHocMatchInput {
+  /** Ad-hoc matches REQUIRE a circle (no circle-less games in v1 — the Ledger, feed and played-with semantics all anchor on one). The reporter must be a member. */
+  circleId: string;
+  reporterId: string;
+  /** When the game was actually played (epoch ms). Must not be in the future and at most AD_HOC_MAX_AGE_MS ago — ad-hoc covers "just now", earlier today and yesterday. */
+  playedAt: number;
+  /** Omit to inherit the circle's default_game_type. */
+  gameType?: GameType;
+  teamA: [string, string];
+  teamB: [string, string];
+  sets: SetScore[];
+  outcome?: MatchOutcome;
+  newGuests?: PendingGuest[];
+}
+
+/** How far back an ad-hoc match can be dated. "Yesterday" shortly after local midnight, recorded late the next day, is just under 48h — anything older than that and nobody remembers the score anyway (same honesty rule as getRecordableSessions). */
+export const AD_HOC_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+/** Clock-skew allowance on "just now" — a client whose clock runs a touch ahead shouldn't bounce. */
+export const AD_HOC_FUTURE_SKEW_MS = 2 * 60 * 1000;
+/** Two ad-hoc records of the same four in the same circle within this window are the same game (see recordAdHocMatch's double-record guard). */
+const AD_HOC_DUPE_WINDOW_MS = 2 * 60 * 60 * 1000;
+
 /** Thrown when a session already has a live (non-void) match — one game, one record. The second reporter should land on the existing match to confirm it, not mint a duplicate. */
 export class MatchAlreadyRecordedError extends Error {
   constructor(
@@ -451,6 +494,207 @@ async function creditShowUps(tx: CuatroDb, match: Match): Promise<void> {
 }
 
 /**
+ * The record-time shape checks shared by the session and ad-hoc paths —
+ * everything that can be rejected before a transaction opens. Slots may be
+ * existing user ids or PendingGuest tokens at this point; distinctness/
+ * reporter/score checks all hold on the tokens, and are re-checked on the
+ * resolved ids once guests exist (insertMatchInTx), so a token that happens
+ * to equal a real id can't smuggle in a duplicate player.
+ */
+function validateRecordShape(input: {
+  reporterId: string;
+  teamA: [string, string];
+  teamB: [string, string];
+  sets: SetScore[];
+  outcome?: MatchOutcome;
+  newGuests?: PendingGuest[];
+}): { outcome: MatchOutcome; slotTokens: string[]; guestSpecs: { token: string; name: string }[] } {
+  const outcome = input.outcome ?? "completed";
+  const slotTokens = [...input.teamA, ...input.teamB];
+  if (new Set(slotTokens).size !== 4) throw new Error("A match needs four distinct players");
+  if (!slotTokens.includes(input.reporterId)) throw new Error("The reporter must be one of the four players");
+  if (input.sets.length > 3) throw new Error("Enter at most 3 sets");
+  // A "completed" match needs a real score; a "retired" one may have ended
+  // with zero games played (see @cuatro/glass README's walkover/retired
+  // policy table) — those still get recorded, just skipped by the Glass
+  // engine at confirmation time rather than rejected here.
+  if (outcome === "completed" && input.sets.length < 1) throw new Error("Enter between 1 and 3 sets");
+  for (const s of input.sets) {
+    if (s.a < 0 || s.b < 0) throw new Error("Games won cannot be negative");
+  }
+  const { gamesWonA, gamesWonB } = gamesTotals(input.sets);
+  if (outcome === "completed" && gamesWonA + gamesWonB <= 0) {
+    throw new Error("At least one game must have been played");
+  }
+  // Validate substitute names before any transaction opens (guest creation
+  // happens inside it, so a bad name shouldn't get that far). Every guest
+  // token must be one of the four slots — a spec for a token nobody plays is
+  // a client bug, not something to silently drop.
+  const guestSpecs = (input.newGuests ?? []).map((g) => {
+    const name = normalizeGuestName(g.name);
+    if (!name) throw new Error("A substitute needs a name");
+    if (!slotTokens.includes(g.token)) throw new Error(`Guest token "${g.token}" isn't one of the four players`);
+    return { token: g.token, name };
+  });
+  return { outcome, slotTokens, guestSpecs };
+}
+
+/**
+ * The shared in-transaction tail of recordMatch and recordAdHocMatch: mint a
+ * guest `users` row per named substitute — same shape as server/guest.ts's
+ * insertGuestUser (isGuest, no email, Circle's country) but with the name
+ * already known — created HERE so a rollback leaves no orphan guests; resolve
+ * the four slots; insert the match with the classification SNAPSHOT (rule
+ * 13a: the seal path and the Ledger must be able to say whether Glass moved
+ * without joining back to a session/circle that may change later);
+ * auto-confirm the reporter's team; queue "confirm your result" notifications
+ * for the other team. The caller must already hold the FOR UPDATE lock on its
+ * anchoring row (the session, or the circle for an ad-hoc record).
+ */
+async function insertMatchInTx(
+  tx: CuatroDb,
+  args: {
+    sessionId: string;
+    gameType: GameType;
+    playedAt: number;
+    reporterId: string;
+    teamA: [string, string];
+    teamB: [string, string];
+    sets: SetScore[];
+    outcome: MatchOutcome;
+    guestSpecs: { token: string; name: string }[];
+    guestCountryCode: string;
+  },
+): Promise<Match> {
+  const tokenToId = new Map<string, string>();
+  for (const g of args.guestSpecs) {
+    const [guest] = await tx
+      .insert(users)
+      .values({ displayName: g.name, isGuest: true, countryCode: args.guestCountryCode })
+      .returning();
+    tokenToId.set(g.token, guest.id);
+  }
+  const resolve = (token: string) => tokenToId.get(token) ?? token;
+  const teamA: [string, string] = [resolve(args.teamA[0]), resolve(args.teamA[1])];
+  const teamB: [string, string] = [resolve(args.teamB[0]), resolve(args.teamB[1])];
+  if (new Set([...teamA, ...teamB]).size !== 4) throw new Error("A match needs four distinct players");
+
+  const [created] = await tx
+    .insert(matches)
+    .values({
+      sessionId: args.sessionId,
+      teamAPlayer1Id: teamA[0],
+      teamAPlayer2Id: teamA[1],
+      teamBPlayer1Id: teamB[0],
+      teamBPlayer2Id: teamB[1],
+      score: args.sets,
+      status: "pending_confirmation",
+      outcome: args.outcome,
+      gameType: args.gameType,
+      playedAt: args.playedAt,
+    })
+    .returning();
+
+  const reporterTeam = teamOf(created, args.reporterId)!;
+  await tx.insert(matchConfirmations).values({ matchId: created.id, team: reporterTeam, confirmedByUserId: args.reporterId });
+
+  const otherTeamIds = reporterTeam === "A" ? teamB : teamA;
+  for (const id of otherTeamIds) {
+    await insertNotification(tx, {
+      userId: id,
+      type: "confirm_result",
+      payload: { matchId: created.id, sessionId: args.sessionId },
+    });
+  }
+  return created;
+}
+
+/**
+ * Post-commit tail of both record paths: the realtime signal plus the §9
+ * metric-2 match_recorded event. Carries game_type (so seal rate filters to
+ * competitive), the confirmability flags (so all-guest-team matches, which
+ * can never seal, are excluded from the denominator) and ad_hoc (so
+ * session-less records are separable). Never called inside the transaction
+ * (rule 2 — emits fire after commit only).
+ */
+async function announceRecorded(db: CuatroDb, match: Match, reporterId: string, adHoc: boolean): Promise<void> {
+  await emitMatchEvent(db, match, "recorded");
+  const [circleId, confirmability] = await Promise.all([matchCircleId(db, match), matchConfirmability(db, match)]);
+  if (circleId) {
+    captureEvent("match_recorded", {
+      distinctId: reporterId,
+      circleId,
+      sessionId: match.sessionId,
+      timestamp: match.createdAt,
+      properties: {
+        match_id: match.id,
+        game_type: match.gameType,
+        team_a_all_guest: confirmability.teamAAllGuest,
+        team_b_all_guest: confirmability.teamBAllGuest,
+        is_confirmable: confirmability.isConfirmable,
+        recorded_by: reporterId,
+        ad_hoc: adHoc,
+        ts: match.createdAt,
+      },
+    });
+  }
+}
+
+/**
+ * Seal-preview inputs for the wide overlay (see ViewerGlassContext). Only
+ * PUBLIC state travels: users.rating stays null mid-Trio, and the hidden
+ * internal rating in rating_events never leaves the server — the preview
+ * just doesn't render for an unrated viewer. opponentsFaced comes from the
+ * viewer's own Ledger rows (the same factors.opponentUserIds loadPlayerState
+ * reads); recentFixtures is every verified match involving the viewer inside
+ * the Echo Damping window before `beforeMs`, which is sufficient for the
+ * fixture check because the viewer is always one of the four on court.
+ * `beforeMs` is the session's start for a session record, and "now" for an
+ * ad-hoc one (the exact played-at isn't chosen yet at roster time; the
+ * engine recomputes authoritatively at seal).
+ */
+async function loadViewerGlassContext(db: CuatroDb, viewerId: string, beforeMs: number): Promise<ViewerGlassContext | null> {
+  const [viewerRow] = await db
+    .select({ rating: users.rating, confidence: users.confidence, verifiedMatchCount: users.verifiedMatchCount })
+    .from(users)
+    .where(eq(users.id, viewerId));
+  if (!viewerRow) return null;
+
+  const viewerEvents = await db
+    .select({ factors: ratingEvents.factors })
+    .from(ratingEvents)
+    .where(eq(ratingEvents.userId, viewerId));
+  const opponentsFaced = new Set<string>();
+  for (const ev of viewerEvents) {
+    for (const id of ev.factors.opponentUserIds) opponentsFaced.add(id);
+  }
+  const windowStart = beforeMs - ECHO_DAMPING_WINDOW_MS;
+  const fixtureRows = await db
+    .select()
+    .from(matches)
+    .where(
+      and(
+        eq(matches.status, "verified"),
+        gte(matches.playedAt, windowStart),
+        lt(matches.playedAt, beforeMs),
+        or(
+          eq(matches.teamAPlayer1Id, viewerId),
+          eq(matches.teamAPlayer2Id, viewerId),
+          eq(matches.teamBPlayer1Id, viewerId),
+          eq(matches.teamBPlayer2Id, viewerId),
+        ),
+      ),
+    );
+  return {
+    rating: viewerRow.rating,
+    confidencePct: Math.round(viewerRow.confidence * 100),
+    verifiedMatchCount: viewerRow.verifiedMatchCount,
+    opponentsFaced: [...opponentsFaced],
+    recentFixtures: fixtureRows.map((m) => ({ playedAt: m.playedAt, playerIds: fourPlayerIds(m) })),
+  };
+}
+
+/**
  * Runs the Glass engine for a now-fully-confirmed match and persists its
  * output: one rating_events row per player (the Ledger — append-only), the
  * users table's mirrored rating/confidence/verifiedMatchCount, Reliability
@@ -580,7 +824,13 @@ export interface MatchesStore {
   getRecordableSessions(viewerId: string): Promise<RecordableSession[]>;
   /** The most recently recorded match for a session, if any — used to cross-link a played session to "Record result" vs. its existing match. */
   getMatchForSession(sessionId: string): Promise<{ id: string; status: string } | null>;
+  /** Circles the viewer can hang an ad-hoc match on (issue #28) — every circle they're a member of, with the default classification the match would inherit. */
+  getAdHocCircles(viewerId: string): Promise<AdHocCircleOption[]>;
+  /** Circle-anchored roster for an ad-hoc match: the viewer pre-seated, the circle's members as the pool. Null when the viewer isn't a member. */
+  getAdHocRosterContext(circleId: string, viewerId: string): Promise<AdHocRosterContext | null>;
   recordMatch(input: RecordMatchInput): Promise<{ matchId: string }>;
+  /** Records a match that never had a session: mints a synthetic played session inside the SAME transaction as the match (all-or-nothing), then follows recordMatch's normal path — Ledger explanations, feed posts, deep links and the seal flow all work downstream with zero special-casing. */
+  recordAdHocMatch(input: RecordAdHocMatchInput): Promise<{ matchId: string; sessionId: string }>;
   confirmMatch(matchId: string, userId: string): Promise<ConfirmOutcome>;
   disputeMatch(matchId: string, userId: string): Promise<ConfirmOutcome>;
   getMatchDetail(matchId: string, viewerId: string): Promise<MatchDetail | null>;
@@ -684,54 +934,8 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
         if (viewer) candidates.unshift(viewer);
       }
 
-      // Seal-preview inputs (wide overlay step 4). Only PUBLIC state travels:
-      // users.rating stays null mid-Trio, and the hidden internal rating in
-      // rating_events never leaves the server — the preview just doesn't
-      // render for an unrated viewer. opponentsFaced comes from the viewer's
-      // own Ledger rows (the same factors.opponentUserIds loadPlayerState
-      // reads); recentFixtures is every verified match involving the viewer
-      // inside the Echo Damping window before this session, which is
-      // sufficient for the fixture check because the viewer is always one of
-      // the four on court.
-      let viewerGlass: ViewerGlassContext | null = null;
-      const [viewerRow] = await db
-        .select({ rating: users.rating, confidence: users.confidence, verifiedMatchCount: users.verifiedMatchCount })
-        .from(users)
-        .where(eq(users.id, viewerId));
-      if (viewerRow) {
-        const viewerEvents = await db
-          .select({ factors: ratingEvents.factors })
-          .from(ratingEvents)
-          .where(eq(ratingEvents.userId, viewerId));
-        const opponentsFaced = new Set<string>();
-        for (const ev of viewerEvents) {
-          for (const id of ev.factors.opponentUserIds) opponentsFaced.add(id);
-        }
-        const windowStart = session.startsAt - ECHO_DAMPING_WINDOW_MS;
-        const fixtureRows = await db
-          .select()
-          .from(matches)
-          .where(
-            and(
-              eq(matches.status, "verified"),
-              gte(matches.playedAt, windowStart),
-              lt(matches.playedAt, session.startsAt),
-              or(
-                eq(matches.teamAPlayer1Id, viewerId),
-                eq(matches.teamAPlayer2Id, viewerId),
-                eq(matches.teamBPlayer1Id, viewerId),
-                eq(matches.teamBPlayer2Id, viewerId),
-              ),
-            ),
-          );
-        viewerGlass = {
-          rating: viewerRow.rating,
-          confidencePct: Math.round(viewerRow.confidence * 100),
-          verifiedMatchCount: viewerRow.verifiedMatchCount,
-          opponentsFaced: [...opponentsFaced],
-          recentFixtures: fixtureRows.map((m) => ({ playedAt: m.playedAt, playerIds: fourPlayerIds(m) })),
-        };
-      }
+      // Seal-preview inputs (wide overlay step 4) — see loadViewerGlassContext.
+      const viewerGlass = await loadViewerGlassContext(db, viewerId, session.startsAt);
 
       return {
         session: { id: session.id, startsAt: new Date(session.startsAt), status: session.status, gameType: session.gameType },
@@ -801,38 +1005,7 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
     },
 
     async recordMatch(input) {
-      const outcome = input.outcome ?? "completed";
-      // Slots may be existing user ids or PendingGuest tokens at this point;
-      // distinctness/reporter/score checks all hold on the tokens, and are
-      // re-checked on the resolved ids once guests exist (below), so a token
-      // that happens to equal a real id can't smuggle in a duplicate player.
-      const slotTokens = [...input.teamA, ...input.teamB];
-      if (new Set(slotTokens).size !== 4) throw new Error("A match needs four distinct players");
-      if (!slotTokens.includes(input.reporterId)) throw new Error("The reporter must be one of the four players");
-      if (input.sets.length > 3) throw new Error("Enter at most 3 sets");
-      // A "completed" match needs a real score; a "retired" one may have
-      // ended with zero games played (see @cuatro/glass README's walkover/
-      // retired policy table) — those still get recorded, just skipped by
-      // the Glass engine at confirmation time rather than rejected here.
-      if (outcome === "completed" && input.sets.length < 1) throw new Error("Enter between 1 and 3 sets");
-      for (const s of input.sets) {
-        if (s.a < 0 || s.b < 0) throw new Error("Games won cannot be negative");
-      }
-      const { gamesWonA, gamesWonB } = gamesTotals(input.sets);
-      if (outcome === "completed" && gamesWonA + gamesWonB <= 0) {
-        throw new Error("At least one game must have been played");
-      }
-
-      // Validate substitute names before opening the transaction (guest
-      // creation happens inside it, so a bad name shouldn't get that far).
-      // Every guest token must be one of the four slots — a spec for a token
-      // nobody plays is a client bug, not something to silently drop.
-      const guestSpecs = (input.newGuests ?? []).map((g) => {
-        const name = normalizeGuestName(g.name);
-        if (!name) throw new Error("A substitute needs a name");
-        if (!slotTokens.includes(g.token)) throw new Error(`Guest token "${g.token}" isn't one of the four players`);
-        return { token: g.token, name };
-      });
+      const { outcome, guestSpecs } = validateRecordShape(input);
 
       const [session] = await db.select().from(sessions).where(eq(sessions.id, input.sessionId));
       if (!session) throw new Error(`No such session "${input.sessionId}"`);
@@ -857,89 +1030,173 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
             .where(eq(matches.sessionId, input.sessionId))
         ).find((m) => m.status !== "void");
         if (existing) throw new MatchAlreadyRecordedError(existing.id, existing.status);
-        // Mint a guest `users` row per named substitute — same shape as
-        // server/guest.ts's insertGuestUser (isGuest, no email, Circle's
-        // country), but with the name already known so no placeholder/name
-        // step is needed. Created here so a rollback (e.g. a bad slot) leaves
-        // no orphan guest behind.
-        const tokenToId = new Map<string, string>();
-        for (const g of guestSpecs) {
-          const [guest] = await tx
-            .insert(users)
-            .values({ displayName: g.name, isGuest: true, countryCode: guestCountryCode })
-            .returning();
-          tokenToId.set(g.token, guest.id);
-        }
-        const resolve = (token: string) => tokenToId.get(token) ?? token;
-        const teamA: [string, string] = [resolve(input.teamA[0]), resolve(input.teamA[1])];
-        const teamB: [string, string] = [resolve(input.teamB[0]), resolve(input.teamB[1])];
-        if (new Set([...teamA, ...teamB]).size !== 4) throw new Error("A match needs four distinct players");
 
-        const [created] = await tx
-          .insert(matches)
-          .values({
-            sessionId: input.sessionId,
-            teamAPlayer1Id: teamA[0],
-            teamAPlayer2Id: teamA[1],
-            teamBPlayer1Id: teamB[0],
-            teamBPlayer2Id: teamB[1],
-            score: input.sets,
-            status: "pending_confirmation",
-            outcome,
-            // FRIENDLIES: snapshot the session's classification onto the match
-            // at record time, so the seal path (and the Ledger) can say whether
-            // Glass moved without joining back to a session/circle that may
-            // change later. Competitive is the default everywhere.
-            gameType: session.gameType,
-            playedAt: session.startsAt,
-          })
-          .returning();
+        // FRIENDLIES: the session's classification is snapshotted onto the
+        // match at record time (see insertMatchInTx) so the seal path and
+        // the Ledger can say whether Glass moved without joining back to a
+        // session/circle that may change later.
+        const created = await insertMatchInTx(tx, {
+          sessionId: input.sessionId,
+          gameType: session.gameType,
+          playedAt: session.startsAt,
+          reporterId: input.reporterId,
+          teamA: input.teamA,
+          teamB: input.teamB,
+          sets: input.sets,
+          outcome,
+          guestSpecs,
+          guestCountryCode,
+        });
         createdMatch = created;
-
-        const reporterTeam = teamOf(created, input.reporterId)!;
-        await tx
-          .insert(matchConfirmations)
-          .values({ matchId: created.id, team: reporterTeam, confirmedByUserId: input.reporterId });
-
-        const otherTeamIds = reporterTeam === "A" ? teamB : teamA;
-        for (const id of otherTeamIds) {
-          await insertNotification(tx, {
-            userId: id,
-            type: "confirm_result",
-            payload: { matchId: created.id, sessionId: input.sessionId },
-          });
-        }
-
         return { matchId: created.id };
       });
 
-      if (createdMatch) {
-        await emitMatchEvent(db, createdMatch, "recorded");
-        // §9 metric 2: match_recorded. Carries game_type (so seal rate filters
-        // to competitive) and the confirmability flags (so all-guest-team
-        // matches, which can never seal, are excluded from the denominator).
-        const [circleId, confirmability] = await Promise.all([
-          matchCircleId(db, createdMatch),
-          matchConfirmability(db, createdMatch),
-        ]);
-        if (circleId) {
-          captureEvent("match_recorded", {
-            distinctId: input.reporterId,
-            circleId,
-            sessionId: createdMatch.sessionId,
-            timestamp: createdMatch.createdAt,
-            properties: {
-              match_id: createdMatch.id,
-              game_type: createdMatch.gameType,
-              team_a_all_guest: confirmability.teamAAllGuest,
-              team_b_all_guest: confirmability.teamBAllGuest,
-              is_confirmable: confirmability.isConfirmable,
-              recorded_by: input.reporterId,
-              ts: createdMatch.createdAt,
-            },
-          });
-        }
-      }
+      if (createdMatch) await announceRecorded(db, createdMatch, input.reporterId, false);
+      return result;
+    },
+
+    async getAdHocCircles(viewerId) {
+      const rows = await db
+        .select({ circleId: circles.id, circleName: circles.name, gameType: circles.defaultGameType })
+        .from(circleMembers)
+        .innerJoin(circles, eq(circles.id, circleMembers.circleId))
+        .where(eq(circleMembers.userId, viewerId));
+      if (rows.length === 0) return [];
+      const counts = await db
+        .select({ circleId: circleMembers.circleId, n: sql<number>`count(*)` })
+        .from(circleMembers)
+        .where(inArray(circleMembers.circleId, rows.map((r) => r.circleId)))
+        .groupBy(circleMembers.circleId);
+      const countBy = new Map(counts.map((c) => [c.circleId, Number(c.n)]));
+      return rows
+        .map((r) => ({ ...r, memberCount: countBy.get(r.circleId) ?? 0 }))
+        .sort((a, b) => a.circleName.localeCompare(b.circleName));
+    },
+
+    async getAdHocRosterContext(circleId, viewerId) {
+      // Members only: an ad-hoc match lands on the circle's ledger and feed,
+      // so recording into a circle you're not part of isn't a thing.
+      const [membership] = await db
+        .select({ userId: circleMembers.userId })
+        .from(circleMembers)
+        .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, viewerId)));
+      if (!membership) return null;
+      const [circle] = await db
+        .select({ name: circles.name, defaultGameType: circles.defaultGameType })
+        .from(circles)
+        .where(eq(circles.id, circleId));
+      if (!circle) return null;
+
+      const memberRows = await db
+        .select({
+          userId: users.id,
+          displayName: users.displayName,
+          rating: users.rating,
+          avatarUrl: users.avatarUrl,
+          isGuest: users.isGuest,
+          courtSide: users.courtSide,
+        })
+        .from(circleMembers)
+        .innerJoin(users, eq(circleMembers.userId, users.id))
+        .where(eq(circleMembers.circleId, circleId));
+      const toRoster = (r: (typeof memberRows)[number]): RosterPlayer => ({
+        id: r.userId,
+        displayName: r.displayName,
+        rating: r.rating,
+        avatarUrl: r.avatarUrl,
+        isGuest: r.isGuest,
+        courtSide: r.courtSide,
+      });
+      // The viewer is pre-seated (they're recording it, so they must be one
+      // of the four); everyone else is the pool.
+      const viewerRow = memberRows.find((r) => r.userId === viewerId);
+      const confirmed = viewerRow ? [toRoster(viewerRow)] : [];
+      const candidates = memberRows.filter((r) => r.userId !== viewerId).map(toRoster);
+
+      const viewerGlass = await loadViewerGlassContext(db, viewerId, Date.now());
+
+      return { circleId, circleName: circle.name, gameType: circle.defaultGameType, confirmed, candidates, viewerGlass };
+    },
+
+    async recordAdHocMatch(input) {
+      const { outcome, slotTokens, guestSpecs } = validateRecordShape(input);
+      const now = Date.now();
+      if (input.playedAt > now + AD_HOC_FUTURE_SKEW_MS) throw new Error("A result can't be from the future");
+      if (input.playedAt < now - AD_HOC_MAX_AGE_MS) throw new Error("Ad-hoc results cover today and yesterday");
+
+      const [circle] = await db
+        .select({ countryCode: circles.countryCode, defaultGameType: circles.defaultGameType })
+        .from(circles)
+        .where(eq(circles.id, input.circleId));
+      if (!circle) throw new Error(`No such circle "${input.circleId}"`);
+      // Same inheritance rule as a one-off session (games-service
+      // createOneOffSession): explicit choice, else the circle default.
+      const gameType = input.gameType ?? circle.defaultGameType;
+
+      let createdMatch: Match | undefined;
+      const result = await db.transaction(async (tx) => {
+        // LOCK: the circle row anchors this read-decide-write (rule 1). There
+        // is no session yet to lock, and the whole point of the guard below is
+        // to catch two concurrent ad-hoc records of the same game — FOR UPDATE
+        // on the circle serializes them so the second sees the first's match.
+        await tx.select({ id: circles.id }).from(circles).where(eq(circles.id, input.circleId)).for("update");
+
+        const [member] = await tx
+          .select({ userId: circleMembers.userId })
+          .from(circleMembers)
+          .where(and(eq(circleMembers.circleId, input.circleId), eq(circleMembers.userId, input.reporterId)));
+        if (!member) throw new Error("Only a member of this circle can record a match into it");
+
+        // Double-record guard, the ad-hoc cousin of recordMatch's one-match-
+        // per-session rule: no session anchors an ad-hoc game, so "the same
+        // four players in this circle within a couple of hours" IS the same
+        // game — the second reporter lands on the existing match to confirm
+        // it, not a duplicate. Guest TOKENS never equal real user ids, so a
+        // re-record that names its guests afresh isn't caught — acceptable:
+        // the common double-submit carries the same resolved ids.
+        const nearby = await tx
+          .select({ match: matches })
+          .from(matches)
+          .innerJoin(sessions, eq(sessions.id, matches.sessionId))
+          .where(
+            and(
+              eq(sessions.circleId, input.circleId),
+              gte(matches.playedAt, input.playedAt - AD_HOC_DUPE_WINDOW_MS),
+              lt(matches.playedAt, input.playedAt + AD_HOC_DUPE_WINDOW_MS),
+            ),
+          );
+        const targetKey = fixtureKey(slotTokens);
+        const dupe = nearby.map((r) => r.match).find((m) => m.status !== "void" && fixtureKey(fourPlayerIds(m)) === targetKey);
+        if (dupe) throw new MatchAlreadyRecordedError(dupe.id, dupe.status);
+
+        // Mint the synthetic session this match hangs on (the blessed shape:
+        // Ledger explanations, feed posts, deep links and the seal flow all
+        // key off a session row, so minting one HERE — same transaction,
+        // all-or-nothing with the match — keeps every downstream surface
+        // special-case free). Already played, dated when the game happened,
+        // no venue, no standing game.
+        const [session] = await tx
+          .insert(sessions)
+          .values({ circleId: input.circleId, startsAt: input.playedAt, status: "played", gameType })
+          .returning();
+
+        const created = await insertMatchInTx(tx, {
+          sessionId: session.id,
+          gameType,
+          playedAt: input.playedAt,
+          reporterId: input.reporterId,
+          teamA: input.teamA,
+          teamB: input.teamB,
+          sets: input.sets,
+          outcome,
+          guestSpecs,
+          guestCountryCode: circle.countryCode,
+        });
+        createdMatch = created;
+        return { matchId: created.id, sessionId: session.id };
+      });
+
+      if (createdMatch) await announceRecorded(db, createdMatch, input.reporterId, true);
       return result;
     },
 

@@ -95,6 +95,66 @@ export async function recordMatchAction(formData: FormData): Promise<void> {
   redirect(`/matches/${matchId}`);
 }
 
+/**
+ * Ad-hoc match (issue #28): a result that never had a session. Anchors on one
+ * of the recorder's circles (required — no circle-less games in v1) and a
+ * played-at time; matches-db mints the synthetic played session inside the
+ * same transaction as the match. Everything after that is recordMatchAction's
+ * exact shape: same team slots, sets, guests wire format, same redirect.
+ */
+export async function recordAdHocMatchAction(formData: FormData): Promise<void> {
+  const user = await getSessionUser();
+  if (!user) return;
+
+  const circleId = String(formData.get("circleId") ?? "");
+  const teamA1 = String(formData.get("teamA1") ?? "");
+  const teamA2 = String(formData.get("teamA2") ?? "");
+  const teamB1 = String(formData.get("teamB1") ?? "");
+  const teamB2 = String(formData.get("teamB2") ?? "");
+  const playedAt = Number(formData.get("playedAt"));
+  if (!circleId || !teamA1 || !teamA2 || !teamB1 || !teamB2 || !Number.isFinite(playedAt)) return;
+
+  // The classification is chosen at record time for an ad-hoc match (the
+  // design's step-3 note: "Ad-hoc matches choose it here"); anything but an
+  // explicit valid value falls back to the circle default server-side.
+  const gameTypeRaw = formData.get("gameType");
+  const gameType = gameTypeRaw === "competitive" || gameTypeRaw === "friendly" ? gameTypeRaw : undefined;
+
+  const retired = formData.get("retired") === "retired";
+  const sets = parseSets(formData);
+  if (sets.length === 0 && !retired) return;
+
+  const newGuests = parseGuests(formData);
+
+  const store = await getMatchesStore();
+  let matchId: string;
+  try {
+    ({ matchId } = await store.recordAdHocMatch({
+      circleId,
+      reporterId: user.id,
+      playedAt,
+      gameType,
+      teamA: [teamA1, teamA2],
+      teamB: [teamB1, teamB2],
+      sets,
+      outcome: retired ? "retired" : "completed",
+      newGuests,
+    }));
+  } catch (err) {
+    // Same-game guard: if this exact four in this circle was already recorded
+    // around the same time (a double-submit, or the other team beat them to
+    // it), land on the existing result to confirm it, not a duplicate.
+    if (err instanceof MatchAlreadyRecordedError) {
+      revalidatePath("/home");
+      redirect(`/matches/${err.existingMatchId}?already=1`);
+    }
+    throw err;
+  }
+
+  revalidatePath("/home");
+  redirect(`/matches/${matchId}`);
+}
+
 export async function confirmMatchAction(matchId: string, _formData: FormData): Promise<void> {
   const user = await getSessionUser();
   if (!user) return;

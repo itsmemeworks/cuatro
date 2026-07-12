@@ -6,6 +6,7 @@ import { getDb } from "@/server/db";
 import { getDiscoverView } from "@/server/discover-page";
 import { DEFAULT_RADIUS_KM, GLASS_BAND } from "@/lib/geo";
 import { Card, Meta } from "@/components/ui";
+import { InfoTerm } from "@/components/ui/info-term";
 import { DiscoverGameCard } from "@/components/discover/discover-game-card";
 import { DiscoverCircleCard } from "@/components/discover/discover-circle-card";
 import { StartCircleCard } from "@/components/discover/start-circle-card";
@@ -94,7 +95,7 @@ export default async function DiscoverPage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-[29px] font-extrabold tracking-tight text-ink">Discover</h1>
           <p className="text-cu-body text-ink-muted mt-1.5">
-            public games and open Circles {nearLabel} · your Glass travels with you
+            public games and open Circles <InfoTerm term="patch" label={nearLabel} /> · your Glass travels with you
           </p>
         </div>
         <div className="flex items-center gap-2.5">

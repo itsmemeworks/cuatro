@@ -3,11 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Avatar, Button, Meta } from "@/components/ui";
+import { Avatar, Button, InfoTerm, Meta } from "@/components/ui";
 import { SelfieCamera } from "@/components/entry/selfie-camera";
 import { updateDisplayNameAction } from "@/lib/actions";
 import { updateDiscoverySettingsAction } from "@/app/(app)/profile/discovery-actions";
 import { updatePlayerAttrsAction } from "@/app/(app)/profile/player-attrs-actions";
+import { updateNotificationPrefsAction } from "@/app/(app)/profile/notification-prefs-actions";
+import { HomeCourtPicker, homeCourtErrorCopy } from "@/components/profile/home-court-picker";
+import { PushToggle } from "@/components/profile/push-toggle";
 import { COURT_SIDES, DOMINANT_HANDS } from "@/lib/player-attrs";
 import { AttrSegments, courtSideSegmentLabel, type VenueOption } from "@/components/profile/settings-sheet";
 
@@ -24,14 +27,13 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 /**
  * The Settings switch. The design uses GREEN for a state toggle (coral is
  * reserved for actions, and Settings carries no coral), so this is a local
- * green switch rather than the app's coral-on ui/Toggle. Interactive when
- * `onToggle` is given; a bare `on` renders it read-only (the notification-type
- * rows, not yet wired to a preference store).
+ * green switch rather than the app's coral-on ui/Toggle. The knob flips
+ * optimistically on tap and the switch dims while the save is in flight
+ * (7b: no silent clicks) — the AttrSegments pending treatment, switch-shaped.
  */
-function SettingToggle({ on, onToggle, disabled, label }: { on: boolean; onToggle?: () => void; disabled?: boolean; label?: string }) {
+function SettingToggle({ on, onToggle, disabled, label }: { on: boolean; onToggle: () => void; disabled?: boolean; label?: string }) {
   const knob = <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${on ? "right-0.5" : "left-0.5"}`} aria-hidden />;
-  const base = `relative w-11 h-6 rounded-full shrink-0 ${on ? "bg-win" : "bg-ink-hairline-3"}`;
-  if (!onToggle) return <div className={`${base} opacity-70`} aria-hidden>{knob}</div>;
+  const base = `relative w-11 h-6 rounded-full shrink-0 transition-cu-state ${on ? "bg-win" : "bg-ink-hairline-3"}`;
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onToggle} disabled={disabled} className={`${base} disabled:opacity-50`}>
       {knob}
@@ -49,11 +51,15 @@ function SettingToggle({ on, onToggle, disabled, label }: { on: boolean; onToggl
  *
  * ON COURT (issue #21, Wave C): the hand/side segmented pickers, saved on tap
  * through updatePlayerAttrsAction — soft signals only, both skippable, tapping
- * the active segment clears it. Deliberately NOT here: the
- * browser-notifications "Enable" row (desktop web push is Wave D). The three
- * notification-type rows render their current state — CUATRO sends all of
- * them today — but the per-type controls are not wired (no preference store
- * yet); they read as status, not as toggles that quietly fail to save.
+ * the active segment clears it.
+ *
+ * NOTIFICATIONS: the three per-type toggles are REAL — they read the user's
+ * stored preferences and save on tap through updateNotificationPrefsAction
+ * (all three values always submitted together, presence = on). Enforcement
+ * is in server/notify.ts: an opted-out type creates nothing at all. The
+ * browser-push master switch (PushToggle, the same client island the phone
+ * profile mounts) sits directly under the card — device-level delivery next
+ * to type-level choice.
  */
 export function SettingsWide({
   displayName,
@@ -65,6 +71,9 @@ export function SettingsWide({
   venueOptions,
   dominantHand = null,
   courtSide = null,
+  notifyFourthCall,
+  notifyRotation,
+  notifyTabNudge,
 }: {
   displayName: string | null;
   email: string;
@@ -76,6 +85,10 @@ export function SettingsWide({
   /** ON COURT attributes (issue #21) — the stored values; null renders both pickers unset. */
   dominantHand?: string | null;
   courtSide?: string | null;
+  /** Per-type notification preferences — the stored values (users.notify_*). */
+  notifyFourthCall: boolean;
+  notifyRotation: boolean;
+  notifyTabNudge: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState(displayName ?? "");
@@ -83,11 +96,21 @@ export function SettingsWide({
   const [showCamera, setShowCamera] = useState(false);
   const [findableOn, setFindableOn] = useState(findable);
   const [venue, setVenue] = useState(homeVenueId ?? "");
+  // Add-a-new-court state (choose-OR-ADD, same contract as the standing-game
+  // venue picker). `addingCourt` is separate from `venue` so revealing the
+  // add fields never clobbers the persisted selection — a findable toggle
+  // mid-add still submits the real home venue, not the sentinel.
+  const [addingCourt, setAddingCourt] = useState(false);
+  const [courtName, setCourtName] = useState("");
+  const [courtAddress, setCourtAddress] = useState("");
+  const [courtError, setCourtError] = useState<string | null>(null);
   const [hand, setHand] = useState(dominantHand ?? "");
   const [side, setSide] = useState(courtSide ?? "");
+  const [prefs, setPrefs] = useState({ fourthCall: notifyFourthCall, rotation: notifyRotation, tabNudge: notifyTabNudge });
   const [savingName, startSaveName] = useTransition();
   const [savingDiscovery, startSaveDiscovery] = useTransition();
   const [savingAttrs, startSaveAttrs] = useTransition();
+  const [savingPrefs, startSavePrefs] = useTransition();
 
   const nameDirty = name.trim() !== (displayName ?? "").trim() && name.trim().length > 0;
 
@@ -113,6 +136,29 @@ export function SettingsWide({
     });
   }
 
+  // The add-a-new-court save: free-form name + postcode instead of a picked
+  // id (the action dedupe-matches, geocodes, and only then saves — a postcode
+  // that doesn't resolve saves nothing and the friendly line shows here).
+  function saveNewCourt() {
+    const fd = new FormData();
+    if (findableOn) fd.set("findable", "on");
+    fd.set("newCourtName", courtName);
+    fd.set("newCourtAddress", courtAddress);
+    startSaveDiscovery(async () => {
+      const result = await updateDiscoverySettingsAction(fd);
+      if (!result.ok) {
+        setCourtError(homeCourtErrorCopy(result.error));
+        return;
+      }
+      setVenue(result.homeVenueId ?? "");
+      setAddingCourt(false);
+      setCourtName("");
+      setCourtAddress("");
+      setCourtError(null);
+      router.refresh();
+    });
+  }
+
   // Hand + side also share one action (both always submitted together), saved
   // on tap like the discovery controls — no Save button, the segment IS the
   // state. "" means unset and writes null.
@@ -122,6 +168,23 @@ export function SettingsWide({
     fd.set("courtSide", nextSide);
     startSaveAttrs(async () => {
       await updatePlayerAttrsAction(fd);
+      router.refresh();
+    });
+  }
+
+  // The three notification-type toggles share one action, so every flip
+  // submits ALL THREE current values (same convention as discovery: presence
+  // means on). The tapped switch flips optimistically; the card dims while
+  // the save is in flight.
+  function togglePref(key: keyof typeof prefs) {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    const fd = new FormData();
+    if (next.fourthCall) fd.set("fourthCall", "on");
+    if (next.rotation) fd.set("rotation", "on");
+    if (next.tabNudge) fd.set("tabNudge", "on");
+    startSavePrefs(async () => {
+      await updateNotificationPrefsAction(fd);
       router.refresh();
     });
   }
@@ -167,27 +230,41 @@ export function SettingsWide({
           <Section label="YOUR PATCH">
             <div className="flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-ink truncate">{homeVenueName ?? "No home venue set"}</p>
-                <Meta as="p" className="mt-0.5">Discover shows games around your patch, never GPS</Meta>
+                <p className="text-[13px] font-bold text-ink truncate">{homeVenueName ?? "No home court set"}</p>
+                <Meta as="p" className="mt-0.5">
+                  Your <InfoTerm term="homeCourt" label="home court" /> decides where Discover looks, never GPS
+                </Meta>
               </div>
             </div>
-            <select
-              value={venue}
-              onChange={(e) => {
-                setVenue(e.target.value);
-                saveDiscovery(findableOn, e.target.value);
-              }}
-              disabled={savingDiscovery}
-              aria-label="Home venue"
-              className="w-full mt-3 bg-ground border border-ink-hairline-2 rounded-[11px] px-3 py-2.5 text-[13px] text-ink outline-none"
-            >
-              <option value="">No home venue</option>
-              {venueOptions.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
+            <div className="mt-3">
+              <HomeCourtPicker
+                venues={venueOptions}
+                adding={addingCourt}
+                onAddingChange={(next) => {
+                  setAddingCourt(next);
+                  setCourtError(null);
+                }}
+                venueId={venue}
+                onVenueIdChange={(next) => {
+                  setVenue(next);
+                  saveDiscovery(findableOn, next);
+                }}
+                courtName={courtName}
+                onCourtNameChange={setCourtName}
+                courtAddress={courtAddress}
+                onCourtAddressChange={setCourtAddress}
+                error={courtError}
+                disabled={savingDiscovery}
+                fieldClassName="w-full bg-ground border border-ink-hairline-2 rounded-[11px] px-3 py-2.5 text-[13px] text-ink outline-none"
+              />
+              {addingCourt && (
+                <div className="mt-3">
+                  <Button type="button" variant="strong" onClick={saveNewCourt} pending={savingDiscovery}>
+                    Add court
+                  </Button>
+                </div>
+              )}
+            </div>
           </Section>
 
           <Section label="ON COURT">
@@ -256,18 +333,43 @@ export function SettingsWide({
         </div>
 
         {/* right column: NOTIFICATIONS */}
-        <div className="bg-surface border border-ink-hairline-1 rounded-[20px] overflow-hidden">
-          <p className="px-[18px] py-[11px] bg-ink-hairline-1/50 text-[10px] font-extrabold tracking-[0.14em] text-ink-muted">
-            NOTIFICATIONS
-          </p>
-          <NotifRow title="Fourth Calls" why="a game near you needs one" on />
-          <NotifRow title="Lineup locks" why="the Rotation picked, or benched, you" on />
-          <NotifRow title="Tab nudges" why="one tap, once, lightly funny" on />
-          <div className="px-[18px] py-3">
-            <Meta as="p">
-              You&apos;re getting all of these. Per-type controls arrive with the notifications update.
-            </Meta>
+        <div className="flex flex-col gap-3.5">
+          <div className="bg-surface border border-ink-hairline-1 rounded-[20px] overflow-hidden">
+            <p className="px-[18px] py-[11px] bg-ink-hairline-1/50 text-[10px] font-extrabold tracking-[0.14em] text-ink-muted">
+              NOTIFICATIONS
+            </p>
+            <NotifRow
+              title="Fourth Calls"
+              why="a game near you needs one"
+              on={prefs.fourthCall}
+              onToggle={() => togglePref("fourthCall")}
+              disabled={savingPrefs}
+            />
+            <NotifRow
+              title="Lineup locks"
+              why="the Rotation picked, or benched, you"
+              on={prefs.rotation}
+              onToggle={() => togglePref("rotation")}
+              disabled={savingPrefs}
+            />
+            <NotifRow
+              title="Tab nudges"
+              why="one tap, once, lightly funny"
+              on={prefs.tabNudge}
+              onToggle={() => togglePref("tabNudge")}
+              disabled={savingPrefs}
+            />
+            <div className="px-[18px] py-3">
+              <Meta as="p">
+                Everything else still reaches your bell, it is your own game after all.
+              </Meta>
+            </div>
           </div>
+
+          {/* Device-level master switch for web push — the same client island
+              the phone profile mounts; renders nothing where push isn't
+              supported. */}
+          <PushToggle />
         </div>
       </div>
 
@@ -285,14 +387,26 @@ export function SettingsWide({
   );
 }
 
-function NotifRow({ title, why, on }: { title: string; why: string; on: boolean }) {
+function NotifRow({
+  title,
+  why,
+  on,
+  onToggle,
+  disabled,
+}: {
+  title: string;
+  why: string;
+  on: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
   return (
     <div className="flex items-center gap-3 px-[18px] py-[13px] border-b border-ink-hairline-1 last:border-b-0">
       <div className="flex-1 min-w-0">
         <p className="text-[12.5px] font-bold text-ink">{title}</p>
         <Meta as="p" className="mt-0.5">{why}</Meta>
       </div>
-      <SettingToggle on={on} />
+      <SettingToggle on={on} onToggle={onToggle} disabled={disabled} label={title} />
     </div>
   );
 }

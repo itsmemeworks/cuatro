@@ -220,6 +220,9 @@ export default async function EditStandingGamePage({
             </label>
 
             <VenuePicker venues={venueOptions} defaultVenueId={standingGame.venueId} />
+            <Meta as="p" className="-mt-2">
+              the court sets <InfoTerm term="circleLocation" label="where this Circle appears" /> for nearby players
+            </Meta>
 
             <MoneyOptInPicker
               defaultPlatform={standingGame.bookingPlatform}

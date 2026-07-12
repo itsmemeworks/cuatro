@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Avatar, SubmitButton } from "@/components/ui";
 import { UNRATED_GLASS_DISPLAY, circleColorFor, formatGlass } from "@/lib/design";
 import { courtSide as courtSideVocab } from "@/lib/player-attrs";
-import { recordMatchAction } from "@/server/matches-actions";
+import { recordAdHocMatchAction, recordMatchAction } from "@/server/matches-actions";
 import { DEFAULT_TZ, formatDayTimeCompact, formatTime, localDateKey } from "@/lib/time";
 import { seatPair, seatSide } from "@/components/matches/wide/seating";
+import { defaultTimeFor, playedAtFromChoice, type WhenChoice } from "@/components/matches/adhoc-when";
 import { previewSeal, sealPreviewLine, type PreviewViewerGlass } from "@/components/matches/wide/seal-preview";
 import type { RosterCandidate } from "@/components/matches/roster-entry";
 
@@ -40,12 +41,23 @@ export interface WideRosterPlayer extends RosterCandidate {
   courtSide: "right" | "left" | "both" | null;
 }
 
+/** One circle the viewer can hang an ad-hoc match on — the "Which circle was it?" step's row (issue #28). `gameType` is the circle default the match inherits (switchable at the score step). */
+export interface AdHocCircleRow {
+  circleId: string;
+  circleName: string;
+  gameType: string;
+  memberCount: number;
+}
+
 export interface WideRosterContext {
-  sessionId: string;
+  /** The played session being recorded — null for an ad-hoc match (`adhoc` set instead; the session is minted server-side inside the recording transaction). */
+  sessionId: string | null;
   startsAtMs: number;
   gameType: string;
   circleName: string;
   venueName: string | null;
+  /** Set when this roster is circle-anchored (ad-hoc, issue #28): the flow adds a played-when step and the score step's type pill becomes a real choice. */
+  adhoc?: { circleId: string };
   confirmed: WideRosterPlayer[];
   candidates: WideRosterPlayer[];
   viewerGlass: PreviewViewerGlass | null;
@@ -53,6 +65,7 @@ export interface WideRosterContext {
 
 type Slot = WideRosterPlayer & { pending?: boolean };
 type Seats = [Slot | null, Slot | null];
+type Step = 1 | "circle" | "when" | 2 | 3 | 4;
 
 /** "Tue 8pm · Court X · The Four" — timezone-explicit via lib/time (the guard's F4 delegation: bare getHours/toLocaleDateString rendered raw runtime time on Fly). */
 function gameTimeLine(startsAtMs: number, timeZone: string, venueName: string | null, circleName: string): string {
@@ -82,9 +95,26 @@ function seatFact(p: Slot): string {
   return lingo ? `${rating} · ${lingo}` : p.isGuest ? `${rating} · guest` : rating;
 }
 
-export function RecordResultOverlay({ games, roster, viewerId }: { games: RecordableGameRow[]; roster: WideRosterContext | null; viewerId: string }) {
+export function RecordResultOverlay({
+  games,
+  roster,
+  adhocCircles,
+  viewerId,
+}: {
+  games: RecordableGameRow[];
+  roster: WideRosterContext | null;
+  adhocCircles: AdHocCircleRow[];
+  viewerId: string;
+}) {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(roster ? 2 : 1);
+  // An ad-hoc roster (circle picked, no session) enters at the played-when
+  // step; a session roster goes straight to the four.
+  const [step, setStep] = useState<Step>(roster ? (roster.adhoc ? "when" : 2) : 1);
+  // Ad-hoc extras: when it was played, and the classification (starts on the
+  // circle default; the score step's pill switches it — the design's "Ad-hoc
+  // matches choose it here").
+  const [when, setWhen] = useState<WhenChoice>({ mode: "now", time: "20:00" });
+  const [adhocType, setAdhocType] = useState<string>(roster?.gameType ?? "competitive");
 
   // The four seats, teams already assigned (the wide flow pairs people in
   // step 2; the phone flow does it later via PairingSelect — same wire
@@ -111,10 +141,11 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
   // piece of state when the picked session changes — React's documented
   // "adjust state during render" pattern — so ONE click lands on step 2 with
   // the confirmed pair already seated on their preferred sides.
-  const [rosterKey, setRosterKey] = useState<string | null>(roster?.sessionId ?? null);
-  if ((roster?.sessionId ?? null) !== rosterKey) {
-    setRosterKey(roster?.sessionId ?? null);
-    setStep(roster ? 2 : 1);
+  const currentKey = roster ? (roster.sessionId ?? `adhoc:${roster.adhoc?.circleId}`) : null;
+  const [rosterKey, setRosterKey] = useState<string | null>(currentKey);
+  if (currentKey !== rosterKey) {
+    setRosterKey(currentKey);
+    setStep(roster ? (roster.adhoc ? "when" : 2) : 1);
     setSeatsA(defaultSeats(roster, "A"));
     setSeatsB(defaultSeats(roster, "B"));
     setSelected(null);
@@ -124,6 +155,8 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
       { a: "", b: "" },
     ]);
     setRetired(false);
+    setWhen({ mode: "now", time: "20:00" });
+    setAdhocType(roster?.gameType ?? "competitive");
   }
 
   const seated = [...seatsA, ...seatsB].filter((s): s is Slot => s != null);
@@ -146,7 +179,8 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
   const filledSets = sets.filter((s) => s.a !== "" && s.b !== "").map((s) => ({ a: Number(s.a), b: Number(s.b) }));
 
   function close() {
-    router.push(roster ? `/games/${roster.sessionId}` : "/home");
+    // An ad-hoc record has no session page to return to until it's sent.
+    router.push(roster?.sessionId ? `/games/${roster.sessionId}` : "/home");
   }
 
   function setSeat(team: "A" | "B", seat: 0 | 1, value: Slot | null) {
@@ -219,15 +253,19 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
     setGuestDraft(null);
   }
 
+  // The EFFECTIVE classification: an ad-hoc match's is chosen in this overlay
+  // (adhocType), a session's was set when the game was made.
+  const rated = roster ? (roster.adhoc ? adhocType !== "friendly" : roster.gameType !== "friendly") : true;
+
   const preview =
-    roster && roster.viewerGlass && full && viewerSeated && roster.gameType !== "friendly"
+    roster && roster.viewerGlass && full && viewerSeated && rated
       ? previewSeal({
           viewerId,
           viewerGlass: roster.viewerGlass,
           teamA: [toPreview(seatsA[0]!), toPreview(seatsA[1]!)],
           teamB: [toPreview(seatsB[0]!), toPreview(seatsB[1]!)],
           sets: filledSets,
-          playedAtMs: roster.startsAtMs,
+          playedAtMs: roster.adhoc ? playedAtFromChoice(when) : roster.startsAtMs,
         })
       : null;
 
@@ -238,8 +276,6 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
   const oppAvg = oppRatings.length > 0 ? oppRatings.reduce((a, b) => a + b, 0) / oppRatings.length : null;
   const oppNeedsAccount = oppPair.length === 2 && oppPair.every((p) => p.isGuest);
   const yourScore = filledSets.map((s) => (viewerOnA ? `${s.a}–${s.b}` : `${s.b}–${s.a}`)).join(" · ");
-
-  const rated = roster?.gameType !== "friendly";
 
   return (
     <div className="fixed inset-0 z-40 bg-[rgba(10,9,8,0.72)] overflow-y-auto" role="dialog" aria-modal="true" aria-label="Record a result">
@@ -313,6 +349,140 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
                   </button>
                 );
               })}
+              {/* the design's "Ad-hoc match" row: a game that never had a session */}
+              <button
+                type="button"
+                onClick={() => setStep("circle")}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-ink-hairline-1 transition-cu-state ${games.length > 0 ? "border-t border-ink-hairline-1" : ""}`}
+              >
+                <span className="w-[26px] h-[26px] rounded-[9px] border border-ink-hairline-3 text-ink-muted font-sans font-semibold text-[14px] leading-[24px] text-center flex-none box-border">
+                  +
+                </span>
+                <span className="flex-1 min-w-0 text-left">
+                  <span className="block font-sans font-bold text-[13px] text-ink">Ad-hoc match</span>
+                  <span className="block font-mono text-[10px] text-ink-muted mt-0.5">no session needed · pick one of your circles</span>
+                </span>
+                <span className="font-bold text-[14px] text-ink-muted/60">›</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ad-hoc step: which circle it belongs to (required — the result lands on that circle's ledger and feed) */}
+        {step === "circle" && (
+          <div className="px-5 pt-[18px] pb-5">
+            <div className="flex items-baseline gap-2.5">
+              <h2 className="flex-1 font-sans font-extrabold text-[19px] text-ink">Which circle was it?</h2>
+              <span className="font-mono text-[10px] text-ink-muted/70">the result lands on that circle&apos;s ledger</span>
+            </div>
+            <div className="mt-3.5 bg-ground border border-ink-hairline-1 rounded-[16px] overflow-hidden">
+              {adhocCircles.length === 0 && (
+                <p className="px-4 py-4 text-cu-body text-ink-muted">You need a circle first. Every result lives on a circle&apos;s ledger.</p>
+              )}
+              {adhocCircles.map((c, i) => {
+                const isCurrent = roster?.adhoc?.circleId === c.circleId;
+                return (
+                  <button
+                    key={c.circleId}
+                    type="button"
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-ink-hairline-1 transition-cu-state ${i > 0 ? "border-t border-ink-hairline-1" : ""}`}
+                    onClick={() => {
+                      if (isCurrent) setStep("when");
+                      else router.push(`/matches/new?adhoc=${c.circleId}`);
+                    }}
+                  >
+                    <span
+                      className="w-[26px] h-[26px] rounded-[9px] text-white font-sans font-extrabold text-[10px] leading-[26px] text-center flex-none"
+                      style={{ background: circleColorFor(c.circleId) }}
+                    >
+                      {c.circleName
+                        .split(/\s+/)
+                        .map((w) => w[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </span>
+                    <span className="flex-1 min-w-0 text-left">
+                      <span className="block font-sans font-bold text-[13px] text-ink truncate">{c.circleName}</span>
+                      <span className="block font-mono text-[10px] text-ink-muted mt-0.5">
+                        {c.memberCount} {c.memberCount === 1 ? "player" : "players"} · {c.gameType === "friendly" ? "friendly" : "rated"} by default
+                      </span>
+                    </span>
+                    {isCurrent ? <span className="font-mono text-[10px] text-ink-muted">picked</span> : <span className="font-bold text-[14px] text-ink-muted/60">›</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2 mt-4">
+              <button type="button" onClick={() => setStep(1)} className="px-4 py-3 font-sans font-semibold text-[12.5px] text-ink-muted hover:text-ink transition-cu-state">
+                ‹ Back
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ad-hoc step: when it was played (default just now; earlier today and yesterday allowed) */}
+        {step === "when" && roster?.adhoc && (
+          <div className="px-5 pt-[18px] pb-5">
+            <div className="flex items-baseline gap-2.5">
+              <h2 className="flex-1 font-sans font-extrabold text-[19px] text-ink">When did you play?</h2>
+              <span className="font-mono text-[10px] text-ink-muted/70">{roster.circleName}</span>
+            </div>
+            <div className="mt-3.5 bg-ground border border-ink-hairline-1 rounded-[16px] overflow-hidden">
+              {(
+                [
+                  { mode: "now", label: "Just now", meta: "straight off court" },
+                  { mode: "today", label: "Earlier today", meta: "pick a time" },
+                  { mode: "yesterday", label: "Yesterday", meta: "pick a time" },
+                ] as const
+              ).map((opt, i) => {
+                const active = when.mode === opt.mode;
+                return (
+                  <div
+                    key={opt.mode}
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 ${i > 0 ? "border-t border-ink-hairline-1" : ""} ${active ? "" : "hover:bg-ink-hairline-1"} transition-cu-state`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setWhen({ mode: opt.mode, time: opt.mode === "now" ? "20:00" : defaultTimeFor(opt.mode) })}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                      aria-pressed={active}
+                    >
+                      <span
+                        className={`w-[16px] h-[16px] rounded-full border-[1.5px] flex-none ${active ? "border-action bg-action" : "border-ink-hairline-4"}`}
+                        aria-hidden
+                      />
+                      <span className="flex-1 min-w-0">
+                        <span className={`block font-sans font-bold text-[13px] ${active ? "text-ink" : "text-ink-muted"}`}>{opt.label}</span>
+                        <span className="block font-mono text-[10px] text-ink-muted mt-0.5">{opt.meta}</span>
+                      </span>
+                    </button>
+                    {active && opt.mode !== "now" && (
+                      <input
+                        type="time"
+                        value={when.time}
+                        onChange={(e) => setWhen((prev) => ({ ...prev, time: e.target.value || prev.time }))}
+                        aria-label="What time you played"
+                        className="rounded-[10px] bg-surface border border-ink-hairline-3 px-2.5 py-1.5 font-mono text-[12px] text-ink"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="font-mono text-[10px] text-ink-muted/70 mt-2">older games are past logging, results cover today and yesterday</p>
+            <div className="flex items-center gap-2 mt-4">
+              <button type="button" onClick={() => setStep("circle")} className="px-4 py-3 font-sans font-semibold text-[12.5px] text-ink-muted hover:text-ink transition-cu-state">
+                ‹ Back
+              </button>
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="bg-action text-action-contrast rounded-[13px] px-[26px] py-[13px] font-sans font-extrabold text-[13.5px] hover:opacity-90 transition-cu-state"
+              >
+                Continue
+              </button>
             </div>
           </div>
         )}
@@ -414,7 +584,11 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
             )}
 
             <div className="flex items-center gap-2 mt-4">
-              <button type="button" onClick={() => setStep(1)} className="px-4 py-3 font-sans font-semibold text-[12.5px] text-ink-muted hover:text-ink transition-cu-state">
+              <button
+                type="button"
+                onClick={() => setStep(roster.adhoc ? "when" : 1)}
+                className="px-4 py-3 font-sans font-semibold text-[12.5px] text-ink-muted hover:text-ink transition-cu-state"
+              >
                 ‹ Back
               </button>
               <span className="flex-1" />
@@ -435,9 +609,39 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
           <div className="px-5 pt-[18px] pb-5">
             <div className="flex items-center gap-2.5">
               <h2 className="flex-1 font-sans font-extrabold text-[19px] text-ink">How did it go?</h2>
-              <span className="border border-ink-hairline-2 text-ink-muted rounded-full px-[11px] py-[5px] font-mono font-semibold text-[10px] whitespace-nowrap">
-                {rated ? "🔒 RATED · moves Glass" : "FRIENDLY · Glass stays put"}
-              </span>
+              {roster.adhoc ? (
+                // The design's step-3 note: "the type was set when the game
+                // was made. Ad-hoc matches choose it here" — for an ad-hoc
+                // match the pill is a real toggle, seeded with the circle default.
+                <div className="flex gap-1.5" role="radiogroup" aria-label="Game type">
+                  {(
+                    [
+                      { value: "competitive", label: "🔒 RATED · moves Glass" },
+                      { value: "friendly", label: "FRIENDLY · Glass stays put" },
+                    ] as const
+                  ).map((opt) => {
+                    const active = (adhocType === "friendly") === (opt.value === "friendly");
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setAdhocType(opt.value)}
+                        className={`border rounded-full px-[11px] py-[5px] font-mono font-semibold text-[10px] whitespace-nowrap transition-cu-state ${
+                          active ? "border-ink-hairline-4 text-ink bg-ink-hairline-1" : "border-ink-hairline-2 text-ink-muted hover:text-ink hover:border-ink-hairline-3"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="border border-ink-hairline-2 text-ink-muted rounded-full px-[11px] py-[5px] font-mono font-semibold text-[10px] whitespace-nowrap">
+                  {rated ? "🔒 RATED · moves Glass" : "FRIENDLY · Glass stays put"}
+                </span>
+              )}
             </div>
 
             <div className="mt-3.5 bg-ground border border-ink-hairline-2 rounded-[18px] p-[18px]">
@@ -490,8 +694,17 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
 
         {/* step 4: send it */}
         {step === 4 && roster && (
-          <form action={recordMatchAction} className="px-5 pt-[18px] pb-5">
-            <input type="hidden" name="sessionId" value={roster.sessionId} />
+          <form action={roster.adhoc ? recordAdHocMatchAction : recordMatchAction} className="px-5 pt-[18px] pb-5">
+            {roster.adhoc ? (
+              <>
+                <input type="hidden" name="circleId" value={roster.adhoc.circleId} />
+                {/* the chosen played-at, resolved at render time — "just now" is the moment step 4 appeared */}
+                <input type="hidden" name="playedAt" value={playedAtFromChoice(when)} />
+                <input type="hidden" name="gameType" value={adhocType} />
+              </>
+            ) : (
+              <input type="hidden" name="sessionId" value={roster.sessionId ?? ""} />
+            )}
             <input type="hidden" name="teamA1" value={seatsA[0]?.id ?? ""} />
             <input type="hidden" name="teamA2" value={seatsA[1]?.id ?? ""} />
             <input type="hidden" name="teamB1" value={seatsB[0]?.id ?? ""} />
@@ -578,8 +791,8 @@ export function RecordResultOverlay({ games, roster, viewerId }: { games: Record
           </form>
         )}
 
-        {/* a session-less visit that has games to pick lands on step 1; with no roster there is nothing beyond it */}
-        {step !== 1 && !roster && (
+        {/* a session-less visit that has games to pick lands on step 1; with no roster there is nothing beyond the picker steps */}
+        {typeof step === "number" && step !== 1 && !roster && (
           <div className="px-5 py-5">
             <p className="text-cu-body text-ink-muted">Start this from a played game, pick one from the list.</p>
           </div>

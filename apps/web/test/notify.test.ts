@@ -112,8 +112,9 @@ describe("insertNotification", () => {
   it("writes an identical row to a raw insert, keyed by userId/type/payload", async () => {
     const user = await seedUser();
     const row = await insertNotification(db, { userId: user.id, type: "game_filled", payload: { sessionId: "s1" } });
+    expect(row).not.toBeNull();
 
-    const [stored] = await db.select().from(notifications).where(eq(notifications.id, row.id));
+    const [stored] = await db.select().from(notifications).where(eq(notifications.id, row!.id));
     expect(stored.userId).toBe(user.id);
     expect(stored.type).toBe("game_filled");
     expect(stored.payload).toEqual({ sessionId: "s1" });
@@ -145,7 +146,7 @@ describe("insertNotification", () => {
     expect(calls[0]).toEqual({
       topic: userChannel(user.id),
       type: "notification",
-      fields: { userId: user.id, notificationId: row.id, notificationType: "game_filled" },
+      fields: { userId: user.id, notificationId: row!.id, notificationType: "game_filled" },
     });
   });
 

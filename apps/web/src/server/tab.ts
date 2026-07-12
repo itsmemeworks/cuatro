@@ -56,7 +56,7 @@ export interface EqualSplitResult {
  * evenly. This means no debtor is ever asked for a penny more than their
  * equal floor share — the person who already fronted the cash absorbs the
  * rounding, which is the generous-by-default direction for a product whose
- * whole pitch is "no fees, no dark patterns" (see HANDOFF.md's Onboarding
+ * whole pitch is "no fees, no sneaky lobs" (see HANDOFF.md's Onboarding
  * footer). It also guarantees no penny of the original amount is ever lost:
  * `shareMinor * debtorCount + payerShareMinor === totalAmountMinor` always.
  *

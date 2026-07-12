@@ -1,14 +1,19 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { SessionSummary } from "@/server/games-service";
+import type { PlayerRef, SessionSummary } from "@/server/games-service";
 import { StandingGameWeekCard } from "@/components/games/StandingGameWeekCard";
 import { VenueMapCard } from "@/components/games/venue-map-card";
 import { BookingChip } from "@/components/games/booking-chip";
 import { FriendlyBadge } from "@/components/matches/friendly-badge";
-import { Button, Meta, SubmitButton } from "@/components/ui";
+import { CircleEmblem } from "@/components/games/roster";
+import { CirclePreviewTrigger } from "@/components/discover/circle-preview-sheet";
+import { AskToJoinCard } from "@/components/discover/ask-to-join-card";
+import { Avatar, Button, DashedSlot, Fact, Meta, SubmitButton } from "@/components/ui";
 import { formatMoneyWhole } from "@/components/tab/money";
+import { formatGlass } from "@/lib/design";
 import { RotationWideMain, RotationWideAside } from "./wide-rotation";
 import { rotationModePill } from "./wide-rotation-model";
+import { gameBackTarget } from "./wide-game-detail-model";
 import { formatDate } from "@/lib/time";
 
 export interface GameDetailProps {
@@ -17,6 +22,12 @@ export interface GameDetailProps {
   glassByUserId: Record<string, number | null>;
   guestByUserId: Record<string, boolean>;
   viewerIsOrganiser: boolean;
+  /** The viewer belongs to the game's Circle. Non-members (game reads are ungated) get the shop-window treatment: Discover back-link, circle preview, read-only roster, the ask affordance — never member chrome. */
+  viewerIsMember: boolean;
+  /** Non-member only: the Circle is discoverable, so its name may open the public preview sheet. */
+  circlePreviewEnabled: boolean;
+  /** Non-member only: the ask-to-join affordance (null hides it — full, past, window shut, or the viewer already holds a place). */
+  outsiderAsk: { initialPending: boolean } | null;
   upcoming: boolean;
   gameFull: boolean;
   isPast: boolean;
@@ -72,6 +83,93 @@ function FourthCallRingsPanel({ circleName, fourthCallHref }: { circleName: stri
 }
 
 /**
+ * The NON-member roster: who's in, as read-only facts (no RSVP buttons, no
+ * rotation controls — those mutations are member-gated server-side, so
+ * showing them to an outsider would be a wall of error toasts). Dashed coral
+ * circles mark the open spots as ever; a pre-lock rotation game has no held
+ * slots, so it says so instead of faking certainty.
+ */
+function OutsiderRosterPanel({
+  confirmed,
+  slots,
+  upcoming,
+  rotationForming,
+  glassByUserId,
+  viewerId,
+}: {
+  confirmed: PlayerRef[];
+  slots: number;
+  upcoming: boolean;
+  rotationForming: boolean;
+  glassByUserId: Record<string, number | null>;
+  viewerId: string;
+}) {
+  const open = Math.max(0, slots - confirmed.length);
+  return (
+    <div className="rounded-card bg-surface border border-ink-hairline-1 px-4 py-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <Meta as="p" className="uppercase tracking-[0.12em] font-extrabold">
+          Who&apos;s in
+        </Meta>
+        <Fact size="meta" tone="muted">
+          {confirmed.length} of {slots}
+        </Fact>
+      </div>
+      {confirmed.map((p) => {
+        const glass = glassByUserId[p.userId] ?? null;
+        const row = (
+          <>
+            <Avatar src={p.avatarUrl} name={p.displayName} size="md" />
+            <span className="text-cu-body text-ink flex-1 min-w-0 truncate">
+              {p.displayName}
+              {p.userId === viewerId ? " (you)" : ""}
+            </span>
+            {glass != null ? (
+              <Fact size="md" weight="bold">
+                {formatGlass(glass)}
+              </Fact>
+            ) : (
+              <Meta>not rated yet</Meta>
+            )}
+          </>
+        );
+        // Guests have no profile to link to; everyone else links to their public profile.
+        return p.isGuest || p.userId === viewerId ? (
+          <div key={p.userId} className="flex items-center gap-3">
+            {row}
+          </div>
+        ) : (
+          <Link
+            key={p.userId}
+            href={`/players/${p.userId}`}
+            className="flex items-center gap-3 -mx-2 px-2 py-1 rounded-button transition-cu-state hover:bg-ink-hairline-1"
+          >
+            {row}
+          </Link>
+        );
+      })}
+      {rotationForming ? (
+        <Meta as="p">THE ROTATION picks this four closer to game time</Meta>
+      ) : (
+        upcoming &&
+        open > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5" aria-hidden>
+              {Array.from({ length: Math.min(open, 4) }, (_, i) => (
+                <DashedSlot key={i} size="md" label="" overlap={i > 0} />
+              ))}
+            </span>
+            <Meta as="span">
+              {open === 1 ? "one spot open" : `${open} spots open`}
+            </Meta>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+/**
  * Game detail (design "Desktop · Standing game" / "Circle · Rotation game" /
  * "Circle · One-off session"). ONE responsive tree: below 900px it stacks (the
  * roster, cost and venue in a single column); at 900px+ it becomes a two-column
@@ -116,10 +214,14 @@ export function GameDetail(props: GameDetailProps) {
     ? "single session · no recurrence"
     : `repeats weekly · RSVPs open ${props.rsvpWindowDays} ${props.rsvpWindowDays === 1 ? "day" : "days"} before`;
 
+  // Members go back to their Circle's games; a non-member gets Discover — the
+  // circle pages are members-only and 404 on outsiders (Pete, 2026-07-11).
+  const back = gameBackTarget(props.viewerIsMember, summary.circleId);
+
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-4 c4-wide min-[900px]:px-[30px] min-[900px]:pt-0 min-[900px]:pb-0 min-[900px]:max-w-[1000px] min-[900px]:mx-auto">
-      <Link href={`/circles/${summary.circleId}/games`} className="text-cu-secondary font-bold text-action transition-cu-state hover:underline">
-        ‹ Games
+      <Link href={back.href} className="text-cu-secondary font-bold text-action transition-cu-state hover:underline">
+        {back.label}
       </Link>
 
       {props.viewerStatusLine && (
@@ -155,6 +257,40 @@ export function GameDetail(props: GameDetailProps) {
           <Meta as="p" className="mt-1.5">
             {subline}
           </Meta>
+          {/* NON-member only: the circle identity, tappable into the Circle's
+              public preview sheet — the natural "who are these people" moment
+              (members arrive from the circle, so they get no extra row). A
+              private Circle's name stays plain text. */}
+          {!props.viewerIsMember &&
+            (props.circlePreviewEnabled ? (
+              <CirclePreviewTrigger
+                circleId={summary.circleId}
+                circleName={summary.circleName}
+                className="mt-2.5 flex items-center gap-2 max-w-full min-w-0 text-left group"
+              >
+                <CircleEmblem
+                  seed={summary.circleId}
+                  name={summary.circleName}
+                  emblem={summary.circleEmblem}
+                  colour={summary.circleColour}
+                  px={20}
+                />
+                <span className="text-cu-secondary font-bold text-ink truncate transition-cu-state group-hover:underline">
+                  {summary.circleName}
+                </span>
+              </CirclePreviewTrigger>
+            ) : (
+              <span className="mt-2.5 flex items-center gap-2 min-w-0">
+                <CircleEmblem
+                  seed={summary.circleId}
+                  name={summary.circleName}
+                  emblem={summary.circleEmblem}
+                  colour={summary.circleColour}
+                  px={20}
+                />
+                <span className="text-cu-secondary font-bold text-ink truncate">{summary.circleName}</span>
+              </span>
+            ))}
         </div>
         {/* Wide-only header meta (design "Circle · Rotation game"): the Booked-on
             pill, the rotation contract pill, and — where slots are literal —
@@ -179,11 +315,35 @@ export function GameDetail(props: GameDetailProps) {
 
       <div className="flex flex-col gap-4 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:gap-4 min-[900px]:items-start">
         <div className="flex flex-col gap-4 min-w-0">
+          {/* NON-member (shop window): read-only roster + the ask affordance,
+              never the RSVP/rotation machinery (member-gated mutations). */}
+          {!props.viewerIsMember && (
+            <>
+              <OutsiderRosterPanel
+                confirmed={summary.confirmed}
+                slots={summary.slots}
+                upcoming={props.upcoming}
+                rotationForming={isRotation && !rotationLocked}
+                glassByUserId={props.glassByUserId}
+                viewerId={viewer.id}
+              />
+              {props.outsiderAsk && (
+                <AskToJoinCard
+                  sessionId={summary.session.id}
+                  gameLabel={`${summary.circleName} · ${props.standingGameTitle}${summary.venue ? ` · ${summary.venue.name}` : ""}`}
+                  slotsOpen={open}
+                  initialPending={props.outsiderAsk.initialPending}
+                />
+              )}
+            </>
+          )}
+
           {/* A rotation game swaps this phone card for the design's wide
               anatomy at 900+ (RotationWideMain/Aside below). The card stays
               MOUNTED (display:contents, then display:none at 900+) because it
               holds the session's single realtime subscription — its
               router.refresh() is what keeps the wide panels live. */}
+          {props.viewerIsMember && (
           <div className={isRotation ? "contents min-[900px]:hidden" : "contents"}>
             <StandingGameWeekCard
               sessionId={summary.session.id}
@@ -208,8 +368,9 @@ export function GameDetail(props: GameDetailProps) {
               rotation={rotationView}
             />
           </div>
+          )}
 
-          {rotationView && (
+          {props.viewerIsMember && rotationView && (
             <div className="hidden min-[900px]:block">
               <RotationWideMain
                 sessionId={summary.session.id}
@@ -242,7 +403,7 @@ export function GameDetail(props: GameDetailProps) {
               <BookingChip booking={moneyOptIn.booking} />
               <Meta className="flex-1 text-right whitespace-nowrap">booked and paid there, the Tab stays out of it</Meta>
             </div>
-          ) : moneyOptIn?.kind === "cost" ? (
+          ) : moneyOptIn?.kind === "cost" && props.viewerIsMember ? (
             !props.isPast ? (
               <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3">
                 <p className="text-cu-body text-ink flex-1">
@@ -273,7 +434,11 @@ export function GameDetail(props: GameDetailProps) {
             )
           ) : null}
 
-          {props.isPast &&
+          {/* Result chrome is members' business — recording who played and the
+              Tab are inside-the-circle acts, so the outsider page stops at the
+              facts above. */}
+          {props.viewerIsMember &&
+            props.isPast &&
             (props.existingMatchId ? (
               <Link
                 href={`/matches/${props.existingMatchId}`}
@@ -302,7 +467,7 @@ export function GameDetail(props: GameDetailProps) {
         <div className="flex flex-col gap-3">
           {/* Rotation, wide: the fair-share ranked list (pre-lock) or the
               consent-offer cascade (locked + a spot open, organiser view). */}
-          {rotationView && props.upcoming && (
+          {props.viewerIsMember && rotationView && props.upcoming && (
             <div className="hidden min-[900px]:block">
               <RotationWideAside
                 slots={summary.slots}
