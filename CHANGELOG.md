@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/itsmemeworks/cuatro/compare/v1.5.0...v1.6.0) (2026-07-12)
+
+
+### Features
+
+* THE ATLAS — courts, patches and Circles on a map ([#38](https://github.com/itsmemeworks/cuatro/issues/38)) ([a03d531](https://github.com/itsmemeworks/cuatro/commit/a03d53183e7bc2f3110d6de7f2acfc6e796a3c74))
+
 ## [1.5.0](https://github.com/itsmemeworks/cuatro/compare/v1.4.1...v1.5.0) (2026-07-12)
 
 
