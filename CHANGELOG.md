@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/itsmemeworks/cuatro/compare/v1.6.0...v1.6.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* declare NEXT_PUBLIC_TILES_URL and NEXT_PUBLIC_APP_ENV as Dockerfile build args ([4e21208](https://github.com/itsmemeworks/cuatro/commit/4e212085a274133270f0f7f03aee7e503e324483))
+
 ## [1.6.0](https://github.com/itsmemeworks/cuatro/compare/v1.5.0...v1.6.0) (2026-07-12)
 
 
