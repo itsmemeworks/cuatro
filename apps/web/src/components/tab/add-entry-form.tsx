@@ -16,11 +16,14 @@ export function AddEntryForm({
   members,
   payerUserId,
   defaultCurrency,
+  onSaved,
 }: {
   circleId: string;
   members: AddEntryFormMember[];
   payerUserId: string;
   defaultCurrency: string;
+  /** Fires after a successful add, before the refresh — the phone sheet closes itself here (save-then-close, CLAUDE.md #14; the wide dialog's setOpen(false) is the model). */
+  onSaved?: () => void;
 }) {
   const router = useRouter();
   const [amount, setAmount] = useState("");
@@ -70,6 +73,7 @@ export function AddEntryForm({
       setAmount("");
       setDescription("");
       setSelected([]);
+      onSaved?.();
       router.refresh();
     } catch {
       setError(errorCopy("network_error"));

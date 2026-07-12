@@ -40,6 +40,7 @@ const ERROR_COPY: Record<string, string> = {
   // The Rotation.
   rotation_not_enabled: "This game isn't on rotation, so just tap in.",
   rotation_locked: "This week's four is already set. Tap in or out on the game itself.",
+  rotation_not_locked: "This game picks its four from who's available. Tap I'm available instead.",
   // Money opt-in (issue #21): booking signpost XOR court cost.
   booking_and_cost: "Pick one, booked on or a court cost. A game never carries both.",
   invalid_booking_platform: "Pick a booking platform from the list.",

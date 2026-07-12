@@ -93,7 +93,8 @@ export function Topbar({ data, context, className = "" }: { data: ShellData; con
             Games
           </Pill>
           <Pill href={`${base}/settings`} active={circleActive === "settings"}>
-            ⚙
+            {/* Labelled like its siblings (QA3): a bare gear was the only unlabelled pill at 1024. */}
+            ⚙ Settings
           </Pill>
           <Pill href={`${base}/tab`} active={circleActive === "tab"}>
             Tab

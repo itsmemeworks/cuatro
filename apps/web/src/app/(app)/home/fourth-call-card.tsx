@@ -4,12 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Avatar, Button, Meta } from "@/components/ui";
 import { sideHintShort, type FourthCallSideHint } from "@/components/circle-screens/fourth-call-side-hint";
+import { DEFAULT_TZ, formatDayTime } from "@/lib/time";
 
 export type FourthCallHomeSession = {
   sessionId: string;
   circleName: string;
   venueName: string | null;
   startsAt: Date;
+  /** The session's effective IANA timezone (venue's, else the Circle's) for rendering its start time. Optional so older builders fall back to DEFAULT_TZ. */
+  timezone?: string;
   askerAvatarUrl: string | null;
   askerName: string;
   /** "their level 4.2–4.9", or null when nobody confirmed yet has a rated Glass number. */
@@ -61,7 +64,8 @@ export function FourthCallCard({
     }
   }
 
-  const whenLabel = session.startsAt.toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", minute: "2-digit" });
+  // Timezone-explicit (lib/time): the session's own venue/circle timezone, never the runtime's.
+  const whenLabel = formatDayTime(session.startsAt, session.timezone ?? DEFAULT_TZ);
   const expiresHours = Math.max(1, Math.round((session.startsAt.getTime() - Date.now()) / (60 * 60 * 1000)));
 
   return (

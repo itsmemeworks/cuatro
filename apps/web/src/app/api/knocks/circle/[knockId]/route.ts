@@ -1,4 +1,7 @@
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+import { knocks } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getDb } from "@/server/db";
 import { decideCircleKnock } from "@/server/open-door";
@@ -32,5 +35,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const status = result.error === "knock_not_found" ? 404 : result.error === "not_organiser" ? 403 : 409;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
+
+  // The decision changed the circle's knock queue — and on accept, its ROSTER
+  // (fix wave F3's join/knock revalidation cluster): revalidate the circle
+  // subtree ("layout" reaches /members and /settings) plus the lists, so no
+  // cached RSC payload can serve the pre-decision roster. One indexed read for
+  // the circle id; decideCircleKnock deliberately returns only ok/error.
+  const [knock] = await db.select({ targetId: knocks.targetId }).from(knocks).where(eq(knocks.id, knockId)).limit(1);
+  if (knock) {
+    revalidatePath(`/circles/${knock.targetId}`, "layout");
+    revalidatePath("/circles");
+    revalidatePath("/home");
+  }
+
   return NextResponse.json({ ok: true });
 }

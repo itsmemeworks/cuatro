@@ -6,20 +6,17 @@ import type { AddEntryFormMember } from "@/components/tab/add-entry-form";
 import { TabOweRow } from "@/components/tab/tab-owe-row";
 import { AllSquareRow } from "@/components/tab/tab-entry-row";
 import { WidePage } from "./wide-shell";
+import { formatWeekdayDay } from "@/lib/time";
 
-function activityDateLabel(d: Date): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric" }).format(d);
-}
-
-/** One compact mono line of the circle-wide activity feed (design's right column). */
-function ActivityLine({ entry, viewerUserId }: { entry: TabEntryView; viewerUserId: string }) {
+/** One compact mono line of the circle-wide activity feed (design's right column). Dates render in the Circle's timezone (TabView.timezone) — the runtime is UTC, so a bare format shifts late-evening entries onto the wrong day. */
+function ActivityLine({ entry, viewerUserId, timeZone }: { entry: TabEntryView; viewerUserId: string; timeZone: string }) {
   if (entry.status === "settled") {
     const text =
       entry.payerUserId === viewerUserId
-        ? `${activityDateLabel(entry.createdAt)} · you settled ${entry.debtorName}`
+        ? `${formatWeekdayDay(entry.createdAt, timeZone)} · you settled ${entry.debtorName}`
         : entry.debtorUserId === viewerUserId
-          ? `${activityDateLabel(entry.createdAt)} · you settled up`
-          : `${activityDateLabel(entry.createdAt)} · ${entry.debtorName} settled up`;
+          ? `${formatWeekdayDay(entry.createdAt, timeZone)} · you settled up`
+          : `${formatWeekdayDay(entry.createdAt, timeZone)} · ${entry.debtorName} settled up`;
     return (
       <div className="flex justify-between py-[11px] font-mono text-[11px] text-ink-muted">
         <span>{text}</span>
@@ -30,7 +27,7 @@ function ActivityLine({ entry, viewerUserId }: { entry: TabEntryView; viewerUser
   return (
     <div className="flex justify-between py-[11px] font-mono text-[11px] text-ink-muted">
       <span>
-        {activityDateLabel(entry.createdAt)} · {entry.descriptionLabel ?? "court split"}
+        {formatWeekdayDay(entry.createdAt, timeZone)} · {entry.descriptionLabel ?? "court split"}
       </span>
       <span>{formatMoneyWhole(entry.amountMinor, entry.currency)} each</span>
     </div>
@@ -56,6 +53,7 @@ export function WideTab({
   allSquare,
   avatarByUserId,
   activity,
+  timezone,
 }: {
   circleId: string;
   circleName: string;
@@ -67,6 +65,8 @@ export function WideTab({
   allSquare: { userId: string; name: string }[];
   avatarByUserId: Map<string, string | null | undefined>;
   activity: TabEntryView[];
+  /** The Circle's IANA timezone (TabView.timezone) for entry dates. */
+  timezone: string;
 }) {
   return (
     <WidePage>
@@ -144,7 +144,7 @@ export function WideTab({
           {activity.length > 0 && (
             <div className="mt-3 bg-surface border border-ink-hairline-1 rounded-[16px] px-4 divide-y divide-ink-hairline-1">
               {activity.map((e) => (
-                <ActivityLine key={e.id} entry={e} viewerUserId={viewerUserId} />
+                <ActivityLine key={e.id} entry={e} viewerUserId={viewerUserId} timeZone={timezone} />
               ))}
             </div>
           )}

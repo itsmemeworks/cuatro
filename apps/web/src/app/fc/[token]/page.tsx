@@ -4,13 +4,16 @@ import { getGuestToken } from "@/lib/guest-session";
 import { getGamesClient } from "@/server/games-db";
 import { getSessionSummary } from "@/server/games-service";
 import { parseRing3ClaimToken } from "@/server/fourth-call";
-import { getGuestUserId, GUEST_PLACEHOLDER_NAME } from "@/server/guest";
+import { getGuestUserId } from "@/server/guest";
 import { getMatchesStore } from "@/server/matches-db";
+import { formatDateTime } from "@/lib/time";
 import { AvatarStack, Meta } from "@/components/ui";
 import { RosterList } from "@/components/games/roster";
 import { FourthCallLinkClaim } from "@/components/circle-screens/fourth-call-link-claim";
 import { GuestClaimFlow, type GuestFlowInitial } from "@/components/entry/guest-claim-flow";
+import { RefreshOnFocus } from "@/components/entry/refresh-on-focus";
 import { PresenceTracker } from "@/components/realtime/PresenceTracker";
+import { resolveGuestFlowInitial } from "./guest-flow-initial";
 
 /**
  * Fourth Call ring 3's public claim page — "anyone with the link"
@@ -32,10 +35,16 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 
   const { db } = await getGamesClient();
   const summary = await getSessionSummary(db, parsed.sessionId, "");
-  const title = summary ? `${summary.circleName} needs a fourth` : "CUATRO invite";
-  const description = summary
-    ? `A game is short a player for ${new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}. Tap in if you can make it.`
-    : "This invite link is invalid or has expired.";
+  if (!summary) return { title: "CUATRO invite", description: "This invite link is invalid or has expired." };
+
+  // The preview must tell the same truth as the page (QA6): a full session
+  // never advertises an open spot. Explicit timezone — the runtime is UTC.
+  const isFull = summary.confirmed.length >= summary.slots;
+  const when = formatDateTime(summary.session.startsAt, summary.timezone);
+  const title = isFull ? `${summary.circleName} found their fourth` : `${summary.circleName} needs a fourth`;
+  const description = isFull
+    ? `The four's set for ${when}. If a spot opens up, this link comes back to life.`
+    : `A game is short a player for ${when}. Tap in if you can make it.`;
 
   return { title, description };
 }
@@ -82,15 +91,14 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
     levelMatchLabel = min === max ? `their level ${min}` : `their level ${min}–${max}`;
   }
 
-  const whenLabel = new Date(summary.session.startsAt).toLocaleString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  // The session's effective timezone (venue else circle) comes resolved on the
+  // summary. The old bare toLocaleString rendered raw UTC on the Fly runtime.
+  const whenLabel = formatDateTime(summary.session.startsAt, summary.timezone);
 
   const alreadyIn = summary.viewerStatus === "in";
+  // The truth gate (QA6): once the four is set, nothing on this page may still
+  // say "I can play". Confirmed players resume their own state regardless.
+  const isFull = summary.confirmed.length >= summary.slots;
 
   // Anonymous branch: no signed-in `user` at all. Rather than gate on
   // sign-in (the old "Sign in to claim the spot" link below, still used
@@ -103,22 +111,11 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
   if (!user) {
     const guestToken = await getGuestToken();
     const guestUserId = guestToken ? await getGuestUserId(db, guestToken) : null;
-    const guestConfirmed = guestUserId ? summary.confirmed.find((p) => p.userId === guestUserId) : undefined;
-    const guestReserved = guestUserId ? summary.reserves.find((p) => p.userId === guestUserId) : undefined;
-    const guestPlayer = guestConfirmed ?? guestReserved;
-
-    if (!guestPlayer) {
-      guestFlow = { step: "claim" };
-    } else if (guestPlayer.displayName === GUEST_PLACEHOLDER_NAME) {
-      guestFlow = { step: "name", status: guestConfirmed ? "in" : "reserve" };
-    } else {
-      guestFlow = {
-        step: "done",
-        status: guestConfirmed ? "in" : "reserve",
-        displayName: guestPlayer.displayName,
-        avatarUrl: guestPlayer.avatarUrl,
-      };
-    }
+    guestFlow = resolveGuestFlowInitial({
+      isFull,
+      confirmed: guestUserId ? summary.confirmed.find((p) => p.userId === guestUserId) : undefined,
+      reserved: guestUserId ? summary.reserves.find((p) => p.userId === guestUserId) : undefined,
+    });
   }
 
   const confirmedPeople = summary.confirmed.map((p) => ({ src: p.avatarUrl, name: p.displayName }));
@@ -132,6 +129,8 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
     <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink min-[900px]:justify-start min-[900px]:pt-12 min-[900px]:pb-16 min-[900px]:bg-transparent">
       {/* Anonymous viewer — always an ephemeral id, never this page's signed-in `user` (if any), per design/HANDOFF.md screen 6's ring-3 trust model. */}
       <PresenceTracker sessionId={parsed.sessionId} />
+      {/* Invite links get left open in a tab; re-check the fill state when the visitor comes back so the CTA never goes stale (QA6). */}
+      <RefreshOnFocus />
       {guestFlow ? (
         <div className="w-full max-w-xs min-[900px]:max-w-[520px]">
           <GuestClaimFlow
@@ -151,7 +150,9 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
             <Meta className="uppercase tracking-[0.12em] text-action-strong font-extrabold">Fourth Call</Meta>
             <AvatarStack people={confirmedPeople} size="lg" ring="ground" />
             <div>
-              <h1 className="text-cu-title mt-1.5 min-[900px]:text-[26px]">{summary.circleName} need a fourth</h1>
+              <h1 className="text-cu-title mt-1.5 min-[900px]:text-[26px]">
+                {summary.circleName} {isFull ? "have their four" : "need a fourth"}
+              </h1>
               <p className="text-cu-body text-ink-muted mt-1 max-w-xs">
                 {whenLabel}
                 {summary.venue?.name ? ` · ${summary.venue.name}` : ""}
@@ -173,6 +174,19 @@ export default async function FourthCallLinkPage({ params }: { params: Promise<{
           <div className="w-full max-w-xs min-[900px]:max-w-[440px]">
             {alreadyIn ? (
               <p className="text-cu-body text-win font-bold">You&apos;re in, see you on court</p>
+            ) : summary.viewerStatus === "reserve" ? (
+              <p className="text-cu-body text-ink font-bold">
+                You&apos;re on the list, you&apos;ll hear the moment a slot opens
+              </p>
+            ) : isFull ? (
+              // Honest full state for the signed-in viewer too — no live claim
+              // CTA on a set four (QA6's "beaten to it" language, pre-tap).
+              <div>
+                <p className="text-cu-body font-bold text-ink">Beaten to it, the four&apos;s set</p>
+                <Meta as="p" className="mt-1.5">
+                  if a spot opens up, this link comes back to life
+                </Meta>
+              </div>
             ) : (
               <FourthCallLinkClaim sessionId={parsed.sessionId} token={token} sideHint={summary.session.fourthCallSideHint ?? null} />
             )}

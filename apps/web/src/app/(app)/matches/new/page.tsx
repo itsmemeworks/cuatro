@@ -6,6 +6,7 @@ import { RosterEntry } from "@/components/matches/roster-entry";
 import { FriendlyBadge } from "@/components/matches/friendly-badge";
 import { RecordResultOverlay, type RecordableGameRow, type WideRosterContext } from "@/components/matches/wide/record-result-overlay";
 import { Card, Meta } from "@/components/ui";
+import { DEFAULT_TZ, formatDate } from "@/lib/time";
 
 export default async function NewMatchPage({
   searchParams,
@@ -92,7 +93,8 @@ export default async function NewMatchPage({
             {roster.session.gameType === "friendly" && <FriendlyBadge />}
           </div>
           <Meta className="mt-1 block">
-            {roster.session.startsAt.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+            {/* DEFAULT_TZ stopgap (F2 §5): the roster context carries no venue/circle tz; correct for UK launch, guard-compliant. */}
+            {formatDate(roster.session.startsAt, DEFAULT_TZ)}
             {roster.circleName && ` · ${roster.circleName}`}
           </Meta>
         </div>

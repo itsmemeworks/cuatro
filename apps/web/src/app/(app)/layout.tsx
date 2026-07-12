@@ -43,6 +43,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // (Wave C punch item): resolve it and override the pure mapping, but only
   // into a circle the viewer is actually a member of — an unknown session or
   // an outsider's deep link keeps the home:week fallback.
+  // NB this server-side resolution is the INITIAL state only (fix wave F3):
+  // layouts don't re-render on soft navigation, so AppShell re-derives the
+  // context client-side from usePathname() on every nav, using
+  // /api/shell/session-circle for this same lookup (same membership check).
   let context = resolveShellContext(pathname ?? "/");
   const shellSessionId = gameSessionIdFor(pathname ?? "/");
   if (shellSessionId) {
@@ -55,7 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppShell
       data={shellData}
-      context={context}
+      initialContext={context}
       bottomNav={{
         userId: user.id,
         displayName: user.displayName || user.email.split("@")[0] || "there",

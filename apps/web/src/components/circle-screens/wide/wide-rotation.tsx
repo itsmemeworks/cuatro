@@ -33,6 +33,8 @@ export type RotationWideProps = {
   slots: number;
   /** Epoch ms. */
   startsAtMs: number;
+  /** The session's effective IANA timezone (SessionSummary.timezone) — every rendered instant resolves in it. */
+  timeZone: string;
   /** Epoch ms the RSVP window opens. */
   rsvpWindowOpensAtMs: number;
   viewerUserId: string;
@@ -77,6 +79,7 @@ export function RotationWideMain({
   sessionId,
   slots,
   startsAtMs,
+  timeZone,
   rsvpWindowOpensAtMs,
   viewerUserId,
   viewerStatus,
@@ -177,7 +180,7 @@ export function RotationWideMain({
     return (
       <div className="flex flex-col gap-3">
         <div className={`${PANEL} p-[18px]`}>
-          <p className="font-sans font-extrabold text-[13px] text-ink">{thisWeekHeading(startsAtMs)}</p>
+          <p className="font-sans font-extrabold text-[13px] text-ink">{thisWeekHeading(startsAtMs, timeZone)}</p>
           <p className="font-mono text-[11px] leading-relaxed text-ink-muted mt-1.5">
             {rotation.coldStart
               ? "no history yet, so the first four to say yes play. The Rotation starts picking the fairest four once this game has some"
@@ -199,7 +202,7 @@ export function RotationWideMain({
         <div className={`${PANEL} px-[18px] py-4 flex items-center gap-3.5`}>
           <div className="flex-1 min-w-0">
             <p className="font-sans font-extrabold text-[16px] text-ink">
-              {rotation.mode === "unlimited" ? "Lineup re-picks to kickoff" : `Lineup locks ${shortDayTime(rotation.locksAtMs)}`}
+              {rotation.mode === "unlimited" ? "Lineup re-picks to kickoff" : `Lineup locks ${shortDayTime(rotation.locksAtMs, timeZone)}`}
             </p>
             <p className="font-mono text-[10.5px] text-ink-muted mt-1">
               {rotation.mode === "unlimited"
@@ -232,9 +235,9 @@ export function RotationWideMain({
       <div className={`${PANEL} overflow-hidden`}>
         <div className="flex items-center justify-between px-[18px] py-[11px] bg-win-tint">
           <span className="font-sans font-extrabold text-[10px] tracking-[0.14em] text-win">
-            {lockedHeaderLabel(rotation.locked ? rotation.locksAtMs : null)}
+            {lockedHeaderLabel(rotation.locked ? rotation.locksAtMs : null, timeZone)}
           </span>
-          <span className="font-mono text-[10px] text-ink-muted">{sessionStamp(startsAtMs)}</span>
+          <span className="font-mono text-[10px] text-ink-muted">{sessionStamp(startsAtMs, timeZone)}</span>
         </div>
         {rotation.lineup.map((p) => (
           <div key={p.userId} className={ROW}>

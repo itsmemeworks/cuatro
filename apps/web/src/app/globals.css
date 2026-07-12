@@ -304,6 +304,18 @@
   input {
     font-family: inherit;
   }
+
+  /* Brand focus ring (QA8): keyboard focus gets the coral treatment instead
+     of the browser's default blue; pointer/tap focus stays quiet because
+     :focus-visible only matches keyboard-driven focus. `outline` never
+     shifts layout, and the 2px offset keeps it clear of hairline borders.
+     Coral reads on both grounds AND on the always-dark shell chrome. The
+     zero-specificity :where() wrapper means any `outline-none`/`focus:*`
+     utility a component sets still wins. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-action);
+    outline-offset: 2px;
+  }
 }
 
 /* ============ type scale (design/HANDOFF.md: 56/24/19/13/11.5/10) ============ */

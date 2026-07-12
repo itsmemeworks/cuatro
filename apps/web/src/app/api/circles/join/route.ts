@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { getCirclesStore } from "@/server/circles";
@@ -37,6 +38,14 @@ export async function POST(request: NextRequest) {
   }
   if (result.full) {
     return NextResponse.json({ ok: false, error: "circle_full" }, { status: 409 });
+  }
+
+  // Same revalidation as the join/[code] server action (fix wave F3): a fresh
+  // membership must never let a cached circle subtree serve the old roster.
+  if (!result.alreadyMember) {
+    revalidatePath(`/circles/${result.circleId}`, "layout");
+    revalidatePath("/circles");
+    revalidatePath("/home");
   }
 
   return NextResponse.json({ ok: true, ...result });

@@ -146,7 +146,7 @@ export function GuestCircleJoinFlow({
             <h1 className="text-cu-title mt-1.5">{circleName}</h1>
           </div>
           <p className="text-cu-body text-ink-muted max-w-xs min-[900px]:max-w-[400px]">
-            Its chat, history and Standing Games, join to see what your mates have been up to.
+            All the chat, history and Standing Games, join to see what your mates have been up to.
           </p>
         </div>
 
@@ -171,6 +171,18 @@ export function GuestCircleJoinFlow({
           </Button>
           <Meta as="p" className="text-center">
             no account · no app download · ~10 seconds
+          </Meta>
+          {/* The door for someone who already HAS an account (QA2: a signed-out
+              member on a new phone was funnelled into a duplicate guest
+              identity). Quiet by design — the guest path stays the headline. */}
+          <Meta as="p" className="text-center">
+            Already on CUATRO?{" "}
+            <Link
+              href={`/login?next=${encodeURIComponent(`/join/${code}`)}`}
+              className="underline underline-offset-2 text-ink transition-cu-state hover:opacity-80"
+            >
+              Sign in
+            </Link>
           </Meta>
           {error && (
             <Meta tone="action" as="p" className="text-center">

@@ -21,11 +21,18 @@ export default async function StandingGamesPage() {
 
   return (
     <main className="px-5 pt-8 pb-6 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-cu-title text-ink">Standing Games</h1>
-        <Link href="/games/standing/new" className="text-cu-body font-bold text-action">
-          + New
-        </Link>
+        {/* One-offs get a door here too (QA4) — the weekly fixture is the
+            headline, the single game is the quiet second option. */}
+        <div className="flex items-center gap-3">
+          <Link href="/games/one-off/new" className="text-cu-body font-bold text-ink-muted transition-cu-state hover:text-ink">
+            + One-off
+          </Link>
+          <Link href="/games/standing/new" className="text-cu-body font-bold text-action">
+            + New
+          </Link>
+        </div>
       </div>
 
       {groups.length === 0 && <Meta as="p">Join a Circle to see its Standing Games here.</Meta>}

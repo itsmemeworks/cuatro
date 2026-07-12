@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Avatar, Button, Card, DashedSlot, Fact, Meta, PendingSpinner, Sheet } from "@/components/ui";
 import { errorCopy } from "@/lib/error-copy";
@@ -133,7 +134,17 @@ export function DiscoverGameCard({ game }: { game: DiscoverGame }) {
 
   return (
     <>
-      <Card className="flex flex-col gap-2">
+      {/* The tile navigates (law 7b: every game tile links to its detail page,
+          QA1): a stretched Link overlays the card, and the inline ask/withdraw
+          buttons sit above it (position:relative), so both keep working. The
+          session page has no membership gate on reads, so a Discover viewer
+          can look before they ask. */}
+      <Card className="relative flex flex-col gap-2 transition-cu-state hover:bg-ink-hairline-1">
+        <Link
+          href={`/games/${game.sessionId}`}
+          aria-label={`${title}, ${whenLabel(game.startsAtMs)}`}
+          className="absolute inset-0 rounded-card"
+        />
         <div className="flex items-center gap-2">
           <span
             className={`text-[10px] font-extrabold uppercase tracking-[0.1em] ${game.inBand ? "text-action" : "text-ink-muted"}`}
@@ -153,7 +164,9 @@ export function DiscoverGameCard({ game }: { game: DiscoverGame }) {
 
         <div className="flex items-center gap-3 mt-1">
           <SlotRow confirmed={game.confirmed} slotsOpen={game.slotsOpen} inBand={game.inBand} />
-          <Meta as="span" className="flex-1 min-w-0 truncate">
+          {/* Wraps rather than truncates: at 430px the mono caption was
+              clipping mid-word ("one d…", QA1). */}
+          <Meta as="span" className="flex-1 min-w-0 break-words">
             {caption}
           </Meta>
           {pending ? (
@@ -161,12 +174,12 @@ export function DiscoverGameCard({ game }: { game: DiscoverGame }) {
               type="button"
               onClick={withdraw}
               disabled={busy}
-              className="text-cu-secondary cursor-pointer font-bold text-ink-muted whitespace-nowrap transition-cu-state hover:text-ink disabled:opacity-50"
+              className="relative text-cu-secondary cursor-pointer font-bold text-ink-muted whitespace-nowrap transition-cu-state hover:text-ink disabled:opacity-50"
             >
               {busy ? <PendingSpinner /> : null} Asked · withdraw
             </button>
           ) : (
-            <Button variant={game.inBand ? "primary" : "quiet"} onClick={() => setOpen(true)} className="shrink-0 whitespace-nowrap">
+            <Button variant={game.inBand ? "primary" : "quiet"} onClick={() => setOpen(true)} className="relative shrink-0 whitespace-nowrap">
               {game.inBand ? "Claim the spot" : "I can play"}
             </Button>
           )}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { circles } from "@cuatro/db";
+import Link from "next/link";
+import { and, eq } from "drizzle-orm";
+import { circleMembers, circles } from "@cuatro/db";
 import { getSessionUser } from "@/lib/session";
 import { getCirclesStore } from "@/server/circles";
 import { getGamesClient } from "@/server/games-db";
@@ -36,6 +37,13 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
+
+// The recognition CTA must be a same-tap <Link> (a route change, not a form),
+// wearing Button's `primary` (coral) recipe — the one coral action on the
+// already-a-member screen is opening the Circle. Same approach as the entry
+// flows' STRONG_LG_LINK_CLASS (guest-claim-flow.tsx), coral variant.
+const PRIMARY_LG_LINK_CLASS =
+  "rounded-button inline-flex items-center justify-center gap-2 select-none transition-cu-state hover:opacity-90 active:opacity-80 w-full min-h-12 px-5 text-[15px] font-extrabold bg-action text-action-contrast border border-transparent";
 
 /** The warm dead-end for a Circle that has hit its player limit. */
 function CircleFullNotice({
@@ -168,6 +176,46 @@ export default async function JoinPage({
     );
   }
 
+  // Already a member opening their own Circle's invite link (QA2: the full
+  // "YOU'RE INVITED" pitch to someone who's in reads as a broken join, and a
+  // converted guest bounced back here used to meet it too). Recognise them —
+  // and check BEFORE the full notice: a member of a full Circle is still in.
+  const { db } = await getGamesClient();
+  const [membership] = await db
+    .select({ circleId: circleMembers.circleId })
+    .from(circleMembers)
+    .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, user.id)));
+  if (membership) {
+    return (
+      <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 text-center gap-8 bg-ground text-ink min-[900px]:justify-start min-[900px]:pt-14 min-[900px]:pb-16 min-[900px]:bg-transparent">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center text-3xl text-white"
+            style={{ background: circle.colour ?? "var(--color-ink-hairline-3)" }}
+            aria-hidden
+          >
+            {circle.emblem ?? "⭘"}
+          </div>
+          <div>
+            <p className="text-[10px] font-extrabold tracking-[0.14em] text-action">YOU&apos;RE IN THIS CIRCLE</p>
+            <h1 className="text-cu-title mt-1.5 min-[900px]:text-[26px]">{circle.name}</h1>
+          </div>
+          <p className="text-cu-body text-ink-muted max-w-xs min-[900px]:max-w-[400px]">
+            No need to join twice. Head in for the chat, the games and whoever owes what on the Tab.
+          </p>
+        </div>
+
+        <div className="w-full max-w-xs flex flex-col items-center gap-2.5 min-[900px]:max-w-[400px]">
+          <Link href={`/circles/${circle.id}`} className={PRIMARY_LG_LINK_CLASS}>
+            Open {circle.name}
+          </Link>
+        </div>
+
+        <Meta>no fees · no ads · no dark patterns</Meta>
+      </main>
+    );
+  }
+
   // Logged-in invitee at a full Circle (or a race-lost join that redirected
   // back here): the same warm full notice.
   if (isFull || error === "circle_full") {
@@ -202,7 +250,7 @@ export default async function JoinPage({
           <h1 className="text-cu-title mt-1.5 min-[900px]:text-[26px]">{circle.name}</h1>
         </div>
         <p className="text-cu-body text-ink-muted max-w-xs min-[900px]:max-w-[400px]">
-          Its chat, history and Standing Games, join to see what your mates have been up to.
+          All the chat, history and Standing Games, join to see what your mates have been up to.
         </p>
       </div>
 

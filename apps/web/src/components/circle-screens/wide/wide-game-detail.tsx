@@ -9,6 +9,7 @@ import { Button, Meta, SubmitButton } from "@/components/ui";
 import { formatMoneyWhole } from "@/components/tab/money";
 import { RotationWideMain, RotationWideAside } from "./wide-rotation";
 import { rotationModePill } from "./wide-rotation-model";
+import { formatDate } from "@/lib/time";
 
 export interface GameDetailProps {
   summary: SessionSummary;
@@ -190,7 +191,7 @@ export function GameDetail(props: GameDetailProps) {
               circleName={summary.circleName}
               circleColour={summary.circleColour}
               circleEmblem={summary.circleEmblem}
-              weekLabel={new Date(summary.session.startsAt).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+              weekLabel={formatDate(summary.session.startsAt, summary.timezone)}
               slots={summary.slots}
               confirmed={summary.confirmed}
               reserves={summary.reserves}
@@ -214,6 +215,7 @@ export function GameDetail(props: GameDetailProps) {
                 sessionId={summary.session.id}
                 slots={summary.slots}
                 startsAtMs={summary.session.startsAt}
+                timeZone={summary.timezone}
                 rsvpWindowOpensAtMs={summary.rsvpWindowOpensAt.getTime()}
                 viewerUserId={viewer.id}
                 viewerStatus={summary.viewerStatus}
@@ -230,7 +232,11 @@ export function GameDetail(props: GameDetailProps) {
 
           {/* The money opt-in row (issue #21): a booked-on game shows its
               signpost and NOTHING else — the booking silenced the cost by
-              construction, so no split/cost chrome may render beside it. */}
+              construction, so no split/cost chrome may render beside it.
+              SILENCE (no opt-in, the default) shows NOTHING AT ALL: a game
+              carries no money unless the organiser opted in, so any Tab
+              module here would be payment chrome on a money-less game
+              (issue #21 acceptance; QA4 blocker 2). */}
           {moneyOptIn?.kind === "booking" ? (
             <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex items-center gap-3">
               <BookingChip booking={moneyOptIn.booking} />
@@ -265,23 +271,7 @@ export function GameDetail(props: GameDetailProps) {
                 </form>
               </div>
             )
-          ) : (
-            <div className="rounded-button bg-surface border border-ink-hairline-1 px-4 py-3 flex flex-col gap-2">
-              <Link href={`/circles/${summary.circleId}/tab`} className="flex items-center gap-3 transition-cu-state hover:opacity-80">
-                <span className="text-cu-body text-ink flex-1">Court split goes on the Tab</span>
-                <Meta tone="action">The Tab →</Meta>
-              </Link>
-              {props.viewerIsOrganiser && summary.standingGame && (
-                <Meta as="p">
-                  Set a court cost on the{" "}
-                  <Link href={`/games/standing/${summary.standingGame.id}`} className="font-bold text-action-strong transition-cu-state hover:underline">
-                    Standing Game
-                  </Link>{" "}
-                  and it splits in one tap here.
-                </Meta>
-              )}
-            </div>
-          )}
+          ) : null}
 
           {props.isPast &&
             (props.existingMatchId ? (

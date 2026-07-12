@@ -1,9 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Meta } from "@/components/ui";
 import { BOOKING_PLATFORMS, type BookingPlatformId, bookingPlatform } from "@/lib/booking";
 import { formatMoneyWhole, parseAmountToMinor } from "@/components/tab/money";
+
+/**
+ * Client mirror of the server's normalizeBookingUrl rule (standing-games-
+ * service.ts): http(s) scheme AND a dotted hostname, so "https://x" is caught
+ * here with CUATRO copy instead of surviving to the server (QA4). Empty is
+ * fine — the URL is optional.
+ */
+function bookingUrlLooksValid(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) return true;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    return /^[^.]+(\.[^.]+)+$/.test(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// Same voice as the forms' server-bounce copy for invalid_booking_url.
+const URL_ERROR_COPY = "That link didn't read as a web address. Paste the full link, https and all.";
 
 /**
  * The MONEY section of the Standing Game forms (GitHub issue #21; design
@@ -30,6 +51,7 @@ export function MoneyOptInPicker({
   defaultCostLabel = "",
   slots = 4,
   currency = "GBP",
+  allowCost = true,
 }: {
   defaultPlatform?: string | null;
   defaultUrl?: string | null;
@@ -37,17 +59,45 @@ export function MoneyOptInPicker({
   /** For the "£8 each" split preview only; the real split happens on the Tab. */
   slots?: number;
   currency?: string;
+  /** One-off sessions carry a "Booked on" signpost but no cost column, so their form hides the Tab row entirely. */
+  allowCost?: boolean;
 }) {
   type Mode = "none" | "booking" | "cost";
   const initialPlatform = bookingPlatform(defaultPlatform)?.id ?? null;
-  const [mode, setMode] = useState<Mode>(initialPlatform ? "booking" : defaultCostLabel ? "cost" : "none");
+  const [mode, setMode] = useState<Mode>(initialPlatform ? "booking" : defaultCostLabel && allowCost ? "cost" : "none");
   const [platform, setPlatform] = useState<BookingPlatformId | null>(initialPlatform);
   const [url, setUrl] = useState(defaultUrl ?? "");
   const [showUrlField, setShowUrlField] = useState(Boolean(defaultUrl));
   const [costLabel, setCostLabel] = useState(defaultCostLabel);
+  const [showUrlError, setShowUrlError] = useState(false);
 
   const booking = mode === "booking";
   const cost = mode === "cost";
+
+  // ---- Inline booking-URL validation (QA4): the input is type="text" (the
+  // browser-native type="url" popup is not our voice), validated on blur and
+  // on submit. The submit listener is native and attached to the parent form
+  // directly (reached through the always-rendered hidden input): preventDefault
+  // + stopPropagation fire before React's root-delegated handler, so an
+  // invalid URL never reaches the server action.
+  const formProbeRef = useRef<HTMLInputElement>(null);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+  const urlValidRef = useRef(true);
+  urlValidRef.current = !booking || bookingUrlLooksValid(url);
+  useEffect(() => {
+    const form = formProbeRef.current?.form;
+    if (!form) return;
+    function onSubmit(e: Event) {
+      if (urlValidRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setShowUrlError(true);
+      urlInputRef.current?.focus();
+    }
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, []);
+  const urlErrorVisible = showUrlError && !urlValidRef.current;
 
   function pickPlatform(id: BookingPlatformId) {
     if (booking && platform === id) {
@@ -85,12 +135,12 @@ export function MoneyOptInPicker({
     <div className="rounded-button border border-ink-hairline-3 bg-surface p-3 flex flex-col gap-3">
       {/* The XOR travels as explicit values so a save can CLEAR either side. */}
       <input type="hidden" name="bookingPlatform" value={booking && platform ? platform : ""} />
-      <input type="hidden" name="bookingUrl" value={booking ? url.trim() : ""} />
+      <input ref={formProbeRef} type="hidden" name="bookingUrl" value={booking ? url.trim() : ""} />
       <input type="hidden" name="costAmount" value={cost ? costLabel : ""} />
 
       <div className="flex items-baseline gap-2">
         <span className="font-sans font-extrabold text-[10px] tracking-[0.14em] text-ink-muted">MONEY</span>
-        <Meta as="span">optional. Most games carry none, pick either or neither</Meta>
+        <Meta as="span">{allowCost ? "optional. Most games carry none, pick either or neither" : "optional. Most games carry none"}</Meta>
       </div>
 
       {/* Booked on */}
@@ -132,14 +182,27 @@ export function MoneyOptInPicker({
           </div>
           {booking &&
             (showUrlField ? (
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://…"
-                aria-label="Booking link"
-                className="rounded-button p-2.5 text-[12px] bg-ground border border-ink-hairline-3 text-ink outline-none placeholder:text-ink-muted"
-              />
+              <>
+                <input
+                  ref={urlInputRef}
+                  type="text"
+                  inputMode="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onBlur={() => setShowUrlError(!urlValidRef.current)}
+                  placeholder="https://…"
+                  aria-label="Booking link"
+                  aria-invalid={urlErrorVisible || undefined}
+                  className={`rounded-button p-2.5 text-[12px] bg-ground border text-ink outline-none placeholder:text-ink-muted ${
+                    urlErrorVisible ? "border-loss" : "border-ink-hairline-3"
+                  }`}
+                />
+                {urlErrorVisible && (
+                  <Meta as="p" tone="loss">
+                    {URL_ERROR_COPY}
+                  </Meta>
+                )}
+              </>
             ) : (
               <button
                 type="button"
@@ -153,6 +216,7 @@ export function MoneyOptInPicker({
       </div>
 
       {/* Goes on the Tab */}
+      {allowCost && (
       <div className="flex items-center gap-2.5">
         <button type="button" onClick={() => toggleRow("cost")} aria-pressed={cost} aria-label="Goes on the Tab" className="flex-none">
           {dot(cost)}
@@ -185,8 +249,13 @@ export function MoneyOptInPicker({
           <Meta as="span">court cost, split on the Tab</Meta>
         )}
       </div>
+      )}
 
-      <Meta as="p">booked-on games never touch the Tab. The split appears only when a cost is added</Meta>
+      <Meta as="p">
+        {allowCost
+          ? "booked-on games never touch the Tab. The split appears only when a cost is added"
+          : "booked-on games never touch the Tab"}
+      </Meta>
     </div>
   );
 }

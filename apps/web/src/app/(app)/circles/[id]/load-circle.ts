@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { matches, sessions, users, venues, type CuatroDb } from "@cuatro/db";
 import { computeWinner } from "@/server/matches-db";
 import {
   NotMemberError,
+  NotOrganiserError,
   getCirclesStore,
   type CircleMessageView,
   type CircleDetail,
@@ -26,16 +27,17 @@ import { circleColorFor } from "@/lib/design";
 
 /**
  * "N games" for the circle header (design/DESIGN-AUDIT.md C3) — a cheap inline
- * count alongside server/feed.ts's own join, not a new server export: the Feed
- * read model only ever returns its most-recent `limit` items, never a
- * circle-wide total.
+ * count, not a new server export. Counts the circle's SESSIONS (played and on
+ * the calendar, cancelled excluded): counting verified matches here rendered
+ * "0 games" on a circle whose own Games tab listed five fixtures (QA4) — a
+ * circle records its first result long after its first game exists, so the
+ * header fact must agree with the calendar the members can see.
  */
-async function countVerifiedMatches(db: CuatroDb, circleId: string): Promise<number> {
+async function countCircleGames(db: CuatroDb, circleId: string): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`cast(count(*) as int)` })
-    .from(matches)
-    .innerJoin(sessions, eq(matches.sessionId, sessions.id))
-    .where(and(eq(sessions.circleId, circleId), eq(matches.status, "verified")));
+    .from(sessions)
+    .where(and(eq(sessions.circleId, circleId), ne(sessions.status, "cancelled")));
   return row?.n ?? 0;
 }
 
@@ -146,6 +148,40 @@ export interface CircleContext {
   settingsStandingGames: SettingsStandingGameView[];
 }
 
+/**
+ * The organiser panel's pending knocks, CAPABILITY-GATED (fix wave F3,
+ * Sentry CUATRO-7 / QA2's post-hand-back error boundary): `myRole` comes from
+ * a getCircleDetail read a few awaits earlier, and circleKnocks re-checks the
+ * role itself — a transfer/removal committing BETWEEN the two reads made the
+ * second throw NotOrganiserError straight into the members page's error
+ * boundary. Losing the role mid-request just means the viewer gets the member
+ * view (no knock queue), never a crash; the next render reads the fresh role.
+ * Exported for the capability-gate test (test/circle-knocks-gate.test.ts).
+ */
+export async function pendingKnockItems(
+  db: CuatroDb,
+  circleId: string,
+  userId: string,
+  myRole: "organiser" | "member",
+): Promise<KnockPanelItem[]> {
+  if (myRole !== "organiser") return [];
+  try {
+    return (await circleKnocks(db, circleId, userId)).map((k) => ({
+      knockId: k.knockId,
+      displayName: k.displayName,
+      avatarUrl: k.avatarUrl,
+      rating: k.rating,
+      confidence: k.confidence,
+      reliability: k.reliability,
+      distanceLabel: k.distanceLabel,
+      message: k.message,
+    }));
+  } catch (err) {
+    if (err instanceof NotOrganiserError || err instanceof NotMemberError) return [];
+    throw err;
+  }
+}
+
 export async function loadCircleContext(id: string, userId: string): Promise<CircleContext> {
   const store = await getCirclesStore();
 
@@ -163,21 +199,33 @@ export async function loadCircleContext(id: string, userId: string): Promise<Cir
 
   const { db } = await getGamesClient();
   const sessionSummaries = await listUpcomingSessionsForCircle(db, id, userId);
-  const sessionCards: SessionCardData[] = sessionSummaries.map((s) => ({
-    sessionId: s.session.id,
-    circleId: s.circleId,
-    circleName: s.circleName,
-    circleColour: s.circleColour,
-    circleEmblem: s.circleEmblem,
-    venueName: s.venue?.name ?? null,
-    startsAt: new Date(s.session.startsAt),
-    slots: s.slots,
-    confirmed: s.confirmed,
-    reserves: s.reserves,
-    viewerStatus: s.viewerStatus,
-    rsvpWindowOpensAt: s.rsvpWindowOpensAt,
-    fourthCallActive: isFourthCallActive(s),
-  }));
+  // Mirrors home/page.tsx toSessionCardData exactly (fix-wave F4 follow-on):
+  // rotation games show the provisional/locked four with the availability
+  // affordance — a bare RSVP mapping here recreated QA8's self-contradicting
+  // card on the circle feed after home was fixed.
+  const sessionCards: SessionCardData[] = sessionSummaries.map((s) => {
+    const rotationLocked = s.rotation?.lockedAt != null;
+    return {
+      sessionId: s.session.id,
+      circleId: s.circleId,
+      circleName: s.circleName,
+      circleColour: s.circleColour,
+      circleEmblem: s.circleEmblem,
+      venueName: s.venue?.name ?? null,
+      startsAt: new Date(s.session.startsAt),
+      timezone: s.timezone,
+      slots: s.slots,
+      confirmed: s.rotation ? s.rotation.lineup : s.confirmed,
+      reserves: s.rotation ? s.rotation.sitting : s.reserves,
+      viewerStatus: s.viewerStatus,
+      rsvpWindowOpensAt: s.rsvpWindowOpensAt,
+      fourthCallActive: s.rotation && !rotationLocked ? false : isFourthCallActive(s),
+      rotation: s.rotation
+        ? { locked: rotationLocked, viewerAvailable: s.rotation.viewerAvailable, availableCount: s.rotation.available.length }
+        : null,
+      moneyOptIn: s.moneyOptIn,
+    };
+  });
 
   const { items, rivalry } = await listCircleFeed(db, id, userId);
   const feedItems: FeedItemData[] = items.map((item) =>
@@ -216,7 +264,7 @@ export async function loadCircleContext(id: string, userId: string): Promise<Cir
   );
 
   const unreadChatBadge = await getUnreadCountForCircle(db, id, userId);
-  const gamesCount = await countVerifiedMatches(db, id);
+  const gamesCount = await countCircleGames(db, id);
   const pendingSeals = await loadPendingSealCards(db, id);
 
   // Home court: the Circle's most-used pinned venue (server/open-door.ts's
@@ -238,19 +286,7 @@ export async function loadCircleContext(id: string, userId: string): Promise<Cir
   const homeCourtName = detail.homeVenueId ? detail.homeVenueName : (anchor?.venueName ?? null);
   const homeCourtExplicit = detail.homeVenueId != null;
 
-  const pendingKnocks: KnockPanelItem[] =
-    detail.myRole === "organiser"
-      ? (await circleKnocks(db, id, userId)).map((k) => ({
-          knockId: k.knockId,
-          displayName: k.displayName,
-          avatarUrl: k.avatarUrl,
-          rating: k.rating,
-          confidence: k.confidence,
-          reliability: k.reliability,
-          distanceLabel: k.distanceLabel,
-          message: k.message,
-        }))
-      : [];
+  const pendingKnocks = await pendingKnockItems(db, id, userId, detail.myRole);
 
   // Issue #21: resolve the pinned (first upcoming) session's money opt-in from
   // the rows the summary already carries — booking silences cost, default is

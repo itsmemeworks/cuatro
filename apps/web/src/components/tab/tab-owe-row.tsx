@@ -70,7 +70,7 @@ function OwePill({
  * whole-pounds-when-clean format (formatMoneyWhole) — the Wave C sweep
  * converged the phone's TabEntryRow on the same rule. The two-step settle
  * (server/tab.ts proposeOrConfirmSettle)
- * is narrated the same way: debtor proposes ("Mark as paid"), payer confirms.
+ * is narrated the same way: debtor proposes ("Settle £X"), payer confirms.
  */
 export function TabOweRow({
   entry,

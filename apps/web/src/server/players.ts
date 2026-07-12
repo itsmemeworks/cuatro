@@ -116,7 +116,9 @@ export async function getPlayerProfile(userId: string, viewerId?: string): Promi
       if (!detail || !detail.viewerTeam) return null;
       const { gamesWonA, gamesWonB } = gamesTotals(detail.match.score);
       const [yourGames, oppGames] = detail.viewerTeam === "A" ? [gamesWonA, gamesWonB] : [gamesWonB, gamesWonA];
-      const won = e.delta >= 0;
+      // W/L from the match winner (LedgerEntryView.won) — a fully-damped
+      // 0.00-delta loss must chip as L, never W (QA5 finding 1).
+      const won = e.won;
       return { id: e.id, won, label: `${won ? "W" : "L"} ${yourGames}–${oppGames}` };
     }),
   );

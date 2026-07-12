@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gameSessionIdFor, resolveShellContext } from "@/lib/shell-context";
+import { gameSessionIdFor, resolveShellContext, resolveShellContextWithSession } from "@/lib/shell-context";
 
 describe("resolveShellContext — home context", () => {
   it("maps /home, /feed, /matches*, /games* to home:week", () => {
@@ -64,13 +64,43 @@ describe("gameSessionIdFor — the data-aware /games/[sessionId] escape hatch (W
   });
 
   it("returns null for /games, the standing-game editor routes, and non-game paths", () => {
-    for (const path of ["/games", "/games/standing", "/games/standing/new", "/games/standing/sg-1", "/home", "/circles/c-1/games"]) {
+    for (const path of ["/games", "/games/standing", "/games/standing/new", "/games/standing/sg-1", "/games/one-off/new", "/home", "/circles/c-1/games"]) {
       expect(gameSessionIdFor(path)).toBeNull();
     }
   });
 
   it("keeps the pure fallback at home:week (the layout overrides only after a membership-checked lookup)", () => {
     expect(resolveShellContext("/games/s-1")).toEqual({ kind: "home", active: "week" });
+  });
+});
+
+describe("resolveShellContextWithSession — the shared server/client resolver (fix wave F3)", () => {
+  const memberOf = (...ids: string[]) => (id: string) => ids.includes(id);
+
+  it("overrides /games/[sessionId] into circle:games when the session's circle is known and the viewer is a member", () => {
+    expect(resolveShellContextWithSession("/games/s-1", () => "c-1", memberOf("c-1"))).toEqual({
+      kind: "circle",
+      circleId: "c-1",
+      active: "games",
+    });
+  });
+
+  it("falls back to home:week for an unknown session (null) and while the lookup is in flight (undefined)", () => {
+    expect(resolveShellContextWithSession("/games/s-1", () => null, memberOf("c-1"))).toEqual({ kind: "home", active: "week" });
+    expect(resolveShellContextWithSession("/games/s-1", () => undefined, memberOf("c-1"))).toEqual({ kind: "home", active: "week" });
+  });
+
+  it("never paints a circle the viewer is not a member of (outsider deep link)", () => {
+    expect(resolveShellContextWithSession("/games/s-1", () => "c-other", memberOf("c-1"))).toEqual({ kind: "home", active: "week" });
+  });
+
+  it("matches the pure resolver exactly on non-session paths (lookup never consulted)", () => {
+    const explode = () => {
+      throw new Error("sessionCircle must not be called for non-session paths");
+    };
+    for (const path of ["/home", "/circles/c-1/chat", "/games", "/games/standing/sg-1", "/tab", "/discover"]) {
+      expect(resolveShellContextWithSession(path, explode, memberOf("c-1"))).toEqual(resolveShellContext(path));
+    }
   });
 });
 

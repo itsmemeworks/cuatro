@@ -35,10 +35,11 @@
  * reason.
  */
 import { eq } from "drizzle-orm";
-import { notifications, sessions, circles, users, type CuatroDb, type Notification } from "@cuatro/db";
+import { notifications, sessions, circles, users, venues, type CuatroDb, type Notification } from "@cuatro/db";
 import { sendPushToUser } from "@/lib/push";
 import { emitUserEvent } from "@/lib/realtime/broadcast";
 import { formatMoneyWhole } from "@/components/tab/money";
+import { formatDateTime, DEFAULT_TZ } from "@/lib/time";
 
 export type NotificationInput =
   | { type: "game_filled"; payload: { sessionId: string } }
@@ -80,21 +81,22 @@ export interface NotificationCopy {
 }
 
 function fmtDelta(delta: number): string {
+  if (delta === 0) return "0.00"; // fully-damped result: no sign, never a lying "+"
   return `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
 }
 
-/** Circle name + a human "Tue 20:00" style timestamp for a session, or null if the session's gone. */
+/** Circle name + a human "Tue 20 Jul, 20:00" timestamp for a session, or null if the session's gone. The time renders in the session's effective timezone (venue's, else the Circle's — server/week.ts precedent): notification bodies are stored strings, so a raw-UTC render here would bake an hour-early time in permanently (the QA4 class). */
 async function sessionContext(tx: CuatroDb, sessionId: string): Promise<{ circleName: string; when: string } | null> {
   const [session] = await tx.select().from(sessions).where(eq(sessions.id, sessionId));
   if (!session) return null;
-  const [circle] = await tx.select({ name: circles.name }).from(circles).where(eq(circles.id, session.circleId));
-  const when = new Date(session.startsAt).toLocaleString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const [circle] = await tx
+    .select({ name: circles.name, timezone: circles.timezone })
+    .from(circles)
+    .where(eq(circles.id, session.circleId));
+  const [venue] = session.venueId
+    ? await tx.select({ timezone: venues.timezone }).from(venues).where(eq(venues.id, session.venueId))
+    : [];
+  const when = formatDateTime(session.startsAt, venue?.timezone ?? circle?.timezone ?? DEFAULT_TZ);
   return { circleName: circle?.name ?? "your Circle", when };
 }
 

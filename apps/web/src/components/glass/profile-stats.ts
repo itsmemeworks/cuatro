@@ -3,11 +3,12 @@ import type { LedgerEntryView } from "@/server/matches-db";
 /**
  * Pure derivations for the Profile stat row (design/HANDOFF.md screen 8's
  * "W–L / streak / best-win stat row ... compute from existing match history
- * data"). Every Ledger row already carries a win/loss signal (Glass never
- * moves negatively for a win nor positively for a loss — see
- * packages/glass's engine, so `delta`'s sign is a safe, always-correct
- * proxy) and the exact inputs the rating engine used, so nothing here needs
- * a new server query.
+ * data"). Every Ledger row carries `won`, derived server-side from the
+ * match's actual winner (matches-db.ts getLedger) — NEVER classify from the
+ * delta's sign here: the engine round2s deltas, so a fully Echo-damped
+ * narrow loss lands as 0.00 and a sign check calls it a win (QA5 finding 1).
+ * The rows also carry the exact inputs the rating engine used, so nothing
+ * here needs a new server query.
  */
 
 export interface StreakInfo {
@@ -18,10 +19,10 @@ export interface StreakInfo {
 /** `entriesNewestFirst` must be sorted newest-first — the shape store.getLedger() already returns. */
 export function computeStreak(entriesNewestFirst: LedgerEntryView[]): StreakInfo {
   if (entriesNewestFirst.length === 0) return { kind: null, count: 0 };
-  const kind: "W" | "L" = entriesNewestFirst[0]!.delta >= 0 ? "W" : "L";
+  const kind: "W" | "L" = entriesNewestFirst[0]!.won ? "W" : "L";
   let count = 0;
   for (const e of entriesNewestFirst) {
-    if ((e.delta >= 0) !== (kind === "W")) break;
+    if (e.won !== (kind === "W")) break;
     count++;
   }
   return { kind, count };
@@ -40,7 +41,7 @@ export function computeStreak(entriesNewestFirst: LedgerEntryView[]): StreakInfo
 export function computeBestWin(entries: LedgerEntryView[]): number | null {
   let best: number | null = null;
   for (const e of entries) {
-    if (e.delta < 0 || e.ratingBefore == null) continue;
+    if (!e.won || e.ratingBefore == null) continue;
     const p = e.factors.expectedWin;
     if (p <= 0 || p >= 1) continue;
     const opponentRating = e.ratingBefore + 0.5 * Math.log10(1 / p - 1);

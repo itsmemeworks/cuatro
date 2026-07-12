@@ -11,14 +11,11 @@ import { LiveRefresh } from "@/components/realtime/LiveRefresh";
 import { CircleSwitcher } from "@/components/circles/circle-switcher";
 import { Card, Meta } from "@/components/ui";
 import { WideTab } from "@/components/circle-screens/wide/wide-tab";
+import { formatWeekdayDay } from "@/lib/time";
 
-function activityDateLabel(d: Date): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric" }).format(d);
-}
-
-/** One line of the mono activity feed (design/DESIGN-AUDIT.md T4) — every entry across the whole Circle, not just the viewer's own pairs (that filter is for the BALANCES section above, not this one). */
-function ActivityRow({ entry, viewerUserId }: { entry: TabEntryView; viewerUserId: string }) {
-  const dateLabel = activityDateLabel(entry.createdAt);
+/** One line of the mono activity feed (design/DESIGN-AUDIT.md T4) — every entry across the whole Circle, not just the viewer's own pairs (that filter is for the BALANCES section above, not this one). Dates render in the Circle's timezone (TabView.timezone) — the runtime is UTC, so a bare format shifts late-evening entries onto the wrong day. */
+function ActivityRow({ entry, viewerUserId, timeZone }: { entry: TabEntryView; viewerUserId: string; timeZone: string }) {
+  const dateLabel = formatWeekdayDay(entry.createdAt, timeZone);
 
   if (entry.status === "settled") {
     const text =
@@ -165,7 +162,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
       {view.activity.length > 0 && (
         <Card padded={false} className="overflow-hidden divide-y divide-ink-hairline-1">
           {view.activity.map((e) => (
-            <ActivityRow key={e.id} entry={e} viewerUserId={user.id} />
+            <ActivityRow key={e.id} entry={e} viewerUserId={user.id} timeZone={view.timezone} />
           ))}
         </Card>
       )}
@@ -192,6 +189,7 @@ export default async function TabPage({ params }: { params: Promise<{ id: string
           allSquare={allSquare}
           avatarByUserId={avatarByUserId}
           activity={view.activity}
+          timezone={view.timezone}
         />
       </div>
     </>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSessionLive } from "@/lib/realtime/hooks";
 import { Avatar, Button, Card, Chip, DashedSlot, Fact, Meta } from "@/components/ui";
 import { bookingPlatform, type MoneyOptIn } from "@/lib/booking";
+import { DEFAULT_TZ, formatDateTime } from "@/lib/time";
 import { CircleEmblem } from "./roster";
 import { LateCancelSheet, isLateCancel } from "./late-cancel-sheet";
 import { errorCopy } from "@/lib/error-copy";
@@ -29,6 +30,8 @@ export type SessionCardData = {
   venueName: string | null;
   /** UTC instant. */
   startsAt: Date;
+  /** The session's effective IANA timezone (venue's, else the Circle's — server/week.ts precedent) for rendering its start time. Optional so builders that don't carry it yet fall back to DEFAULT_TZ. */
+  timezone?: string;
   slots: number;
   confirmed: SessionCardPlayer[];
   reserves: SessionCardPlayer[];
@@ -41,7 +44,7 @@ export type SessionCardData = {
    * button to availability copy pre-lock; the `confirmed` slots already carry
    * the provisional/locked four, so the tile grid needs no change.
    */
-  rotation?: { locked: boolean; viewerAvailable: boolean } | null;
+  rotation?: { locked: boolean; viewerAvailable: boolean; availableCount?: number } | null;
   /**
    * The game's resolved money opt-in (issue #21), where the surface carries it.
    * A booking renders the "booked on PT" meta line; a resolved booking means no
@@ -224,13 +227,8 @@ export function SessionCard({
             <Meta as="p">{data.circleName}</Meta>
           </div>
           <p className="text-cu-card-title text-ink mt-0.5">
-            {data.startsAt.toLocaleString("en-GB", { timeZone: "Europe/London",
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {/* Timezone-explicit (lib/time): the session's own venue/circle timezone, never the runtime's. */}
+            {formatDateTime(data.startsAt, data.timezone ?? DEFAULT_TZ)}
           </p>
           {data.venueName && <Meta as="p">{data.venueName}</Meta>}
           {/* "booked on PT" (issue #21): the signpost as a meta fact — the

@@ -14,6 +14,8 @@ import { CircleEmblem, RosterNames, RosterStack, circleColour } from "@/componen
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { NeedsAnswerCard, type NeedsAnswerSession } from "./needs-answer-card";
 import { FourthCallCard, type FourthCallHomeSession } from "./fourth-call-card";
+import { gameRowStatus, gameRowTimeLabels, needsAnswer } from "./rotation-affordance";
+import { DEFAULT_TZ } from "@/lib/time";
 import { BoardSection } from "@/components/games/board-section";
 import { boardGames } from "@/server/discovery";
 import { resolvePatch } from "@/server/patch";
@@ -99,10 +101,21 @@ function AttentionRow({ href, emoji, title, subtitle }: { href: string; emoji: s
  * the viewer holds a slot.
  */
 function GameRow({ session }: { session: SessionCardData }) {
-  const dayLabel = session.startsAt.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase();
-  const timeLabel = session.startsAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const openCount = Math.max(0, session.slots - session.confirmed.length);
-  const reserveCount = session.reserves.length;
+  // Timezone-explicit labels (lib/time) — the session's own venue/circle
+  // timezone, never the runtime's (QA8: a 20:00 BST game rendered "TUE 19:00"
+  // here on Fly's UTC clock while the grid below said 20:00).
+  const { day: dayLabel, time: timeLabel } = gameRowTimeLabels(session.startsAt, session.timezone ?? DEFAULT_TZ);
+  // Rotation-aware status + chip (rotation-affordance.ts): a gathering
+  // rotation game shows availability, never "N spots open" / "You're in ✓".
+  const status = gameRowStatus({
+    slots: session.slots,
+    confirmedCount: session.confirmed.length,
+    reserveCount: session.reserves.length,
+    viewerStatus: session.viewerStatus,
+    rotation: session.rotation
+      ? { locked: session.rotation.locked, viewerAvailable: session.rotation.viewerAvailable, availableCount: session.rotation.availableCount ?? 0 }
+      : null,
+  });
   return (
     <Link href={`/games/${session.sessionId}`} className="block">
       {/* padded={false} so the Circle-colour edge strip runs the full height flush to the card edge; the row pads itself. */}
@@ -125,10 +138,7 @@ function GameRow({ session }: { session: SessionCardData }) {
             </div>
             <div className="flex items-center gap-2 mt-1.5">
               <RosterStack confirmed={session.confirmed} slots={session.slots} size="sm" />
-              <span className="text-cu-secondary text-ink-muted truncate">
-                {openCount === 0 ? "court booked" : `${openCount} spot${openCount === 1 ? "" : "s"} open`}
-                {reserveCount > 0 ? ` · ${reserveCount} waiting` : ""}
-              </span>
+              <span className="text-cu-secondary text-ink-muted truncate">{status.line}</span>
             </div>
             {session.confirmed.length > 0 && (
               <p className="text-cu-secondary text-ink-muted truncate mt-1">
@@ -137,8 +147,14 @@ function GameRow({ session }: { session: SessionCardData }) {
               </p>
             )}
           </div>
-          {session.viewerStatus === "in" && (
-            <span className="rounded-chip px-2.5 py-1.5 text-[10.5px] font-bold bg-win-tint text-win whitespace-nowrap">You&apos;re in ✓</span>
+          {status.chip && (
+            <span
+              className={`rounded-chip px-2.5 py-1.5 text-[10.5px] font-bold whitespace-nowrap ${
+                status.chip.kind === "in" ? "bg-win-tint text-win" : "bg-ink-hairline-2 text-ink"
+              }`}
+            >
+              {status.chip.label}
+            </span>
           )}
           <span className="text-ink-muted shrink-0" aria-hidden>
             ›
@@ -198,19 +214,31 @@ function toSessionCardData(s: SessionSummary): SessionCardData {
     circleEmblem: s.circleEmblem,
     venueName: s.venue?.name ?? null,
     startsAt: new Date(s.session.startsAt),
+    timezone: s.timezone,
     slots: s.slots,
     confirmed: s.rotation ? s.rotation.lineup : s.confirmed,
     reserves: s.rotation ? s.rotation.sitting : s.reserves,
     viewerStatus: s.viewerStatus,
     rsvpWindowOpensAt: s.rsvpWindowOpensAt,
     fourthCallActive: s.rotation && !rotationLocked ? false : isFourthCallActive(s),
-    rotation: s.rotation ? { locked: rotationLocked, viewerAvailable: s.rotation.viewerAvailable } : null,
+    rotation: s.rotation
+      ? { locked: rotationLocked, viewerAvailable: s.rotation.viewerAvailable, availableCount: s.rotation.available.length }
+      : null,
     moneyOptIn: s.moneyOptIn,
   };
 }
 
+/** Featured "needs your answer" predicate — rotation-aware (rotation-affordance.ts): an available rotation player has answered, never re-ask. */
 function needsRsvp(s: SessionSummary, now: number): boolean {
-  return s.viewerStatus === null && now >= s.rsvpWindowOpensAt.getTime() && now < s.session.startsAt;
+  return needsAnswer(
+    {
+      viewerStatus: s.viewerStatus,
+      rotation: s.rotation ? { lockedAt: s.rotation.lockedAt, viewerAvailable: s.rotation.viewerAvailable } : null,
+      rsvpWindowOpensAt: s.rsvpWindowOpensAt,
+      startsAtMs: s.session.startsAt,
+    },
+    now,
+  );
 }
 
 export default async function HomePage() {
@@ -248,6 +276,10 @@ export default async function HomePage() {
   const featured = sessionSummaries.find((s) => needsRsvp(s, now)) ?? null;
   const restSessionCards = sessionSummaries.filter((s) => s.session.id !== featured?.session.id).map(toSessionCardData);
 
+  // A gathering rotation game features as an AVAILABILITY ask (rotation-affordance.ts):
+  // the card collects "I'm available", shows who's in the mix, and never
+  // renders slot chrome — the fairness pick owns the four (QA8 43/44).
+  const featuredRotationGathering = featured?.rotation != null && featured.rotation.lockedAt == null;
   const featuredCard: NeedsAnswerSession | null = featured
     ? {
         sessionId: featured.session.id,
@@ -257,8 +289,10 @@ export default async function HomePage() {
         circleEmblem: featured.circleEmblem,
         venueName: featured.venue?.name ?? null,
         startsAt: new Date(featured.session.startsAt),
+        timezone: featured.timezone,
         slots: featured.slots,
-        confirmed: featured.confirmed,
+        confirmed: featuredRotationGathering ? featured.rotation!.available : featured.confirmed,
+        rotation: featuredRotationGathering ? { availableCount: featured.rotation!.available.length } : null,
       }
     : null;
 
@@ -320,6 +354,7 @@ export default async function HomePage() {
           circleName: s.circleName,
           venueName: s.venue?.name ?? null,
           startsAt: new Date(s.session.startsAt),
+          timezone: s.timezone,
           askerAvatarUrl: asker?.avatarUrl ?? null,
           askerName: asker?.displayName ?? s.circleName,
           levelRangeLabel,

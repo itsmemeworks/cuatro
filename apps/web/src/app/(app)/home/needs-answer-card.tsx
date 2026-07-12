@@ -6,6 +6,8 @@ import { useState } from "react";
 import { Avatar, Button, Card, DashedSlot, Meta } from "@/components/ui";
 import { CircleEmblem } from "@/components/games/roster";
 import { errorCopy } from "@/lib/error-copy";
+import { DEFAULT_TZ, formatDayTime } from "@/lib/time";
+import { needsAnswerMode } from "./rotation-affordance";
 
 export type NeedsAnswerSession = {
   sessionId: string;
@@ -16,18 +18,27 @@ export type NeedsAnswerSession = {
   circleEmblem: string | null;
   venueName: string | null;
   startsAt: Date;
+  /** The session's effective IANA timezone (venue's, else the Circle's) for rendering its start time. Optional so older builders fall back to DEFAULT_TZ. */
+  timezone?: string;
   slots: number;
+  /** Who's committed — or, on a gathering rotation game, who's AVAILABLE (the page passes the availability list; the card's copy follows `rotation`). */
   confirmed: { userId: string; displayName: string; avatarUrl: string | null }[];
+  /**
+   * Present iff this is a rotation game still gathering availability (THE
+   * ROTATION): the card collects "I'm available" (never a slot-grab "I'm in")
+   * and renders no spots-to-fill chrome — the fairness pick owns the four.
+   */
+  rotation?: { availableCount: number } | null;
 };
 
 type Viewer = { userId: string; displayName: string; avatarUrl: string | null };
 
-/** "Kav & Mags are in" / "Kav is in" / "Kav, Mags & Tom are in" — the prototype's naming convention (design/CUATRO-Prototype-LATEST.dc.html's Home screen), first names only. */
-function namesLine(confirmed: { displayName: string }[]): string {
+/** "Kav & Mags are in" / "Kav is available" / "Kav, Mags & Tom are in" — the prototype's naming convention (design/CUATRO-Prototype-LATEST.dc.html's Home screen), first names only; the verb follows the game's answer mode (rotation collects availability). */
+function namesLine(confirmed: { displayName: string }[], verb: "in" | "available"): string {
   const firstNames = confirmed.map((p) => p.displayName.split(" ")[0]);
-  if (firstNames.length === 1) return `${firstNames[0]} is in`;
+  if (firstNames.length === 1) return `${firstNames[0]} is ${verb}`;
   const [last, ...rest] = [...firstNames].reverse();
-  return `${rest.reverse().join(", ")} & ${last} are in`;
+  return `${rest.reverse().join(", ")} & ${last} are ${verb}`;
 }
 
 /**
@@ -51,10 +62,15 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
   const [optimisticIn, setOptimisticIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function respond(action: "in" | "out") {
+  // Rotation games collect availability, everything else a slot RSVP — one
+  // decision (rotation-affordance.ts), used by the actions AND the copy so
+  // the card can never say "I'm in" about a game where nobody holds a slot.
+  const mode = needsAnswerMode(session.rotation);
+
+  async function respond(action: "in" | "out" | "available" | "unavailable") {
     setPending(true);
     setError(null);
-    setOptimisticIn(action === "in");
+    setOptimisticIn(action === mode.yesAction);
     try {
       const res = await fetch(`/api/games/sessions/${session.sessionId}/rsvp`, {
         method: "POST",
@@ -76,7 +92,8 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
     }
   }
 
-  const when = session.startsAt.toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", minute: "2-digit" });
+  // Timezone-explicit (lib/time): the session's own venue/circle timezone, never the runtime's.
+  const when = formatDayTime(session.startsAt, session.timezone ?? DEFAULT_TZ);
   const place = session.venueName ? ` · ${session.venueName}` : "";
 
   // The card only renders when the viewer hasn't answered yet, so they're
@@ -84,7 +101,9 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
   const displayConfirmed = optimisticIn ? [...session.confirmed, viewer] : session.confirmed;
   const shown = displayConfirmed.slice(0, 3);
   const overflow = Math.max(0, displayConfirmed.length - 3);
-  const spotsToFill = Math.max(session.slots - displayConfirmed.length, 0);
+  // A gathering rotation game has no literal spots — the fairness pick owns
+  // the four, so no dashed to-fill slots and no "N spots to fill" copy.
+  const spotsToFill = session.rotation ? 0 : Math.max(session.slots - displayConfirmed.length, 0);
 
   return (
     <Card variant="feature">
@@ -135,8 +154,10 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
           </div>
           <span className="text-[11.5px] font-medium text-ink-on-feature-muted">
             {optimisticIn
-              ? "You're in ✓ · game on"
-              : `${namesLine(session.confirmed)}, ${spotsToFill} spot${spotsToFill === 1 ? "" : "s"} to fill`}
+              ? mode.confirmedLabel
+              : session.rotation
+                ? `${namesLine(session.confirmed, mode.verb)}, the rotation picks the four`
+                : `${namesLine(session.confirmed, mode.verb)}, ${spotsToFill} spot${spotsToFill === 1 ? "" : "s"} to fill`}
           </span>
         </div>
       )}
@@ -161,18 +182,18 @@ export function NeedsAnswerCard({ session, viewer }: { session: NeedsAnswerSessi
             size="lg"
             onFeature
             disabled={pending}
-            onClick={() => respond("out")}
+            onClick={() => respond(mode.noAction)}
             style={{ background: "var(--color-win)", color: "var(--color-action-contrast)" }}
             className="flex-1"
           >
-            You&apos;re in ✓ · game on
+            {mode.confirmedLabel}
           </Button>
         ) : (
           <>
-            <Button variant="primary" size="lg" onFeature disabled={pending} onClick={() => respond("in")} className="flex-[2]">
-              I&apos;m in
+            <Button variant="primary" size="lg" onFeature disabled={pending} onClick={() => respond(mode.yesAction)} className="flex-[2]">
+              {mode.yesLabel}
             </Button>
-            <Button variant="destructiveQuiet" size="lg" onFeature disabled={pending} onClick={() => respond("out")} className="flex-1">
+            <Button variant="destructiveQuiet" size="lg" onFeature disabled={pending} onClick={() => respond(mode.noAction)} className="flex-1">
               Can&apos;t
             </Button>
           </>

@@ -205,6 +205,14 @@ export interface ProfileGlassView {
 export interface LedgerEntryView {
   id: string;
   matchId: string;
+  /**
+   * Whether THIS player's team won the match — derived from the match's
+   * score (computeWinner), NEVER from the delta's sign. The engine round2s
+   * deltas, so a fully Echo-damped narrow loss legitimately lands as 0.00
+   * and a sign check paints it as a win (staging QA5 finding 1). Every
+   * surface classifying W/L must read this field.
+   */
+  won: boolean;
   delta: number;
   ratingBefore: number | null;
   ratingAfter: number;
@@ -1156,30 +1164,38 @@ export function createMatchesStoreFromClient(client: CuatroClient): MatchesStore
 
     async getLedger(userId) {
       const rows = await db
-        .select({ event: ratingEvents, matchOutcome: matches.outcome })
+        .select({ event: ratingEvents, match: matches })
         .from(ratingEvents)
         .innerJoin(matches, eq(ratingEvents.matchId, matches.id))
         .where(eq(ratingEvents.userId, userId))
         .orderBy(desc(ratingEvents.createdAt));
-      return rows.map(({ event: r, matchOutcome }) => ({
-        id: r.id,
-        matchId: r.matchId,
-        delta: r.delta,
-        ratingBefore: r.ratingBefore,
-        ratingAfter: r.ratingAfter,
-        confidenceBeforePct: Math.round(r.confidenceBefore * 100),
-        confidenceAfterPct: Math.round(r.confidenceAfter * 100),
-        factors: {
-          expectedWin: r.factors.expectedWin,
-          marginMultiplier: r.factors.marginMultiplier,
-          echoDampingMultiplier: r.factors.echoDampingMultiplier,
-          kFactor: r.factors.kFactor,
-          isFirstMeeting: r.factors.isFirstMeeting,
-        },
-        explanation: r.explanation,
-        createdAt: new Date(r.createdAt),
-        outcome: matchOutcome,
-      }));
+      return rows.map(({ event: r, match }) => {
+        // W/L from the MATCH WINNER (see LedgerEntryView.won). Guest merges
+        // rewrite the match's team ids to the resolved user (server/guest.ts),
+        // so teamOf resolves for merged-in events too; the delta-sign fallback
+        // is defensive only and can't fire for rows written by this store.
+        const team = teamOf(match, userId);
+        return {
+          id: r.id,
+          matchId: r.matchId,
+          won: team ? computeWinner(match.score) === team : r.delta >= 0,
+          delta: r.delta,
+          ratingBefore: r.ratingBefore,
+          ratingAfter: r.ratingAfter,
+          confidenceBeforePct: Math.round(r.confidenceBefore * 100),
+          confidenceAfterPct: Math.round(r.confidenceAfter * 100),
+          factors: {
+            expectedWin: r.factors.expectedWin,
+            marginMultiplier: r.factors.marginMultiplier,
+            echoDampingMultiplier: r.factors.echoDampingMultiplier,
+            kFactor: r.factors.kFactor,
+            isFirstMeeting: r.factors.isFirstMeeting,
+          },
+          explanation: r.explanation,
+          createdAt: new Date(r.createdAt),
+          outcome: match.outcome,
+        };
+      });
     },
 
     async getMatchHistorySummary(userId) {

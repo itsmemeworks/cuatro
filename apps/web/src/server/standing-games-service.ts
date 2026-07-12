@@ -144,13 +144,21 @@ function validateWeekdayAndTime(weekday: number, startTime: string): string | nu
   return null;
 }
 
-/** A pasted booking URL, normalised: trimmed, "" -> null, must parse as http(s) (a pasted "playtomic.com/…" without a scheme is not something we can safely link out to). */
+/**
+ * A pasted booking URL, normalised: trimmed, "" -> null, must parse as http(s)
+ * (a pasted "playtomic.com/…" without a scheme is not something we can safely
+ * link out to) AND have a dotted hostname — "https://x" parses as a URL but
+ * links a teammate nowhere (QA4), so the host must read like a real one:
+ * non-empty dot-separated labels ("playtomic.io", "192.168.0.1" pass; "x",
+ * "x." don't). Mirrored client-side by the forms' MoneyOptInPicker.
+ */
 export function normalizeBookingUrl(raw: string | null | undefined): { ok: true; url: string | null } | { ok: false } {
   const trimmed = raw?.trim();
   if (!trimmed) return { ok: true, url: null };
   try {
     const parsed = new URL(trimmed);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return { ok: false };
+    if (!/^[^.]+(\.[^.]+)+$/.test(parsed.hostname)) return { ok: false };
     return { ok: true, url: trimmed };
   } catch {
     return { ok: false };
