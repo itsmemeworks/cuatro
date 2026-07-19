@@ -45,11 +45,10 @@ describe("guest conversion landing (QA8 finding 4)", () => {
     expect(source).not.toMatch(/\/login\?next=\$\{encodeURIComponent\("\/home"\)\}/);
   });
 
-  it("the auth callback upgrades a converted guest's generic destination", () => {
-    const source = read("app/auth/callback/route.ts");
-    expect(source).toContain("isGenericConversionDestination(destination)");
-    expect(source).toContain("resolveConvertedGuestLanding");
-  });
+  // The auth-callback guest-conversion-landing test that lived here was
+  // removed 2026-07-19: /auth/callback no longer exchanges/provisions/
+  // converts anything (see test/auth-callback.test.ts) — login and guest
+  // conversion now happen in the native iOS app, not this website.
 });
 
 describe("the Tab's phone surfaces (QA6 sheet + settle copy)", () => {

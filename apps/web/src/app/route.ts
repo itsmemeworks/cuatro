@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { type NextRequest, NextResponse } from "next/server";
-import { transformLandingHtml } from "@/lib/landing";
+import { applyTestflightCta, transformLandingHtml } from "@/lib/landing";
 import { resolveRequestOrigin } from "@/lib/safe-redirect";
 
 /**
@@ -50,7 +50,10 @@ export async function GET(request: NextRequest) {
   const origin = resolveRequestOrigin(request);
   let html = transformedByOrigin.get(origin);
   if (html === undefined) {
-    html = transformLandingHtml(base, origin);
+    // CUATRO_TESTFLIGHT_URL is a process-lifetime constant (a Fly secret,
+    // not per-request), so baking it into the same per-origin cache entry
+    // as the origin rewrite is safe — nothing here varies within a boot.
+    html = applyTestflightCta(transformLandingHtml(base, origin));
     if (transformedByOrigin.size < 8) transformedByOrigin.set(origin, html);
   }
   return new NextResponse(html, {
