@@ -1,8 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { CANONICAL_ORIGIN, transformLandingHtml } from "@/lib/landing";
-import { QrCode, Ecc, qrToPath } from "@/lib/qr/svg";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CANONICAL_ORIGIN, applyTestflightCta, transformLandingHtml } from "@/lib/landing";
 
 const LANDING_PATH = path.join(__dirname, "..", "public", "landing", "index.html");
 
@@ -12,27 +11,49 @@ describe("transformLandingHtml", () => {
     expect(transformLandingHtml(html, CANONICAL_ORIGIN)).toBe(html);
   });
 
-  it("rewrites links, step copy and the QR for a non-canonical origin", async () => {
+  it("rewrites absolute prod links for a non-canonical origin", async () => {
     const html = await readFile(LANDING_PATH, "utf8");
     const origin = "https://cuatro-staging.fly.dev";
     const out = transformLandingHtml(html, origin);
 
     expect(out).not.toContain("padelcuatro.com");
-    expect(out).toContain(`href="${origin}/login?next=/home"`);
     expect(out).toContain(`content="${origin}"`); // og:url
-    expect(out).toContain("Open cuatro-staging.fly.dev/login"); // step copy
-    expect(out).toContain('aria-label="QR code linking to cuatro-staging.fly.dev/login"');
-
-    // The QR path must be exactly what the vendored encoder produces for
-    // this origin's login URL, not the canonical symbol.
-    const expected = qrToPath(QrCode.encodeText(`${origin}/login`, Ecc.MEDIUM, -1), 4);
-    expect(out).toContain(`<path d="${expected}"`);
-    expect(html).not.toContain(`<path d="${expected}"`);
   });
 
-  it("keeps the asset paths canonical (only origins are rewritten)", async () => {
+  it("keeps the asset paths canonical (only the origin is rewritten)", async () => {
     const html = await readFile(LANDING_PATH, "utf8");
     const out = transformLandingHtml(html, "http://localhost:3000");
     expect(out).toContain('"/landing/img/');
+  });
+});
+
+describe("applyTestflightCta", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("resolves both CTA markers to a private-beta note when no TestFlight URL is configured", () => {
+    vi.stubEnv("CUATRO_TESTFLIGHT_URL", "");
+    const out = applyTestflightCta("<!--TESTFLIGHT_CTA--> and <!--TESTFLIGHT_CTA-->");
+    expect(out).not.toContain("TESTFLIGHT_CTA");
+    expect(out.match(/private beta opening soon/g)).toHaveLength(2);
+  });
+
+  it("resolves both markers to a real link when CUATRO_TESTFLIGHT_URL is set", () => {
+    vi.stubEnv("CUATRO_TESTFLIGHT_URL", "https://testflight.apple.com/join/abc123");
+    const out = applyTestflightCta("<!--TESTFLIGHT_CTA--> and <!--TESTFLIGHT_CTA-->");
+    expect(out).not.toContain("TESTFLIGHT_CTA");
+    expect(out.match(/href="https:\/\/testflight\.apple\.com\/join\/abc123"/g)).toHaveLength(2);
+    expect(out).toContain("Get the TestFlight beta");
+  });
+
+  it("escapes a quote in the URL so it can't break out of the href attribute", () => {
+    vi.stubEnv("CUATRO_TESTFLIGHT_URL", 'https://example.com/"><script>alert(1)</script>');
+    const out = applyTestflightCta("<!--TESTFLIGHT_CTA-->");
+    // The dangerous raw `">` sequence (which would close the attribute then
+    // open a real tag) must never appear; the quote is escaped to &quot;
+    // instead, so the whole payload stays inert inside the href string.
+    expect(out).not.toContain('"><script>');
+    expect(out).toContain("&quot;&gt;");
   });
 });

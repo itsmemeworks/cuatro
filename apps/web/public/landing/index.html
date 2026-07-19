@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CUATRO · the app your padel four runs on</title>
-<meta name="description" content="CUATRO is the app your padel four runs on. When you're one short, it finds your fourth. A transparent rating, your group's home, and no fees, ads or dark patterns. Built by padel players, for padel players.">
+<title>CUATRO · the social layer for padel</title>
+<meta name="description" content="CUATRO is the social layer for padel. Organise games, find a fourth, build Circles, record trusted results and watch your Glass level develop. Private iOS beta, starting in Newcastle upon Tyne at Padel Up and Project Padel.">
 <meta name="theme-color" content="#131210">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23FF5C3D'/%3E%3Ctext x='50' y='50' font-family='Archivo,Arial,sans-serif' font-weight='900' font-size='62' fill='%23fff' text-anchor='middle' dominant-baseline='central'%3E4%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="/landing/img/app-icon.png">
+<link rel="apple-touch-icon" href="/landing/img/app-icon.png">
 <meta property="og:type" content="website">
-<meta property="og:title" content="CUATRO · the app your padel four runs on">
-<meta property="og:description" content="When you're one short, it finds your fourth. A rating you can read, your group's home, no fees or dark patterns.">
+<meta property="og:title" content="CUATRO · the social layer for padel">
+<meta property="og:description" content="Organise games, find a fourth, build Circles, record trusted results and watch your Glass level develop. Private iOS beta, starting in Newcastle upon Tyne.">
 <meta property="og:url" content="https://padelcuatro.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -385,7 +386,8 @@
     max-width: 280px; margin-inline: auto;
   }
   .qr-card svg { width: 200px; height: 200px; }
-  .qr-card .cap { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: #4a463f; }
+  .qr-card .cap { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: #4a463f; text-align: center; }
+  .qr-card .mark { width: 84px; height: 84px; border-radius: 22px; display: block; object-fit: cover; }
   .install-cta { margin-top: 28px; }
 
   /* ---- footer ---- */
@@ -419,7 +421,7 @@
       <a href="#why">Why</a>
       <a href="#problems">The other apps</a>
       <a href="#features">Features</a>
-      <a href="#install">Install</a>
+      <a href="#beta">Beta</a>
     </nav>
   </div>
 </header>
@@ -433,12 +435,11 @@
     <div class="wrap">
       <div class="hero-grid">
         <div>
-          <p class="eyebrow">Built by the four, for the four</p>
+          <p class="eyebrow">Newcastle upon Tyne · private iOS beta</p>
           <h1>CUATR<span style="color:var(--action)">O</span></h1>
-          <p class="tagline">The app your padel four runs on. <span class="pop">One short, it finds your fourth. One over, it sorts who sits out.</span></p>
+          <p class="tagline">The social layer for padel. <span class="pop">Organise games, find a fourth, build Circles, record trusted results and watch your Glass level develop.</span></p>
           <div class="hero-cta">
-            <a class="btn btn-coral" href="https://padelcuatro.com/login?next=/home"><span>Open CUATRO</span><span class="arrow" aria-hidden="true">&rarr;</span></a>
-            <span class="trust">free · installs from the browser</span>
+            <!--TESTFLIGHT_CTA-->
           </div>
         </div>
         <div class="fourstack-card" aria-hidden="true">
@@ -685,36 +686,22 @@
   </section>
 
   <!-- INSTALL -->
-  <section class="install" id="install">
+  <section class="install" id="beta">
     <div class="band" aria-hidden="true"></div>
     <div class="wrap">
       <div class="install-grid">
         <div class="reveal">
-          <p class="eyebrow">Get it on your phone</p>
-          <h2 style="font-family:var(--sans);font-weight:800;letter-spacing:-.02em;font-size:clamp(30px,6vw,46px);line-height:1.06;margin-top:12px;">CUATRO installs straight from the browser.</h2>
-          <p class="lede" style="font-size:17px;margin-top:16px;max-width:48ch;"><span class="pop">No app store, no download, no account to get started. Open it once and add it to your home screen.</span></p>
+          <p class="eyebrow">Join the beta</p>
+          <h2 style="font-family:var(--sans);font-weight:800;letter-spacing:-.02em;font-size:clamp(30px,6vw,46px);line-height:1.06;margin-top:12px;">CUATRO is a private iOS beta right now.</h2>
+          <p class="lede" style="font-size:17px;margin-top:16px;max-width:48ch;"><span class="pop">Starting in Newcastle upon Tyne, at Padel Up and Project Padel. More courts and more cities as the beta grows.</span></p>
           <div class="install-cta">
-            <a class="btn btn-coral" href="https://padelcuatro.com/login?next=/home"><span>Open CUATRO</span><span class="arrow" aria-hidden="true">&rarr;</span></a>
-          </div>
-          <div class="steps">
-            <div class="step-col">
-              <div class="os">iPhone · Safari</div>
-              <div class="step"><span class="n">1</span><span class="t">Open padelcuatro.com/login</span></div>
-              <div class="step"><span class="n">2</span><span class="t">Tap Share</span></div>
-              <div class="step"><span class="n">3</span><span class="t">Tap Add to Home Screen</span></div>
-            </div>
-            <div class="step-col">
-              <div class="os">Android · Chrome</div>
-              <div class="step"><span class="n">1</span><span class="t">Open padelcuatro.com/login</span></div>
-              <div class="step"><span class="n">2</span><span class="t">Tap the browser menu</span></div>
-              <div class="step"><span class="n">3</span><span class="t">Tap Install app</span></div>
-            </div>
+            <!--TESTFLIGHT_CTA-->
           </div>
         </div>
         <div class="reveal">
           <div class="qr-card">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 37 37" stroke="none" role="img" aria-label="QR code linking to padelcuatro.com/login"><rect width="100%" height="100%" fill="#ffffff"/><path d="M4,4h1v1h-1zM5,4h1v1h-1zM6,4h1v1h-1zM7,4h1v1h-1zM8,4h1v1h-1zM9,4h1v1h-1zM10,4h1v1h-1zM13,4h1v1h-1zM15,4h1v1h-1zM18,4h1v1h-1zM21,4h1v1h-1zM22,4h1v1h-1zM23,4h1v1h-1zM26,4h1v1h-1zM27,4h1v1h-1zM28,4h1v1h-1zM29,4h1v1h-1zM30,4h1v1h-1zM31,4h1v1h-1zM32,4h1v1h-1zM4,5h1v1h-1zM10,5h1v1h-1zM12,5h1v1h-1zM13,5h1v1h-1zM15,5h1v1h-1zM17,5h1v1h-1zM21,5h1v1h-1zM22,5h1v1h-1zM23,5h1v1h-1zM24,5h1v1h-1zM26,5h1v1h-1zM32,5h1v1h-1zM4,6h1v1h-1zM6,6h1v1h-1zM7,6h1v1h-1zM8,6h1v1h-1zM10,6h1v1h-1zM14,6h1v1h-1zM19,6h1v1h-1zM23,6h1v1h-1zM26,6h1v1h-1zM28,6h1v1h-1zM29,6h1v1h-1zM30,6h1v1h-1zM32,6h1v1h-1zM4,7h1v1h-1zM6,7h1v1h-1zM7,7h1v1h-1zM8,7h1v1h-1zM10,7h1v1h-1zM13,7h1v1h-1zM17,7h1v1h-1zM20,7h1v1h-1zM26,7h1v1h-1zM28,7h1v1h-1zM29,7h1v1h-1zM30,7h1v1h-1zM32,7h1v1h-1zM4,8h1v1h-1zM6,8h1v1h-1zM7,8h1v1h-1zM8,8h1v1h-1zM10,8h1v1h-1zM12,8h1v1h-1zM13,8h1v1h-1zM14,8h1v1h-1zM16,8h1v1h-1zM17,8h1v1h-1zM20,8h1v1h-1zM21,8h1v1h-1zM22,8h1v1h-1zM23,8h1v1h-1zM26,8h1v1h-1zM28,8h1v1h-1zM29,8h1v1h-1zM30,8h1v1h-1zM32,8h1v1h-1zM4,9h1v1h-1zM10,9h1v1h-1zM14,9h1v1h-1zM16,9h1v1h-1zM18,9h1v1h-1zM19,9h1v1h-1zM20,9h1v1h-1zM22,9h1v1h-1zM23,9h1v1h-1zM24,9h1v1h-1zM26,9h1v1h-1zM32,9h1v1h-1zM4,10h1v1h-1zM5,10h1v1h-1zM6,10h1v1h-1zM7,10h1v1h-1zM8,10h1v1h-1zM9,10h1v1h-1zM10,10h1v1h-1zM12,10h1v1h-1zM14,10h1v1h-1zM16,10h1v1h-1zM18,10h1v1h-1zM20,10h1v1h-1zM22,10h1v1h-1zM24,10h1v1h-1zM26,10h1v1h-1zM27,10h1v1h-1zM28,10h1v1h-1zM29,10h1v1h-1zM30,10h1v1h-1zM31,10h1v1h-1zM32,10h1v1h-1zM13,11h1v1h-1zM14,11h1v1h-1zM15,11h1v1h-1zM19,11h1v1h-1zM21,11h1v1h-1zM22,11h1v1h-1zM4,12h1v1h-1zM6,12h1v1h-1zM8,12h1v1h-1zM10,12h1v1h-1zM13,12h1v1h-1zM14,12h1v1h-1zM15,12h1v1h-1zM16,12h1v1h-1zM20,12h1v1h-1zM21,12h1v1h-1zM24,12h1v1h-1zM28,12h1v1h-1zM31,12h1v1h-1zM6,13h1v1h-1zM7,13h1v1h-1zM8,13h1v1h-1zM13,13h1v1h-1zM15,13h1v1h-1zM16,13h1v1h-1zM17,13h1v1h-1zM19,13h1v1h-1zM20,13h1v1h-1zM24,13h1v1h-1zM25,13h1v1h-1zM26,13h1v1h-1zM29,13h1v1h-1zM32,13h1v1h-1zM4,14h1v1h-1zM6,14h1v1h-1zM10,14h1v1h-1zM11,14h1v1h-1zM16,14h1v1h-1zM18,14h1v1h-1zM19,14h1v1h-1zM20,14h1v1h-1zM24,14h1v1h-1zM25,14h1v1h-1zM27,14h1v1h-1zM28,14h1v1h-1zM30,14h1v1h-1zM31,14h1v1h-1zM32,14h1v1h-1zM4,15h1v1h-1zM5,15h1v1h-1zM6,15h1v1h-1zM8,15h1v1h-1zM12,15h1v1h-1zM13,15h1v1h-1zM14,15h1v1h-1zM17,15h1v1h-1zM18,15h1v1h-1zM20,15h1v1h-1zM21,15h1v1h-1zM24,15h1v1h-1zM25,15h1v1h-1zM31,15h1v1h-1zM4,16h1v1h-1zM5,16h1v1h-1zM8,16h1v1h-1zM9,16h1v1h-1zM10,16h1v1h-1zM13,16h1v1h-1zM14,16h1v1h-1zM15,16h1v1h-1zM18,16h1v1h-1zM19,16h1v1h-1zM21,16h1v1h-1zM23,16h1v1h-1zM24,16h1v1h-1zM25,16h1v1h-1zM26,16h1v1h-1zM29,16h1v1h-1zM31,16h1v1h-1zM32,16h1v1h-1zM4,17h1v1h-1zM6,17h1v1h-1zM8,17h1v1h-1zM12,17h1v1h-1zM14,17h1v1h-1zM16,17h1v1h-1zM18,17h1v1h-1zM19,17h1v1h-1zM25,17h1v1h-1zM26,17h1v1h-1zM29,17h1v1h-1zM32,17h1v1h-1zM4,18h1v1h-1zM6,18h1v1h-1zM9,18h1v1h-1zM10,18h1v1h-1zM11,18h1v1h-1zM12,18h1v1h-1zM13,18h1v1h-1zM14,18h1v1h-1zM16,18h1v1h-1zM17,18h1v1h-1zM21,18h1v1h-1zM26,18h1v1h-1zM28,18h1v1h-1zM29,18h1v1h-1zM31,18h1v1h-1zM32,18h1v1h-1zM4,19h1v1h-1zM8,19h1v1h-1zM9,19h1v1h-1zM11,19h1v1h-1zM19,19h1v1h-1zM21,19h1v1h-1zM22,19h1v1h-1zM24,19h1v1h-1zM26,19h1v1h-1zM29,19h1v1h-1zM31,19h1v1h-1zM5,20h1v1h-1zM6,20h1v1h-1zM8,20h1v1h-1zM10,20h1v1h-1zM11,20h1v1h-1zM14,20h1v1h-1zM16,20h1v1h-1zM20,20h1v1h-1zM21,20h1v1h-1zM23,20h1v1h-1zM24,20h1v1h-1zM25,20h1v1h-1zM26,20h1v1h-1zM29,20h1v1h-1zM31,20h1v1h-1zM32,20h1v1h-1zM5,21h1v1h-1zM6,21h1v1h-1zM8,21h1v1h-1zM9,21h1v1h-1zM11,21h1v1h-1zM12,21h1v1h-1zM14,21h1v1h-1zM15,21h1v1h-1zM17,21h1v1h-1zM19,21h1v1h-1zM20,21h1v1h-1zM21,21h1v1h-1zM24,21h1v1h-1zM26,21h1v1h-1zM29,21h1v1h-1zM30,21h1v1h-1zM32,21h1v1h-1zM4,22h1v1h-1zM6,22h1v1h-1zM7,22h1v1h-1zM10,22h1v1h-1zM16,22h1v1h-1zM18,22h1v1h-1zM19,22h1v1h-1zM20,22h1v1h-1zM21,22h1v1h-1zM24,22h1v1h-1zM25,22h1v1h-1zM26,22h1v1h-1zM27,22h1v1h-1zM28,22h1v1h-1zM31,22h1v1h-1zM32,22h1v1h-1zM5,23h1v1h-1zM9,23h1v1h-1zM11,23h1v1h-1zM13,23h1v1h-1zM14,23h1v1h-1zM16,23h1v1h-1zM17,23h1v1h-1zM18,23h1v1h-1zM20,23h1v1h-1zM21,23h1v1h-1zM22,23h1v1h-1zM27,23h1v1h-1zM29,23h1v1h-1zM31,23h1v1h-1zM4,24h1v1h-1zM6,24h1v1h-1zM7,24h1v1h-1zM8,24h1v1h-1zM9,24h1v1h-1zM10,24h1v1h-1zM11,24h1v1h-1zM12,24h1v1h-1zM15,24h1v1h-1zM18,24h1v1h-1zM19,24h1v1h-1zM21,24h1v1h-1zM24,24h1v1h-1zM25,24h1v1h-1zM26,24h1v1h-1zM27,24h1v1h-1zM28,24h1v1h-1zM12,25h1v1h-1zM13,25h1v1h-1zM15,25h1v1h-1zM16,25h1v1h-1zM18,25h1v1h-1zM19,25h1v1h-1zM24,25h1v1h-1zM28,25h1v1h-1zM30,25h1v1h-1zM31,25h1v1h-1zM32,25h1v1h-1zM4,26h1v1h-1zM5,26h1v1h-1zM6,26h1v1h-1zM7,26h1v1h-1zM8,26h1v1h-1zM9,26h1v1h-1zM10,26h1v1h-1zM14,26h1v1h-1zM15,26h1v1h-1zM17,26h1v1h-1zM22,26h1v1h-1zM23,26h1v1h-1zM24,26h1v1h-1zM26,26h1v1h-1zM28,26h1v1h-1zM29,26h1v1h-1zM31,26h1v1h-1zM32,26h1v1h-1zM4,27h1v1h-1zM10,27h1v1h-1zM16,27h1v1h-1zM19,27h1v1h-1zM21,27h1v1h-1zM22,27h1v1h-1zM24,27h1v1h-1zM28,27h1v1h-1zM29,27h1v1h-1zM4,28h1v1h-1zM6,28h1v1h-1zM7,28h1v1h-1zM8,28h1v1h-1zM10,28h1v1h-1zM12,28h1v1h-1zM16,28h1v1h-1zM20,28h1v1h-1zM21,28h1v1h-1zM24,28h1v1h-1zM25,28h1v1h-1zM26,28h1v1h-1zM27,28h1v1h-1zM28,28h1v1h-1zM31,28h1v1h-1zM4,29h1v1h-1zM6,29h1v1h-1zM7,29h1v1h-1zM8,29h1v1h-1zM10,29h1v1h-1zM15,29h1v1h-1zM16,29h1v1h-1zM19,29h1v1h-1zM20,29h1v1h-1zM23,29h1v1h-1zM27,29h1v1h-1zM28,29h1v1h-1zM30,29h1v1h-1zM4,30h1v1h-1zM6,30h1v1h-1zM7,30h1v1h-1zM8,30h1v1h-1zM10,30h1v1h-1zM12,30h1v1h-1zM13,30h1v1h-1zM16,30h1v1h-1zM17,30h1v1h-1zM18,30h1v1h-1zM19,30h1v1h-1zM20,30h1v1h-1zM21,30h1v1h-1zM23,30h1v1h-1zM24,30h1v1h-1zM27,30h1v1h-1zM28,30h1v1h-1zM29,30h1v1h-1zM32,30h1v1h-1zM4,31h1v1h-1zM10,31h1v1h-1zM14,31h1v1h-1zM15,31h1v1h-1zM16,31h1v1h-1zM17,31h1v1h-1zM20,31h1v1h-1zM21,31h1v1h-1zM24,31h1v1h-1zM25,31h1v1h-1zM27,31h1v1h-1zM31,31h1v1h-1zM4,32h1v1h-1zM5,32h1v1h-1zM6,32h1v1h-1zM7,32h1v1h-1zM8,32h1v1h-1zM9,32h1v1h-1zM10,32h1v1h-1zM12,32h1v1h-1zM13,32h1v1h-1zM14,32h1v1h-1zM15,32h1v1h-1zM16,32h1v1h-1zM18,32h1v1h-1zM19,32h1v1h-1zM20,32h1v1h-1zM22,32h1v1h-1zM23,32h1v1h-1zM24,32h1v1h-1zM25,32h1v1h-1zM26,32h1v1h-1zM28,32h1v1h-1zM29,32h1v1h-1zM31,32h1v1h-1zM32,32h1v1h-1z" fill="#131210"/></svg>
-            <span class="cap">scan to open the app</span>
+            <img class="mark" src="/landing/img/app-icon.png" width="84" height="84" alt="" aria-hidden="true">
+            <span class="cap">Newcastle upon Tyne · Padel Up · Project Padel</span>
           </div>
         </div>
       </div>
