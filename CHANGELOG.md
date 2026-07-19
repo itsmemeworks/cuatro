@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/itsmemeworks/cuatro/compare/v1.6.1...v1.7.0) (2026-07-19)
+
+
+### Features
+
+* iOS native-app web support contract for padelcuatro.com ([3261cbf](https://github.com/itsmemeworks/cuatro/commit/3261cbf1087bc1f5b4c2befa1ea02f9cdbea8984))
+* opaque share-link page at /s/[token] ([8ff2569](https://github.com/itsmemeworks/cuatro/commit/8ff256912ad2b01573ecb8ada3767d902efd9e70))
+
 ## [1.6.1](https://github.com/itsmemeworks/cuatro/compare/v1.6.0...v1.6.1) (2026-07-12)
 
 
